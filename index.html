@@ -43,7 +43,7 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
     </aside>
     <main class="main">
       <section class="player" id="playerBox">
-        <video id="video" playsinline webkit-playsinline preload="metadata" crossorigin="anonymous"></video><span id="miniTitle" hidden></span><span id="miniMeta" hidden></span>
+        <video id="video" playsinline webkit-playsinline preload="auto" crossorigin="anonymous" muted="muted"></video><span id="miniTitle" hidden></span><span id="miniMeta" hidden></span>
         <div class="player-overlay" id="overlay"><div class="state"><img id="stateThumb" class="state-thumb hidden" src="" alt=""><strong id="stateTitle">Choose a channel</strong><p id="stateText">Login, pick Live, Movies, or Series, then tap play.</p><div id="stateProgress" class="state-progress hidden"><div class="progress-bar"></div></div></div></div>
         <div class="playerbar" id="playerbar">
           <button class="round" id="playBtn" title="Play / Pause">▶</button>
@@ -168,25 +168,19 @@ async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))
 async function playItemPreview(x){setCurrentItem(x);$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
 function forceMobileSmoothLevel(hls){
-  /* ExoPlayer ABR: TV gets full ABR, desktop gets ABR, mobile pins to a safe level */
-  const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
+  /* v3: FULL ABR on every device — no more 720p pin blocking 4K on mobile.
+     capLevelToPlayerSize (set in config) already prevents wasting bandwidth on
+     resolutions the screen can't show; in fullscreen the cap lifts automatically
+     and ABR climbs to the top level (including 4K) if bandwidth allows.
+     Start one level below the current estimate for instant startup, then let ABR climb. */
   if(!hls||!Array.isArray(hls.levels)||!hls.levels.length)return;
-  /* TV and desktop: let ABR decide (-1) */
-  if(isTv||!mobile()){hls.currentLevel=-1;return}
-  /* Mobile: pin to ≤720p for smooth playback — exactly ExoPlayer's DefaultTrackSelector cap */
-  let best=-1,bestH=99999;
-  hls.levels.forEach((l,i)=>{const h=l.height||0;if(h&&h<=720&&h<bestH){best=i;bestH=h}});
-  /* Fallback: no height metadata — pick lowest bitrate level */
-  if(best<0){
-    let minBw=Infinity;
-    hls.levels.forEach((l,i)=>{if((l.bitrate||0)<minBw){minBw=l.bitrate||0;best=i}});
-  }
-  if(best>=0){hls.currentLevel=best;hls.loadLevel=best;hls.nextLevel=best;}
-}
-function liveBaseName(n){return String(n||'').toLowerCase().replace(/\b(4k|uhd|fhd|full\s*hd|1080p|720p|hd|sd|hq|hevc|h265|h\.265)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim()}
+  hls.currentLevel=-1;
+  hls.loadLevel=-1;
+  hls.nextLevel=-1;
+}function liveBaseName(n){return String(n||'').toLowerCase().replace(/\b(4k|uhd|fhd|full\s*hd|1080p|720p|hd|sd|hq|hevc|h265|h\.265)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim()}
 function liveQualityRank(n){n=String(n||'').toLowerCase();if(/\b(sd|480p|576p)\b/.test(n))return 1;if(/\b(hd|720p)\b/.test(n))return 2;if(/\b(fhd|1080p|full\s*hd)\b/.test(n))return 3;if(/\b(4k|uhd)\b/.test(n))return 4;return 2}
 function liveAlternative(ch){if(typeOf(ch)!=='live')return null;const base=liveBaseName(nameOf(ch));if(!base)return null;const cat=String(ch.category_id||'');const currentKey=keyOf(ch);const tried=S.altTried||(S.altTried=new Set());return S.live.filter(x=>keyOf(x)!==currentKey&&!tried.has(keyOf(x))&&String(x.category_id||'')===cat&&liveBaseName(nameOf(x))===base).sort((a,b)=>liveQualityRank(a.name)-liveQualityRank(b.name))[0]||null}
-function smoothLiveStart(ch){if(!mobile()||typeOf(ch)!=='live')return ch;const base=liveBaseName(nameOf(ch)),cat=String(ch.category_id||'');const low=S.live.filter(x=>String(x.category_id||'')===cat&&liveBaseName(nameOf(x))===base&&liveQualityRank(nameOf(x))<=2).sort((a,b)=>liveQualityRank(a.name)-liveQualityRank(b.name))[0];return low||ch}
+function smoothLiveStart(ch){/* v3: play EXACTLY the channel the user tapped — no silent SD/HD downgrade on mobile. If a 4K channel struggles, the existing liveAlternative() fallback still kicks in automatically after real failures. */return ch}
 async function tryLiveAlternative(msg){const alt=S.current&&liveAlternative(S.current);if(!alt)return false;S.altTried.add(keyOf(alt));toast('Trying '+nameOf(alt));await playItem(alt,true);return true}
 function plan(x){
   const type=typeOf(x),orig=String(x.container_extension||'').replace(/^\./,'').toLowerCase(),p=[];
@@ -320,9 +314,9 @@ async function tryPlans(plans,i){
   const isAndroidDev=/android/i.test(navigator.userAgent||'');
   const isMobDev=mobile();
   /* Generous timeouts — IPTV servers are slow; don't bail too early */
-  const stallMs=transcoded?14000:(isTv?6000:(isMobDev?10000:8000));
-  const waitMs =transcoded?15000:(isTv?7000:(isMobDev?12000:9000));
-  const startTimeout=transcoded?(isMobDev?35000:42000):(isTv?12000:(isMobDev?18000:20000));
+  const stallMs=transcoded?18000:(isTv?9000:(isMobDev?14000:12000));
+  const waitMs =transcoded?20000:(isTv?10000:(isMobDev?16000:14000));
+  const startTimeout=transcoded?(isMobDev?45000:55000):(isTv?16000:(isMobDev?24000:28000));
   v.onerror=()=>{if(token===S.seq){started?switchIfStuck():nextPlan()}};
   /* onstalled: only react if truly started; iOS fires suspend routinely during normal load */
   v.onstalled=()=>{
@@ -370,45 +364,48 @@ async function tryPlans(plans,i){
       v.src=p.url;v.load();startVideo(token);
     }else if(p.kind==='hls'){
       if(window.Hls&&Hls.isSupported()){
-        /* ExoPlayer-grade HLS config: anti-loop and anti-lag */
+        /* HLS config v3: right-sized buffers.
+           LIVE: 45s buffer — enough to survive network hiccups, small enough to avoid
+           memory pressure (QuotaExceededError on phones with 4K streams = stutter).
+           VOD: 120s buffer for uninterrupted movies.
+           Live sync: 3-fragment style target (~10s behind edge), hls.js manages it alone. */
         const hlsCfg={
           enableWorker:true,
           lowLatencyMode:false,
           capLevelToPlayerSize:true,
           startLevel:-1,
-          /* ABR bandwidth seed */
-          abrEwmaDefaultEstimate:isTv?5000000:2800000,
-          abrEwmaSlowFactor:6,abrEwmaFastFactor:3,
-          /* Buffer: Generous limits to prevent lagging and starvation */
-          maxBufferLength:isTv?90:60,
-          maxMaxBufferLength:isTv?120:90,
-          backBufferLength:live?0:(isTv?30:24),
-          maxBufferHole:1,
-          maxFragLookUpTolerance:0.25,
-          /* FIX: time-based live sync (in seconds) instead of fragment-count — some channels use
-             sub-second micro-segments where a "count" of 7 means only ~4s of tolerance, so the
-             player kept falling off the live edge and hard-seeking (the "loops after a few seconds").
-             A duration target is robust regardless of segment size. */
-          liveSyncDuration:isTv?6:10,
-          liveMaxLatencyDuration:isTv?24:40,
-          /* FIX: allow gentle catch-up (1.5x) when behind live instead of freezing then jumping */
-          maxLiveSyncPlaybackRate:1.5,
-          /* FIX: nudge over the many tiny gaps these streams produce before giving up and reloading */
-          nudgeMaxRetry:8,nudgeOffset:0.2,highBufferWatchdogPeriod:3,
-          /* Retry policy: relaxed to prevent infinite loops */
-          manifestLoadingMaxRetry:transcoded?6:(isTv?5:4),
-          levelLoadingMaxRetry:transcoded?6:(isTv?5:4),
-          fragLoadingMaxRetry:transcoded?8:(isTv?7:6),
-          manifestLoadingRetryDelay:1000,levelLoadingRetryDelay:1000,fragLoadingRetryDelay:1000,
-          manifestLoadingTimeOut:transcoded?20000:(isTv?14000:10000),
-          levelLoadingTimeOut:transcoded?20000:(isTv?16000:12000),
-          fragLoadingTimeOut:transcoded?24000:(isTv?18000:16000),
+          /* ABR bandwidth seed — higher default so 4K levels are reachable quickly */
+          abrEwmaDefaultEstimate:isTv?6000000:4000000,
+          abrEwmaSlowFactor:8,abrEwmaFastFactor:2,
+          /* Buffer: live kept lean, VOD kept deep */
+          maxBufferLength:live?45:(isTv?150:120),
+          maxMaxBufferLength:live?60:(isTv?200:180),
+          maxBufferSize:60*1000*1000,
+          backBufferLength:live?10:(isTv?60:48),
+          maxBufferHole:0.5,
+          maxFragLookUpTolerance:0.5,
+          /* Live sync: sit ~10s behind edge, tolerate up to 30s before catch-up */
+          liveSyncDuration:10,
+          liveMaxLatencyDuration:30,
+          liveDurationInfinity:true,
+          /* Gentle catch-up instead of hard seek */
+          maxLiveSyncPlaybackRate:1.1,
+          /* Gap handling for sloppy IPTV muxes */
+          nudgeMaxRetry:12,nudgeOffset:0.3,highBufferWatchdogPeriod:3,
+          /* Retry policy */
+          manifestLoadingMaxRetry:transcoded?8:(isTv?7:6),
+          levelLoadingMaxRetry:transcoded?8:(isTv?7:6),
+          fragLoadingMaxRetry:transcoded?12:(isTv?10:9),
+          manifestLoadingRetryDelay:1500,levelLoadingRetryDelay:1500,fragLoadingRetryDelay:1500,
+          manifestLoadingTimeOut:transcoded?28000:(isTv?18000:14000),
+          levelLoadingTimeOut:transcoded?28000:(isTv?20000:16000),
+          fragLoadingTimeOut:transcoded?32000:(isTv?22000:20000),
           /* Codec/format safety */
           enableSoftwareAES:true,
           progressive:false,
           /* Auto level switching speed */
-          abrBandWidthFactor:0.95,
-          abrBandWidthUpFactor:0.7,
+          abrBandWidthFactor:0.92,
+          abrBandWidthUpFactor:0.65,
         };
         S.hls=new Hls(hlsCfg);
         S.hls.loadSource(p.url);
@@ -444,13 +441,13 @@ async function tryPlans(plans,i){
         {
           enableWorker:!(mobile()||isTv),
           enableStashBuffer:true,
-          stashInitialSize:isTv?2*1024*1024:1024*1024,
+          stashInitialSize:isTv?4*1024*1024:2*1024*1024,
           lazyLoad:false,
           autoCleanupSourceBuffer:true,
-          autoCleanupMaxBackwardDuration:tsLive?18:90,
-          autoCleanupMinBackwardDuration:tsLive?6:28,
+          autoCleanupMaxBackwardDuration:tsLive?32:120,
+          autoCleanupMinBackwardDuration:tsLive?12:48,
           fixAudioTimestampGap:true,
-          /* Disabled latency chasing to prevent skipping/lagging on mobile */
+          isLive:tsLive,
           liveBufferLatencyChasing:false,
         }
       );
@@ -541,10 +538,12 @@ async function pip(){const v=$('video');try{if(document.pictureInPictureElement)
 function fs(){const box=$('playerBox'),v=$('video');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});else if(box.requestFullscreen)box.requestFullscreen().catch(()=>{});else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
 $('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(30);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}localStorage.setItem(TRANSCODER_KEY,base);localStorage.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;localStorage.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{localStorage.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;v.muted=false;if(v.paused)v.play().then(()=>{$('overlay').style.display='none';$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing'}).catch(()=>{});else{$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing';toast('Sound on')}};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').textContent=v.muted?'🔇':'🔊'};if($('fsBtn'))$('fsBtn').onclick=fs;let _barTimer=null;const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>pb.classList.remove('showbar'),3200)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.textContent=document.fullscreenElement?'✕':'⛶'});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();if(mobile())$('side').classList.remove('open')});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
-/* FIX: anti-loop guard — when a LIVE stream's timeline resets and playback snaps backward
-   (relay reconnect/discontinuity), jump to the live edge instead of re-watching old content.
-   Conservative: only fires on live, on a >2s backward snap, with a 4s cooldown, and only seeks forward. */
-(function(){var v=$('video');if(!v)return;var lastCt=0,lastSeekAt=0;setInterval(function(){try{if(v.paused){lastCt=v.currentTime||0;return;}var isLive=S&&S.current&&S.current._type==='live';var ct=v.currentTime||0;if(isLive&&ct<lastCt-2&&(Date.now()-lastSeekAt)>4000&&v.buffered.length){var edge=v.buffered.end(v.buffered.length-1),target=edge-3;if(target>ct+1){v.currentTime=target;lastSeekAt=Date.now();if($('netStatus'))$('netStatus').textContent='Skipped to live';}}lastCt=v.currentTime||0;}catch(e){}},700);})();
+/* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
+   The old "buffer full" branch was removed: it fought hls.js's own live-sync controller
+   and caused a forced seek every 3 seconds = constant freeze/stutter/audio cuts.
+   hls.js already manages live-edge position via liveSyncDuration; when hls.js is active
+   we let it do its job and never seek manually. Manual rescue only for native/mpegts. */
+(function(){var v=$('video');if(!v)return;var lastCt=0,lastSeekAt=0;setInterval(function(){try{if(v.paused||v.ended||v.seeking){lastCt=v.currentTime||0;return;}var isLive=S&&S.current&&S.current._type==='live';var ct=v.currentTime||0;var hlsActive=!!S.hls;if(isLive&&!hlsActive&&v.buffered.length>0&&ct<lastCt-3&&(Date.now()-lastSeekAt)>6000){var edge=v.buffered.end(v.buffered.length-1),target=edge-4;if(target>ct+1&&isFinite(target)){v.currentTime=target;lastSeekAt=Date.now();if($('netStatus'))$('netStatus').textContent='Skipped to live';}}lastCt=v.currentTime||0;}catch(e){}},1000);})();
 restore();renderAll();
 </script>
 </body>
