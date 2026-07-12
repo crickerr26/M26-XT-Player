@@ -1,0 +1,49 @@
+{
+  "name": "media26-iptv-player",
+  "version": "65.0.0",
+  "private": true,
+  "description": "Multi-platform native installable app engine for Media26 IPTV",
+  "main": "main.js",
+  "scripts": {
+    "app:build": "npm run clean && mkdir dist && cp index.html hls.min.js mpegts.min.js Logo.png dist/",
+    "clean": "rimraf dist android ios",
+    "desktop:start": "electron .",
+    "desktop:build:win": "electron-builder --win",
+    "desktop:build:mac": "electron-builder --mac",
+    "mobile:init": "cap init \"Media26 IPTV\" \"com.media26.player\" --web-dir=dist",
+    "mobile:add:android": "cap add android",
+    "mobile:add:ios": "cap add ios",
+    "mobile:sync": "npm run app:build && cap sync",
+    "mobile:open:android": "cap open android",
+    "mobile:open:ios": "cap open ios"
+  },
+  "dependencies": {
+    "hls.js": "1.6.13",
+    "mpegts.js": "1.8.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0",
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/ios": "^6.0.0",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.0.0",
+    "rimraf": "^5.0.0"
+  },
+  "build": {
+    "appId": "com.media26.player",
+    "productName": "Media26 IPTV",
+    "files": [
+      "main.js",
+      "dist/**/*"
+    ],
+    "win": {
+      "target": ["nsis", "portable"],
+      "icon": "Logo.png"
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "Logo.png"
+    }
+  }
+}
