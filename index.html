@@ -1,837 +1,745 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Xtream Code Player - STB UI</title>
-    
-    <!-- HLS.js Library for Video Decoding -->
-    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { background: radial-gradient(circle, #00447a 0%, #001a35 100%); color: white; height: 100vh; width: 100vw; overflow: hidden; display: flex; justify-content: center; align-items: center; }
-        
-        /* Make screen responsive instead of fixed 1280x720 */
-        .stb-screen { width: 100%; height: 100%; max-width: 100vw; max-height: 100vh; position: relative; display: flex; flex-direction: column; background: radial-gradient(circle, #00447a 0%, #001a35 100%); box-shadow: 0 0 30px rgba(0,0,0,0.8); }
-        .hidden { display: none !important; }
-
-        /* Force Landscape layout on mobile devices via CSS */
-        @media screen and (max-width: 768px) and (orientation: portrait) {
-            body {
-                transform: rotate(90deg);
-                transform-origin: left top;
-                width: 100vh;
-                height: 100vw;
-                position: absolute;
-                top: 100%;
-                left: 0;
-            }
-            .stb-screen {
-                width: 100vh;
-                height: 100vw;
-                max-width: none;
-                max-height: none;
-            }
-        }
-
-        /* --- TOP BAR --- */
-        .top-bar { padding: 15px 30px; background: rgba(0, 0, 0, 0.4); font-size: 1.2rem; border-bottom: 2px solid rgba(255, 255, 255, 0.1); display: flex; justify-content: space-between; align-items: center; }
-        .top-bar-left { display: flex; align-items: center; gap: 20px; }
-        .top-back-btn { background: #e74c3c; color: white; border: none; padding: 6px 15px; border-radius: 4px; font-size: 1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        .top-back-btn:hover { background: #c0392b; }
-        .portal-title { font-weight: bold; color: #7db9e8; }
-        .time-container { text-align: right; cursor: pointer; user-select: none; transition: color 0.2s; }
-        .time-container:hover { color: #7db9e8; }
-        #current-time { font-size: 1.8rem; font-weight: bold; margin-left: 15px; }
-
-        /* --- SCREEN 1: LOGIN UI --- */
-        .login-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
-        .login-card { background: rgba(0, 20, 40, 0.85); padding: 40px; border-radius: 12px; width: 450px; box-shadow: 0 10px 25px rgba(0,0,0,0.7); border: 1px solid rgba(255,255,255,0.1); text-align: center; }
-        .login-card h2 { margin-bottom: 25px; color: #7db9e8; letter-spacing: 1px; }
-        .input-group { margin-bottom: 20px; text-align: left; }
-        .input-group label { display: block; margin-bottom: 8px; font-size: 0.9rem; color: #ccc; }
-        .input-group input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #1e5799; background: rgba(0, 0, 0, 0.4); color: white; font-size: 1rem; }
-        .input-group input:focus { outline: none; border-color: #7db9e8; box-shadow: 0 0 8px rgba(125, 185, 232, 0.5); }
-        .login-btn { width: 100%; padding: 12px; background: linear-gradient(to bottom, #2989d8 0%, #207cca 100%); border: none; border-radius: 6px; color: white; font-size: 1.1rem; font-weight: bold; cursor: pointer; transition: background 0.2s; }
-        .login-btn:hover { background: linear-gradient(to bottom, #3399ea 0%, #258ee4 100%); }
-        .error-msg { color: #ff4d4d; margin-top: 15px; font-size: 0.9rem; }
-
-        /* --- SCREEN 2: MAIN PORTAL UI --- */
-        .middle-section { display: flex; justify-content: space-between; padding: 40px 50px; flex-grow: 1; }
-        .panel { background: rgba(0, 20, 40, 0.6); border-radius: 8px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05); }
-        .device-info { width: 25%; font-size: 0.9rem; color: #ccc; }
-        .device-info h3 { text-align: center; margin-bottom: 15px; color: white; }
-        .mac-highlight { color: #ffcc00; margin-top: 20px; text-align: center; font-weight: bold; }
-        
-        .menu-list { width: 40%; display: flex; flex-direction: column; align-items: center; }
-        .menu-container { width: 100%; height: 320px; overflow-y: auto; scrollbar-width: none; scroll-behavior: smooth; }
-        .menu-container::-webkit-scrollbar { display: none; }
-        .menu-list ul { list-style: none; width: 100%; }
-        .menu-list li { background: linear-gradient(to bottom, #1e5799 0%,#207cca 100%); margin: 6px 0; padding: 12px 15px; border-radius: 4px; border: 1px solid #000; font-weight: bold; text-align: center; cursor: pointer; transition: transform 0.1s; }
-        .menu-list li:hover { transform: scale(1.02); filter: brightness(1.1); }
-        .menu-list li.active { background: linear-gradient(to bottom, #e2e2e2 0%, #fefefe 100%); color: black; border: 2px solid white; }
-        .arrow { font-size: 1.5rem; margin: 2px 0; color: #7db9e8; cursor: pointer; user-select: none; padding: 5px 20px; }
-        .arrow:hover { color: white; }
-
-        .qr-section { width: 25%; text-align: center; }
-        .qr-placeholder { width: 150px; height: 150px; background: white; color: black; margin: 20px auto; display: flex; justify-content: center; align-items: center; font-weight: bold; font-size: 0.8rem; }
-
-        .bottom-carousel { display: flex; justify-content: space-around; padding: 10px 50px 30px 50px; }
-        .carousel-item { text-align: center; width: 30%; opacity: 0.5; transition: all 0.2s; cursor: pointer; }
-        .carousel-item:hover { opacity: 0.8; }
-        .carousel-item.active-carousel { opacity: 1; transform: scale(1.03); border-bottom: 3px solid #7db9e8; padding-bottom: 5px; }
-        .icon-placeholder { height: 110px; background: rgba(0,0,0,0.4); border-radius: 8px; margin-bottom: 8px; border: 2px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 3rem; }
-
-        /* --- SCREEN 3: CHANNEL PLAYLIST UI --- */
-        .playlist-layout { display: flex; padding: 20px 30px; flex-grow: 1; gap: 20px; }
-        .channel-left { width: 40%; display: flex; flex-direction: column; }
-        .playlist-header { font-size: 1rem; font-weight: bold; color: #7db9e8; margin-bottom: 10px; text-transform: uppercase; }
-        .channel-list-box { background: rgba(0, 20, 40, 0.6); border-radius: 6px; flex-grow: 1; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); }
-        .channel-item { display: flex; padding: 10px 15px; border-bottom: 1px solid rgba(0,0,0,0.3); cursor: pointer; font-weight: 500; align-items: center;}
-        .channel-item:nth-child(even) { background: rgba(255,255,255,0.02); }
-        .channel-num { width: 40px; color: #7db9e8; font-weight: bold; flex-shrink: 0; }
-        .channel-item.active-channel { background: linear-gradient(to bottom, #e2e2e2 0%, #fefefe 100%); color: black; }
-        .channel-item.active-channel .channel-num { color: #00447a; }
-
-        .player-right { width: 60%; display: flex; flex-direction: column; gap: 15px; }
-        .video-container { width: 100%; aspect-ratio: 16/9; background: black; border: 3px solid rgba(255,255,255,0.2); border-radius: 6px; overflow: hidden; position: relative; }
-        video { width: 100%; height: 100%; object-fit: contain; }
-        
-        .color-remote-bar { display: flex; background: rgba(0,0,0,0.5); padding: 12px; justify-content: space-around; border-top: 2px solid rgba(255,255,255,0.1); }
-        .color-btn { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; font-weight: bold; cursor: pointer; padding: 5px 15px; border-radius: 4px; transition: background 0.2s;}
-        .color-btn:hover { background: rgba(255,255,255,0.1); }
-        .dot { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
-        .dot.red { background: red; }
-        .dot.green { background: limegreen; }
-        .dot.yellow { background: #ffcc00; }
-        .dot.blue { background: #2989d8; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Media26 IPTV</title>
+<!-- FIX: load engines locally if present, else fall back to CDN so playback never dies when the local .min.js files are missing -->
+<script src="hls.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js';document.head.appendChild(s);"></script>
+<script src="mpegts.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js';s.onerror=function(){var u=document.createElement('script');u.src='https://unpkg.com/mpegts.js@1.7.3/dist/mpegts.js';document.head.appendChild(u);};document.head.appendChild(s);"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
+body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#607088;--soft:#26384f;--line:rgba(20,32,51,.11);--shadow:0 18px 45px rgba(27,39,62,.12)}
+.app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line)}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}.searchbox{padding:0 10px 10px}.searchbox input,.field input{width:100%;height:44px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:0 13px}.cats{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:0 10px 10px}.cat{width:100%;min-height:42px;border-radius:12px;background:transparent;color:var(--muted);display:flex;justify-content:space-between;align-items:center;text-align:left;padding:9px 11px;margin-bottom:5px}.cat.active{background:rgba(56,189,248,.14);color:var(--ink)}.cat span:last-child{font-size:11px;color:var(--muted)}.main{display:grid;grid-template-rows:minmax(260px,48vh) auto minmax(0,1fr);gap:12px;min-width:0;min-height:0}.player{position:relative;background:#000;border-radius:18px;overflow:hidden;min-height:260px}.player video{width:100%;height:100%;object-fit:contain;background:#000;display:block}.player-overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(3,7,18,.35),rgba(3,7,18,.68));pointer-events:none}.state{text-align:center;max-width:80%;color:#dbeafe;display:flex;flex-direction:column;align-items:center}.state strong{display:block;font-size:20px;margin-bottom:6px}.state p{font-size:13px;color:#aebed2}.state-thumb{width:72px;height:72px;object-fit:cover;border-radius:14px;margin-bottom:12px;background:rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.35);flex-shrink:0}.state-progress{width:160px;height:5px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:16px;overflow:hidden;position:relative}.progress-bar{position:absolute;top:0;left:0;bottom:0;width:40%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;animation:pbar 1.5s infinite ease-in-out}@keyframes pbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}.playerbar{display:flex;position:absolute;left:10px;right:10px;bottom:10px;top:auto;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(5,10,20,.82);backdrop-filter:blur(16px);opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}.player:hover .playerbar,.player.showbar .playerbar{opacity:1;pointer-events:auto}.player:fullscreen .playerbar,.player:-webkit-full-screen .playerbar{opacity:0;pointer-events:none}.player:fullscreen.showbar .playerbar,.player:-webkit-full-screen.showbar .playerbar{opacity:1;pointer-events:auto}.round{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.14);color:white;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px}.round:hover{background:rgba(255,255,255,.26)}.grow{flex:1;min-width:0}.now{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 4px}.now h2{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.now p{font-size:12px;color:var(--muted)}.status{font-size:12px;color:var(--muted);white-space:nowrap}.grid{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:10px;padding:2px}.card{min-height:76px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),var(--panel2));display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:10px;color:var(--ink);text-align:left}.card.active{outline:2px solid var(--blue);background:rgba(56,189,248,.14)}.poster{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}.poster img{width:100%;height:100%;object-fit:cover}.ctitle{font-size:14px;font-weight:850;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.cmeta{font-size:11px;color:var(--muted);margin-top:4px}.star{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.08);color:var(--amber);font-size:18px}.info{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;padding:12px;min-height:0}.hero{border-radius:16px;background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(45,212,191,.13));padding:14px;border:1px solid var(--line)}.hero h3{font-size:20px;margin-bottom:4px}.hero p{font-size:12px;color:var(--muted);line-height:1.4}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border-radius:14px;background:var(--panel2);border:1px solid var(--line);padding:10px;text-align:center}.stat strong{display:block;font-size:18px}.stat span{font-size:10px;color:var(--muted);font-weight:800}.details{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;color:var(--muted);font-size:13px;line-height:1.5;padding-right:4px}.login{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:18px;background:radial-gradient(circle at 15% 14%,rgba(56,189,248,.28),transparent 32%),radial-gradient(circle at 86% 18%,rgba(251,113,133,.18),transparent 28%),linear-gradient(145deg,#f8fbff,#eaf4ff)}.login-card{width:min(430px,100%);background:rgba(255,255,255,.88);color:#132033;border:1px solid rgba(255,255,255,.78);border-radius:22px;box-shadow:0 22px 70px rgba(17,34,58,.18);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:1120px){.layout{grid-template-columns:290px 1fr}.info{display:none}.main{grid-template-rows:minmax(240px,44vh) auto minmax(0,1fr)}}
+@media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:58px}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.playerbar{opacity:1}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
+@media(max-width:760px) and (orientation:landscape) and (max-height:480px){.top{display:none}.layout{padding:0}.main{grid-template-rows:100vh}.now,.grid,.side{display:none}.player{border-radius:0;min-height:100vh}.player video{height:100vh}.playerbar{bottom:calc(10px + env(safe-area-inset-bottom));top:auto}.player .playerbar{opacity:0;pointer-events:none}.player.showbar .playerbar{opacity:1;pointer-events:auto}}
+.episodeSheet{position:fixed;inset:0;background:rgba(3,7,18,.64);z-index:25;display:none;align-items:flex-end}.episodeSheet.show{display:flex}.episodePanel{width:100%;max-height:76vh;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;padding:12px;box-shadow:var(--shadow);display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}.episodeHead{display:flex;align-items:center;justify-content:space-between;gap:10px}.episodeHead h3{font-size:16px;line-height:1.2}.episodeList{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;gap:7px}.episodeBtn{min-height:46px;border-radius:12px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;text-align:left}.episodeBtn strong{font-size:13px}.episodeBtn span{font-size:11px;color:var(--muted)}@media(max-width:760px){.layout{padding:5px;gap:5px}.top{height:52px;padding:7px 8px}.logo{width:34px;height:34px;border-radius:10px}.brand h1{font-size:15px}.iconbtn,.pillbtn{height:34px;border-radius:10px;padding:0 9px}.iconbtn{width:36px}.tabs{padding:5px;gap:4px}.tab{height:34px;border-radius:9px;font-size:12px}.searchbox{padding:0 5px 5px}.searchbox input{height:36px;border-radius:9px;font-size:13px}.side{top:52px;padding:5px}.cat{min-height:30px;padding:5px 7px;margin-bottom:2px;border-radius:8px;font-size:12px}.cat span:last-child{font-size:10px}.main{grid-template-rows:31vh auto minmax(0,1fr);gap:5px}.player{min-height:170px;border-radius:10px}.now{padding:0 2px}.now h2{font-size:13px}.now p{font-size:10px}.grid{gap:4px;padding:0;padding-bottom:56px}.card{min-height:44px;border-radius:9px;grid-template-columns:32px 1fr 28px;gap:6px;padding:5px 6px}.poster{width:32px;height:32px;border-radius:8px;font-size:11px}.ctitle{font-size:11px;line-height:1.15;-webkit-line-clamp:1}.cmeta{font-size:9px;margin-top:1px}.star{width:28px;height:28px;border-radius:8px;font-size:14px}.playerbar{left:6px;right:6px;bottom:6px;top:auto;padding:5px;border-radius:10px}.round{width:32px;height:32px;border-radius:9px}.cats{padding:0 5px 56px}.episodePanel{max-height:82vh;padding:10px}.episodeBtn{min-height:40px;border-radius:10px;padding:6px 8px}.episodeBtn strong{font-size:12px}}.cardText{min-width:0}.star{justify-self:end;align-self:center;flex-shrink:0}@media(max-width:760px){.card{position:relative;padding-right:36px;grid-template-columns:32px minmax(0,1fr);}.star{position:absolute;right:5px;top:50%;transform:translateY(-50%);}.cardText{padding-right:2px}.ctitle{padding-right:0}}.versionBadge{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:999px;background:rgba(56,189,248,.16);border:1px solid rgba(56,189,248,.42);color:var(--blue);font-size:11px;font-weight:900;white-space:nowrap}.login-version{position:absolute;top:14px;left:14px;color:#0f6784;background:rgba(255,255,255,.82)}@media(max-width:760px){.versionBadge{height:22px;padding:0 7px;font-size:10px}.login-version{top:10px;left:10px}}.reorder{display:flex;gap:3px;justify-self:end;margin-right:4px}.move{width:24px;height:28px;border-radius:8px;background:rgba(255,255,255,.08);color:var(--soft);font-size:12px}.nativePanel{max-width:520px;margin:0 auto}.nativeText{color:var(--muted);font-size:13px;line-height:1.45}.nativeField{margin:10px 0}.nativeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.nativeActions .pillbtn{text-decoration:none;justify-content:center}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
+</style>
+<style>
+/* --- v17 premium redesign layer: additive overrides only, original rules above stay intact --- */
+:root{--blue:#2fd3f2;--shadow:0 24px 60px rgba(0,0,0,.42)}
+body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
+*{scrollbar-width:thin;scrollbar-color:rgba(148,180,215,.45) transparent}
+.cats::-webkit-scrollbar,.grid::-webkit-scrollbar,.details::-webkit-scrollbar,.episodeList::-webkit-scrollbar{width:7px}
+.cats::-webkit-scrollbar-thumb,.grid::-webkit-scrollbar-thumb,.details::-webkit-scrollbar-thumb,.episodeList::-webkit-scrollbar-thumb{background:rgba(148,180,215,.35);border-radius:8px}
+.cats::-webkit-scrollbar-thumb:hover,.grid::-webkit-scrollbar-thumb:hover,.details::-webkit-scrollbar-thumb:hover,.episodeList::-webkit-scrollbar-thumb:hover{background:rgba(148,180,215,.6)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px;border-radius:8px}
+.round,.iconbtn,.pillbtn,.tab,.cat,.card,.star,.move{transition:transform .15s ease,background .15s ease,box-shadow .15s ease,color .15s ease}
+.round:active,.iconbtn:active,.pillbtn:active,.tab:active,.cat:active,.star:active,.move:active{transform:scale(.93)}
+.round svg,.iconbtn svg{display:block}
+.card{transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+.card:hover{transform:translateY(-2px);box-shadow:0 12px 28px rgba(0,0,0,.28)}
+body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
+.login-card{position:relative;overflow:hidden}
+.login-card::before{content:"";position:absolute;inset:0;border-radius:22px;padding:1px;background:linear-gradient(135deg,rgba(56,189,248,.55),rgba(45,212,191,.15),transparent 60%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.pwWrap{position:relative}
+.pwWrap input{padding-right:44px}
+.pwToggle{position:absolute;right:5px;top:5px;width:34px;height:34px;border-radius:10px;background:transparent;color:#8393ab;display:grid;place-items:center}
+.pwToggle:hover{background:rgba(20,32,51,.06);color:#26384f}
+/* Custom seek/progress bar for VOD & Series */
+.barRow{display:flex;align-items:center;gap:8px}
+.seekRow{display:flex;align-items:center;gap:8px;padding:0 2px 6px;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,.08)}
+.timeLabel{font-size:11px;font-weight:800;color:#c9dcf5;min-width:34px;text-align:center;font-variant-numeric:tabular-nums}
+.seekTrack{flex:1;height:14px;cursor:pointer;touch-action:none}
+.seekTrack::before{content:"";position:absolute;top:50%;left:0;right:0;height:4px;transform:translateY(-50%);background:rgba(255,255,255,.22);border-radius:4px}
+.seekFill{position:absolute;height:4px;left:0;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;pointer-events:none}
+.seekHandle{position:absolute;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4);transform:translate(-50%,0);pointer-events:none}
+.seekRow{position:relative}
+.seekRow .seekTrack{position:relative}
+.seekRow .seekFill,.seekRow .seekHandle{top:50%;transform:translate(0,-50%)}
+.seekRow .seekHandle{transform:translate(-50%,-50%)}
+/* LIVE badge shown in place of the seek row when the current item is a live channel */
+.liveBadge{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:rgba(251,113,133,.16);border:1px solid rgba(251,113,133,.4);color:#fca5b1;font-size:11px;font-weight:900;letter-spacing:.4px;flex-shrink:0}
+.liveDot{width:7px;height:7px;border-radius:50%;background:#fb7185;box-shadow:0 0 0 rgba(251,113,133,.6);animation:liveDotPulse 1.6s infinite}
+@keyframes liveDotPulse{0%{box-shadow:0 0 0 0 rgba(251,113,133,.55)}70%{box-shadow:0 0 0 7px rgba(251,113,133,0)}100%{box-shadow:0 0 0 0 rgba(251,113,133,0)}}
+@media(max-width:760px){
+  .seekRow{padding:0 2px 5px}
+  .timeLabel{font-size:10px;min-width:30px}
+  .liveBadge{height:24px;padding:0 8px;font-size:10px}
+}
+</style>
 </head>
 <body>
-
-    <div class="stb-screen">
-        <header class="top-bar">
-            <div class="top-bar-left">
-                <!-- New Top Back Button -->
-                <button id="top-back-btn" class="top-back-btn hidden" onclick="goBackToPortal()">&#8592; BACK</button>
-                <span class="portal-title" id="portal-title">XTREAM STB PORTAL</span>
-            </div>
-            <!-- Clickable Time Container for Swapping Formats -->
-            <div class="time-container" onclick="toggleTimeFormat()" title="Click to swap 12h/24h format">
-                <span id="current-date">Loading date...</span>
-                <span id="current-time">00:00</span>
-            </div>
-        </header>
-
-        <!-- VIEW 1: LOGIN -->
-        <div id="screen-login" class="login-container">
-            <div class="login-card">
-                <h2>XTREAM LOGIN</h2>
-                <div class="input-group">
-                    <label>Server URL / Host</label>
-                    <input type="text" id="input-host" placeholder="http://example.com:8080" value="">
-                </div>
-                <div class="input-group">
-                    <label>Username</label>
-                    <input type="text" id="input-user" placeholder="Username" value="">
-                </div>
-                <div class="input-group">
-                    <label>Password</label>
-                    <input type="password" id="input-pass" placeholder="Password" value="">
-                </div>
-                <button class="login-btn" onclick="attemptLogin()">CONNECT PORTAL</button>
-                <div id="login-error" class="error-msg hidden"></div>
-            </div>
-        </div>
-
-        <!-- VIEW 2: PORTAL MAIN DASHBOARD -->
-        <div id="screen-portal" class="hidden" style="display: flex; flex-direction: column; flex-grow: 1;">
-            <main class="middle-section">
-                <div class="panel device-info">
-                    <h3>Device info</h3>
-                    <p>Device model: <span>WebPlayer x86</span></p>
-                    <p>Device type: <span>Smart App</span></p>
-                    <p>Software ID: <span>AA:BB:CC:DD:EE:FF</span></p>
-                    <p>Your IP: <span>127.0.0.1</span></p>
-                    <p class="mac-highlight">Your Virtual MAC: 00:1A:79:9A:BC</p>
-                </div>
-
-                <div class="panel menu-list">
-                    <div class="arrow" onclick="scrollMenu(-150)">&#9650;</div>
-                    <div class="menu-container" id="category-scroll-box">
-                        <ul id="category-list-target">
-                            <li class="active">Loading Categories...</li>
-                        </ul>
-                    </div>
-                    <div class="arrow" onclick="scrollMenu(150)">&#9660;</div>
-                </div>
-
-                <div class="panel qr-section">
-                    <h3>Scan to edit portals:</h3>
-                    <div class="qr-placeholder">QR CODE</div>
-                    <p style="font-size: 0.8rem; color:#aaa;">or go to:<br>smart-stb.tv/012345</p>
-                </div>
-            </main>
-
-            <footer class="bottom-carousel">
-                <div class="carousel-item active-carousel" id="btn-live" onclick="setMode('live')">
-                    <div class="icon-placeholder">&#128250;</div>
-                    <h2>LIVE TV</h2>
-                </div>
-                <div class="carousel-item" id="btn-vod" onclick="setMode('vod')">
-                    <div class="icon-placeholder">&#127916;</div>
-                    <h2>MOVIES</h2>
-                </div>
-                <div class="carousel-item" id="btn-series" onclick="setMode('series')">
-                    <div class="icon-placeholder">&#128253;</div>
-                    <h2>SERIES</h2>
-                </div>
-            </footer>
-        </div>
-
-        <!-- VIEW 3: CHANNEL PLAYLIST SCREEN -->
-        <div id="screen-channels" class="hidden" style="display: flex; flex-direction: column; flex-grow: 1;">
-            <div class="playlist-layout">
-                <div class="channel-left">
-                    <div class="playlist-header" id="current-category-title">Playlist / All</div>
-                    <div class="channel-list-box">
-                        <div id="channel-list-target">
-                            <!-- Dynamic channels/movies load here -->
-                        </div>
-                    </div>
-                </div>
-                <div class="player-right">
-                    <div class="video-container">
-                        <style>
-                            .video-wrapper { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; background: #000; overflow: hidden; }
-                            video { flex-grow: 1; width: 100%; height: calc(100% - 50px); object-fit: contain; }
-                            .yt-controls { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 1); display: flex; flex-direction: column; z-index: 10; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-                            .yt-seek-track { width: 100%; height: 4px; background: rgba(255, 255, 255, 0.2); position: relative; cursor: pointer; transition: height 0.1s; }
-                            .yt-seek-track:hover { height: 6px; }
-                            .yt-seek-progress { width: 0%; height: 100%; background: #ff0000; position: absolute; top: 0; left: 0; pointer-events: none; }
-                            .yt-seek-handle { width: 12px; height: 12px; background: #ff0000; border-radius: 50%; position: absolute; top: 50%; transform: translate(-50%, -50%); left: 0%; pointer-events: none; opacity: 0; transition: opacity 0.1s; }
-                            .yt-seek-track:hover .yt-seek-handle { opacity: 1; }
-                            .yt-buttons { display: flex; align-items: center; justify-content: space-between; padding: 12px 15px; }
-                            .yt-left, .yt-right { display: flex; align-items: center; gap: 18px; color: white; }
-                            .yt-btn { background: none; border: none; color: white; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; padding: 0; transition: color 0.2s; }
-                            .yt-btn:hover { color: #aaa; }
-                            .yt-time { font-size: 0.85rem; color: #ddd; margin-left: 5px; }
-                            .yt-title { font-size: 0.9rem; font-weight: bold; margin-left: 10px; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                            .hidden-controls { display: none !important; }
-                        </style>
-                        <div class="video-wrapper">
-                            <!-- Native controls removed -->
-                            <video id="main-video-player" autoplay playsinline preload="auto"></video>
-                            
-                            <!-- Custom Image-Matched Overlay -->
-                            <div id="media-controls" class="yt-controls hidden-controls">
-                                <div id="seek-track" class="yt-seek-track">
-                                    <div id="seek-progress" class="yt-seek-progress"></div>
-                                    <div id="seek-handle" class="yt-seek-handle"></div>
-                                </div>
-                                <div class="yt-buttons">
-                                    <div class="yt-left">
-                                        <button class="yt-btn" id="yt-play-pause" title="Play/Pause">&#10074;&#10074;</button>
-                                        <button class="yt-btn" id="yt-prev" title="Previous">&#9198;</button>
-                                        <button class="yt-btn" id="yt-next" title="Next">&#9197;</button>
-                                        <button class="yt-btn" id="yt-mute" title="Mute/Unmute">&#128266;</button>
-                                        <div class="yt-time" id="yt-time-display">0:00 / 0:00</div>
-                                        <div class="yt-title" id="yt-title-display">Title ></div>
-                                    </div>
-                                    <div class="yt-right">
-                                        <button class="yt-btn" title="Subtitles">&#128452;</button>
-                                        <button class="yt-btn" title="Settings">&#9881;</button>
-                                        <button class="yt-btn" title="Theater Mode">&#9645;</button>
-                                        <button class="yt-btn" id="yt-fullscreen" title="Fullscreen">&#10021;</button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="panel" style="flex-grow: 1; font-size: 0.9rem;">
-                        <h3 id="playing-channel-title" style="color: #7db9e8; margin-bottom: 5px;">Select Media</h3>
-                        <p style="color: #ccc;">Press BACK to return to categories.</p>
-                    </div>
-                </div>
-                </div>
-            </div>
-
-            <div class="color-remote-bar">
-                <div class="color-btn" onclick="goBackToPortal()"><span class="dot red"></span> BACK</div>
-                <div class="color-btn"><span class="dot green"></span> SORT</div>
-                <div class="color-btn"><span class="dot yellow"></span> FAVORITE</div>
-                <div class="color-btn"><span class="dot blue"></span> MOVE</div>
-            </div>
-        </div>
-
-        <!-- VIEW 4: SERIES EPISODES SCREEN -->
-        <div id="screen-episodes" class="hidden" style="display: flex; flex-direction: column; flex-grow: 1;">
-            <div class="playlist-layout">
-                <div class="channel-left" style="width: 100%;">
-                    <div class="playlist-header" id="episodes-title">Series / Episodes</div>
-                    <div class="channel-list-box" style="padding: 10px; flex-grow: 1;">
-                        <div id="episode-list-target" style="display: flex; flex-direction: column; gap: 10px;">
-                            <!-- Dynamic episodes load here -->
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="color-remote-bar">
-                <div class="color-btn" onclick="goBackToPortal()"><span class="dot red"></span> BACK</div>
-            </div>
-        </div>
-
+<div class="app" id="app">
+  <header class="top">
+    <div class="brand"><div class="logo">M</div><div><h1>Media26 IPTV</h1><p>Live TV, Movies &amp; Series</p></div><span class="versionBadge">Version 16</span></div>
+    <div class="top-actions">
+      <button class="iconbtn" id="menuBtn" title="Channels" aria-label="Toggle channel menu"></button>
+      <button class="iconbtn" id="themeBtn" title="Theme" aria-label="Toggle theme"></button>
+      <button class="pillbtn" id="openStreamBtn">Stream <span class="pilltxt">Tools</span></button><button class="pillbtn" id="refreshBtn">↻ <span class="pilltxt">Refresh</span></button>
+      <button class="pillbtn" id="logoutBtn">Exit</button>
     </div>
+  </header>
+  <div class="layout">
+    <aside class="panel side" id="side">
+      <div class="tabs">
+        <button class="tab active" data-tab="live">Live</button>
+        <button class="tab" data-tab="vod">Movies</button>
+        <button class="tab" data-tab="series">Series</button>
+      </div>
+      <div class="searchbox"><input id="search" placeholder="Search channels, movies..." autocomplete="off"></div>
+      <div class="cats" id="cats"></div>
+    </aside>
+    <main class="main">
+      <section class="player" id="playerBox">
+        <video id="video" playsinline webkit-playsinline preload="auto" crossorigin="anonymous" muted="muted"></video><span id="miniTitle" hidden></span><span id="miniMeta" hidden></span>
+        <div class="player-overlay" id="overlay"><div class="state"><img id="stateThumb" class="state-thumb hidden" src="" alt=""><strong id="stateTitle">Choose a channel</strong><p id="stateText">Login, pick Live, Movies, or Series, then tap play.</p><div id="stateProgress" class="state-progress hidden"><div class="progress-bar"></div></div></div></div>
+        <div class="playerbar" id="playerbar">
+          <div class="seekRow hidden" id="seekRow">
+            <span class="timeLabel" id="curTime">0:00</span>
+            <div class="seekTrack" id="seekTrack"><div class="seekFill" id="seekFill"></div><div class="seekHandle" id="seekHandle"></div></div>
+            <span class="timeLabel" id="durTime">0:00</span>
+          </div>
+          <div class="barRow">
+            <button class="round" id="playBtn" title="Play / Pause" aria-label="Play or pause"></button>
+            <button class="round" id="backBtn" title="Rewind 10s" aria-label="Rewind 10 seconds"></button>
+            <button class="round" id="forwardBtn" title="Forward 30s" aria-label="Forward 30 seconds"></button>
+            <span class="liveBadge hidden" id="liveBadge"><i class="liveDot"></i>LIVE</span>
+            <div class="grow"></div>
+            <button class="round" id="muteBtn" title="Mute / Unmute" aria-label="Mute or unmute"></button>
+            <button class="round" id="pipBtn" title="Picture in Picture" aria-label="Picture in picture"></button>
+            <button class="round" id="fsBtn" title="Fullscreen" aria-label="Toggle fullscreen"></button>
+          </div>
+        </div>
+      </section>
+      <section class="now"><div><h2 id="sectionTitle">Live Channels</h2><p id="sectionSub">0 items</p></div><div class="status" id="netStatus">Ready</div></section>
+      <section class="grid" id="grid"></section>
+    </main>
+    <aside class="panel info">
+      <div class="hero"><h3 id="infoTitle">Welcome</h3><p id="infoText">This mode plays streams inside the preview area using native video, HLS, MPEG-TS, proxy, and transcoder paths.</p></div>
+      <div class="stats"><div class="stat"><strong id="liveCount">0</strong><span>LIVE</span></div><div class="stat"><strong id="vodCount">0</strong><span>MOVIES</span></div><div class="stat"><strong id="seriesCount">0</strong><span>SERIES</span></div></div>
+      <div class="details" id="details">Tip: on phones, turn sideways after video starts for a clean full-screen layout.</div>
+    </aside>
+  </div>
+</div>
+<div class="login" id="login">
+  <span class="versionBadge login-version">Version 16</span>
+  <div class="login-card">
+    <div class="logo">M</div><h2>Media26 IPTV</h2><p>Enter your Xtream portal details. They stay only in this browser.</p>
+    <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
+    <div class="field"><label>Username</label><input id="user" autocomplete="username"></div>
+    <div class="field"><label>Password</label><div class="pwWrap"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="pwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
+    <button class="pillbtn primary" id="loginBtn">Connect and load playlist</button><div class="err" id="err"></div>
+  </div>
+</div>
+<div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
+<div class="toast" id="toast"></div>
+<script>
+const PROXY='https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=';
+const LIVE_HLS='https://smartertv-secure.gz-inzi84.workers.dev/live-hls?url=';
+const KEY='smarter-fresh-v1';
+const FAV='smarter-fresh-favs-v1';
+const ORDER='smarter-fresh-order-v1';
+const RECENT='smarter-fresh-recent-v1';
+const TRANSCODER_KEY='smarter-transcoder-url-v1';
+const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
+const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
+const APP_VERSION='17';
+const $=id=>document.getElementById(id);
+const ICONS={
+  play:'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
+  pause:'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
+  rewind:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 17 7 12 12 7"/><polyline points="19 17 14 12 19 7"/></svg>',
+  forward:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 17 17 12 12 7"/><polyline points="5 17 10 12 5 7"/></svg>',
+  muted:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><line x1="16" y1="9" x2="22" y2="15"/><line x1="22" y1="9" x2="16" y2="15"/></svg>',
+  unmuted:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" fill="currentColor" stroke="none"/><path d="M16 8.5a5 5 0 0 1 0 7"/><path d="M18.5 6a8.5 8.5 0 0 1 0 12"/></svg>',
+  pip:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="1.5"/><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" stroke="none"/></svg>',
+  fsEnter:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 4 4 4 4 9"/><polyline points="15 4 20 4 20 9"/><polyline points="9 20 4 20 4 15"/><polyline points="15 20 20 20 20 15"/></svg>',
+  fsExit:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 9 9 9 9 4"/><polyline points="20 9 15 9 15 4"/><polyline points="4 15 9 15 9 20"/><polyline points="20 15 15 15 15 20"/></svg>',
+  menu:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>',
+  theme:'<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3a9 9 0 000 18z" fill="currentColor"/><circle cx="12" cy="12" r="8.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
+  eye:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-4.2 4.9M6.3 6.3A15.5 15.5 0 0 0 2 12s3.6 7 10 7c1.4 0 2.6-.2 3.7-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
+};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false};
+function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
+function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function normalize(raw){let u=String(raw||'').trim();if(!u)return'';if(!/^https?:\/\//i.test(u))u='http://'+u;const x=new URL(u);x.hash='';x.search='';return x.href.replace(/\/+$/,'')}
+function mobile(){return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent||'')||innerWidth<800||('ontouchstart'in window&&innerWidth<980)}
+function blocked(u){try{const x=new URL(u);return location.protocol==='https:'&&x.protocol==='http:'&&!/localhost|127\.0\.0\.1/i.test(x.hostname)}catch{return false}}
+function proxyUrl(u){return PROXY+encodeURIComponent(u)}
+function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
+function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
+async function getJson(action,extra=''){
+  const raw=apiUrl(action,extra), tries=blocked(S.url)?[proxyUrl(raw)]:[raw,proxyUrl(raw)];
+  let last='';
+  for(const u of tries){
+    const ctrl=new AbortController();const t=setTimeout(()=>ctrl.abort(),22000);
+    try{const r=await fetch(u,{cache:'no-store',mode:'cors',signal:ctrl.signal});clearTimeout(t);if(!r.ok)throw Error('HTTP '+r.status);const txt=await r.text();return JSON.parse(txt)}
+    catch(e){clearTimeout(t);last=e.message;if(u===tries[tries.length-1])throw Error(last||'Connection failed')}
+  }
+}
+function idOf(x){return String(x.stream_id??x.series_id??x.episode_id??x.id??'')}
+function nameOf(x){return x.name||x.title||x.movie_name||'Untitled'}
+function typeOf(x){return x._type||S.tab}
+function keyOf(x){return typeOf(x)+':'+idOf(x)}
+function logoOf(x){return x.stream_icon||x.cover||x.movie_image||x.info?.movie_image||''}
+function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
+function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
+function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
+function saveCreds(){localStorage.setItem(KEY,JSON.stringify({url:S.url,user:S.user,pass:S.pass}))}
+function restore(){try{const c=JSON.parse(localStorage.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(localStorage.getItem(FAV)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(localStorage.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(localStorage.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';const saved=q?normalize(q):(localStorage.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);if(saved){$('transcoderUrl').value=saved;localStorage.setItem(TRANSCODER_KEY,saved)}const tok=qt||localStorage.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;localStorage.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}}
+function saveFavs(){localStorage.setItem(FAV,JSON.stringify([...S.favs]))}
+function saveOrders(){localStorage.setItem(ORDER,JSON.stringify(S.orders))}
+function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)].slice(0,30);localStorage.setItem(RECENT,JSON.stringify(S.recent))}
+async function login(){
+  $('err').textContent='';
+  try{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const raw=accountUrl();const info=await fetch(blocked(S.url)?proxyUrl(raw):raw,{cache:'no-store'}).then(r=>r.json());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');saveCreds();await refreshAll();$('login').classList.add('hidden');toast('Playlist loaded')}
+  catch(e){$('err').textContent=e.message||'Could not connect'}finally{load(false)}
+}
+async function refreshAll(){
+  load(true,'Loading live channels...');
+  const [lc,lv]=await Promise.all([getJson('get_live_categories').catch(()=>[]),getJson('get_live_streams').catch(()=>[])]);
+  S.liveCats=lc||[];S.live=(lv||[]).map(x=>({...x,_type:'live'}));
+  $('liveCount').textContent=S.live.length.toLocaleString();renderAll();
+  load(true,'Loading movies...');
+  const [vc,vv]=await Promise.all([getJson('get_vod_categories').catch(()=>[]),getJson('get_vod_streams').catch(()=>[])]);
+  S.vodCats=vc||[];S.vod=(vv||[]).map(x=>({...x,_type:'vod'}));$('vodCount').textContent=S.vod.length.toLocaleString();renderAll();
+  load(true,'Loading series...');
+  const [sc,ss]=await Promise.all([getJson('get_series_categories').catch(()=>[]),getJson('get_series').catch(()=>[])]);
+  S.seriesCats=sc||[];S.series=(ss||[]).map(x=>({...x,_type:'series'}));$('seriesCount').textContent=S.series.length.toLocaleString();renderAll();load(false);
+}
+function renderAll(){renderCats();renderGrid();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
+function renderCats(){const rows=[`<button class="cat ${!S.cat?'active':''}" data-cat=""><span>All</span><span>${list().length}</span></button>`,`<button class="cat ${S.cat==='__fav'?'active':''}" data-cat="__fav"><span>Favorites</span><span>${list().filter(x=>S.favs.has(keyOf(x))).length}</span></button>`,`<button class="cat ${S.cat==='__recent'?'active':''}" data-cat="__recent"><span>Recently Played</span><span>${list().filter(x=>S.recent.includes(keyOf(x))).length}</span></button>`];for(const c of cats()){rows.push(`<button class="cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span>${esc(c.category_name||'Other')}</span><span>${countCat(c.category_id)}</span></button>`)}$('cats').innerHTML=rows.join('')}
+function baseFiltered(){const q=S.q.toLowerCase().trim();return list().filter(x=>{if(S.cat==='__fav'&&!S.favs.has(keyOf(x)))return false;if(S.cat==='__recent'&&!S.recent.includes(keyOf(x)))return false;if(!q&&S.cat&&S.cat!=='__fav'&&S.cat!=='__recent'&&String(x.category_id||'')!==String(S.cat))return false;if(q&&!nameOf(x).toLowerCase().includes(q))return false;return true})}
+function ordered(arr){const order=S.orders[S.tab]||[],pos=new Map(order.map((k,i)=>[k,i]));return arr.slice().sort((a,b)=>(pos.has(keyOf(a))?pos.get(keyOf(a)):999999)-(pos.has(keyOf(b))?pos.get(keyOf(b)):999999))}
+function filtered(){const base=baseFiltered();if(S.cat==='__recent'){const pos=new Map(S.recent.map((k,i)=>[k,i]));return base.slice().sort((a,b)=>(pos.get(keyOf(a))??999999)-(pos.get(keyOf(b))??999999))}return ordered(base)}
+function moveItem(k,dir){const arr=filtered(),keys=arr.map(keyOf),i=keys.indexOf(k),j=i+dir;if(i<0||j<0||j>=keys.length)return;[keys[i],keys[j]]=[keys[j],keys[i]];const old=S.orders[S.tab]||[];S.orders[S.tab]=[...keys,...old.filter(x=>!keys.includes(x))];saveOrders();renderGrid();toast('Order saved')}
+function renderGrid(){const arr=filtered();$('sectionSub').textContent=arr.length.toLocaleString()+' items';$('grid').innerHTML=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="reorder"><button class="move" type="button" data-move="-1" data-key="${esc(keyOf(x))}" title="Move up">↑</button><button class="move" type="button" data-move="1" data-key="${esc(keyOf(x))}" title="Move down">↓</button></div><button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div>`}).join('')||'<div style="color:var(--muted);padding:18px">No items found.</div>'}
+function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
+function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
+async function openEpisodePicker(x){load(true,'Loading episodes...');try{const d=await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);$('episodeList').innerHTML=eps.map((ep,i)=>`<button class="episodeBtn" data-ep="${i}"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></button>`).join('');$('episodeSheet').classList.add('show');$('episodeList').onclick=e=>{const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
+function directUrl(x,ext){const type=typeOf(x), sid=idOf(x);let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
+function playableUrl(u,type){return blocked(u)?proxyUrl(u):u}
+function proxiedMediaUrl(u){return proxyUrl(u)}
+function transcoderBase(){try{return normalize($('transcoderUrl')?.value||localStorage.getItem(TRANSCODER_KEY)||'')}catch{return''}}
+function transcoderToken(){try{return ($('transcoderToken')?.value||localStorage.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
+function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)return'';const token=transcoderToken();return `${base}/hls?profile=${encodeURIComponent(profile)}${token?'&token='+encodeURIComponent(token):''}&url=${encodeURIComponent(u)}`}
+function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
+function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
+function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
+function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'m3u8':(ch.container_extension||'mp4');return directUrl(ch,ext)}
+function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if(/iphone|ipad|ipod/i.test(ua))return'vlc-x-callback://x-callback-url/stream?url='+enc;if(/android/i.test(ua)){try{const x=new URL(u);return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${x.protocol.replace(':','')};package=org.videolan.vlc;type=video/*;end`}catch{}}return'vlc://x-callback-url/stream?url='+enc}
+function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show')}
+function openVlcForCurrent(){const u=nativeAppUrl(S.current);if(!u)return;location.href=vlcUrl(u);setTimeout(()=>{try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}},250)}
+function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live, Movies, or Series and tap an item.')}
+function openRawStream(){if(S.current)playItem(S.current)}
+function updateLiveControls(){/* FIX: live has no seekable timeline — hide Play/Pause, Rewind, Forward for live; keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. */const isLive=S.current&&typeOf(S.current)==='live';['playBtn','backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b)b.style.display=isLive?'none':'';});const sr=$('seekRow');if(sr)sr.classList.toggle('hidden',isLive);const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);}
+function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls()}
+async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))$('stateProgress').classList.add('hidden');if($('stateThumb'))$('stateThumb').classList.add('hidden');$('stateTitle').textContent='Opening VLC';$('stateText').textContent='If VLC is installed, the stream will open there. The link is also copied.';$('overlay').style.display='grid';$('netStatus').textContent='VLC mode';$('miniMeta').textContent='Opening VLC';openVlcForCurrent();toast('Opening in VLC')}
+async function playItemPreview(x){setCurrentItem(x);$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
+function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
+function forceMobileSmoothLevel(hls){
+  /* v3: FULL ABR on every device — no more 720p pin blocking 4K on mobile.
+     capLevelToPlayerSize (set in config) already prevents wasting bandwidth on
+     resolutions the screen can't show; in fullscreen the cap lifts automatically
+     and ABR climbs to the top level (including 4K) if bandwidth allows.
+     Start one level below the current estimate for instant startup, then let ABR climb. */
+  if(!hls||!Array.isArray(hls.levels)||!hls.levels.length)return;
+  hls.currentLevel=-1;
+  hls.loadLevel=-1;
+  hls.nextLevel=-1;
+}function liveBaseName(n){return String(n||'').toLowerCase().replace(/\b(4k|uhd|fhd|full\s*hd|1080p|720p|hd|sd|hq|hevc|h265|h\.265)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim()}
+function liveQualityRank(n){n=String(n||'').toLowerCase();if(/\b(sd|480p|576p)\b/.test(n))return 1;if(/\b(hd|720p)\b/.test(n))return 2;if(/\b(fhd|1080p|full\s*hd)\b/.test(n))return 3;if(/\b(4k|uhd)\b/.test(n))return 4;return 2}
+function liveAlternative(ch){if(typeOf(ch)!=='live')return null;const base=liveBaseName(nameOf(ch));if(!base)return null;const cat=String(ch.category_id||'');const currentKey=keyOf(ch);const tried=S.altTried||(S.altTried=new Set());return S.live.filter(x=>keyOf(x)!==currentKey&&!tried.has(keyOf(x))&&String(x.category_id||'')===cat&&liveBaseName(nameOf(x))===base).sort((a,b)=>liveQualityRank(a.name)-liveQualityRank(b.name))[0]||null}
+function smoothLiveStart(ch){/* v3: play EXACTLY the channel the user tapped — no silent SD/HD downgrade on mobile. If a 4K channel struggles, the existing liveAlternative() fallback still kicks in automatically after real failures. */return ch}
+async function tryLiveAlternative(msg){const alt=S.current&&liveAlternative(S.current);if(!alt)return false;S.altTried.add(keyOf(alt));toast('Trying '+nameOf(alt));await playItem(alt,true);return true}
+function plan(x){
+  const type=typeOf(x),orig=String(x.container_extension||'').replace(/^\./,'').toLowerCase(),p=[];
+  const ua=navigator.userAgent||'';
+  const isApple=/iphone|ipad|ipod/i.test(ua);
+  const isAndroid=/android/i.test(ua);
+  const isMob=mobile();
+  const isMkv=mkvLike(orig);
+  const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
+  const addTrans=(label,url,front=false)=>{const t=transcodeUrl(url,type==='live'?'live':'vod');if(t)add('hls',label+' Transcoded',t,front)};
+  if(type==='live'){
+    const m3u8=directUrl(x,'m3u8'),ts=directUrl(x,'ts'),ext=orig&&orig!=='m3u8'?directUrl(x,orig):'';
+    /* FIX (root cause, provider-confirmed): this account's own Xtream API reports
+       max_connections:1. Segment requests return HTTP 401 the instant a second connection to
+       the origin exists. The previous cascade opened the relay, then ALSO the transcoder, then
+       ALSO an alternate channel — overlapping upstream connections against a hard 1-connection
+       cap, so the origin rejected/killed streams and playback stuttered. That self-inflicted
+       contention, not client buffering, was the real cause of the constant rebuffering.
 
-    <script>
-        // Force hardware landscape mode on supported mobile devices
-        document.addEventListener('click', async function() {
-            if (screen.orientation && screen.orientation.lock) {
-                try {
-                    await screen.orientation.lock('landscape');
-                } catch (e) {
-                    console.log('Landscape lock requires fullscreen or is unsupported on this device.');
-                }
-            }
-        }, { once: true });
-
-        let serverUrl = "";
-        let username = "";
-        let password = "";
-        let currentMode = "live"; 
-        let currentScreen = "login";
-        
-        // Time Format State
-        let use24HourFormat = false;
-
-        function toggleTimeFormat() {
-            use24HourFormat = !use24HourFormat;
-            updateClock();
+       Matched to the known-smooth reference player (smartertv.shop, read from its source): it
+       opens exactly ONE connection — the direct origin .m3u8 through a plain hls.js instance —
+       and only if that hard-fails does it try one alternate. No relay double-hop, no
+       simultaneous transcoder. Replicated here: direct origin first (single connection), the
+       CORS-safe relay as the ONLY fallback for when the page is served over https and can't
+       reach the http origin directly (mixed content). The transcoder is intentionally NOT in
+       the live cascade any more — it's a third connection and is reached only via the manual
+       Stream Tools button when a user explicitly wants it. */
+    if(!blocked(m3u8)){
+      /* http page (localhost / http host / native app): hit the origin directly like the
+         reference player — one connection, no relay in the hot path */
+      add('native','Direct',m3u8);
+      add('hls','Direct HLS',m3u8);
+      add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+    }else{
+      /* https page can't load the http origin (mixed content) — the relay is the only
+         single-hop option that returns proper CORS/https, so it's primary here */
+      add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+      add('hls','Direct HLS',proxyUrl(m3u8));
+    }
+  }else{
+    /* VOD / Series */
+    const direct=String(x.direct_source||x.stream_url||'').trim();
+    const preferred=orig||'mp4',preferredUrl=directUrl(x,preferred);
+    const rawMkv=directUrl(x,'mkv');
+    const rawMp4=directUrl(x,'mp4');
+    const rawM3u8=directUrl(x,'m3u8');
+    const rawFirst=direct||preferredUrl;
+    /* For MKV on mobile: transcoder and relay are the ONLY options that work.
+       Push them first unconditionally — don't waste time on native attempts */
+    if(isMob&&isMkv){
+      addTrans('MKV',rawMkv,true);                                      /* transcoder first if set */
+      add('hls','MKV Relay',LIVE_HLS+encodeURIComponent(rawMkv),true); /* relay re-muxes MKV→HLS */
+      add('hls','MKV Relay MP4',LIVE_HLS+encodeURIComponent(rawMp4));
+      add('hls','MKV Relay M3U8',LIVE_HLS+encodeURIComponent(rawM3u8));
+      add('native','MP4 Fallback',rawMp4);
+      add('native','MP4 Proxy',proxyUrl(rawMp4));
+      addTrans('MP4',rawMp4);
+      if(direct)add('hls','Direct Relay',LIVE_HLS+encodeURIComponent(direct));
+    }else if(isMob){
+      /* Non-MKV mobile VOD */
+      if(transcoderBase())addTrans('Preview',rawFirst,true);
+      if(direct)add(direct.includes('.m3u8')?'hls':'native','Direct',direct);
+      add('native','MP4',rawMp4);
+      add('native','MP4 Proxy',proxyUrl(rawMp4));
+      add('hls','HLS',rawM3u8);
+      add('hls','HLS Proxy',proxyUrl(rawM3u8));
+      add('hls','Relay MP4',LIVE_HLS+encodeURIComponent(rawMp4));
+      if(!browserSafeExt(preferred)){addTrans(preferred.toUpperCase(),preferredUrl);addTrans('MP4',rawMp4);}
+    }else{
+      /* Desktop VOD — full format matrix */
+      if(transcoderBase())addTrans('Preview',rawFirst,true);
+      if(direct){
+        add(direct.includes('.m3u8')?'hls':'native','Direct',direct);
+        add(direct.includes('.m3u8')?'hls':'native','Direct Proxy',proxyUrl(direct));
+        if(!browserSafeExt(preferred))addTrans('Direct',direct);
+      }
+      if(!browserSafeExt(preferred))addTrans(preferred.toUpperCase(),preferredUrl);
+      add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase(),preferredUrl);
+      add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase()+' Proxy',proxyUrl(preferredUrl));
+      ['mp4','m3u8','ts','mkv'].filter(e=>e!==preferred).forEach(e=>{
+        const u=directUrl(x,e);
+        if(e==='mkv'||e==='ts')addTrans(e.toUpperCase(),u);
+        add(e==='m3u8'?'hls':e==='ts'?'mpegts':'native',e.toUpperCase(),u);
+        add(e==='m3u8'?'hls':e==='ts'?'mpegts':'native',e.toUpperCase()+' Proxy',proxyUrl(u));
+      });
+    }
+  }
+  return p;
+}
+function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
+async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);await playItemPreview(x)}
+async function tryPlans(plans,i){
+  const v=$('video');
+  if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
+  cleanup();
+  const token=++S.seq,p=plans[i],live=typeOf(S.current)==='live',transcoded=/Transcoded/i.test(p.label);
+  /* FIX: brief cooldown before a fallback attempt for live channels. Connection-limited
+     IPTV lines (see plan() comment above) may not release the previous attempt's slot on
+     the origin the instant we stop requesting it — immediately opening another connection
+     can collide with one that hasn't timed out yet. This doesn't fully solve a slow
+     server-side release, but combined with far fewer total fallback attempts it meaningfully
+     cuts how often our own retries collide with themselves. */
+  if(i>0&&live){await new Promise(r=>setTimeout(r,1200));if(token!==S.seq)return}
+  const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
+  $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
+  v.muted=false;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
+  v.preload=transcoded?'auto':'metadata';v.autoplay=true;v.loop=false;
+  let started=false,stallTimer=null,recoveryCount=0,lastMediaRecoverAt=0,audioSwapped=false,waitBurst=[];
+  const clearStall=()=>{if(stallTimer){clearTimeout(stallTimer);stallTimer=null}};
+  const markPlaying=()=>{
+    if(token!==S.seq)return;clearStall();clearTimeout(S.timer);
+    $('overlay').style.display='none';
+    $('netStatus').textContent=v.muted?'Playing muted':'Playing';
+    $('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';
+    if($('playBtn'))$('playBtn').innerHTML=ICONS.pause;
+  };
+  const nextPlan=()=>{if(token===S.seq){clearStall();tryPlans(plans,i+1)}};
+  const failNext=()=>{if(token===S.seq&&!started)nextPlan()};
+  /* FIX: recoverMediaError() tears down and rebuilds the MediaSource, which snaps
+     currentTime back to 0 and re-seeks — visually a "restart/loop" plus an audio
+     glitch. Calling it repeatedly in a tight burst (the old recoveryCount<4 cap with
+     no time gate) produced several of these resets back-to-back for a single fatal
+     error storm. Now: at most 2 real MSE recoveries per plan, spaced apart, with
+     swapAudioCodec() on the 2nd try (the hls.js-recommended fix for recurring
+     fragParsingError caused by audio codec mismatches). After that, give up on this
+     plan instead of resetting again and move on. */
+  const recoverMedia=()=>{
+    if(!S.hls||recoveryCount>=3)return false;
+    const now=Date.now();
+    if(lastMediaRecoverAt&&now-lastMediaRecoverAt<4000)return false;
+    lastMediaRecoverAt=now;recoveryCount++;
+    try{
+      if(recoveryCount>=2&&!audioSwapped){audioSwapped=true;try{S.hls.swapAudioCodec()}catch{}}
+      S.hls.recoverMediaError();
+      return true;
+    }catch{return false}
+  };
+  const switchIfStuck=()=>{
+    if(token!==S.seq)return;
+    if(live&&!transcoded&&S.hls&&recoverMedia())return;
+    /* FIX: alternative-quality fallback (e.g. drop a stuck 4K/UHD channel down to its HD/SD
+       sibling) was gated to mobile() only. Desktop Chrome is equally unable to decode many
+       HEVC/4K live feeds, so a desktop viewer hit the same silent black-screen dead end that
+       mobile used to hit before this fallback existed. Run it on every platform. */
+    if(live&&!transcoded){tryLiveAlternative('Buffering').then(done=>{if(!done)nextPlan()})}
+    else nextPlan();
+  };
+  /* --- Mobile-hardened stall/error watchdog --- */
+  const isAppleDev=/iphone|ipad|ipod/i.test(navigator.userAgent||'');
+  const isAndroidDev=/android/i.test(navigator.userAgent||'');
+  const isMobDev=mobile();
+  /* FIX: these were tuned progressively longer ("generous timeouts, IPTV servers are slow")
+     on the theory that patience helps. A side-by-side comparison against a known-smooth
+     production deployment (smartertv.shop, same relay backend) showed the opposite for live:
+     it uses shorter timeouts across the board and plays smoothly, while these longer values
+     just meant real stalls sat frozen far longer before anything reacted. Matched back to
+     those proven values. */
+  const stallMs=transcoded?14000:(isTv?6000:(isMobDev?10000:8000));
+  const waitMs =transcoded?15000:(isTv?7000:(isMobDev?12000:9000));
+  const startTimeout=transcoded?(isMobDev?35000:42000):(isTv?12000:(isMobDev?18000:20000));
+  v.onerror=()=>{if(token===S.seq){started?switchIfStuck():nextPlan()}};
+  /* onstalled: only react if truly started; iOS fires suspend routinely during normal load */
+  v.onstalled=()=>{
+    if(token!==S.seq||!started)return;
+    $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
+    /* FIX: netStatus/miniMeta are invisible on phone-width viewports (.status{display:none}
+       under the 760px media query, and miniMeta is always display:none) — so a stall used to
+       freeze the picture on a black/frozen frame with zero visible feedback for many seconds
+       until the watchdog below eventually acted. Reuse the same overlay spinner shown during
+       initial load so a rebuffer always looks like "buffering", never a silent hang. */
+    $('overlay').style.display='grid';
+    if($('stateProgress'))$('stateProgress').classList.remove('hidden');
+    $('stateTitle').textContent='Reconnecting';
+    $('stateText').textContent='The stream stalled, reconnecting...';
+    clearStall();
+    /* NOTE: an earlier version doubled this timeout for live+hls.js, on the theory that hls.js
+       needed more room to self-recover before our watchdog stepped in. Measured data showed the
+       opposite: hls.js can go completely silent (no further events at all) for 30s+ with no
+       self-recovery in sight, and doubling just doubled how long the video sat frozen on "Playing"
+       before anything acted. The recoverMedia() gating below already prevents the rapid-fire reset
+       storm that motivated the longer timeout, so there's no need to also delay detection. */
+    stallTimer=setTimeout(switchIfStuck,stallMs);
+  };
+  /* onsuspend: iOS fires this constantly — only treat as stuck if not started after a long delay */
+  v.onsuspend=()=>{
+    if(token!==S.seq||started)return;
+    clearStall();
+    stallTimer=setTimeout(()=>{if(token===S.seq&&!started)nextPlan();},stallMs+5000);
+  };
+  v.onwaiting=()=>{
+    if(token!==S.seq)return;
+    $('netStatus').textContent='Buffering';$('miniMeta').textContent='Buffering...';
+    if(started){
+      $('overlay').style.display='grid';
+      if($('stateProgress'))$('stateProgress').classList.remove('hidden');
+      $('stateTitle').textContent='Buffering';
+      $('stateText').textContent='Waiting for more data...';
+    }
+    /* FIX: chronic-stutter detector. Measured against this app's live relay with an
+       instrumented video element: some sources never produce a single long stall (which the
+       stallMs/waitMs watchdog below is built to catch) but instead re-buffer every ~5-6s
+       forever — confirmed root cause was a relay whose playlist reload cadence is fixed at
+       exactly 6000ms while it only appends ~2s of new content per reload, i.e. content can
+       physically never arrive faster than roughly 1/3 real-time. Every individual freeze is
+       brief enough (recovers before stallMs) that the existing watchdog treats each one as a
+       harmless one-off and never escalates — so the user sits through nonstop stutter
+       indefinitely. Track waiting events in a rolling 20s window; 4+ of them (a real source
+       recovering cleanly rarely re-stalls this often) means the source itself is structurally
+       too slow, so jump straight to the next candidate/alternate-quality channel instead of
+       waiting for a single-stall timeout that will never fire. */
+    if(started&&live&&!transcoded){
+      const now=Date.now();
+      waitBurst.push(now);
+      waitBurst=waitBurst.filter(t=>now-t<20000);
+      if(waitBurst.length>=4){
+        waitBurst=[];
+        clearStall();
+        tryLiveAlternative('Unstable').then(done=>{if(!done)nextPlan()});
+        return;
+      }
+    }
+    clearStall();
+    stallTimer=setTimeout(()=>{
+      if(token!==S.seq)return;
+      /* FIX: readyState>=2 here used to mean "do nothing" — but buffered-ahead data with
+         currentTime not advancing is exactly what a real stall looks like (confirmed live:
+         currentTime frozen for 30s+ while netStatus kept saying "Playing"). Only skip straight
+         to nextPlan() when there's truly no data (readyState<2); otherwise let switchIfStuck()
+         run its normal bounded recovery instead of silently doing nothing. */
+      if(live&&isMobDev&&v.readyState<2){nextPlan();return}
+      if(live&&isMobDev){switchIfStuck();return}
+      if(v.paused||v.readyState<3)switchIfStuck();
+    },waitMs);
+  };
+  v.onplaying=()=>{
+    started=true;
+    if(token!==S.seq)return;
+    clearStall();clearTimeout(S.timer);
+    /* FIX: this check used to be skipped entirely for live ("videoWidth unreliable on mobile
+       live"). In practice, live channels carrying an undecodable video track (typically
+       HEVC/4K the browser can't decode) fire 'playing' and keep currentTime advancing on
+       audio alone — markPlaying() below then reports "Playing" over a permanently black 0x0
+       frame with no error, no overlay, and no fallback, since every watchdog timer was just
+       cleared above. Confirmed live against real UHD channels. Run the same videoWidth check
+       for live too, but recover through switchIfStuck() (tries an alternate quality/plan)
+       instead of the VOD-style terminal fail(), since a same-channel SD/HD sibling is usually
+       genuinely playable. */
+    if(!transcoded){
+      clearTimeout(S.videoCheck);
+      S.videoCheck=setTimeout(()=>{
+        if(token!==S.seq)return;
+        if(v.currentTime>2&&v.videoWidth===0){
+          if(live)switchIfStuck();
+          else{S.audioOnly=true;fail('Audio only');}
         }
-
-        function updateClock() {
-            const now = new Date();
-            document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-            // Swaps between 12h and 24h formats based on user toggle
-            document.getElementById('current-time').textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: !use24HourFormat });
-        }
-        setInterval(updateClock, 1000);
-        updateClock();
-
-        function switchView(screenId) {
-            currentScreen = screenId;
-            document.getElementById('screen-login').classList.add('hidden');
-            document.getElementById('screen-portal').classList.add('hidden');
-            document.getElementById('screen-channels').classList.add('hidden');
-            
-            // Hide episodes view properly
-            const episodesScreen = document.getElementById('screen-episodes');
-            if (episodesScreen) episodesScreen.classList.add('hidden');
-            
-            document.getElementById(screenId).classList.remove('hidden');
-            
-            // Manage top back button visibility
-            const topBackBtn = document.getElementById('top-back-btn');
-            if(screenId === 'screen-channels' || screenId === 'screen-episodes') {
-                topBackBtn.classList.remove('hidden');
-            } else {
-                topBackBtn.classList.add('hidden');
-            }
-            
-            if(screenId !== 'screen-channels') {
-                document.getElementById('main-video-player').pause();
-                if(window.hlsPlayer) { window.hlsPlayer.destroy(); }
-            }
-        }
-
-        function scrollMenu(amount) {
-            const box = document.getElementById('category-scroll-box');
-            box.scrollBy({ top: amount, left: 0, behavior: 'smooth' });
-        }
-
-        function goBackToPortal() {
-            if (currentScreen === 'screen-episodes') {
-                switchView('screen-channels'); // Return to the series list inside channels view
-            } else {
-                switchView('screen-portal');
-            }
-        }
-
-        document.addEventListener('keydown', function(event) {
-            if (event.key === 'Backspace' || event.key === 'Escape') {
-                if (currentScreen === 'screen-channels' || currentScreen === 'screen-episodes') {
-                    goBackToPortal();
-                }
-            }
+        else markPlaying();
+      },4000);
+    }
+    markPlaying();
+  };
+  /* timeupdate: currentTime>0 is enough — don't require videoWidth on mobile live */
+  v.ontimeupdate=()=>{if(token===S.seq&&v.currentTime>0.5)markPlaying()};
+  S.timer=setTimeout(()=>{if(token===S.seq&&!started)nextPlan();},startTimeout);
+  try{
+    if(p.kind==='native'){
+      v.src=p.url;v.load();startVideo(token);
+    }else if(p.kind==='hls'){
+      if(window.Hls&&Hls.isSupported()){
+        /* FIX: the previous "lean mobile buffer, fail-fast" tuning was measured live against
+           this app's actual relay (not just eyeballed) — instrumented the video element and
+           counted 'waiting' events over a straight 60s play of a normal (non-4K) channel:
+           22 rebuffers in 60s, roughly one every 2-4s like clockwork, with playback content
+           time visibly falling behind wall-clock time (stuttering, not just a display quirk).
+           Root cause: liveSyncDurationCount:2 pins playback within ~2 segments of the live
+           edge, and maxBufferLength:12 on mobile leaves almost no cushion — any minor jitter
+           in segment delivery immediately starves the buffer. Widened the cushion so hls.js
+           can build a few extra seconds of slack before the live edge instead of hugging it;
+           costs a little latency, buys a lot of stability, which is the trade this app's
+           users actually want for live TV. */
+        const hlsCfg={
+          enableWorker:true,
+          lowLatencyMode:false,
+          capLevelToPlayerSize:true,
+          startLevel:-1,
+          /* ABR bandwidth seed: TV > desktop > mobile */
+          abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
+          abrEwmaSlowFactor:6,abrEwmaFastFactor:3,
+          /* Buffer: TV/desktop generous, mobile still lean but no longer razor-thin */
+          maxBufferLength:isTv?60:(mobile()?24:45),
+          maxMaxBufferLength:isTv?120:(mobile()?40:90),
+          backBufferLength:live?0:(isTv?30:24),
+          /* Live sync — wider cushion than a bare-minimum 2 segments so normal jitter doesn't
+             immediately starve the buffer */
+          liveSyncDurationCount:mobile()?4:(isTv?4:5),
+          liveMaxLatencyDurationCount:mobile()?10:(isTv?10:14),
+          maxLiveSyncPlaybackRate:1.1,
+          /* Retry policy: aggressive like ExoPlayer */
+          manifestLoadingMaxRetry:transcoded?6:(isTv?5:3),
+          levelLoadingMaxRetry:transcoded?6:(isTv?5:4),
+          fragLoadingMaxRetry:transcoded?8:(isTv?7:6),
+          manifestLoadingRetryDelay:400,levelLoadingRetryDelay:500,fragLoadingRetryDelay:500,
+          manifestLoadingTimeOut:transcoded?18000:(isTv?14000:8000),
+          levelLoadingTimeOut:transcoded?20000:(isTv?16000:10000),
+          fragLoadingTimeOut:transcoded?24000:(isTv?18000:14000),
+          /* Codec/format safety */
+          enableSoftwareAES:true,
+          progressive:false,
+          /* Auto level switching speed */
+          abrBandWidthFactor:0.95,
+          abrBandWidthUpFactor:0.7,
+        };
+        S.hls=new Hls(hlsCfg);
+        S.hls.loadSource(p.url);
+        S.hls.attachMedia(v);
+        S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{
+          forceMobileSmoothLevel(S.hls);
+          if(isTv)S.hls.currentLevel=-1; /* ABR on TV */
+          startVideo(token);
         });
-
-        function setMode(mode) {
-            currentMode = mode;
-            document.getElementById('btn-live').classList.remove('active-carousel');
-            document.getElementById('btn-vod').classList.remove('active-carousel');
-            document.getElementById('btn-series').classList.remove('active-carousel');
-            document.getElementById(`btn-${mode}`).classList.add('active-carousel');
-            loadCategories();
+        S.hls.on(Hls.Events.ERROR,(e,d)=>{
+          if(token!==S.seq||!d)return;
+          if(d.fatal){
+            if(!started){nextPlan();return}
+            if(S.hls){
+              try{
+                if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
+                  if(!recoverMedia())switchIfStuck();
+                }else if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&recoveryCount<5){
+                  recoveryCount++;S.hls.startLoad(-1);
+                }else{switchIfStuck()}
+              }catch{switchIfStuck()}
+            }
+          }
+        });
+      }else if(nativeHls(v)){
+        v.src=p.url;v.load();startVideo(token);
+      }else nextPlan();
+    }else if(p.kind==='mpegts'){
+      if(!window.mpegts||!mpegts.isSupported()){nextPlan();return}
+      const tsLive=live;
+      S.ts=mpegts.createPlayer(
+        {type:'mpegts',isLive:tsLive,url:p.url,cors:true},
+        {
+          enableWorker:!(mobile()||isTv),
+          enableStashBuffer:true,
+          stashInitialSize:isTv?2*1024*1024:(mobile()?384*1024:1024*1024),
+          lazyLoad:false,
+          autoCleanupSourceBuffer:true,
+          autoCleanupMaxBackwardDuration:tsLive?18:90,
+          autoCleanupMinBackwardDuration:tsLive?6:28,
+          fixAudioTimestampGap:true,
+          isLive:tsLive,
+          liveBufferLatencyChasing:tsLive&&!isTv,
+          liveBufferLatencyMaxLatency:isTv?8:4,
+          liveBufferLatencyMinRemain:isTv?3:1.5,
         }
-
-        async function attemptLogin() {
-            serverUrl = document.getElementById('input-host').value.trim();
-            username = document.getElementById('input-user').value.trim();
-            password = document.getElementById('input-pass').value.trim();
-            const errorDiv = document.getElementById('login-error');
-
-            if (!serverUrl || !username || !password) {
-                errorDiv.textContent = "Please fill out all login fields.";
-                errorDiv.classList.remove('hidden');
-                return;
-            }
-
-            if (serverUrl.endsWith('/')) serverUrl = serverUrl.slice(0, -1);
-
-            errorDiv.textContent = "Connecting...";
-            errorDiv.classList.remove('hidden');
-
-            const authUrl = `${serverUrl}/player_api.php?username=${username}&password=${password}`;
-
-            try {
-                const response = await fetch(authUrl);
-                const data = await response.json();
-
-                if (data.user_info && data.user_info.auth === 1) {
-                    errorDiv.classList.add('hidden');
-                    document.getElementById('portal-title').textContent = `PORTAL: ${username.toUpperCase()}`;
-                    switchView('screen-portal');
-                    setMode('live'); 
-                } else {
-                    errorDiv.textContent = "Invalid credentials.";
-                }
-            } catch (err) {
-                console.error(err);
-                errorDiv.innerHTML = "Connection Error (CORS or Mixed Content restriction).";
-            }
-        }
-
-        async function loadCategories() {
-            let action = "get_live_categories";
-            if (currentMode === "vod") action = "get_vod_categories";
-            if (currentMode === "series") action = "get_series_categories";
-
-            const catUrl = `${serverUrl}/player_api.php?username=${username}&password=${password}&action=${action}`;
-            const listContainer = document.getElementById('category-list-target');
-            listContainer.innerHTML = "<li>Loading...</li>";
-
-            try {
-                const response = await fetch(catUrl);
-                const categories = await response.json();
-                listContainer.innerHTML = "";
-
-                if(categories.length === 0) {
-                    listContainer.innerHTML = "<li>No Categories Found</li>";
-                    return;
-                }
-
-                categories.forEach((cat, index) => {
-                    const li = document.createElement('li');
-                    li.textContent = cat.category_name;
-                    if(index === 0) li.classList.add('active');
-                    
-                    li.onclick = () => {
-                        document.querySelectorAll('#category-list-target li').forEach(el => el.classList.remove('active'));
-                        li.classList.add('active');
-                        loadMediaList(cat.category_id, cat.category_name);
-                    };
-                    listContainer.appendChild(li);
-                });
-            } catch (err) {
-                listContainer.innerHTML = "<li style='background:red;'>Failed to load network data</li>";
-            }
-        }
-
-        async function loadMediaList(categoryId, categoryName) {
-            let action = "get_live_streams";
-            if (currentMode === "vod") action = "get_vod_streams";
-            if (currentMode === "series") action = "get_series";
-
-            const streamUrl = `${serverUrl}/player_api.php?username=${username}&password=${password}&action=${action}&category_id=${categoryId}`;
-            const channelContainer = document.getElementById('channel-list-target');
-            
-            let modeLabel = currentMode.toUpperCase();
-            document.getElementById('current-category-title').textContent = `${modeLabel} / ${categoryName}`;
-            channelContainer.innerHTML = "<div style='padding:15px;'>Loading list...</div>";
-            
-            switchView('screen-channels');
-
-            try {
-                const response = await fetch(streamUrl);
-                const items = await response.json();
-                channelContainer.innerHTML = "";
-
-                if(items.length === 0) {
-                    channelContainer.innerHTML = "<div style='padding:15px;'>Empty category.</div>";
-                    return;
-                }
-
-                items.forEach((item, index) => {
-                    const div = document.createElement('div');
-                    div.className = 'channel-item';
-                    
-                    const targetId = currentMode === 'series' ? item.series_id : item.stream_id;
-                    const extension = item.container_extension || 'mp4'; 
-
-                    div.innerHTML = `<span class="channel-num">${index + 1}</span><span class="channel-name">${item.name}</span>`;
-                    
-                    div.onclick = () => {
-                        document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active-channel'));
-                        div.classList.add('active-channel');
-                        playMedia(targetId, item.name, extension);
-                    };
-                    
-                    channelContainer.appendChild(div);
-                });
-            } catch (err) {
-                channelContainer.innerHTML = "<div style='padding:15px; color:red;'>Failed to load media.</div>";
-            }
-        }
-
-        // --- NEW HELPERS FOR VOD CONTROLS & SERIES EPISODES ---
-        function seekVideo(seconds) {
-            const videoElement = document.getElementById('main-video-player');
-            if (videoElement && !videoElement.paused) {
-                videoElement.currentTime += seconds;
-            }
-        }
-
-        function getWatchedEpisodes() {
-            const watched = localStorage.getItem('watched_episodes');
-            return watched ? JSON.parse(watched) : [];
-        }
-
-        function toggleWatched(episodeId, btnElement) {
-            let watched = getWatchedEpisodes();
-            if (watched.includes(episodeId)) {
-                watched = watched.filter(id => id !== episodeId);
-                btnElement.textContent = "Mark as Watched";
-                btnElement.style.background = "#555";
-            } else {
-                watched.push(episodeId);
-                btnElement.textContent = "Watched \u2713";
-                btnElement.style.background = "limegreen";
-            }
-            localStorage.setItem('watched_episodes', JSON.stringify(watched));
-        }
-
-        async function loadEpisodes(seriesId, seriesName) {
-            const infoUrl = `${serverUrl}/player_api.php?username=${username}&password=${password}&action=get_series_info&series_id=${seriesId}`;
-            const target = document.getElementById('episode-list-target');
-            document.getElementById('episodes-title').textContent = `SERIES / ${seriesName.toUpperCase()}`;
-            target.innerHTML = "<div style='padding:15px; color:white;'>Loading episodes...</div>";
-            
-            switchView('screen-episodes');
-
-            try {
-                const response = await fetch(infoUrl);
-                const data = await response.json();
-                target.innerHTML = "";
-
-                if (!data.episodes || Object.keys(data.episodes).length === 0) {
-                    target.innerHTML = "<div style='padding:15px; color:white;'>No episodes found.</div>";
-                    return;
-                }
-
-                const watchedList = getWatchedEpisodes();
-
-                for (const seasonNum in data.episodes) {
-                    const seasonArr = data.episodes[seasonNum];
-                    
-                    const seasonHeader = document.createElement('h3');
-                    seasonHeader.textContent = `Season ${seasonNum}`;
-                    seasonHeader.style.color = "#7db9e8";
-                    seasonHeader.style.marginTop = "15px";
-                    seasonHeader.style.paddingBottom = "5px";
-                    seasonHeader.style.borderBottom = "1px solid rgba(255,255,255,0.1)";
-                    target.appendChild(seasonHeader);
-
-                    seasonArr.forEach(ep => {
-                        const epDiv = document.createElement('div');
-                        epDiv.style.display = "flex";
-                        epDiv.style.justifyContent = "space-between";
-                        epDiv.style.alignItems = "center";
-                        epDiv.style.background = "rgba(0, 20, 40, 0.6)";
-                        epDiv.style.padding = "10px 15px";
-                        epDiv.style.borderRadius = "4px";
-                        epDiv.style.border = "1px solid rgba(255,255,255,0.1)";
-
-                        const epTitle = document.createElement('span');
-                        epTitle.textContent = `Ep ${ep.episode_num || '?'}: ${ep.title}`;
-                        epTitle.style.cursor = "pointer";
-                        epTitle.style.flexGrow = "1";
-                        epTitle.style.fontWeight = "bold";
-                        
-                        epTitle.onclick = () => {
-                            switchView('screen-channels');
-                            playMedia(ep.id, ep.title, ep.container_extension || 'mp4', true);
-                        };
-
-                        const isWatched = watchedList.includes(ep.id.toString());
-                        const watchBtn = document.createElement('button');
-                        watchBtn.textContent = isWatched ? "Watched \u2713" : "Mark as Watched";
-                        watchBtn.style.background = isWatched ? "limegreen" : "#555";
-                        watchBtn.style.color = "white";
-                        watchBtn.style.border = "none";
-                        watchBtn.style.padding = "6px 12px";
-                        watchBtn.style.borderRadius = "4px";
-                        watchBtn.style.cursor = "pointer";
-                        watchBtn.style.fontWeight = "bold";
-                        watchBtn.style.marginLeft = "15px";
-                        
-                        watchBtn.onclick = () => toggleWatched(ep.id.toString(), watchBtn);
-
-                        epDiv.appendChild(epTitle);
-                        epDiv.appendChild(watchBtn);
-                        target.appendChild(epDiv);
-                    });
-                }
-            } catch (err) {
-                target.innerHTML = "<div style='padding:15px; color:red;'>Failed to load episodes.</div>";
-            }
-        }
-        // ----------------------------------------------------
-
-        function playMedia(id, name, containerExtension, isEpisode = false) {
-            document.getElementById('playing-channel-title').textContent = name;
-            
-            // Inject the title into the new video control bar
-            const ytTitle = document.getElementById('yt-title-display');
-            if (ytTitle) ytTitle.textContent = name + " >";
-
-            const videoElement = document.getElementById('main-video-player');
-            let mediaUrl = "";
-
-            // Toggle custom style controls (Hide for Live TV to prevent infinite scrubbing issues)
-            const mediaControls = document.getElementById('media-controls');
-            if (mediaControls) {
-                if (currentMode === "live") {
-                    mediaControls.classList.add('hidden-controls');
-                } else {
-                    mediaControls.classList.remove('hidden-controls');
-                }
-            }
-
-            if (currentMode === "live") {
-                mediaUrl = `${serverUrl}/live/${username}/${password}/${id}.m3u8`;
-            } else if (currentMode === "vod") {
-                mediaUrl = `${serverUrl}/movie/${username}/${password}/${id}.${containerExtension}`;
-            } else if (currentMode === "series" && !isEpisode) {
-                // If it's a series click, load episodes view instead of playing directly
-                loadEpisodes(id, name);
-                return;
-            } else if (currentMode === "series" && isEpisode) {
-                // Actual episode playback URL
-                mediaUrl = `${serverUrl}/series/${username}/${password}/${id}.${containerExtension}`;
-            }
-            
-            // Handling for Live TV and Media with Device-Specific Fallbacks
-            if (window.hlsPlayer) { window.hlsPlayer.destroy(); }
-
-            if (currentMode === "live") {
-                // 1. Check if the device natively supports HLS (Apple devices, Smart TVs, Safari)
-                if (videoElement.canPlayType('application/vnd.apple.mpegurl')) {
-                    videoElement.src = mediaUrl;
-                    videoElement.play().catch(e => console.log("Native HLS autoplay blocked", e));
-                } 
-                // 2. Fallback to HLS.js for browsers that use MSE (Chrome, Edge, Firefox, Android)
-                else if (Hls.isSupported()) {
-                    window.hlsPlayer = new Hls();
-                    window.hlsPlayer.loadSource(mediaUrl);
-                    window.hlsPlayer.attachMedia(videoElement);
-                    
-                    window.hlsPlayer.on(Hls.Events.MANIFEST_PARSED, function() {
-                        videoElement.play().catch(e => console.log("HLS.js autoplay blocked", e));
-                    });
-
-                    // If HLS.js fails, fallback to direct native TS streaming
-                    window.hlsPlayer.on(Hls.Events.ERROR, function(event, data) {
-                        if (data.fatal) {
-                            console.warn("HLS (.m3u8) failed. Attempting fallback to direct stream...");
-                            window.hlsPlayer.destroy();
-                            videoElement.src = `${serverUrl}/${username}/${password}/${id}`;
-                            videoElement.play().catch(e => console.log("Direct stream autoplay blocked", e));
-                        }
-                    });
-                }
-                // 3. Ultimate fallback for live streams if neither native nor HLS.js works
-                else {
-                    videoElement.src = `${serverUrl}/${username}/${password}/${id}`;
-                    videoElement.play().catch(e => console.log("Fallback autoplay blocked", e));
-                }
-            } 
-            // Standard MP4/MKV handling for VOD and Series
-            else {
-                videoElement.src = mediaUrl;
-                videoElement.play().catch(e => console.log("Playback error or autoplay blocked", e));
-            }
-        }
-
-        // --- CUSTOM CONTROL BAR LOGIC ---
-        // Attaches seamlessly to manage time updates and scrubbing
-        setTimeout(() => {
-            const videoEl = document.getElementById('main-video-player');
-            const seekTrack = document.getElementById('seek-track');
-            const seekProgress = document.getElementById('seek-progress');
-            const seekHandle = document.getElementById('seek-handle');
-            const timeDisplay = document.getElementById('yt-time-display');
-            const playPauseBtn = document.getElementById('yt-play-pause');
-            const muteBtn = document.getElementById('yt-mute');
-            const fullscreenBtn = document.getElementById('yt-fullscreen');
-            
-            if (videoEl && seekTrack) {
-                // Formatting helper
-                const formatTime = (timeInSeconds) => {
-                    if (isNaN(timeInSeconds) || !isFinite(timeInSeconds)) return "0:00";
-                    const m = Math.floor(timeInSeconds / 60);
-                    const s = Math.floor(timeInSeconds % 60);
-                    return `${m}:${s < 10 ? '0' : ''}${s}`;
-                };
-
-                // Track Sync & Duration
-                videoEl.addEventListener('timeupdate', () => {
-                    // Safety check against crash
-                    if (!videoEl.duration || !isFinite(videoEl.duration)) {
-                        timeDisplay.textContent = "Live Stream";
-                        return;
-                    }
-                    
-                    const percent = (videoEl.currentTime / videoEl.duration) * 100;
-                    seekProgress.style.width = `${percent}%`;
-                    seekHandle.style.left = `${percent}%`;
-                    
-                    timeDisplay.textContent = `${formatTime(videoEl.currentTime)} / ${formatTime(videoEl.duration)}`;
-                });
-
-                // Calculate seek based on pointer placement
-                function updateSeek(clientX) {
-                    if (!videoEl.duration || !isFinite(videoEl.duration)) return;
-                    const rect = seekTrack.getBoundingClientRect();
-                    let offsetX = clientX - rect.left;
-                    if (offsetX < 0) offsetX = 0;
-                    if (offsetX > rect.width) offsetX = rect.width;
-                    videoEl.currentTime = (offsetX / rect.width) * videoEl.duration;
-                }
-
-                // Mouse Dragging
-                seekTrack.addEventListener('mousedown', (e) => {
-                    updateSeek(e.clientX);
-                    function onMouseMove(evt) { updateSeek(evt.clientX); }
-                    function onMouseUp() {
-                        document.removeEventListener('mousemove', onMouseMove);
-                        document.removeEventListener('mouseup', onMouseUp);
-                    }
-                    document.addEventListener('mousemove', onMouseMove);
-                    document.addEventListener('mouseup', onMouseUp);
-                });
-
-                // Touch Dragging
-                seekTrack.addEventListener('touchstart', (e) => {
-                    updateSeek(e.touches[0].clientX);
-                    function onTouchMove(evt) { 
-                        evt.preventDefault();
-                        updateSeek(evt.touches[0].clientX); 
-                    }
-                    function onTouchEnd() {
-                        document.removeEventListener('touchmove', onTouchMove);
-                        document.removeEventListener('touchend', onTouchEnd);
-                    }
-                    document.addEventListener('touchmove', onTouchMove, { passive: false });
-                    document.addEventListener('touchend', onTouchEnd);
-                });
-
-                // Play / Pause Mapping
-                playPauseBtn.addEventListener('click', () => {
-                    if (videoEl.paused) { videoEl.play(); } else { videoEl.pause(); }
-                });
-                videoEl.addEventListener('play', () => playPauseBtn.innerHTML = '&#10074;&#10074;');
-                videoEl.addEventListener('pause', () => playPauseBtn.innerHTML = '&#9654;');
-
-                // Audio Mapping
-                muteBtn.addEventListener('click', () => {
-                    videoEl.muted = !videoEl.muted;
-                    muteBtn.innerHTML = videoEl.muted ? '&#128263;' : '&#128266;';
-                });
-
-                // Fullscreen wrapper
-                fullscreenBtn.addEventListener('click', () => {
-                    const wrap = document.querySelector('.video-wrapper');
-                    if (!document.fullscreenElement) {
-                        if (wrap.requestFullscreen) wrap.requestFullscreen();
-                        else if (wrap.webkitRequestFullscreen) wrap.webkitRequestFullscreen();
-                    } else {
-                        if (document.exitFullscreen) document.exitFullscreen();
-                        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-                    }
-                });
-            }
-        }, 100);
-
-        // --- CUSTOM PROGRESS BAR SCRUBBING LOGIC ---
-        // Attaches seamlessly at runtime to handle UI syncing safely
-        setTimeout(() => {
-            const videoEl = document.getElementById('main-video-player');
-            const seekTrack = document.getElementById('seek-track');
-            const seekProgress = document.getElementById('seek-progress');
-            const seekHandle = document.getElementById('seek-handle');
-            
-            if (videoEl && seekTrack) {
-                // Update tracker dynamically with playback
-                videoEl.addEventListener('timeupdate', () => {
-                    // Safety check preventing crashes on Live Streams (NaN/Infinity)
-                    if (!videoEl.duration || !isFinite(videoEl.duration)) return;
-                    
-                    const percent = (videoEl.currentTime / videoEl.duration) * 100;
-                    seekProgress.style.width = `${percent}%`;
-                    seekHandle.style.left = `${percent}%`;
-                });
-
-                // Calculate time skip based on scrub position
-                function updateSeek(clientX) {
-                    if (!videoEl.duration || !isFinite(videoEl.duration)) return;
-                    const rect = seekTrack.getBoundingClientRect();
-                    let offsetX = clientX - rect.left;
-                    
-                    if (offsetX < 0) offsetX = 0;
-                    if (offsetX > rect.width) offsetX = rect.width;
-                    
-                    videoEl.currentTime = (offsetX / rect.width) * videoEl.duration;
-                }
-
-                // Desktop Mouse Scrubbing
-                seekTrack.addEventListener('mousedown', (e) => {
-                    updateSeek(e.clientX);
-                    function onMouseMove(evt) { updateSeek(evt.clientX); }
-                    function onMouseUp() {
-                        document.removeEventListener('mousemove', onMouseMove);
-                        document.removeEventListener('mouseup', onMouseUp);
-                    }
-                    document.addEventListener('mousemove', onMouseMove);
-                    document.addEventListener('mouseup', onMouseUp);
-                });
-
-                // Mobile Touch Scrubbing
-                seekTrack.addEventListener('touchstart', (e) => {
-                    updateSeek(e.touches[0].clientX);
-                    function onTouchMove(evt) { 
-                        evt.preventDefault(); // Stop screen from dragging
-                        updateSeek(evt.touches[0].clientX); 
-                    }
-                    function onTouchEnd() {
-                        document.removeEventListener('touchmove', onTouchMove);
-                        document.removeEventListener('touchend', onTouchEnd);
-                    }
-                    document.addEventListener('touchmove', onTouchMove, { passive: false });
-                    document.addEventListener('touchend', onTouchEnd);
-                });
-            }
-        }, 100);
-    </script>
+      );
+      S.ts.attachMediaElement(v);
+      S.ts.on(mpegts.Events.ERROR,()=>{started?switchIfStuck():nextPlan()});
+      S.ts.load();startVideo(token);
+    }else{
+      v.src=p.url;v.load();startVideo(token);
+    }
+  }catch(e){nextPlan()}
+}
+function startVideo(token){
+  const v=$('video');
+  const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
+  const ok=()=>{
+    if(token!==S.seq)return;
+    clearTimeout(S.timer);
+    $('overlay').style.display='none';
+    $('netStatus').textContent=v.muted?'Playing muted':'Playing';
+    $('miniMeta').textContent=v.muted?'Playing muted - tap speaker':'Playing';
+    if($('playBtn'))$('playBtn').innerHTML=ICONS.pause;
+  };
+  const showTap=()=>{
+    if(token!==S.seq)return;
+    $('overlay').style.display='grid';
+    if($('stateProgress'))$('stateProgress').classList.add('hidden');
+    $('stateTitle').textContent='Tap play to start';
+    $('stateText').textContent='Tap the video once to begin. If it still fails, the next stream path will be tried automatically.';
+    $('netStatus').textContent='Tap to play';
+    $('miniMeta').textContent='Tap to play';
+    if($('playBtn'))$('playBtn').innerHTML=ICONS.play;
+  };
+  ['playing','canplay','loadeddata','loadedmetadata'].forEach(ev=>v.addEventListener(ev,ok,{once:true}));
+  /* ExoPlayer-style autoplay waterfall: unmuted → muted → show tap prompt */
+  const attempt=(mutedRetry=false,tapRetry=false)=>{
+    if(token!==S.seq)return;
+    if(mutedRetry)v.muted=true;
+    /* TV browsers: skip muted retry, go straight to play */
+    const p=v.play();
+    if(p&&p.catch)p.catch(err=>{
+      if(token!==S.seq)return;
+      const isBlocked=/notallowed|gesture|interact|permission/i.test(String(err&&((err.name||'')+' '+(err.message||''))));
+      /* On mobile/TV first failure: retry muted (mirrors ExoPlayer's audio focus fallback) */
+      if(!mutedRetry&&!tapRetry&&(isBlocked||mobile()||isTv)){attempt(true);return}
+      if(v.readyState===0){$('netStatus').textContent='Loading stream';$('miniMeta').textContent='Connecting...';return}
+      /* Last resort: show tap overlay */
+      if(!tapRetry){attempt(false,true);return}
+      showTap();
+    });
+  };
+  /* TV browsers sometimes need a short delay before play() */
+  if(isTv){setTimeout(()=>attempt(false),120)}else{attempt(false);}
+}
+function fail(msg){
+  const hasTrans=!!transcoderBase();
+  const isApple=/iphone|ipad|ipod/i.test(navigator.userAgent||'');
+  $('overlay').style.display='grid';
+  if($('stateProgress'))$('stateProgress').classList.add('hidden');
+  if(S.audioOnly){
+    $('stateTitle').textContent='Unsupported video codec';
+    $('stateText').textContent='Sound may play but the browser cannot decode this video track. Use the FFmpeg transcoder for preview playback.';
+    $('miniMeta').textContent='Codec unsupported';
+    toast('Codec needs transcoder');
+  }else if(hasTrans){
+    $('stateTitle').textContent='Stream unavailable';
+    $('stateText').textContent='This stream did not produce playable HLS. Try another channel or check the transcoder server.';
+    $('miniMeta').textContent='Preview failed';
+    toast('Preview playback failed');
+  }else if(isApple){
+    /* On Apple without transcoder: give a clear, actionable message — not "Transcoder needed" */
+    $('stateTitle').textContent='Stream not supported';
+    $('stateText').textContent='This stream uses a codec or container that Safari cannot play directly. Try a different channel, or use the Stream Tools menu to set a transcoder server for full compatibility.';
+    $('miniMeta').textContent='Unsupported stream';
+    toast('Try another channel or set transcoder');
+  }else{
+    $('stateTitle').textContent='Transcoder needed';
+    $('stateText').textContent='This browser cannot decode this stream format by itself. Set the FFmpeg transcoder URL in Stream Tools.';
+    $('miniMeta').textContent='Preview failed';
+    toast('Set transcoder URL');
+  }
+  $('netStatus').textContent='Preview failed';
+  const d=$('details');
+  if(d&&S.current)d.textContent='Smart STB, MX Player, IPTV Smarters, and VLC use native/FFmpeg decoders. A web preview needs the same idea on a server: FFmpeg converts MKV, HEVC/H.265, AC3, and unstable TS into browser-friendly HLS.';
+}
+function seekBy(sec){const v=$('video');if(!S.current||!isFinite(v.duration)){toast('Seek is available for Movies and Series');return}v.currentTime=Math.max(0,Math.min(v.duration||0,(v.currentTime||0)+sec));$('playerBox').classList.add('showbar')}
+function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
+async function pip(){const v=$('video');try{if(document.pictureInPictureElement){await document.exitPictureInPicture();return}if(document.pictureInPictureEnabled&&v.requestPictureInPicture){await v.requestPictureInPicture();return}if(v.webkitSupportsPresentationMode){v.webkitSetPresentationMode(v.webkitPresentationMode==='picture-in-picture'?'inline':'picture-in-picture');return}toast('Picture in Picture is not supported on this browser')}catch{toast('Start video first, then try PiP')}}
+function fs(){const box=$('playerBox'),v=$('video');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});else if(box.requestFullscreen)box.requestFullscreen().catch(()=>{});else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(30);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}localStorage.setItem(TRANSCODER_KEY,base);localStorage.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;localStorage.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{localStorage.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;v.muted=false;if(v.paused)v.play().then(()=>{$('overlay').style.display='none';$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing'}).catch(()=>{});else{$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing';toast('Sound on')}};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('fsBtn'))$('fsBtn').onclick=fs;let _barTimer=null;const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>pb.classList.remove('showbar'),3200)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();if(mobile())$('side').classList.remove('open')});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+/* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
+   The old "buffer full" branch was removed: it fought hls.js's own live-sync controller
+   and caused a forced seek every 3 seconds = constant freeze/stutter/audio cuts.
+   hls.js already manages live-edge position via liveSyncDuration; when hls.js is active
+   we let it do its job and never seek manually. Manual rescue only for native/mpegts. */
+(function(){var v=$('video');if(!v)return;var lastCt=0,lastSeekAt=0;setInterval(function(){try{if(v.paused||v.ended||v.seeking){lastCt=v.currentTime||0;return;}var isLive=S&&S.current&&S.current._type==='live';var ct=v.currentTime||0;var hlsActive=!!S.hls;if(isLive&&!hlsActive&&v.buffered.length>0&&ct<lastCt-3&&(Date.now()-lastSeekAt)>6000){var edge=v.buffered.end(v.buffered.length-1),target=edge-4;if(target>ct+1&&isFinite(target)){v.currentTime=target;lastSeekAt=Date.now();if($('netStatus'))$('netStatus').textContent='Skipped to live';}}lastCt=v.currentTime||0;}catch(e){}},1000);})();
+(function(){
+  $('playBtn').innerHTML=ICONS.play;
+  $('backBtn').innerHTML=ICONS.rewind;
+  $('forwardBtn').innerHTML=ICONS.forward;
+  $('muteBtn').innerHTML=ICONS.unmuted;
+  $('pipBtn').innerHTML=ICONS.pip;
+  $('fsBtn').innerHTML=ICONS.fsEnter;
+  $('menuBtn').innerHTML=ICONS.menu;
+  $('themeBtn').innerHTML=ICONS.theme;
+  if($('pwToggle'))$('pwToggle').innerHTML=ICONS.eye;
+  document.querySelectorAll('.versionBadge').forEach(e=>e.textContent='Version '+APP_VERSION);
+})();
+if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type==='password';inp.type=show?'text':'password';$('pwToggle').innerHTML=show?ICONS.eyeOff:ICONS.eye};
+/* Seek/progress bar for VOD & Series — hidden for live via updateLiveControls(). Uses
+   Pointer Events so mouse drag and touch drag share one code path with correct axis math
+   (the STB prototype's scrub bar broke under a CSS rotate hack; this app has no such hack). */
+(function(){
+  const v=$('video'),track=$('seekTrack'),fill=$('seekFill'),handle=$('seekHandle'),cur=$('curTime'),dur=$('durTime');
+  if(!v||!track)return;
+  const fmt=s=>{if(!isFinite(s)||s<0)s=0;const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60);return(h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(sec).padStart(2,'0')};
+  const sync=()=>{
+    if(!v.duration||!isFinite(v.duration)){fill.style.width='0%';handle.style.left='0%';cur.textContent='0:00';dur.textContent='0:00';return}
+    const pct=Math.max(0,Math.min(100,(v.currentTime/v.duration)*100));
+    fill.style.width=pct+'%';handle.style.left=pct+'%';
+    cur.textContent=fmt(v.currentTime);dur.textContent=fmt(v.duration);
+  };
+  ['timeupdate','loadedmetadata','durationchange'].forEach(ev=>v.addEventListener(ev,sync));
+  let dragging=false;
+  const seekTo=clientX=>{
+    if(!v.duration||!isFinite(v.duration))return;
+    const r=track.getBoundingClientRect();
+    const pct=Math.max(0,Math.min(1,(clientX-r.left)/r.width));
+    v.currentTime=pct*v.duration;sync();
+  };
+  track.addEventListener('pointerdown',e=>{if(!v.duration||!isFinite(v.duration))return;dragging=true;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
+  track.addEventListener('pointermove',e=>{if(dragging)seekTo(e.clientX)});
+  const stopDrag=e=>{dragging=false;try{track.releasePointerCapture(e.pointerId)}catch{}};
+  track.addEventListener('pointerup',stopDrag);track.addEventListener('pointercancel',stopDrag);
+})();
+restore();renderAll();
+</script>
 </body>
 </html>
