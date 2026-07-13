@@ -341,7 +341,7 @@ function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)r
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
-function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'m3u8':(ch.container_extension||'mp4');return directUrl(ch,ext)}
+function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'ts':(ch.container_extension||'mp4');return directUrl(ch,ext)}
 function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if(/iphone|ipad|ipod/i.test(ua))return'vlc-x-callback://x-callback-url/stream?url='+enc;if(/android/i.test(ua)){try{const x=new URL(u);return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${x.protocol.replace(':','')};package=org.videolan.vlc;type=video/*;end`}catch{}}return'vlc://x-callback-url/stream?url='+enc}
 /* --- v18: device + category aware external player routing.
    ExoPlayer and VLC are native apps, so the page hands the ORIGINAL stream URL to them
@@ -357,7 +357,11 @@ function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='exo')return de
    A raw .ts stream is ONE long HTTP connection — any server hiccup or timeout kills it
    and the player goes black after a few minutes with no way to recover. HLS is fetched
    segment by segment, so the player automatically reconnects and playback survives. */
-function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'m3u8'):directUrl(x,String(x.container_extension||'mp4'))}
+/* v26: external players (VLC/Exo/MX) get the RAW .ts for live — the format the panel is
+   proven to serve (v20 note: VLC played the .m3u containing the raw .ts perfectly). The v23
+   switch to .m3u8 broke panels that don't emit HLS for live: VLC opened, sat on an empty/404
+   playlist, and never started. VOD/series keep their real container file. */
+function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
 function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
 function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
 function downloadM3u(u,title){try{const blob=new Blob(['#EXTM3U\n#EXTINF:-1,'+String(title||'Media26 stream').replace(/[\r\n]+/g,' ')+'\n'+u+'\n'],{type:'audio/x-mpegurl'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='media26-play.m3u';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href);a.remove()}catch{}},4000);return true}catch{return false}}
