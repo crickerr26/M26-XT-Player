@@ -61,6 +61,21 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .timeLabel{font-size:10px;min-width:30px}
   .liveBadge{height:24px;padding:0 8px;font-size:10px}
 }
+/* --- v19: watermark logo, bottom-right, visible only while video is playing --- */
+.watermark{position:absolute;right:14px;bottom:14px;width:clamp(48px,9%,120px);height:auto;opacity:0;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:opacity .4s ease}
+.watermark.on{opacity:.55}
+@media(max-width:760px){.watermark{right:8px;bottom:8px;width:clamp(40px,12%,80px)}}
+/* --- v18 device-aware external player layer --- */
+.nativePanel{display:block;overflow-y:auto}
+.nativePanel .episodeHead{margin-bottom:10px}
+.nativePanel .nativeActions{margin-top:12px}
+.extActions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
+.extActions .pillbtn{height:38px;font-size:13px}
+.field select{width:100%;height:44px;border-radius:13px;background:#edf4fb;color:#132033;border:1px solid #d9e5f2;padding:0 10px;outline:0;font:inherit}
+.playerModes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.playerModes .pm{min-width:0}
+.playerModes .pm span{display:block;font-size:10px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:5px;text-transform:uppercase}
+@media(max-width:760px){.playerModes{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -86,8 +101,8 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </aside>
     <main class="main">
       <section class="player" id="playerBox">
-        <video id="video" playsinline webkit-playsinline preload="auto" crossorigin="anonymous" muted="muted"></video><span id="miniTitle" hidden></span><span id="miniMeta" hidden></span>
-        <div class="player-overlay" id="overlay"><div class="state"><img id="stateThumb" class="state-thumb hidden" src="" alt=""><strong id="stateTitle">Choose a channel</strong><p id="stateText">Login, pick Live, Movies, or Series, then tap play.</p><div id="stateProgress" class="state-progress hidden"><div class="progress-bar"></div></div></div></div>
+        <video id="video" playsinline webkit-playsinline preload="auto" crossorigin="anonymous" muted="muted"></video><img id="watermark" class="watermark" src="watermark.png" alt="" aria-hidden="true"><span id="miniTitle" hidden></span><span id="miniMeta" hidden></span>
+        <div class="player-overlay" id="overlay"><div class="state"><img id="stateThumb" class="state-thumb hidden" src="" alt=""><strong id="stateTitle">Choose a channel</strong><p id="stateText">Login, pick Live, Movies, or Series, then tap play.</p><div id="stateProgress" class="state-progress hidden"><div class="progress-bar"></div></div><div class="extActions hidden" id="extActions"><button class="pillbtn primary" id="extRetry">Open app again</button><button class="pillbtn" id="extBrowser">Play here instead</button><button class="pillbtn" id="extCopy">Copy link</button></div></div></div>
         <div class="playerbar" id="playerbar">
           <div class="seekRow hidden" id="seekRow">
             <span class="timeLabel" id="curTime">0:00</span>
@@ -100,6 +115,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
             <button class="round" id="forwardBtn" title="Forward 30s" aria-label="Forward 30 seconds"></button>
             <span class="liveBadge hidden" id="liveBadge"><i class="liveDot"></i>LIVE</span>
             <div class="grow"></div>
+            <button class="round" id="extBtn" title="Open in ExoPlayer / VLC" aria-label="Open in external player"></button>
             <button class="round" id="muteBtn" title="Mute / Unmute" aria-label="Mute or unmute"></button>
             <button class="round" id="pipBtn" title="Picture in Picture" aria-label="Picture in picture"></button>
             <button class="round" id="fsBtn" title="Fullscreen" aria-label="Toggle fullscreen"></button>
@@ -127,7 +143,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">ExoPlayer / video app</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">ExoPlayer / video app</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">ExoPlayer / video app</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = ExoPlayer app on Android phones/tablets, VLC on computers and iPhone/iPad. If the app is missing, browser preview starts automatically.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -140,7 +156,15 @@ const RECENT='smarter-fresh-recent-v1';
 const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
-const APP_VERSION='17';
+const PLAYER_MODE_KEY='media26-player-mode-v1';
+const APP_VERSION='20';
+/* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
+   privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
+   'data:' URLs") — that exception used to surface in the login error box and block
+   login entirely. All storage access now goes through this shim: real localStorage
+   when available, otherwise an in-memory Map so everything works for the session
+   (favorites/credentials just won't survive a reload in those contexts). */
+const store=(()=>{try{const t='__m26t';localStorage.setItem(t,'1');localStorage.removeItem(t);return localStorage}catch{const m=new Map();return{getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v))},removeItem:k=>{m.delete(k)}}}})();
 const $=id=>document.getElementById(id);
 const ICONS={
   play:'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
@@ -152,12 +176,13 @@ const ICONS={
   pip:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="15" rx="1.5"/><rect x="12" y="12" width="7" height="5" rx="1" fill="currentColor" stroke="none"/></svg>',
   fsEnter:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 4 4 4 4 9"/><polyline points="15 4 20 4 20 9"/><polyline points="9 20 4 20 4 15"/><polyline points="15 20 20 20 20 15"/></svg>',
   fsExit:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 9 9 9 9 4"/><polyline points="20 9 15 9 15 4"/><polyline points="4 15 9 15 9 20"/><polyline points="20 15 15 15 15 20"/></svg>',
+  external:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>',
   menu:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>',
   theme:'<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3a9 9 0 000 18z" fill="currentColor"/><circle cx="12" cy="12" r="8.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   eye:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   eyeOff:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-4.2 4.9M6.3 6.3A15.5 15.5 0 0 0 2 12s3.6 7 10 7c1.4 0 2.6-.2 3.7-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -184,11 +209,11 @@ function logoOf(x){return x.stream_icon||x.cover||x.movie_image||x.info?.movie_i
 function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
 function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
 function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
-function saveCreds(){localStorage.setItem(KEY,JSON.stringify({url:S.url,user:S.user,pass:S.pass}))}
-function restore(){try{const c=JSON.parse(localStorage.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(localStorage.getItem(FAV)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(localStorage.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(localStorage.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';const saved=q?normalize(q):(localStorage.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);if(saved){$('transcoderUrl').value=saved;localStorage.setItem(TRANSCODER_KEY,saved)}const tok=qt||localStorage.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;localStorage.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}}
-function saveFavs(){localStorage.setItem(FAV,JSON.stringify([...S.favs]))}
-function saveOrders(){localStorage.setItem(ORDER,JSON.stringify(S.orders))}
-function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)].slice(0,30);localStorage.setItem(RECENT,JSON.stringify(S.recent))}
+function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,user:S.user,pass:S.pass}))}
+function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';const saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}}
+function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
+function saveOrders(){store.setItem(ORDER,JSON.stringify(S.orders))}
+function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)].slice(0,30);store.setItem(RECENT,JSON.stringify(S.recent))}
 async function login(){
   $('err').textContent='';
   try{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const raw=accountUrl();const info=await fetch(blocked(S.url)?proxyUrl(raw):raw,{cache:'no-store'}).then(r=>r.json());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');saveCreds();await refreshAll();$('login').classList.add('hidden');toast('Playlist loaded')}
@@ -219,14 +244,77 @@ async function openEpisodePicker(x){load(true,'Loading episodes...');try{const d
 function directUrl(x,ext){const type=typeOf(x), sid=idOf(x);let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
 function playableUrl(u,type){return blocked(u)?proxyUrl(u):u}
 function proxiedMediaUrl(u){return proxyUrl(u)}
-function transcoderBase(){try{return normalize($('transcoderUrl')?.value||localStorage.getItem(TRANSCODER_KEY)||'')}catch{return''}}
-function transcoderToken(){try{return ($('transcoderToken')?.value||localStorage.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
+function transcoderBase(){try{return normalize($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
+function transcoderToken(){try{return ($('transcoderToken')?.value||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
 function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)return'';const token=transcoderToken();return `${base}/hls?profile=${encodeURIComponent(profile)}${token?'&token='+encodeURIComponent(token):''}&url=${encodeURIComponent(u)}`}
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
 function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'m3u8':(ch.container_extension||'mp4');return directUrl(ch,ext)}
 function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if(/iphone|ipad|ipod/i.test(ua))return'vlc-x-callback://x-callback-url/stream?url='+enc;if(/android/i.test(ua)){try{const x=new URL(u);return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${x.protocol.replace(':','')};package=org.videolan.vlc;type=video/*;end`}catch{}}return'vlc://x-callback-url/stream?url='+enc}
+/* --- v18: device + category aware external player routing.
+   ExoPlayer and VLC are native apps, so the page hands the ORIGINAL stream URL to them
+   (no proxy/relay — native players have no CORS or codec limits, which is why they play
+   smoothly where the browser stutters). Android: intent:// launch chain of ExoPlayer-based
+   apps with visibility-based failure detection. iOS: VLC x-callback scheme. Computer:
+   one-click .m3u playlist handoff that opens in VLC. If no app opens, browser preview
+   starts automatically so playback never dead-ends. */
+function deviceKind(){const ua=navigator.userAgent||'';if(/android/i.test(ua))return'android';if(/iphone|ipad|ipod/i.test(ua)||(/macintosh/i.test(ua)&&'ontouchend'in document))return'ios';return'desktop'}
+function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'auto';if(m!=='auto')return m;const d=deviceKind();return d==='android'?'exo':'vlc'}
+function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='exo')return deviceKind()==='android'?'ExoPlayer':'VLC';return'browser'}
+function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
+function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
+function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
+function downloadM3u(u,title){try{const blob=new Blob(['#EXTM3U\n#EXTINF:-1,'+String(title||'Media26 stream').replace(/[\r\n]+/g,' ')+'\n'+u+'\n'],{type:'audio/x-mpegurl'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='media26-play.m3u';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href);a.remove()}catch{}},4000);return true}catch{return false}}
+function launchAppChain(urls,onGone,onFail){
+  let i=0,alive=true,t=null;
+  const stop=()=>{alive=false;document.removeEventListener('visibilitychange',onVis);clearTimeout(t)};
+  const onVis=()=>{if(document.visibilityState==='hidden'){stop();onGone&&onGone()}};
+  document.addEventListener('visibilitychange',onVis);
+  const step=()=>{
+    if(!alive)return;
+    if(i>=urls.length){stop();onFail&&onFail();return}
+    try{location.href=urls[i++]}catch{}
+    /* if the app opened, the page goes hidden and onVis stops the chain; otherwise try the next app */
+    t=setTimeout(step,2600);
+  };
+  step();
+  return stop;
+}
+async function playItemExternal(x,mode){
+  setCurrentItem(x);cleanup();
+  if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}
+  const u=externalStreamUrl(x),title=nameOf(x),d=deviceKind(),label=playerLabel(mode);
+  S.extLaunch={x,mode};
+  const thumb=logoOf(x);
+  if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}
+  $('stateProgress').classList.add('hidden');
+  $('extActions').classList.remove('hidden');
+  $('overlay').style.display='grid';
+  $('stateTitle').textContent='Opening '+label;
+  $('netStatus').textContent='External player';$('miniMeta').textContent='Opening '+label;
+  try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}
+  if(d==='desktop'){
+    downloadM3u(u,title);
+    $('stateText').textContent='Playlist file "media26-play.m3u" downloaded — open it with VLC to play "'+title+'". The stream link is also copied. Tip: set .m3u files to always open with VLC for true one-click playback.';
+    toast('Open the downloaded .m3u in VLC');
+    return;
+  }
+  let chain;
+  if(d==='android'){
+    chain=mode==='exo'
+      ?[androidIntentUrl(u,'com.brouken.player',title),androidIntentUrl(u,'com.mxtech.videoplayer.ad',title),androidIntentUrl(u,'org.videolan.vlc',title),androidIntentUrl(u,'',title)]
+      :[androidIntentUrl(u,'org.videolan.vlc',title),androidIntentUrl(u,'',title)];
+  }else{
+    chain=[iosVlcUrl(u)];
+  }
+  chain=chain.filter(Boolean);
+  $('stateText').textContent='Launching '+label+' with "'+title+'". If no player app opens, browser preview starts automatically.';
+  S.stopExtChain=launchAppChain(chain,
+    ()=>{S.stopExtChain=null;$('stateText').textContent='Playing in '+label+'. Come back here anytime to pick another channel.';$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
+    ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){toast(label+' app not found — playing in browser');playItemPreview(x)}}
+  );
+}
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show')}
 function openVlcForCurrent(){const u=nativeAppUrl(S.current);if(!u)return;location.href=vlcUrl(u);setTimeout(()=>{try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}},250)}
 function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live, Movies, or Series and tap an item.')}
@@ -234,7 +322,7 @@ function openRawStream(){if(S.current)playItem(S.current)}
 function updateLiveControls(){/* FIX: live has no seekable timeline — hide Play/Pause, Rewind, Forward for live; keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. */const isLive=S.current&&typeOf(S.current)==='live';['playBtn','backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b)b.style.display=isLive?'none':'';});const sr=$('seekRow');if(sr)sr.classList.toggle('hidden',isLive);const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);}
 function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls()}
 async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))$('stateProgress').classList.add('hidden');if($('stateThumb'))$('stateThumb').classList.add('hidden');$('stateTitle').textContent='Opening VLC';$('stateText').textContent='If VLC is installed, the stream will open there. The link is also copied.';$('overlay').style.display='grid';$('netStatus').textContent='VLC mode';$('miniMeta').textContent='Opening VLC';openVlcForCurrent();toast('Opening in VLC')}
-async function playItemPreview(x){setCurrentItem(x);$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
+async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
 function forceMobileSmoothLevel(hls){
   /* v3: FULL ABR on every device — no more 720p pin blocking 4K on mobile.
@@ -258,7 +346,9 @@ function plan(x){
   const isAndroid=/android/i.test(ua);
   const isMob=mobile();
   const isMkv=mkvLike(orig);
-  const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
+  /* v20: dedupe by kind+url (was url only, which silently dropped legitimate fallbacks that
+     reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
+  const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
   const addTrans=(label,url,front=false)=>{const t=transcodeUrl(url,type==='live'?'live':'vod');if(t)add('hls',label+' Transcoded',t,front)};
   if(type==='live'){
     const m3u8=directUrl(x,'m3u8'),ts=directUrl(x,'ts'),ext=orig&&orig!=='m3u8'?directUrl(x,orig):'';
@@ -277,15 +367,26 @@ function plan(x){
        reach the http origin directly (mixed content). The transcoder is intentionally NOT in
        the live cascade any more — it's a third connection and is reached only via the manual
        Stream Tools button when a user explicitly wants it. */
+    /* v20 (user-verified root cause): the SAME channel plays perfectly smooth in VLC via the
+       downloaded .m3u — and VLC reads the continuous raw .ts over ONE steady connection with a
+       few seconds of buffer. No playlist polling, no live-edge chasing. Every stutter path in
+       this app was HLS-based: Xtream portals serve tiny 3-segment playlists that hls.js must
+       re-poll constantly, and any reload jitter starves the buffer. mpegts.js (already bundled,
+       but previously never used for live) can ingest the exact same continuous .ts the way VLC
+       does — so it is now the PRIMARY live engine wherever MSE is available. Safari/iOS has no
+       MSE for this, so it keeps native HLS first. All HLS paths remain as automatic fallbacks
+       (codec not supported by MSE, CORS-blocked origin, etc. move on within seconds). */
+    const tsOk=!!(window.mpegts&&mpegts.isSupported());
     if(!blocked(m3u8)){
-      /* http page (localhost / http host / native app): hit the origin directly like the
-         reference player — one connection, no relay in the hot path */
+      if(tsOk)add('mpegts','Direct TS',ts);
       add('native','Direct',m3u8);
       add('hls','Direct HLS',m3u8);
+      if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
       add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
     }else{
-      /* https page can't load the http origin (mixed content) — the relay is the only
-         single-hop option that returns proper CORS/https, so it's primary here */
+      /* https page can't touch the http origin (mixed content) — but the CORS proxy is https
+         and streams bodies through, so the VLC-style continuous TS still works via one hop */
+      if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
       add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
       add('hls','Direct HLS',proxyUrl(m3u8));
     }
@@ -339,8 +440,8 @@ function plan(x){
   }
   return p;
 }
-function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
-async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);await playItemPreview(x)}
+function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
+async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);const mode=resolvedPlayer(typeOf(x));if((mode==='exo'||mode==='vlc')&&!fromAlternative){await playItemExternal(x,mode);return}await playItemPreview(x)}
 async function tryPlans(plans,i){
   const v=$('video');
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
@@ -595,16 +696,20 @@ async function tryPlans(plans,i){
         {
           enableWorker:!(mobile()||isTv),
           enableStashBuffer:true,
-          stashInitialSize:isTv?2*1024*1024:(mobile()?384*1024:1024*1024),
+          stashInitialSize:isTv?2*1024*1024:(mobile()?512*1024:1024*1024),
           lazyLoad:false,
           autoCleanupSourceBuffer:true,
-          autoCleanupMaxBackwardDuration:tsLive?18:90,
-          autoCleanupMinBackwardDuration:tsLive?6:28,
+          autoCleanupMaxBackwardDuration:tsLive?24:90,
+          autoCleanupMinBackwardDuration:tsLive?8:28,
           fixAudioTimestampGap:true,
           isLive:tsLive,
-          liveBufferLatencyChasing:tsLive&&!isTv,
-          liveBufferLatencyMaxLatency:isTv?8:4,
-          liveBufferLatencyMinRemain:isTv?3:1.5,
+          /* v20: latency chasing OFF for live. Chasing (maxLatency 4s) force-seeked toward the
+             live edge whenever buffer built up — each seek is a visible freeze, exactly the
+             stutter VLC doesn't have. VLC's model: read the continuous stream, let a few seconds
+             of buffer accumulate, never jump. Trade a little latency for steady playback. */
+          liveBufferLatencyChasing:false,
+          liveBufferLatencyMaxLatency:isTv?10:8,
+          liveBufferLatencyMinRemain:isTv?3:2,
         }
       );
       S.ts.attachMediaElement(v);
@@ -692,7 +797,7 @@ function seekBy(sec){const v=$('video');if(!S.current||!isFinite(v.duration)){to
 function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
 async function pip(){const v=$('video');try{if(document.pictureInPictureElement){await document.exitPictureInPicture();return}if(document.pictureInPictureEnabled&&v.requestPictureInPicture){await v.requestPictureInPicture();return}if(v.webkitSupportsPresentationMode){v.webkitSetPresentationMode(v.webkitPresentationMode==='picture-in-picture'?'inline':'picture-in-picture');return}toast('Picture in Picture is not supported on this browser')}catch{toast('Start video first, then try PiP')}}
 function fs(){const box=$('playerBox'),v=$('video');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});else if(box.requestFullscreen)box.requestFullscreen().catch(()=>{});else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(30);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}localStorage.setItem(TRANSCODER_KEY,base);localStorage.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;localStorage.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{localStorage.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;v.muted=false;if(v.paused)v.play().then(()=>{$('overlay').style.display='none';$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing'}).catch(()=>{});else{$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing';toast('Sound on')}};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('fsBtn'))$('fsBtn').onclick=fs;let _barTimer=null;const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>pb.classList.remove('showbar'),3200)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(30);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;v.muted=false;if(v.paused)v.play().then(()=>{$('overlay').style.display='none';$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing'}).catch(()=>{});else{$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing';toast('Sound on')}};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extRetry'))$('extRetry').onclick=()=>{if(S.extLaunch)playItemExternal(S.extLaunch.x,S.extLaunch.mode)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemPreview(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;let _barTimer=null;const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>pb.classList.remove('showbar'),3200)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();if(mobile())$('side').classList.remove('open')});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 /* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
    The old "buffer full" branch was removed: it fought hls.js's own live-sync controller
@@ -705,6 +810,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;
   $('backBtn').innerHTML=ICONS.rewind;
   $('forwardBtn').innerHTML=ICONS.forward;
   $('muteBtn').innerHTML=ICONS.unmuted;
+  if($('extBtn'))$('extBtn').innerHTML=ICONS.external;
   $('pipBtn').innerHTML=ICONS.pip;
   $('fsBtn').innerHTML=ICONS.fsEnter;
   $('menuBtn').innerHTML=ICONS.menu;
@@ -739,7 +845,20 @@ if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type===
   const stopDrag=e=>{dragging=false;try{track.releasePointerCapture(e.pointerId)}catch{}};
   track.addEventListener('pointerup',stopDrag);track.addEventListener('pointercancel',stopDrag);
 })();
+/* v19: watermark visibility — fades in only while the video is actually playing,
+   fades out on pause / stop / buffering / stream teardown. Pure video-element events,
+   so it works identically for hls.js, mpegts.js, and native playback paths. */
+(function(){
+  const v=$('video'),w=$('watermark');if(!v||!w)return;
+  const show=()=>w.classList.add('on');
+  const hide=()=>w.classList.remove('on');
+  v.addEventListener('playing',show);
+  v.addEventListener('timeupdate',()=>{if(!v.paused&&!v.ended&&v.currentTime>0)show()});
+  ['pause','ended','emptied','error','waiting','stalled'].forEach(ev=>v.addEventListener(ev,hide));
+})();
 restore();renderAll();
+/* v18: init per-category player selects after restore() has loaded saved modes */
+[['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{const el=$(id);if(!el)return;el.value=S.playerModes[t]||'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series')+' updated')}});
 </script>
 </body>
 </html>
