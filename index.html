@@ -115,6 +115,25 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @keyframes xtRise{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
 @keyframes xtFill{to{width:100%}}
 @media(prefers-reduced-motion:reduce){.splash-logo,.splash-xt,.splash-ring,.splash-title,.splash-dev,.splash-bar,.splash-bar i{animation:none!important}.splash-bar i{width:100%}}
+
+/* --- v27 mobile header: everything on ONE row, small fonts, tiny byline --- */
+.byline{font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap}
+@media(max-width:760px){
+  .top{flex-wrap:nowrap;gap:6px}
+  .brand{gap:6px;flex-shrink:1;min-width:0}
+  .brand h1{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand p.byline{display:block;font-size:8px;letter-spacing:.4px;margin-top:1px}
+  .logo{width:28px;height:28px;border-radius:8px;font-size:11px;box-shadow:none}
+  .versionBadge{display:none}
+  .top-actions{flex-wrap:nowrap;gap:4px;flex-shrink:0}
+  .top-actions .iconbtn{width:32px;height:32px;border-radius:9px;padding:0}
+  .top-actions .pillbtn{height:32px;border-radius:9px;padding:0 8px;font-size:11px}
+}
+@media(max-width:380px){
+  .brand h1{font-size:12px}
+  .top-actions .pillbtn{padding:0 6px;font-size:10px}
+  .top-actions .iconbtn{width:30px}
+}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -137,7 +156,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><div class="logo">XT</div><div><h1>Media26 XT Player</h1><p>Developed by Inzi Rishi</p></div><span class="versionBadge">XT</span></div>
+    <div class="brand"><div class="logo">XT</div><div><h1>Media XT Player</h1><p class="byline">By Inzi Rishi</p></div></div>
     <div class="top-actions">
       <button class="iconbtn" id="menuBtn" title="Channels" aria-label="Toggle channel menu"></button>
       <button class="iconbtn" id="themeBtn" title="Theme" aria-label="Toggle theme"></button>
@@ -758,8 +777,8 @@ async function tryPlans(plans,i){
           abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
           abrEwmaSlowFactor:6,abrEwmaFastFactor:3,
           /* Buffer: TV/desktop generous, mobile still lean but no longer razor-thin */
-          maxBufferLength:isTv?60:(mobile()?24:45),
-          maxMaxBufferLength:isTv?120:(mobile()?40:90),
+          maxBufferLength:isTv?60:(mobile()?40:45),
+          maxMaxBufferLength:isTv?120:(mobile()?70:90),
           backBufferLength:live?0:(isTv?30:24),
           /* Live sync — wider cushion than a bare-minimum 2 segments so normal jitter doesn't
              immediately starve the buffer */
@@ -815,7 +834,7 @@ async function tryPlans(plans,i){
         {
           enableWorker:!(mobile()||isTv),
           enableStashBuffer:true,
-          stashInitialSize:isTv?2*1024*1024:(mobile()?512*1024:1024*1024),
+          stashInitialSize:isTv?2*1024*1024:(mobile()?1024*1024:1024*1024),
           lazyLoad:false,
           autoCleanupSourceBuffer:true,
           autoCleanupMaxBackwardDuration:tsLive?24:90,
@@ -917,7 +936,8 @@ function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('
 async function pip(){const v=$('video');try{if(document.pictureInPictureElement){await document.exitPictureInPicture();return}if(document.pictureInPictureEnabled&&v.requestPictureInPicture){await v.requestPictureInPicture();return}if(v.webkitSupportsPresentationMode){v.webkitSetPresentationMode(v.webkitPresentationMode==='picture-in-picture'?'inline':'picture-in-picture');return}toast('Picture in Picture is not supported on this browser')}catch{toast('Start video first, then try PiP')}}
 function fs(){const box=$('playerBox'),v=$('video');if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});else if(box.requestFullscreen)box.requestFullscreen().catch(()=>{});else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
 $('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(30);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;v.muted=false;if(v.paused)v.play().then(()=>{$('overlay').style.display='none';$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing'}).catch(()=>{});else{$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing';toast('Sound on')}};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extRetry'))$('extRetry').onclick=()=>{if(S.extLaunch)playItemExternal(S.extLaunch.x,S.extLaunch.mode)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemPreview(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;let _barTimer=null;const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>pb.classList.remove('showbar'),3200)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();if(mobile())$('side').classList.remove('open')});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+/* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll()});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 /* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
    The old "buffer full" branch was removed: it fought hls.js's own live-sync controller
    and caused a forced seek every 3 seconds = constant freeze/stutter/audio cuts.
