@@ -134,6 +134,18 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .top-actions .pillbtn{padding:0 6px;font-size:10px}
   .top-actions .iconbtn{width:30px}
 }
+
+/* --- v28: keep "Open app again / Play here instead / Copy link" clear of the playerbar --- */
+.player-overlay{z-index:6;overflow-y:auto}
+.player-overlay .state{pointer-events:auto}
+@media(max-width:760px){
+  .player-overlay .state{max-width:94%;padding:8px 0 62px} /* 62px clears the always-on playerbar */
+  .state-thumb{width:44px;height:44px;border-radius:10px;margin-bottom:6px}
+  .state strong{font-size:14px;margin-bottom:3px}
+  .state p{font-size:11px;line-height:1.35}
+  .extActions{gap:6px;margin-top:10px}
+  .extActions .pillbtn{height:32px;font-size:11px;padding:0 10px}
+}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -433,9 +445,13 @@ async function playItemExternal(x,mode){
        app chooser (VLC, Media26 Player, MX, ...) with "Just once" / "Always" —
        tapping Always makes that player the permanent default for streams.
        Explicit VLC mode still targets VLC directly. */
+    /* v28: fire ONE intent only. The old 2-intent auto-chain re-fired 2.6s after launch
+       whenever launch detection missed (app-chooser keeps the page "visible") — the second
+       intent restarted VLC mid-play, and on a 1-connection line the instant reconnect got
+       rejected: stream died seconds after starting. Retry is manual ("Open app again"). */
     chain=mode==='vlc'
-      ?[androidIntentUrl(u,'org.videolan.vlc',title),androidIntentUrl(u,'',title)]
-      :[androidIntentUrl(u,'',title),androidIntentUrl(u,'org.videolan.vlc',title)];
+      ?[androidIntentUrl(u,'org.videolan.vlc',title)]
+      :[androidIntentUrl(u,'',title)];
   }else{
     chain=[iosVlcUrl(u)];
   }
@@ -450,7 +466,7 @@ async function playItemExternal(x,mode){
      so the web player can never compete with the app for the single connection. */
   S.stopExtChain=launchAppChain(chain,
     ()=>{S.stopExtChain=null;$('stateText').textContent='Playing in '+label+'. Come back here anytime to pick another channel.';$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
-    ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='No player app opened';$('stateText').textContent='Install VLC or another video player, then tap "Open app again" — or tap "Play here instead" to watch in the browser.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='No app opened';toast('No player app opened')}}
+    ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='Is the video playing?';$('stateText').textContent='If your player did not open: tap "Open app again", or "Play here instead" to watch in the browser. If it IS playing, just ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
   );
 }
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show')}
