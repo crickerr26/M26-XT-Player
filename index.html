@@ -236,8 +236,15 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 <div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
 <div class="toast" id="toast"></div>
 <script>
-const PROXY='https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=';
-const LIVE_HLS='https://smartertv-secure.gz-inzi84.workers.dev/live-hls?url=';
+/* v34: relay endpoints are now overridable. When the page is served over HTTPS but the
+   portal is HTTP (mixed content), the browser FORCES every segment through one of these
+   relays — and the built-in shared workers below are rate-limited and shared across many
+   users, which is a real bottleneck on mobile. Deploy your own free Cloudflare worker and
+   point the app at it with ?proxy=... &livehls=... in the URL (saved after first use), or
+   set localStorage keys 'm26-proxy' / 'm26-livehls'. Falls back to the shared workers. */
+const _relayOverride=(k,def)=>{try{const qs=new URLSearchParams(location.search);const q=qs.get(k);if(q){localStorage.setItem('m26-'+k,q);return q}const s=localStorage.getItem('m26-'+k);return s||def}catch{return def}};
+const PROXY=_relayOverride('proxy','https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=');
+const LIVE_HLS=_relayOverride('livehls','https://smartertv-secure.gz-inzi84.workers.dev/live-hls?url=');
 const KEY='smarter-fresh-v1';
 const FAV='smarter-fresh-favs-v1';
 const ORDER='smarter-fresh-order-v1';
@@ -687,8 +694,10 @@ async function tryPlans(plans,i){
     }
     /* tier 2: hls.js MSE recovery (kept bounded) */
     if(live&&!transcoded&&S.hls&&recoverMedia())return;
-    /* tier 3: only now do the disruptive alternate/next-plan teardown */
-    if(live&&!transcoded){tryLiveAlternative('Buffering').then(done=>{if(!done)nextPlan()})}
+    /* tier 3: on live, do NOT open a rival connection (alternate channel) — the 1-connection
+       line kills it. Just move to the next SINGLE-connection plan for this same channel. On
+       VOD an alternate is fine. */
+    if(live&&!transcoded){nextPlan()}
     else nextPlan();
   };
   /* --- Mobile-hardened stall/error watchdog --- */
@@ -758,13 +767,16 @@ async function tryPlans(plans,i){
       const now=Date.now();
       waitBurst.push(now);
       waitBurst=waitBurst.filter(t=>now-t<20000);
-      if(waitBurst.length>=7){
+      if(waitBurst.length>=8){
         waitBurst=[];
         clearStall();
-        /* v32: was 4 -> too trigger-happy; a source that recovers cleanly can still
-           re-buffer 4x in 20s on mobile data. Escalate only after 7, and try the gentle
-           in-place resume first so we don't blank a stream that's merely jittery. */
-        switchIfStuck();
+        /* v34: NEVER auto-switch to an alternate channel on a 1-connection line — that opens
+           a second upstream connection the provider immediately kills, which reads to the user
+           as "disconnected". Recover the SAME connection in place (hls.startLoad / ts reload)
+           and keep riding it, exactly like VLC does. */
+        if(S.hls){try{S.hls.startLoad(-1)}catch{}}
+        else if(S.ts){try{S.ts.unload();S.ts.load()}catch{}}
+        const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
         return;
       }
     }
@@ -835,8 +847,10 @@ async function tryPlans(plans,i){
           abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
           abrEwmaSlowFactor:6,abrEwmaFastFactor:3,
           /* Buffer: TV/desktop generous, mobile still lean but no longer razor-thin */
-          maxBufferLength:isTv?60:(mobile()?40:45),
-          maxMaxBufferLength:isTv?120:(mobile()?70:90),
+          /* v34: mobile buffer widened hard — the whole point is a cushion big enough to
+             ride out relay/network jitter without ever hitting empty. */
+          maxBufferLength:isTv?60:(mobile()?60:50),
+          maxMaxBufferLength:isTv?120:(mobile()?120:120),
           backBufferLength:live?0:(isTv?30:24),
           /* Live sync — wider cushion than a bare-minimum 2 segments so normal jitter doesn't
              immediately starve the buffer */
@@ -890,13 +904,16 @@ async function tryPlans(plans,i){
       S.ts=mpegts.createPlayer(
         {type:'mpegts',isLive:tsLive,url:p.url,cors:true},
         {
-          enableWorker:!(mobile()||isTv),
+          /* v34: worker ON everywhere — demuxing on the main thread was a major cause of
+             on-phone stutter (demux competes with the compositor). Stash raised so there's a
+             fat read-ahead cushion (VLC keeps seconds of buffer and never starves). */
+          enableWorker:true,
           enableStashBuffer:true,
-          stashInitialSize:isTv?2*1024*1024:(mobile()?1024*1024:1024*1024),
+          stashInitialSize:isTv?4*1024*1024:(mobile()?3*1024*1024:3*1024*1024),
           lazyLoad:false,
           autoCleanupSourceBuffer:true,
-          autoCleanupMaxBackwardDuration:tsLive?24:90,
-          autoCleanupMinBackwardDuration:tsLive?8:28,
+          autoCleanupMaxBackwardDuration:tsLive?60:90,
+          autoCleanupMinBackwardDuration:tsLive?30:28,
           fixAudioTimestampGap:true,
           isLive:tsLive,
           /* v20: latency chasing OFF for live. Chasing (maxLatency 4s) force-seeked toward the
