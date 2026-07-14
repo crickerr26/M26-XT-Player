@@ -246,7 +246,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='23';
+const APP_VERSION='01';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -384,7 +384,14 @@ function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if
    one-click .m3u playlist handoff that opens in VLC. If no app opens, browser preview
    starts automatically so playback never dead-ends. */
 function deviceKind(){const ua=navigator.userAgent||'';if(/android/i.test(ua))return'android';if(/iphone|ipad|ipod/i.test(ua)||(/macintosh/i.test(ua)&&'ontouchend'in document))return'ios';return'desktop'}
-function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'auto';if(m!=='auto')return m;const d=deviceKind();return d==='android'?'exo':'vlc'}
+/* v33: mobile default is now the BUILT-IN engine, not external VLC/Exo. Handing every
+   tap to an external app was the real source of the mobile 'disconnects after a few
+   seconds': on a 1-connection line the app + external player fought over the single slot,
+   and the app can apply NONE of its buffering/gentle-resume stability logic to an external
+   player. The built-in mpegts/hls engine keeps one steady connection (VLC-style) and rides
+   out jitter. Users who prefer VLC can still pick it per-category in Stream Tools, or tap
+   the external-player button. */
+function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'auto';if(m!=='auto')return m;return'browser'}
 function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='exo')return deviceKind()==='android'?'your player':'VLC';return'browser'}
 /* v23: live streams handed to VLC/external apps now use HLS (.m3u8) instead of raw .ts.
    A raw .ts stream is ONE long HTTP connection — any server hiccup or timeout kills it
@@ -834,16 +841,16 @@ async function tryPlans(plans,i){
           /* Live sync — wider cushion than a bare-minimum 2 segments so normal jitter doesn't
              immediately starve the buffer */
           liveSyncDurationCount:mobile()?4:(isTv?4:5),
-          liveMaxLatencyDurationCount:mobile()?10:(isTv?10:14),
+          liveMaxLatencyDurationCount:mobile()?18:(isTv?10:14),
           maxLiveSyncPlaybackRate:1.1,
           /* Retry policy: aggressive like ExoPlayer */
           manifestLoadingMaxRetry:transcoded?6:(isTv?5:3),
           levelLoadingMaxRetry:transcoded?6:(isTv?5:4),
-          fragLoadingMaxRetry:transcoded?8:(isTv?7:6),
+          fragLoadingMaxRetry:transcoded?8:(isTv?7:(mobile()?10:6)),
           manifestLoadingRetryDelay:400,levelLoadingRetryDelay:500,fragLoadingRetryDelay:500,
           manifestLoadingTimeOut:transcoded?18000:(isTv?14000:8000),
           levelLoadingTimeOut:transcoded?20000:(isTv?16000:10000),
-          fragLoadingTimeOut:transcoded?24000:(isTv?18000:14000),
+          fragLoadingTimeOut:transcoded?24000:(isTv?18000:(mobile()?22000:14000)),
           /* Codec/format safety */
           enableSoftwareAES:true,
           progressive:false,
