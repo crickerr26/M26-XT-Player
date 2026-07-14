@@ -243,7 +243,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">v2.1</span>
+  <span class="versionBadge login-version">v2.2</span>
   <div class="login-card">
     <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
@@ -274,7 +274,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.1';
+const APP_VERSION='2.2';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -478,20 +478,25 @@ async function playItemExternal(x,mode){
   if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}
   $('stateProgress').classList.add('hidden');
   $('extActions').classList.remove('hidden');
+  /* v38: ExoPlayer launch only works on Android; hide that button elsewhere so desktop/iOS
+     users aren't offered a button that can't work. */
+  if($('extExo'))$('extExo').style.display=(deviceKind()==='android')?'':'none';
   $('overlay').style.display='grid';
   $('stateTitle').textContent='Opening '+label;
   $('netStatus').textContent='External player';$('miniMeta').textContent='Opening '+label;
   if(d==='desktop'){
-    /* v30: NO .m3u download (it leaks the credentialed portal URL). Instead try to launch
-       the desktop VLC protocol handler directly. If VLC's protocol isn't registered
-       (VLC not installed, or protocol not associated), the page never blurs/hides — we
-       then tell the user to install VLC. "Play here instead" always available as backup. */
-    $('stateTitle').textContent='Opening VLC';
-    $('stateText').textContent='Launching VLC to play "'+title+'"...';
-    S.stopExtChain=launchAppChain([vlcDesktopUrl(u)],
-      ()=>{S.stopExtChain=null;$('stateTitle').textContent='Playing in VLC';$('stateText').textContent='"'+title+'" is playing in VLC. Come back here anytime to pick another channel.';$('netStatus').textContent='Playing in VLC';$('miniMeta').textContent='Playing in VLC'},
-      ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='VLC not found';$('stateText').textContent='VLC Media Player does not appear to be installed. Install the free VLC player from videolan.org, then tap "Open app again" — or tap "Play here instead" to watch in the browser.';$('netStatus').textContent='VLC required';$('miniMeta').textContent='Install VLC'}}
-    );
+    /* v38: browsers CANNOT detect an installed desktop app, and on Windows VLC's installer
+       does NOT register the vlc:// link scheme by default — so auto-launch silently does
+       nothing and the page never blurs. The old code then FALSELY reported "VLC not found"
+       even with VLC installed. Fixed: attempt vlc:// (works where the scheme IS registered,
+       e.g. many macOS/Linux installs), copy the stream link, and give the reliable manual
+       path (VLC -> Open Network Stream) instead of a wrong "not installed" claim. */
+    try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(function(){})}catch(e){}
+    $('stateTitle').textContent='Open in VLC';
+    $('stateText').innerHTML='If VLC didn\u2019t open automatically, the stream link is <b>copied</b> \u2014 in VLC choose <b>Media \u25b8 Open Network Stream</b> (Ctrl+N / Cmd+N), paste, and press Play.<br><span style="opacity:.75">Windows blocks websites from launching apps directly, so this manual step is normal \u2014 it is NOT a sign VLC is missing.</span>';
+    $('netStatus').textContent='VLC';$('miniMeta').textContent='Open in VLC';
+    /* fire the protocol handler in case it IS registered */
+    try{location.href=vlcDesktopUrl(u)}catch(e){}
     return;
   }
   let chain;
