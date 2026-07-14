@@ -182,7 +182,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 
 <div class="app" id="app">
   <header class="top">
-    <div class="brand"><div class="logo">XT</div><div><h1>Media XT Player</h1><p class="byline">By Inzi Rishi</p></div></div>
+    <div class="brand"><div class="logo">XT</div><div><h1>Media26 XT Player</h1><p class="byline">By Inzi Rishi</p></div></div>
     <div class="top-actions">
       <button class="iconbtn" id="menuBtn" title="Channels" aria-label="Toggle channel menu"></button>
       <button class="iconbtn" id="themeBtn" title="Theme" aria-label="Toggle theme"></button>
@@ -243,7 +243,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">Version 16</span>
+  <span class="versionBadge login-version">v1.0</span>
   <div class="login-card">
     <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
@@ -274,7 +274,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='01';
+const APP_VERSION='1.0';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -1070,7 +1070,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;
   $('menuBtn').innerHTML=ICONS.menu;
   $('themeBtn').innerHTML=ICONS.theme;
   if($('pwToggle'))$('pwToggle').innerHTML=ICONS.eye;
-  document.querySelectorAll('.versionBadge').forEach(e=>e.textContent='Version '+APP_VERSION);
+  document.querySelectorAll('.versionBadge').forEach(e=>e.textContent='v'+APP_VERSION);
 })();
 if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type==='password';inp.type=show?'text':'password';$('pwToggle').innerHTML=show?ICONS.eyeOff:ICONS.eye};
 /* Seek/progress bar for VOD & Series — hidden for live via updateLiveControls(). Uses
