@@ -243,7 +243,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">v2</span>
+  <span class="versionBadge login-version">v2.1</span>
   <div class="login-card">
     <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
@@ -274,7 +274,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='1.0';
+const APP_VERSION='2.1';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -504,13 +504,15 @@ async function playItemExternal(x,mode){
        whenever launch detection missed (app-chooser keeps the page "visible") — the second
        intent restarted VLC mid-play, and on a 1-connection line the instant reconnect got
        rejected: stream died seconds after starting. Retry is manual ("Open app again"). */
-    /* v36: 'vlc' -> VLC directly. 'exo' -> ExoPlayer. ExoPlayer is a LIBRARY (no standalone
-       app), so we open it through the players built on it: try MX Player (very common,
-       ExoPlayer-based) first, then fall back to Android's player chooser which lists every
-       ExoPlayer-based app installed. */
+    /* v37: ONE intent only, always. A multi-URL chain re-fired after 2.6s whenever launch
+       detection missed (frequent on Android) -> a second player opened -> on a
+       max_connections:1 line the provider saw 2 connections and killed the stream, so VLC
+       played a few seconds then went empty. Single launch = it can never open a rival.
+       'vlc' targets VLC directly; 'exo' fires the packageless chooser, which still lists
+       every ExoPlayer-based player installed (MX Player, etc.) for the user to pick. */
     chain=mode==='vlc'
       ?[androidIntentUrl(u,'org.videolan.vlc',title)]
-      :[androidIntentUrl(u,'com.mxtech.videoplayer.ad',title),androidIntentUrl(u,'com.mxtech.videoplayer.pro',title),androidIntentUrl(u,'',title)];
+      :[androidIntentUrl(u,'',title)];
   }else{
     chain=[iosVlcUrl(u)];
   }
