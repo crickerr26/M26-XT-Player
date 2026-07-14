@@ -160,6 +160,16 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .extActions{gap:6px;margin-top:10px}
   .extActions .pillbtn{height:32px;font-size:11px;padding:0 10px}
 }
+
+/* --- account-in-use-elsewhere popup --- */
+.conflictModal{position:fixed;inset:0;z-index:400;display:none;align-items:center;justify-content:center;padding:18px;background:rgba(3,7,18,.74);backdrop-filter:blur(7px)}
+.conflictModal.show{display:flex}
+.conflictCard{width:min(410px,100%);background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:22px;text-align:center}
+.conflictIcon{font-size:38px;margin-bottom:8px;line-height:1}
+.conflictCard h3{font-size:19px;margin-bottom:8px;color:var(--ink)}
+.conflictCard p{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}
+.conflictActions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+@media(max-width:760px){.conflictCard{padding:18px}.conflictCard h3{font-size:17px}}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -243,7 +253,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">v2.2</span>
+  <span class="versionBadge login-version">v2.3</span>
   <div class="login-card">
     <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
@@ -253,6 +263,17 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
+<div class="conflictModal" id="conflictModal">
+  <div class="conflictCard">
+    <div class="conflictIcon">⚠️</div>
+    <h3>Account in use on another device</h3>
+    <p id="conflictMsg">Your login is being used somewhere else right now. This account allows only one device at a time, so playback here was stopped. Close the stream on the other device, then reconnect.</p>
+    <div class="conflictActions">
+      <button class="pillbtn primary" id="conflictRetry">Reconnect here</button>
+      <button class="pillbtn" id="conflictClose">Dismiss</button>
+    </div>
+  </div>
+</div>
 <div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = on Android the app chooser pops up (pick VLC or Media26 Player and tap "Always" to remember it); VLC on computers and iPhone/iPad.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
 <div class="toast" id="toast"></div>
@@ -274,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.2';
+const APP_VERSION='2.3';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -926,6 +947,10 @@ async function tryPlans(plans,i){
         S.hls.on(Hls.Events.ERROR,(e,d)=>{
           if(token!==S.seq||!d)return;
           if(d.fatal){
+            /* v39: HTTP 401/403 on a segment WHILE PLAYING means the single connection was
+               taken by another device (provider-confirmed: 2nd connection => 401). Tell the
+               user instead of silently dying or looping recovery. */
+            if(started&&d.response&&(d.response.code===401||d.response.code===403)){showAccountConflict();return;}
             if(!started){nextPlan();return}
             if(S.hls){
               try{
@@ -1018,7 +1043,32 @@ function startVideo(token){
   /* TV browsers sometimes need a short delay before play() */
   if(isTv){setTimeout(()=>attempt(false),120)}else{attempt(false);}
 }
+function showAccountConflict(msg){
+  var m=$('conflictModal');if(!m)return;
+  if(msg&&$('conflictMsg'))$('conflictMsg').textContent=msg;
+  cleanup();
+  $('overlay').style.display='grid';
+  $('stateTitle').textContent='Stopped';
+  $('stateText').textContent='Account is in use on another device.';
+  m.classList.add('show');
+  $('netStatus').textContent='In use elsewhere';$('miniMeta').textContent='In use elsewhere';
+}
+/* only reliable AFTER our own connection is released — a live 401/403 mid-play, or an
+   exhausted-plans failure once we've torn down. On a max_connections:1 line, a slot that is
+   still occupied when WE are no longer streaming means another device took it. */
+async function checkAccountConflict(){
+  try{
+    const info=await fetchJsonChain(accountUrl());
+    const ui=info&&info.user_info;if(!ui)return false;
+    const active=parseInt(ui.active_cons||'0',10);
+    const max=parseInt(ui.max_connections||'1',10)||1;
+    return active>0 && active>=max;
+  }catch(e){return false}
+}
 function fail(msg){
+  /* v39: if a LIVE stream died, check whether the account's one slot is now held by another
+     device (our own connection is already torn down here) and, if so, explain it. */
+  try{if(S.current&&typeOf(S.current)==='live'){setTimeout(function(){checkAccountConflict().then(function(c){if(c)showAccountConflict()})},1800);}}catch(e){}
   const hasTrans=!!transcoderBase();
   const isApple=/iphone|ipad|ipod/i.test(navigator.userAgent||'');
   $('overlay').style.display='grid';
@@ -1201,6 +1251,8 @@ if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type===
     banner.addEventListener('mouseleave',function(){clearTimeout(hideT);hideT=setTimeout(autoHide,2500)});
   }
 })();
+if($('conflictClose'))$('conflictClose').onclick=function(){$('conflictModal').classList.remove('show')};
+if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').classList.remove('show');if(S.current)playItem(S.current)};
 restore();renderAll();
 /* v18: init per-category player selects after restore() has loaded saved modes */
 [['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{const el=$(id);if(!el)return;el.value=S.playerModes[t]||'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series')+' updated')}});
