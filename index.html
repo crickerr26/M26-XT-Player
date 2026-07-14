@@ -62,9 +62,9 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .liveBadge{height:24px;padding:0 8px;font-size:10px}
 }
 /* --- v19: watermark logo, bottom-right, visible only while video is playing --- */
-.watermark{position:absolute;right:12px;bottom:64px;width:clamp(70px,12%,150px);height:auto;opacity:0;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:opacity .4s ease}
+.watermark{position:absolute;right:14px;bottom:92px;width:clamp(46px,7%,84px);height:auto;opacity:0;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:opacity .4s ease}
 .watermark.on{opacity:.55}
-@media(max-width:760px){.watermark{right:8px;bottom:54px;width:clamp(56px,15%,110px)}}
+@media(max-width:760px){.watermark{right:9px;bottom:76px;width:clamp(38px,9%,66px)}}
 /* --- v18 device-aware external player layer --- */
 .nativePanel{display:block;overflow-y:auto}
 .nativePanel .episodeHead{margin-bottom:10px}
@@ -395,6 +395,7 @@ function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='exo')return de
 function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
 function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
 function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
+function vlcDesktopUrl(u){return 'vlc://'+u}
 function downloadM3u(u,title){try{const blob=new Blob(['#EXTM3U\n#EXTINF:-1,'+String(title||'Media26 stream').replace(/[\r\n]+/g,' ')+'\n'+u+'\n'],{type:'audio/x-mpegurl'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='media26-play.m3u';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href);a.remove()}catch{}},4000);return true}catch{return false}}
 function launchAppChain(urls,onGone,onFail){
   /* v21: launch-success detection hardened. visibilitychange alone missed real launches on
@@ -433,10 +434,16 @@ async function playItemExternal(x,mode){
   $('stateTitle').textContent='Opening '+label;
   $('netStatus').textContent='External player';$('miniMeta').textContent='Opening '+label;
   if(d==='desktop'){
-    /* v29: NEVER hand out an .m3u — it contains the raw portal URL with the user's
-       credentials, letting viewers bypass this app (and the owner's subscription)
-       entirely. Desktop simply plays in the built-in player. */
-    await playItemPreview(x);
+    /* v30: NO .m3u download (it leaks the credentialed portal URL). Instead try to launch
+       the desktop VLC protocol handler directly. If VLC's protocol isn't registered
+       (VLC not installed, or protocol not associated), the page never blurs/hides — we
+       then tell the user to install VLC. "Play here instead" always available as backup. */
+    $('stateTitle').textContent='Opening VLC';
+    $('stateText').textContent='Launching VLC to play "'+title+'"...';
+    S.stopExtChain=launchAppChain([vlcDesktopUrl(u)],
+      ()=>{S.stopExtChain=null;$('stateTitle').textContent='Playing in VLC';$('stateText').textContent='"'+title+'" is playing in VLC. Come back here anytime to pick another channel.';$('netStatus').textContent='Playing in VLC';$('miniMeta').textContent='Playing in VLC'},
+      ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='VLC not found';$('stateText').textContent='VLC Media Player does not appear to be installed. Install the free VLC player from videolan.org, then tap "Open app again" — or tap "Play here instead" to watch in the browser.';$('netStatus').textContent='VLC required';$('miniMeta').textContent='Install VLC'}}
+    );
     return;
   }
   let chain;
