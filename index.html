@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.7';
+const APP_VERSION='2.8';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -602,8 +602,19 @@ async function playItemExternal(x,mode){
      seconds ("plays briefly then goes empty"). The user now decides via the overlay buttons,
      so the web player can never compete with the app for the single connection. */
   S.lastExtLaunchAt=Date.now();
+  /* v44: PiP guidance for external players. A web page cannot switch ANOTHER app into
+     Picture-in-Picture — PiP during VLC/MX playback is that app's own feature — but most
+     users don't know it exists, so once the stream is confirmed playing, the overlay (the
+     first thing they see when they come back) explains exactly where to turn it on. */
+  const pipTip=mode==='vlc'
+    ?(d==='android'
+      ?' Floating video (PiP): in VLC tap the 3-dot menu > Settings > Video > "Background/PiP mode" > "Play videos in Picture-in-picture mode". Then press Home while a video plays and it keeps playing in a small floating window.'
+      :' Floating video (PiP): in the VLC player tap the PiP icon in the controls (or enable "Automatically enter PiP" in VLC’s settings) and the video floats over your home screen.')
+    :mode==='mx'
+    ?' Floating video (PiP): in MX Player tap the 3-dot menu > Play > Background Play > "In PIP window".'
+    :' Tip: most player apps support floating Picture-in-Picture video — look for a PiP option in the player’s settings.';
   S.stopExtChain=launchAppChain(chain,
-    ()=>{S.stopExtChain=null;$('stateText').textContent='Playing in '+label+'. Come back here anytime to pick another channel.';$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
+    ()=>{S.stopExtChain=null;$('stateText').textContent='Playing in '+label+'. Come back here anytime to pick another channel.'+pipTip;$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
     ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='Is the video playing?';$('stateText').textContent=(d==='ios')
       ?'If '+label+' did not open: tap "Open app again" and then tap OPEN on the iPhone popup that asks to open the app. iPhones only launch apps from a direct tap, so this button is the reliable way.'
       :'If your player did not open: tap "Open app again", or "Play here instead" to watch in the browser. If it IS playing, just ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
@@ -1193,9 +1204,15 @@ async function pip(){const v=$('video');try{if(!S.current){toast('Pick a channel
   const v=$('video');if(!v)return;
   document.addEventListener('visibilitychange',()=>{
     try{
-      if(document.hidden && !v.paused && v.readyState>=2 && !document.pictureInPictureElement
-         && document.pictureInPictureEnabled && v.requestPictureInPicture){
+      if(!document.hidden||v.paused||v.readyState<2)return;
+      if(!document.pictureInPictureElement && document.pictureInPictureEnabled && v.requestPictureInPicture){
         v.requestPictureInPicture().catch(()=>{});
+      }
+      /* v44: WebKit fallback (iPad and some Safari builds) — same auto-PiP via Apple's
+         presentation-mode API. iPhones require a direct tap for PiP, so there the manual
+         PiP button in the player bar remains the way in; this call just no-ops. */
+      else if(v.webkitSupportsPresentationMode&&typeof v.webkitSetPresentationMode==='function'&&v.webkitPresentationMode==='inline'){
+        try{v.webkitSetPresentationMode('picture-in-picture')}catch(e){}
       }
     }catch(e){}
   });
