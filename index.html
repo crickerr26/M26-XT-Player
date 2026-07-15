@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.11';
+const APP_VERSION='2.12';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -469,7 +469,7 @@ function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'aut
    installed player (Just Player, Kodi, mpv, ...) so nothing is locked out. */
 const EXTERNAL_MODES=['exo','vlc','mx','infuse','nplayer'];
 function isExternalMode(m){return EXTERNAL_MODES.includes(m)}
-function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX Player';if(mode==='infuse')return'Infuse';if(mode==='nplayer')return'nPlayer';if(mode==='exo')return deviceKind()==='android'?'your player':'VLC';return'browser'}
+function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX Player';if(mode==='infuse')return'Infuse';if(mode==='nplayer')return'nPlayer';if(mode==='basic')return'Basic player';if(mode==='exo')return deviceKind()==='android'?'your player':'VLC';return'browser'}
 /* v23: live streams handed to VLC/external apps now use HLS (.m3u8) instead of raw .ts.
    A raw .ts stream is ONE long HTTP connection — any server hiccup or timeout kills it
    and the player goes black after a few minutes with no way to recover. HLS is fetched
@@ -668,6 +668,75 @@ function updateLiveControls(){/* FIX: live has no seekable timeline — hide Pla
 function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls()}
 async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))$('stateProgress').classList.add('hidden');if($('stateThumb'))$('stateThumb').classList.add('hidden');$('stateTitle').textContent='Opening VLC';$('stateText').textContent='If VLC is installed, the stream will open there. The link is also copied.';$('overlay').style.display='grid';$('netStatus').textContent='VLC mode';$('miniMeta').textContent='Opening VLC';openVlcForCurrent();toast('Opening in VLC')}
 async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
+/* v48: BASIC player mode (owner request). The full built-in player carries watchdog timers,
+   stall detectors, chronic-stutter counters, multi-plan cascades, and a pre-play buffer
+   gate — every one of those can itself interrupt playback and add delay. Basic mode is the
+   opposite philosophy, like a bare VLC window: pick ONE url, one engine, press play, and
+   then NEVER touch the stream again. No timers, no watchdogs, no auto-recovery beyond what
+   the engine does internally. If the stream dies, the overlay says so and the user taps the
+   channel to reconnect — nothing restarts behind their back. Live: mpegts.js on the raw .ts
+   (the VLC model) where MSE exists, else plain hls.js / native HLS on the .m3u8, with ONE
+   fallback step before start. Select it per category in Stream Tools ("Basic player"). */
+async function playItemBasic(x){
+  setCurrentItem(x);cleanup();
+  const token=S.seq,v=$('video'),live=typeOf(x)==='live';
+  $('extActions').classList.add('hidden');
+  if($('stateThumb'))$('stateThumb').classList.add('hidden');
+  if($('stateProgress'))$('stateProgress').classList.remove('hidden');
+  $('stateTitle').textContent='Loading';
+  $('stateText').textContent=nameOf(x);
+  $('overlay').style.display='grid';
+  $('netStatus').textContent='Basic player';$('miniMeta').textContent='Loading';
+  /* neutralize any handlers the full player left on the element — basic mode means NOTHING
+     reacts to waiting/stalled events */
+  v.onwaiting=null;v.onstalled=null;v.onsuspend=null;v.ontimeupdate=null;
+  v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
+  v.autoplay=true;v.loop=false;v.preload='auto';v.muted=false;
+  const wrap=u=>blocked(u)?proxyUrl(u):u;
+  const tsOk=!!(window.mpegts&&mpegts.isSupported());
+  let plans;
+  if(live){
+    const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
+    plans=tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}];
+  }else{
+    const direct=String(x.direct_source||x.stream_url||'').trim();
+    const u=wrap(direct||directUrl(x,String(x.container_extension||'mp4')));
+    plans=[{kind:u.includes('.m3u8')?'hls':'native',url:u}];
+  }
+  let idx=0,startedB=false;
+  const hide=()=>{$('overlay').style.display='none';$('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
+  const stopMsg=m=>{$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.add('hidden');$('stateTitle').textContent='Stream stopped';$('stateText').textContent=m||'Tap the channel again to reconnect.';$('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped'};
+  const dropEngines=()=>{if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.ts){try{S.ts.destroy()}catch(e){}S.ts=null}};
+  const next=()=>{
+    if(token!==S.seq)return;
+    idx++;
+    if(idx>=plans.length){stopMsg('This channel did not load. Try another channel, or set the player back to Auto in Stream Tools.');return}
+    dropEngines();
+    attach(plans[idx]);
+  };
+  const attach=p=>{
+    if(token!==S.seq)return;
+    v.onplaying=()=>{if(token===S.seq){startedB=true;hide()}};
+    v.onerror=()=>{if(token!==S.seq)return;startedB?stopMsg():next()};
+    try{
+      if(p.kind==='mpegts'){
+        S.ts=mpegts.createPlayer({type:'mpegts',isLive:live,url:p.url,cors:true},{enableWorker:true,lazyLoad:false,isLive:live});
+        S.ts.attachMediaElement(v);
+        S.ts.on(mpegts.Events.ERROR,()=>{if(token!==S.seq)return;startedB?stopMsg():next()});
+        S.ts.load();
+      }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
+        S.hls=new Hls({enableWorker:true,lowLatencyMode:false});
+        S.hls.loadSource(p.url);S.hls.attachMedia(v);
+        S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;startedB?stopMsg():next()});
+      }else{
+        v.src=p.url;v.load();
+      }
+    }catch(e){next();return}
+    const pr=v.play();
+    if(pr&&pr.catch)pr.catch(()=>{if(token!==S.seq)return;v.muted=true;const p2=v.play();if(p2&&p2.catch)p2.catch(()=>{})});
+  };
+  attach(plans[0]);
+}
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
 function forceMobileSmoothLevel(hls){
   /* v3: FULL ABR on every device — no more 720p pin blocking 4K on mobile.
@@ -786,7 +855,7 @@ function plan(x){
   return p;
 }
 function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down — external launches wait until the origin has had time to release the slot (see playItemExternal) */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
-async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);const mode=resolvedPlayer(typeOf(x));if(isExternalMode(mode)&&!fromAlternative){/* v40: ignore re-taps on the SAME channel within 4s of an external launch. Users tap again when "nothing seems to happen" while VLC is still starting — the repeat intent restarted VLC and the instant reconnect got killed by the 1-connection line (stream died seconds after starting). The overlay's "Open app again" button still allows a deliberate manual retry. */if(S.extLaunch&&keyOf(S.extLaunch.x)===keyOf(x)&&S.lastExtLaunchAt&&Date.now()-S.lastExtLaunchAt<4000){toast('Opening in '+playerLabel(mode)+'...');return}await playItemExternal(x,mode);return}await playItemPreview(x)}
+async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);const mode=resolvedPlayer(typeOf(x));if(mode==='basic'){await playItemBasic(x);return}if(isExternalMode(mode)&&!fromAlternative){/* v40: ignore re-taps on the SAME channel within 4s of an external launch. Users tap again when "nothing seems to happen" while VLC is still starting — the repeat intent restarted VLC and the instant reconnect got killed by the 1-connection line (stream died seconds after starting). The overlay's "Open app again" button still allows a deliberate manual retry. */if(S.extLaunch&&keyOf(S.extLaunch.x)===keyOf(x)&&S.lastExtLaunchAt&&Date.now()-S.lastExtLaunchAt<4000){toast('Opening in '+playerLabel(mode)+'...');return}await playItemExternal(x,mode);return}await playItemPreview(x)}
 async function tryPlans(plans,i){
   const v=$('video');
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
@@ -1423,7 +1492,7 @@ restore();renderAll();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
    nPlayer on iOS — so each user only sees choices that can actually launch on their phone. */
-[['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{const el=$(id);if(!el)return;const dk=deviceKind();const extra=dk==='android'?[['mx','MX Player']]:dk==='ios'?[['infuse','Infuse'],['nplayer','nPlayer']]:[];extra.forEach(([val,lbl])=>{if(el.querySelector('option[value="'+val+'"]'))return;const o=document.createElement('option');o.value=val;o.textContent=lbl;el.appendChild(o)});const saved=S.playerModes[t]||'auto';el.value=el.querySelector('option[value="'+saved+'"]')?saved:'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series')+' updated')}});
+[['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{const el=$(id);if(!el)return;const dk=deviceKind();const extra=(dk==='android'?[['mx','MX Player']]:dk==='ios'?[['infuse','Infuse'],['nplayer','nPlayer']]:[]).concat([['basic','Basic player (minimal, steadiest)']]);extra.forEach(([val,lbl])=>{if(el.querySelector('option[value="'+val+'"]'))return;const o=document.createElement('option');o.value=val;o.textContent=lbl;el.appendChild(o)});const saved=S.playerModes[t]||'auto';el.value=el.querySelector('option[value="'+saved+'"]')?saved:'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series')+' updated')}});
 </script>
 <!-- v22: PWA install layer — asks to save Media26 to the phone with its own icon -->
 <div class="a2hs" id="a2hs">
