@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.3';
+const APP_VERSION='2.4';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -320,7 +320,7 @@ const ICONS={
   eye:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   eyeOff:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-4.2 4.9M6.3 6.3A15.5 15.5 0 0 0 2 12s3.6 7 10 7c1.4 0 2.6-.2 3.7-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -487,12 +487,14 @@ function launchAppChain(urls,onGone,onFail){
 }
 async function playItemExternal(x,mode){
   setCurrentItem(x);cleanup();
+  /* v40: cleanup() just bumped S.seq — capture it as this launch's token. Any NEWER play
+     request (another tap, "Play here instead", a different channel) bumps S.seq again, so
+     a stale launch that is still inside one of the awaits below bails out instead of firing
+     a second intent. Before this guard, two taps ~1s apart fired TWO intents: the second
+     restarted VLC mid-connect, the provider's 1-connection monitor saw the overlap and
+     killed the stream — the classic "VLC plays a few seconds then the video disappears". */
+  const token=S.seq;
   if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}
-  /* v36: give the browser a moment to FULLY drop any stream socket before the external
-     app connects. On a max_connections:1 line, launching VLC/Exo while the page's own
-     connection is still closing makes the provider briefly see 2 connections and kill one
-     — that is the "plays a few seconds then cancels" symptom. A short gap avoids the race. */
-  if(deviceKind()!=='desktop'){await new Promise(r=>setTimeout(r,900));}
   const u=externalStreamUrl(x),title=nameOf(x),d=deviceKind(),label=playerLabel(mode);
   S.extLaunch={x,mode};
   const thumb=logoOf(x);
@@ -519,6 +521,20 @@ async function playItemExternal(x,mode){
     /* fire the protocol handler in case it IS registered */
     try{location.href=vlcDesktopUrl(u)}catch(e){}
     return;
+  }
+  /* v40 (replaces v36's fixed 900ms pause): adaptive connection-release gap. IPTV panels
+     with max_connections:1 keep the previous session's slot "active" for a few seconds
+     AFTER the socket closes; their connection monitor then kills the NEWER connection —
+     so VLC would start fine, play a few seconds, and go dark. Wait until ~3s have passed
+     since the last stream teardown (built-in player) or the last external launch before
+     firing the intent. Cold start (nothing was streaming) launches instantly — no more
+     900ms dead wait when there is no slot to release. */
+  const lastConn=Math.max(S.lastStreamStopAt||0,S.lastExtLaunchAt||0);
+  const releaseGap=lastConn?Math.max(0,3000-(Date.now()-lastConn)):0;
+  if(releaseGap>0){
+    $('stateText').textContent='Closing the previous stream so '+label+' can take over the connection...';
+    await new Promise(r=>setTimeout(r,releaseGap));
+    if(token!==S.seq)return;
   }
   let chain;
   if(d==='android'){
@@ -551,6 +567,7 @@ async function playItemExternal(x,mode){
      quietly opened a second stream in the background and the provider cut VLC off after a few
      seconds ("plays briefly then goes empty"). The user now decides via the overlay buttons,
      so the web player can never compete with the app for the single connection. */
+  S.lastExtLaunchAt=Date.now();
   S.stopExtChain=launchAppChain(chain,
     ()=>{S.stopExtChain=null;$('stateText').textContent='Playing in '+label+'. Come back here anytime to pick another channel.';$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
     ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='Is the video playing?';$('stateText').textContent='If your player did not open: tap "Open app again", or "Play here instead" to watch in the browser. If it IS playing, just ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
@@ -681,8 +698,8 @@ function plan(x){
   }
   return p;
 }
-function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
-async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);const mode=resolvedPlayer(typeOf(x));if((mode==='exo'||mode==='vlc')&&!fromAlternative){await playItemExternal(x,mode);return}await playItemPreview(x)}
+function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down — external launches wait until the origin has had time to release the slot (see playItemExternal) */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
+async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);const mode=resolvedPlayer(typeOf(x));if((mode==='exo'||mode==='vlc')&&!fromAlternative){/* v40: ignore re-taps on the SAME channel within 4s of an external launch. Users tap again when "nothing seems to happen" while VLC is still starting — the repeat intent restarted VLC and the instant reconnect got killed by the 1-connection line (stream died seconds after starting). The overlay's "Open app again" button still allows a deliberate manual retry. */if(S.extLaunch&&keyOf(S.extLaunch.x)===keyOf(x)&&S.lastExtLaunchAt&&Date.now()-S.lastExtLaunchAt<4000){toast('Opening in '+playerLabel(mode)+'...');return}await playItemExternal(x,mode);return}await playItemPreview(x)}
 async function tryPlans(plans,i){
   const v=$('video');
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
