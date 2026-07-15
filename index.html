@@ -274,7 +274,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Browser preview</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = on Android the app chooser pops up (pick VLC or Media26 Player and tap "Always" to remember it); VLC on computers and iPhone/iPad.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.6';
+const APP_VERSION='2.7';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -446,7 +446,14 @@ function deviceKind(){const ua=navigator.userAgent||'';if(/android/i.test(ua))re
    player. Users can still override per-category in Stream Tools. NOTE: on mobile the
    video plays in the VLC app (full screen), not inside the small in-app preview box —
    a web page cannot render VLC inside its own preview area. */
-function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'auto';if(m!=='auto')return m;const d=deviceKind();return d==='android'?'exo':d==='ios'?'vlc':'browser'}
+/* v43 (owner request): Auto now means the BUILT-IN player on EVERY device — no external app
+   needed. The engine already streams VLC-style (mpegts.js ingesting the same continuous .ts
+   VLC reads, over ONE connection, fat stash buffer, no live-edge chasing) and v43 adds the
+   two remaining VLC behaviors: a pre-play buffer cushion (never start on a starving buffer)
+   and persistent in-place reconnects for live (ride the same connection instead of tearing
+   down). External players stay available per category in Stream Tools, via the external
+   button, and on the launch overlay. */
+function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'auto';if(m!=='auto')return m;return'browser'}
 /* v41: more external-player choices when VLC itself drops out. Android gets MX Player as a
    named one-tap target (free build first, Pro as fallback); iOS gets Infuse and nPlayer via
    their URL schemes. The packageless Android chooser ('exo') still surfaces EVERY other
@@ -744,7 +751,13 @@ async function tryPlans(plans,i){
   const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
   $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
   v.muted=false;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
-  v.preload=transcoded?'auto':'metadata';v.autoplay=true;v.loop=false;
+  v.preload=transcoded?'auto':'metadata';v.loop=false;
+  /* v43: VLC's core stability trick — don't start the instant the first frame arrives. For
+     live in the MSE engines (mpegts.js / hls.js) autoplay is off and startVideo() waits for
+     a few seconds of buffered cushion (or a short cap) before pressing play, so playback
+     begins with slack instead of starving on the first network wobble. Native/iOS playback
+     keeps autoplay (Safari manages its own HLS buffer and reports 'buffered' unreliably). */
+  v.autoplay=!(live&&!transcoded&&(p.kind==='mpegts'||p.kind==='hls'));
   let started=false,stallTimer=null,recoveryCount=0,lastMediaRecoverAt=0,audioSwapped=false,waitBurst=[];
   const clearStall=()=>{if(stallTimer){clearTimeout(stallTimer);stallTimer=null}};
   const markPlaying=()=>{
@@ -783,9 +796,16 @@ async function tryPlans(plans,i){
      mpegts resume / v.play), which keep the existing frame and buffer, and only escalate to
      the disruptive teardown path if those genuinely fail. */
   let gentleResumes=0,lastGentleAt=0;
+  /* v43: for live in the built-in player, resume like VLC — keep retrying the SAME
+     connection in place (up to 12 tries with growing spacing) instead of giving up after 3
+     and tearing down to a fallback that blanks the screen. The counter resets after 20s of
+     clean playback (see ontimeupdate), so an evening of occasional hiccups never exhausts
+     the budget; only a genuinely dead source escalates to the next plan. */
+  const gentleCap=(live&&!transcoded)?12:3;
+  const gentleSpacing=()=>Math.min(10000,3500+gentleResumes*1200);
   const gentleResume=()=>{
     const now=Date.now();
-    if(gentleResumes>=3||(lastGentleAt&&now-lastGentleAt<3500))return false;
+    if(gentleResumes>=gentleCap||(lastGentleAt&&now-lastGentleAt<gentleSpacing()))return false;
     lastGentleAt=now;gentleResumes++;
     try{
       if(S.hls){try{S.hls.startLoad(-1)}catch{}}
@@ -930,7 +950,7 @@ async function tryPlans(plans,i){
     markPlaying();
   };
   /* timeupdate: currentTime>0 is enough — don't require videoWidth on mobile live */
-  v.ontimeupdate=()=>{if(token===S.seq&&v.currentTime>0.5)markPlaying()};
+  v.ontimeupdate=()=>{if(token!==S.seq)return;if(v.currentTime>0.5)markPlaying();if(gentleResumes>0&&lastGentleAt&&Date.now()-lastGentleAt>20000)gentleResumes=0};
   S.timer=setTimeout(()=>{if(token===S.seq&&!started)nextPlan();},startTimeout);
   try{
     if(p.kind==='native'){
@@ -988,7 +1008,7 @@ async function tryPlans(plans,i){
         S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{
           forceMobileSmoothLevel(S.hls);
           if(isTv)S.hls.currentLevel=-1; /* ABR on TV */
-          startVideo(token);
+          startVideo(token,(live&&!transcoded)?3.5:0);
         });
         S.hls.on(Hls.Events.ERROR,(e,d)=>{
           if(token!==S.seq||!d)return;
@@ -1041,13 +1061,13 @@ async function tryPlans(plans,i){
       );
       S.ts.attachMediaElement(v);
       S.ts.on(mpegts.Events.ERROR,()=>{started?switchIfStuck():nextPlan()});
-      S.ts.load();startVideo(token);
+      S.ts.load();startVideo(token,tsLive?4:0);
     }else{
       v.src=p.url;v.load();startVideo(token);
     }
   }catch(e){nextPlan()}
 }
-function startVideo(token){
+function startVideo(token,prebufferSec){
   const v=$('video');
   const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
   const ok=()=>{
@@ -1086,8 +1106,26 @@ function startVideo(token){
       showTap();
     });
   };
-  /* TV browsers sometimes need a short delay before play() */
-  if(isTv){setTimeout(()=>attempt(false),120)}else{attempt(false);}
+  /* v43: pre-play buffer gate (VLC-style). When prebufferSec is set, poll the buffered
+     ranges and only press play once that many seconds of cushion exist — capped at 7s of
+     waiting so a slow source still starts. The overlay shows fill progress so the wait
+     reads as "buffering", not a hang. */
+  const begin=()=>{if(isTv){setTimeout(()=>attempt(false),120)}else{attempt(false);}};
+  if(prebufferSec&&prebufferSec>0){
+    const gateStart=Date.now();
+    const gate=()=>{
+      if(token!==S.seq)return;
+      let ahead=0;try{if(v.buffered.length)ahead=v.buffered.end(v.buffered.length-1)-v.currentTime}catch(e){}
+      if(ahead>=prebufferSec||Date.now()-gateStart>7000){begin();return}
+      $('stateTitle').textContent='Buffering';
+      $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(ahead/prebufferSec*100))+'%';
+      $('netStatus').textContent='Buffering '+Math.min(99,Math.round(ahead/prebufferSec*100))+'%';
+      setTimeout(gate,250);
+    };
+    gate();
+    return;
+  }
+  begin();
 }
 function showAccountConflict(msg){
   var m=$('conflictModal');if(!m)return;
@@ -1255,15 +1293,15 @@ if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type===
     var d=isTV()?'tv':kind();
     var icon='▶',title='',text='',actions='';
     if(d==='ios'){
-      icon='';
-      title='Best player: AVPlayer';
-      text='Your iPhone/iPad uses Apple\u2019s built-in AVPlayer for smooth HLS. For channels that stutter (HEVC/4K or Dolby audio), VLC plays everything the browser can\u2019t.';
-      actions=link('Get VLC (App Store)',STORE.vlcIOS,true);
+      icon='▶';
+      title='Built-in player ready';
+      text='Channels play right here in the app \u2014 VLC-style buffering over one steady connection, no extra app needed. If a channel uses a codec the iPhone can\u2019t decode (HEVC/Dolby), VLC plays everything.';
+      actions=link('Get VLC (optional)',STORE.vlcIOS,false);
     }else if(d==='android'){
       icon='▶';
-      title='Recommended: ExoPlayer';
-      text='Android plays best through an ExoPlayer-based app or VLC \u2014 full codec support and steadier buffering than the browser for live TV.';
-      actions=link('Get VLC (Play Store)',STORE.vlcAndroid,true)+link('Get MX Player',STORE.mxAndroid,false);
+      title='Built-in player ready';
+      text='Channels play right here in the app \u2014 VLC-style buffering over one steady connection, no extra app needed. VLC or MX Player stay available as optional backups in Stream Tools.';
+      actions=link('Get VLC (optional)',STORE.vlcAndroid,false)+link('Get MX Player',STORE.mxAndroid,false);
     }else if(d==='tv'){
       icon='📺';
       title='TV-optimized player detected';
