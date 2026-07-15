@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.8';
+const APP_VERSION='2.9';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -320,7 +320,7 @@ const ICONS={
   eye:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   eyeOff:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-4.2 4.9M6.3 6.3A15.5 15.5 0 0 0 2 12s3.6 7 10 7c1.4 0 2.6-.2 3.7-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,liveHlsOk:false};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -397,6 +397,11 @@ async function refreshAll(){
   const [lc,lv]=await Promise.all([getJson('get_live_categories').catch(()=>[]),getJson('get_live_streams').catch(()=>[])]);
   S.liveCats=lc||[];S.live=(lv||[]).map(x=>({...x,_type:'live'}));
   $('liveCount').textContent=S.live.length.toLocaleString();renderAll();
+  /* v45: learn (once, cached per portal) whether this panel serves live HLS — decides the
+     URL format handed to VLC/external players. Fire-and-forget: one tiny playlist request
+     right after login, never during playback, so it can't contend for the stream slot. */
+  try{S.liveHlsOk=store.getItem('m26-livehls-ok:'+S.url)==='1'}catch(e){}
+  probeLiveHls();
   load(true,'Loading movies...');
   const [vc,vv]=await Promise.all([getJson('get_vod_categories').catch(()=>[]),getJson('get_vod_streams').catch(()=>[])]);
   S.vodCats=vc||[];S.vod=(vv||[]).map(x=>({...x,_type:'vod'}));$('vodCount').textContent=S.vod.length.toLocaleString();renderAll();
@@ -423,7 +428,7 @@ function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)r
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
-function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'ts':(ch.container_extension||'mp4');return directUrl(ch,ext)}
+function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?(S.liveHlsOk?'m3u8':'ts'):(ch.container_extension||'mp4');return directUrl(ch,ext)}
 function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if(/iphone|ipad|ipod/i.test(ua))return'vlc-x-callback://x-callback-url/stream?url='+enc;if(/android/i.test(ua)){try{const x=new URL(u);return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${x.protocol.replace(':','')};package=org.videolan.vlc;type=video/*;end`}catch{}}return'vlc://x-callback-url/stream?url='+enc}
 /* --- v18: device + category aware external player routing.
    ExoPlayer and VLC are native apps, so the page hands the ORIGINAL stream URL to them
@@ -469,7 +474,27 @@ function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX 
    proven to serve (v20 note: VLC played the .m3u containing the raw .ts perfectly). The v23
    switch to .m3u8 broke panels that don't emit HLS for live: VLC opened, sat on an empty/404
    playlist, and never started. VOD/series keep their real container file. */
-function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
+/* v45: END the v23/v26 ts-vs-m3u8 flip-flop with a per-panel PROBE instead of a global guess.
+   Why VLC "plays then the video disappears": a raw .ts is ONE long socket — when the panel
+   hiccups or resets it, VLC sees end-of-stream and simply stops. HLS (.m3u8) is fetched
+   segment by segment and reconnects automatically after every wobble, so it survives the
+   same hiccup invisibly. v23 forced .m3u8 for everyone and broke panels with no live HLS;
+   v26 forced .ts for everyone and inherited the socket-death problem. Now probeLiveHls()
+   (run once after the playlist loads, cached per portal) checks whether THIS panel really
+   serves live HLS: if yes, external players get the self-healing .m3u8; if not, raw .ts. */
+function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;if(typeOf(x)==='live')return directUrl(x,S.liveHlsOk?'m3u8':'ts');return directUrl(x,String(x.container_extension||'mp4'))}
+async function fetchTextChain(u){const tries=blocked(u)?[proxyUrl(u)]:[u,proxyUrl(u)];for(const t of tries){try{const r=await fetchWithTimeout(t,8000);if(r.ok)return await r.text()}catch(e){}}return''}
+async function probeLiveHls(){
+  try{
+    if(!S.live.length){S.liveHlsOk=false;return}
+    const key='m26-livehls-ok:'+S.url;
+    const cached=store.getItem(key);
+    if(cached==='1'||cached==='0'){S.liveHlsOk=cached==='1';return}
+    const t=await fetchTextChain(directUrl(S.live[0],'m3u8'));
+    S.liveHlsOk=/#EXTM3U/i.test(t||'');
+    store.setItem(key,S.liveHlsOk?'1':'0');
+  }catch(e){S.liveHlsOk=false}
+}
 function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
 function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
 function iosInfuseUrl(u){return'infuse://x-callback-url/play?url='+encodeURIComponent(u)}
