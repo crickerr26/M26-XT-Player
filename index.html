@@ -274,7 +274,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.9';
+const APP_VERSION='2.10';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -320,7 +320,7 @@ const ICONS={
   eye:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   eyeOff:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-4.2 4.9M6.3 6.3A15.5 15.5 0 0 0 2 12s3.6 7 10 7c1.4 0 2.6-.2 3.7-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,liveHlsOk:false};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -389,7 +389,16 @@ function saveOrders(){store.setItem(ORDER,JSON.stringify(S.orders))}
 function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)].slice(0,30);store.setItem(RECENT,JSON.stringify(S.recent))}
 async function login(){
   $('err').textContent='';
-  try{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const info=await fetchJsonChain(accountUrl());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');saveCreds();await refreshAll();$('login').classList.add('hidden');toast('Playlist loaded')}
+  try{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const info=await fetchJsonChain(accountUrl());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');
+  /* v46: surface account problems AT LOGIN instead of leaving the user staring at an
+     endless "Loading video". Expired subscription and an already-busy connection slot are
+     the two account states where NOTHING can play anywhere (built-in or VLC) — say so. */
+  const ui=info.user_info||{};
+  if(ui.exp_date&&Number(ui.exp_date)*1000<Date.now())throw Error('Subscription EXPIRED on '+new Date(Number(ui.exp_date)*1000).toLocaleDateString()+' — contact your provider. Streams will not play.');
+  if(ui.status&&!/^active$/i.test(String(ui.status)))toast('Account status: '+ui.status);
+  const _act=parseInt(ui.active_cons||'0',10),_max=parseInt(ui.max_connections||'1',10)||1;
+  if(_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
+  saveCreds();await refreshAll();$('login').classList.add('hidden');toast('Playlist loaded')}
   catch(e){$('err').textContent=e.message||'Could not connect'}finally{load(false)}
 }
 async function refreshAll(){
@@ -397,11 +406,6 @@ async function refreshAll(){
   const [lc,lv]=await Promise.all([getJson('get_live_categories').catch(()=>[]),getJson('get_live_streams').catch(()=>[])]);
   S.liveCats=lc||[];S.live=(lv||[]).map(x=>({...x,_type:'live'}));
   $('liveCount').textContent=S.live.length.toLocaleString();renderAll();
-  /* v45: learn (once, cached per portal) whether this panel serves live HLS — decides the
-     URL format handed to VLC/external players. Fire-and-forget: one tiny playlist request
-     right after login, never during playback, so it can't contend for the stream slot. */
-  try{S.liveHlsOk=store.getItem('m26-livehls-ok:'+S.url)==='1'}catch(e){}
-  probeLiveHls();
   load(true,'Loading movies...');
   const [vc,vv]=await Promise.all([getJson('get_vod_categories').catch(()=>[]),getJson('get_vod_streams').catch(()=>[])]);
   S.vodCats=vc||[];S.vod=(vv||[]).map(x=>({...x,_type:'vod'}));$('vodCount').textContent=S.vod.length.toLocaleString();renderAll();
@@ -428,7 +432,7 @@ function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)r
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
-function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?(S.liveHlsOk?'m3u8':'ts'):(ch.container_extension||'mp4');return directUrl(ch,ext)}
+function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'ts':(ch.container_extension||'mp4');return directUrl(ch,ext)}
 function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if(/iphone|ipad|ipod/i.test(ua))return'vlc-x-callback://x-callback-url/stream?url='+enc;if(/android/i.test(ua)){try{const x=new URL(u);return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${x.protocol.replace(':','')};package=org.videolan.vlc;type=video/*;end`}catch{}}return'vlc://x-callback-url/stream?url='+enc}
 /* --- v18: device + category aware external player routing.
    ExoPlayer and VLC are native apps, so the page hands the ORIGINAL stream URL to them
@@ -474,27 +478,13 @@ function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX 
    proven to serve (v20 note: VLC played the .m3u containing the raw .ts perfectly). The v23
    switch to .m3u8 broke panels that don't emit HLS for live: VLC opened, sat on an empty/404
    playlist, and never started. VOD/series keep their real container file. */
-/* v45: END the v23/v26 ts-vs-m3u8 flip-flop with a per-panel PROBE instead of a global guess.
-   Why VLC "plays then the video disappears": a raw .ts is ONE long socket — when the panel
-   hiccups or resets it, VLC sees end-of-stream and simply stops. HLS (.m3u8) is fetched
-   segment by segment and reconnects automatically after every wobble, so it survives the
-   same hiccup invisibly. v23 forced .m3u8 for everyone and broke panels with no live HLS;
-   v26 forced .ts for everyone and inherited the socket-death problem. Now probeLiveHls()
-   (run once after the playlist loads, cached per portal) checks whether THIS panel really
-   serves live HLS: if yes, external players get the self-healing .m3u8; if not, raw .ts. */
-function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;if(typeOf(x)==='live')return directUrl(x,S.liveHlsOk?'m3u8':'ts');return directUrl(x,String(x.container_extension||'mp4'))}
+/* v46: ROLLBACK of the v45 probe-based .m3u8 handoff. The probe validated HLS against ONE
+   channel, but panels routinely serve a valid playlist for some channels and 404/empty for
+   others — after v45 external players stopped opening anything. Live external handoff is
+   back to the proven raw .ts. Live-stream resilience is the BUILT-IN player's job (v43
+   persistent resume); external apps get the format the panel demonstrably serves. */
+function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
 async function fetchTextChain(u){const tries=blocked(u)?[proxyUrl(u)]:[u,proxyUrl(u)];for(const t of tries){try{const r=await fetchWithTimeout(t,8000);if(r.ok)return await r.text()}catch(e){}}return''}
-async function probeLiveHls(){
-  try{
-    if(!S.live.length){S.liveHlsOk=false;return}
-    const key='m26-livehls-ok:'+S.url;
-    const cached=store.getItem(key);
-    if(cached==='1'||cached==='0'){S.liveHlsOk=cached==='1';return}
-    const t=await fetchTextChain(directUrl(S.live[0],'m3u8'));
-    S.liveHlsOk=/#EXTM3U/i.test(t||'');
-    store.setItem(key,S.liveHlsOk?'1':'0');
-  }catch(e){S.liveHlsOk=false}
-}
 function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
 function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
 function iosInfuseUrl(u){return'infuse://x-callback-url/play?url='+encodeURIComponent(u)}
@@ -646,6 +636,31 @@ async function playItemExternal(x,mode){
   );
 }
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show')}
+/* v46: Connection test ("stream doctor") — answers WHY nothing plays, in plain words, from
+   inside the app: portal API reachability, account status/expiry, whether the account's
+   connection slots are busy on another device (the #1 invisible cause of "nothing loads"),
+   and whether the panel serves live HLS or raw TS. Runs only when the user taps the button,
+   so it never competes with playback for the connection slot. */
+async function streamDoctor(){
+  const lines=[];const put=()=>{$('nativeText').innerHTML=lines.join('<br>')};
+  if(!S.url||!S.user){$('nativeText').textContent='Log in first, then run the test.';return}
+  lines.push('1. Portal API: testing...');put();
+  let info=null;
+  try{info=await fetchJsonChain(accountUrl())}catch(e){lines[0]='1. Portal API: <b>FAILED</b> — '+esc(e.message||'unreachable')+'. The panel itself is not responding; nothing can play anywhere until it is back.';put();return}
+  lines[0]='1. Portal API: OK';
+  const ui=(info&&info.user_info)||{};
+  lines.push('2. Account status: '+esc(String(ui.status||'unknown')));
+  if(ui.exp_date){const exp=Number(ui.exp_date)*1000;lines.push('3. Expires: '+new Date(exp).toLocaleDateString()+(exp<Date.now()?' — <b>EXPIRED, streams will not play</b>':''))}
+  const act=parseInt(ui.active_cons||'0',10),max=parseInt(ui.max_connections||'1',10)||1;
+  lines.push('4. Connections busy right now: '+act+' of '+max+(act>0&&act>=max?' — <b>PROBLEM: another device/app is using the account this moment. Nothing can start here until it stops.</b>':' — slot free, streams can start'));
+  put();
+  if(S.live.length){
+    lines.push('5. Live stream (HLS): testing...');put();
+    const t=await fetchTextChain(directUrl(S.live[0],'m3u8'));
+    lines[lines.length-1]=/#EXTM3U/i.test(t||'')?'5. Live stream test: OK — the panel is serving live video':'5. Live stream test: no HLS playlist returned (panel may be TS-only, or the slot was busy during the test)';
+    put();
+  }
+}
 function openVlcForCurrent(){const u=nativeAppUrl(S.current);if(!u)return;location.href=vlcUrl(u);setTimeout(()=>{try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}},250)}
 function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live, Movies, or Series and tap an item.')}
 function openRawStream(){if(S.current)playItem(S.current)}
@@ -1248,7 +1263,7 @@ async function pip(){const v=$('video');try{if(!S.current){toast('Pick a channel
    only if the browser has no Element.requestFullscreen at all (old iOS), where HTML
    overlays are impossible anyway. */
 function fs(){const box=$('playerBox'),v=$('video');const exit=document.fullscreenElement||document.webkitFullscreenElement;if(exit){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}if(box.requestFullscreen)box.requestFullscreen().catch(()=>{});else if(box.webkitRequestFullscreen)box.webkitRequestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(30);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;v.muted=false;if(v.paused)v.play().then(()=>{$('overlay').style.display='none';$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing'}).catch(()=>{});else{$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing';toast('Sound on')}};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc')};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo')};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx')};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse')};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer')};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemPreview(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;let _barTimer=null;const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>pb.classList.remove('showbar'),1800)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(30);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;v.muted=false;if(v.paused)v.play().then(()=>{$('overlay').style.display='none';$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing'}).catch(()=>{});else{$('miniMeta').textContent='Playing';$('netStatus').textContent='Playing';toast('Sound on')}};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc')};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo')};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx')};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse')};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer')};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemPreview(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;let _barTimer=null;const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>pb.classList.remove('showbar'),1800)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll()});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 /* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
