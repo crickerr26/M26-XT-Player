@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.5';
+const APP_VERSION='2.6';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -543,7 +543,14 @@ async function playItemExternal(x,mode){
      firing the intent. Cold start (nothing was streaming) launches instantly — no more
      900ms dead wait when there is no slot to release. */
   const lastConn=Math.max(S.lastStreamStopAt||0,S.lastExtLaunchAt||0);
-  const releaseGap=lastConn?Math.max(0,3000-(Date.now()-lastConn)):0;
+  /* v42: NO timed gap on iOS. Safari only honors a custom-scheme navigation
+     (vlc-x-callback://, infuse://, nplayer-...) while the tap's user activation is still
+     alive — an awaited setTimeout discards it and the launch is SILENTLY ignored, which
+     read as "VLC never pops up" on iPhone. So on iOS the launch fires synchronously inside
+     the tap; cleanup() has already closed our own socket, and VLC needs a second or two to
+     boot and connect, which is the release gap in practice. Android Chrome's activation
+     window comfortably covers the timed gap, so it keeps the v40 behavior. */
+  const releaseGap=(d==='ios')?0:(lastConn?Math.max(0,3000-(Date.now()-lastConn)):0);
   if(releaseGap>0){
     $('stateText').textContent='Closing the previous stream so '+label+' can take over the connection...';
     await new Promise(r=>setTimeout(r,releaseGap));
@@ -590,7 +597,9 @@ async function playItemExternal(x,mode){
   S.lastExtLaunchAt=Date.now();
   S.stopExtChain=launchAppChain(chain,
     ()=>{S.stopExtChain=null;$('stateText').textContent='Playing in '+label+'. Come back here anytime to pick another channel.';$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
-    ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='Is the video playing?';$('stateText').textContent='If your player did not open: tap "Open app again", or "Play here instead" to watch in the browser. If it IS playing, just ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
+    ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='Is the video playing?';$('stateText').textContent=(d==='ios')
+      ?'If '+label+' did not open: tap "Open app again" and then tap OPEN on the iPhone popup that asks to open the app. iPhones only launch apps from a direct tap, so this button is the reliable way.'
+      :'If your player did not open: tap "Open app again", or "Play here instead" to watch in the browser. If it IS playing, just ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
   );
 }
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show')}
