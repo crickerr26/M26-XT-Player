@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.10';
+const APP_VERSION='2.11';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -809,7 +809,7 @@ async function tryPlans(plans,i){
      begins with slack instead of starving on the first network wobble. Native/iOS playback
      keeps autoplay (Safari manages its own HLS buffer and reports 'buffered' unreliably). */
   v.autoplay=!(live&&!transcoded&&(p.kind==='mpegts'||p.kind==='hls'));
-  let started=false,stallTimer=null,recoveryCount=0,lastMediaRecoverAt=0,audioSwapped=false,waitBurst=[];
+  let started=false,stallTimer=null,recoveryCount=0,lastMediaRecoverAt=0,audioSwapped=false,waitBurst=[],chronicBursts=0;
   const clearStall=()=>{if(stallTimer){clearTimeout(stallTimer);stallTimer=null}};
   const markPlaying=()=>{
     if(token!==S.seq)return;clearStall();clearTimeout(S.timer);
@@ -854,13 +854,28 @@ async function tryPlans(plans,i){
      the budget; only a genuinely dead source escalates to the next plan. */
   const gentleCap=(live&&!transcoded)?12:3;
   const gentleSpacing=()=>Math.min(10000,3500+gentleResumes*1200);
+  /* v47: fix the "plays a few seconds then loops" regression. The old resume ALWAYS did
+     ts.unload()+load() — a full engine restart that visibly snaps playback back to the
+     start. On a source that is merely SLOW (data still arriving, just under real-time),
+     that restart loop repeated up to the whole resume budget: play a bit, loop, play a
+     bit, loop. Now the buffer's leading edge is compared between resumes: still growing =
+     data is flowing, so never restart (just nudge play and ride it); frozen = the socket
+     really died, so a reconnect restart is justified. And if 3 resumes happen within 45s
+     the source is structurally too slow for real-time — escalate to the next stream path
+     instead of looping this one. */
+  let resumeTimes=[],lastBufEnd=0;
+  const bufEnd=()=>{try{return v.buffered.length?v.buffered.end(v.buffered.length-1):0}catch(e){return 0}};
   const gentleResume=()=>{
     const now=Date.now();
     if(gentleResumes>=gentleCap||(lastGentleAt&&now-lastGentleAt<gentleSpacing()))return false;
+    resumeTimes=resumeTimes.filter(t=>now-t<45000);
+    if(resumeTimes.length>=3)return false;
+    resumeTimes.push(now);
     lastGentleAt=now;gentleResumes++;
     try{
+      const be=bufEnd(),flowing=be>lastBufEnd+0.3;lastBufEnd=be;
       if(S.hls){try{S.hls.startLoad(-1)}catch{}}
-      else if(S.ts){try{S.ts.unload();S.ts.load()}catch{}}
+      else if(S.ts&&!flowing){try{S.ts.unload();S.ts.load()}catch{}}
       const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
       return true;
     }catch{return false}
@@ -949,14 +964,21 @@ async function tryPlans(plans,i){
       waitBurst.push(now);
       waitBurst=waitBurst.filter(t=>now-t<20000);
       if(waitBurst.length>=8){
-        waitBurst=[];
+        waitBurst=[];chronicBursts++;
         clearStall();
         /* v34: NEVER auto-switch to an alternate channel on a 1-connection line — that opens
            a second upstream connection the provider immediately kills, which reads to the user
            as "disconnected". Recover the SAME connection in place (hls.startLoad / ts reload)
            and keep riding it, exactly like VLC does. */
+        /* v47: ...but only ONCE. A second chronic burst means this stream path physically
+           cannot deliver real-time — endless in-place recovery is the "stuck a lot" the
+           user sees. Move to the next single-connection plan for the same channel instead.
+           And never hard-reload mpegts while data is still flowing (that restart looks
+           like the video looping) — reload only a genuinely frozen connection. */
+        if(chronicBursts>=2){nextPlan();return}
+        const _be=bufEnd(),_flowing=_be>lastBufEnd+0.3;lastBufEnd=_be;
         if(S.hls){try{S.hls.startLoad(-1)}catch{}}
-        else if(S.ts){try{S.ts.unload();S.ts.load()}catch{}}
+        else if(S.ts&&!_flowing){try{S.ts.unload();S.ts.load()}catch{}}
         const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
         return;
       }
@@ -1059,7 +1081,7 @@ async function tryPlans(plans,i){
         S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{
           forceMobileSmoothLevel(S.hls);
           if(isTv)S.hls.currentLevel=-1; /* ABR on TV */
-          startVideo(token,(live&&!transcoded)?3.5:0);
+          startVideo(token,(live&&!transcoded)?2.5:0);
         });
         S.hls.on(Hls.Events.ERROR,(e,d)=>{
           if(token!==S.seq||!d)return;
@@ -1094,7 +1116,10 @@ async function tryPlans(plans,i){
              fat read-ahead cushion (VLC keeps seconds of buffer and never starves). */
           enableWorker:true,
           enableStashBuffer:true,
-          stashInitialSize:isTv?4*1024*1024:(mobile()?3*1024*1024:3*1024*1024),
+          /* v47: 3MB initial stash delayed the first frame noticeably on phones — the v43
+             pre-play buffer gate now provides the anti-stutter cushion, so the stash can be
+             lean for fast starts. */
+          stashInitialSize:isTv?4*1024*1024:(mobile()?1*1024*1024:2*1024*1024),
           lazyLoad:false,
           autoCleanupSourceBuffer:true,
           autoCleanupMaxBackwardDuration:tsLive?60:90,
@@ -1112,7 +1137,7 @@ async function tryPlans(plans,i){
       );
       S.ts.attachMediaElement(v);
       S.ts.on(mpegts.Events.ERROR,()=>{started?switchIfStuck():nextPlan()});
-      S.ts.load();startVideo(token,tsLive?4:0);
+      S.ts.load();startVideo(token,tsLive?3:0);
     }else{
       v.src=p.url;v.load();startVideo(token);
     }
@@ -1158,7 +1183,7 @@ function startVideo(token,prebufferSec){
     });
   };
   /* v43: pre-play buffer gate (VLC-style). When prebufferSec is set, poll the buffered
-     ranges and only press play once that many seconds of cushion exist — capped at 7s of
+     ranges and only press play once that many seconds of cushion exist — capped at 5s of
      waiting so a slow source still starts. The overlay shows fill progress so the wait
      reads as "buffering", not a hang. */
   const begin=()=>{if(isTv){setTimeout(()=>attempt(false),120)}else{attempt(false);}};
@@ -1167,7 +1192,7 @@ function startVideo(token,prebufferSec){
     const gate=()=>{
       if(token!==S.seq)return;
       let ahead=0;try{if(v.buffered.length)ahead=v.buffered.end(v.buffered.length-1)-v.currentTime}catch(e){}
-      if(ahead>=prebufferSec||Date.now()-gateStart>7000){begin();return}
+      if(ahead>=prebufferSec||Date.now()-gateStart>5000){begin();return}
       $('stateTitle').textContent='Buffering';
       $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(ahead/prebufferSec*100))+'%';
       $('netStatus').textContent='Buffering '+Math.min(99,Math.round(ahead/prebufferSec*100))+'%';
