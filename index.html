@@ -338,8 +338,9 @@ function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra
 const CORS_RELAYS=[
   u=>PROXY+encodeURIComponent(u),
   u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
-  u=>'https://corsproxy.io/?url='+encodeURIComponent(u),
-  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
+  u=>'https://corsproxy.io/?'+encodeURIComponent(u),
+  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u),
+  u=>'https://thingproxy.freeboard.io/fetch/'+encodeURIComponent(u)
 ];
 /* v25: some WebView/preview hosts relay fetch through postMessage — an AbortSignal
    can't be structured-cloned across that bridge, so passing {signal} made EVERY
