@@ -1,5 +1,6 @@
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -299,6 +300,55 @@ function parseJsonBody(req) {
   });
 }
  
+const PRIVATE_HOST = /^(localhost$|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1?\]|\[f[cd])/i;
+
+function relayFetch(target, req, res, hops) {
+  let t;
+  try { t = new URL(target); } catch (e) { return json(res, 400, { error: 'Bad redirect target' }); }
+  if (!/^https?:$/.test(t.protocol) || PRIVATE_HOST.test(t.hostname)) {
+    return json(res, 403, { error: 'Target host not allowed' });
+  }
+  const mod = t.protocol === 'https:' ? https : http;
+  const headers = {
+    'user-agent': req.headers['user-agent'] || 'Mozilla/5.0',
+    accept: req.headers.accept || '*/*'
+  };
+  if (req.headers.range) headers.range = req.headers.range;
+  const upstream = mod.request(t, { method: req.method === 'HEAD' ? 'HEAD' : 'GET', headers }, up => {
+    const loc = up.headers.location;
+    if ([301, 302, 303, 307, 308].includes(up.statusCode) && loc && hops < 5) {
+      up.resume();
+      let next = '';
+      try { next = new URL(loc, t).href; } catch (e) {}
+      if (next) return relayFetch(next, req, res, hops + 1);
+      return json(res, 502, { error: 'Bad redirect from upstream' });
+    }
+    const outHeaders = {
+      'access-control-allow-origin': CORS_ORIGIN,
+      'access-control-allow-methods': 'GET,HEAD,POST,OPTIONS',
+      'access-control-allow-headers': 'accept,content-type,range,authorization,x-admin-key',
+      'access-control-expose-headers': 'content-length,content-range,accept-ranges,content-type',
+      'cross-origin-resource-policy': 'cross-origin',
+      'timing-allow-origin': '*',
+      'vary': 'Origin, Access-Control-Request-Headers',
+      'cache-control': 'no-store',
+      'content-type': up.headers['content-type'] || 'application/octet-stream'
+    };
+    for (const h of ['content-length', 'content-range', 'accept-ranges']) {
+      if (up.headers[h]) outHeaders[h] = up.headers[h];
+    }
+    res.writeHead(up.statusCode, outHeaders);
+    up.pipe(res);
+  });
+  upstream.setTimeout(20000, () => upstream.destroy(new Error('Upstream timed out')));
+  upstream.on('error', err => {
+    if (!res.headersSent) return json(res, 502, { error: 'Upstream fetch failed: ' + err.message });
+    res.destroy();
+  });
+  req.on('close', () => upstream.destroy());
+  upstream.end();
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     if (req.method === 'OPTIONS') return send(res, 204, '');
@@ -384,6 +434,18 @@ const server = http.createServer(async (req, res) => {
  
     if (u.pathname === '/health') {
       return json(res, 200, { ok: true, sessions: sessions.size });
+    }
+
+    // Same-origin CORS relay: /proxy?url=<encoded target>. index.html tries this
+    // path first when talking to an Xtream portal, so login works even when every
+    // third-party CORS relay is down. Only public http(s) targets are allowed.
+    if (u.pathname === '/proxy') {
+      const raw = u.searchParams.get('url') || '';
+      let target = null;
+      try { target = new URL(raw); } catch (e) {}
+      if (!target || !/^https?:$/.test(target.protocol)) return json(res, 400, { error: 'Missing or invalid ?url= parameter' });
+      if (PRIVATE_HOST.test(target.hostname)) return json(res, 403, { error: 'Target host not allowed' });
+      return relayFetch(target.href, req, res, 0);
     }
  
     if (u.pathname === '/hls') {

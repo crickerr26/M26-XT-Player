@@ -295,7 +295,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.12';
+const APP_VERSION='2.13';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -334,12 +334,22 @@ function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra
    if the portal has no CORS headers (typical Xtream panel) AND that single worker
    was down/rate-limited, login dead-ended with a generic "Failed to fetch".
    Now: direct → dedicated worker → 3 independent public CORS relays. Any one
-   alive = login works. Errors are also translated into actionable messages. */
+   alive = login works. Errors are also translated into actionable messages.
+   v47: login no longer depends on third parties being alive. The host that serves
+   this page now relays any URL itself at /proxy?url= (implemented in both
+   _worker.js and server.js), so that same-origin path is tried FIRST. corsfix was
+   removed: without a registered API key it answers 403 for everything, and that
+   403 used to be misread as "Login rejected — check username/password".
+   trusted:true = a failure from this path reflects the portal itself, so its
+   HTTP 401/403 really means bad credentials. Public relays fail with their own
+   403/429 (rate limits, missing keys) and must never drive that message. */
+const SAME_ORIGIN_PROXY=(()=>{try{return /^https?:$/.test(location.protocol)?location.origin+'/proxy?url=':''}catch{return''}})();
 const CORS_RELAYS=[
-  u=>PROXY+encodeURIComponent(u),
-  u=>'https://proxy.corsfix.com/?'+u,
-  u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
-  u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
+  ...(SAME_ORIGIN_PROXY?[{mk:u=>SAME_ORIGIN_PROXY+encodeURIComponent(u),trusted:true}]:[]),
+  {mk:u=>PROXY+encodeURIComponent(u),trusted:true},
+  {mk:u=>'https://api.allorigins.win/raw?url='+encodeURIComponent(u),trusted:false},
+  {mk:u=>'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u),trusted:false},
+  {mk:u=>'https://corsproxy.io/?url='+encodeURIComponent(u),trusted:false}
 ];
 /* v25: some WebView/preview hosts relay fetch through postMessage — an AbortSignal
    can't be structured-cloned across that bridge, so passing {signal} made EVERY
@@ -354,10 +364,11 @@ function fetchWithTimeout(u,ms){
   ]).finally(()=>clearTimeout(t));
 }
 async function fetchJsonChain(raw){
-  const tries=blocked(S.url)?CORS_RELAYS.map(f=>f(raw)):[raw,...CORS_RELAYS.map(f=>f(raw))];
-  let last='';
+  const tries=blocked(S.url)?[]:[{u:raw,trusted:true}];
+  for(const r of CORS_RELAYS)tries.push({u:r.mk(raw),trusted:r.trusted});
+  let last='',lastTrusted='';
   for(let i=0;i<tries.length;i++){
-    const u=tries[i];
+    const {u,trusted}=tries[i];
     try{
       const r=await fetchWithTimeout(u,i===0?15000:12000);
       if(!r.ok)throw Error('HTTP '+r.status);
@@ -366,12 +377,15 @@ async function fetchJsonChain(raw){
       return JSON.parse(txt);
     }catch(e){
       last=e.name==='TimeoutError'?'timed out':(e.message||'failed');
+      if(trusted)lastTrusted=last;
       console.warn('[XT] fetch path '+(i+1)+'/'+tries.length+' failed:',u.slice(0,80),'-',last);
     }
   }
-  throw Error(/HTTP 401|HTTP 403/.test(last)?'Login rejected — check username/password'
-    :/timed out/.test(last)?'Portal is not responding — check the URL or try again'
-    :'Could not reach the portal ('+last+'). Check the URL and your connection.');
+  const main=lastTrusted||last;
+  throw Error(/HTTP 401|HTTP 403/.test(lastTrusted)?'Login rejected — check username/password'
+    :/timed out/.test(main)?'Portal is not responding — check the URL or try again'
+    :/Unexpected|JSON/i.test(main)?'Portal replied but not with valid data — double-check the portal URL (it must be the Xtream panel base URL, e.g. http://host:8080)'
+    :'Could not reach the portal ('+main+'). Check the URL and your connection.');
 }
 async function getJson(action,extra=''){return fetchJsonChain(apiUrl(action,extra))}
 function idOf(x){return String(x.stream_id??x.series_id??x.episode_id??x.id??'')}
