@@ -893,9 +893,20 @@ async function tryPlans(plans,i){
      keeps autoplay (Safari manages its own HLS buffer and reports 'buffered' unreliably). */
   v.autoplay=!(live&&!transcoded&&(p.kind==='mpegts'||p.kind==='hls'));
   let started=false,stallTimer=null,recoveryCount=0,lastMediaRecoverAt=0,audioSwapped=false,waitBurst=[],chronicBursts=0;
+  let shownPlaying=false,shownMuted=null;/* idempotency guards for markPlaying (see below) */
   const clearStall=()=>{if(stallTimer){clearTimeout(stallTimer);stallTimer=null}};
+  /* FIX (steady-state stutter): markPlaying() fires on EVERY timeupdate (~4x/sec while a
+     stream plays). It used to unconditionally rewrite netStatus/miniMeta AND re-parse an SVG
+     via playBtn.innerHTML=ICONS.pause on every tick — a constant drip of style/layout recalc
+     on the main thread that a phone feels as micro-stutter a few seconds in. Make the UI paint
+     idempotent: once the "Playing" state is shown, later ticks only do the two cheap timer
+     resets and bail. shownPlaying is cleared whenever buffering/stall re-shows the overlay
+     (below) so it is correctly re-hidden on resume, and shownMuted tracks the mute toggle so
+     "tap for sound" still updates exactly once when it changes. */
   const markPlaying=()=>{
     if(token!==S.seq)return;clearStall();clearTimeout(S.timer);
+    if(shownPlaying&&shownMuted===v.muted)return;
+    shownPlaying=true;shownMuted=v.muted;
     $('overlay').style.display='none';
     $('netStatus').textContent=v.muted?'Playing muted':'Playing';
     $('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';
@@ -1002,7 +1013,7 @@ async function tryPlans(plans,i){
        freeze the picture on a black/frozen frame with zero visible feedback for many seconds
        until the watchdog below eventually acted. Reuse the same overlay spinner shown during
        initial load so a rebuffer always looks like "buffering", never a silent hang. */
-    $('overlay').style.display='grid';
+    $('overlay').style.display='grid';shownPlaying=false;
     if($('stateProgress'))$('stateProgress').classList.remove('hidden');
     $('stateTitle').textContent='Reconnecting';
     $('stateText').textContent='The stream stalled, reconnecting...';
@@ -1025,7 +1036,7 @@ async function tryPlans(plans,i){
     if(token!==S.seq)return;
     $('netStatus').textContent='Buffering';$('miniMeta').textContent='Buffering...';
     if(started){
-      $('overlay').style.display='grid';
+      $('overlay').style.display='grid';shownPlaying=false;
       if($('stateProgress'))$('stateProgress').classList.remove('hidden');
       $('stateTitle').textContent='Buffering';
       $('stateText').textContent='Waiting for more data...';
