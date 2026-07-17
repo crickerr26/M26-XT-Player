@@ -24,6 +24,31 @@ function corsJson(status, data) {
   });
 }
 
+/* HLS playlist rewriting: Xtream panels emit playlists whose segment/key/variant
+   URIs point straight at the http:// origin. On an https page those URIs are
+   mixed content, so Safari (which plays HLS natively, no MSE) loads the playlist
+   through the proxy but then every segment request is blocked — the stream
+   freezes a few seconds in. Rewriting every URI to route back through /proxy
+   keeps the whole stream (playlist + segments + keys) on this origin, which is
+   what makes native iPhone playback work without a third-party relay. */
+function looksLikeM3u8(target, upstream) {
+  const ct = (upstream.headers.get('content-type') || '').toLowerCase();
+  if (/mpegurl|m3u8/.test(ct)) return true;
+  return /\.m3u8(?:$|\?)/i.test(target.pathname + target.search);
+}
+function rewriteM3u8(text, baseUrl, selfOrigin) {
+  const prox = u => {
+    try { return selfOrigin + '/proxy?url=' + encodeURIComponent(new URL(u, baseUrl).href); }
+    catch { return u; }
+  };
+  return text.split(/\r?\n/).map(line => {
+    const t = line.trim();
+    if (!t) return line;
+    if (t.startsWith('#')) return line.replace(/URI="([^"]+)"/g, (_, u) => 'URI="' + prox(u) + '"');
+    return prox(t);
+  }).join('\n');
+}
+
 async function handleProxy(request) {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: withCors(new Headers()) });
@@ -52,6 +77,26 @@ async function handleProxy(request) {
   }
   const responseHeaders = withCors(upstream.headers);
   responseHeaders.delete('set-cookie');
+  if (request.method === 'GET' && upstream.ok && looksLikeM3u8(target, upstream)) {
+    const text = await upstream.text();
+    if (/#EXTM3U/.test(text)) {
+      responseHeaders.delete('content-length');
+      responseHeaders.delete('content-encoding');
+      responseHeaders.set('content-type', 'application/vnd.apple.mpegurl');
+      responseHeaders.set('cache-control', 'no-store');
+      const origin = new URL(request.url).origin;
+      return new Response(rewriteM3u8(text, upstream.url || target.href, origin), {
+        status: upstream.status,
+        headers: responseHeaders
+      });
+    }
+    responseHeaders.delete('content-encoding');
+    return new Response(text, {
+      status: upstream.status,
+      statusText: upstream.statusText,
+      headers: responseHeaders
+    });
+  }
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,

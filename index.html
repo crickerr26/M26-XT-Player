@@ -253,7 +253,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">v2.3</span>
+  <span class="versionBadge login-version">v2.0</span>
   <div class="login-card">
     <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
@@ -285,7 +285,13 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
    point the app at it with ?proxy=... &livehls=... in the URL (saved after first use), or
    set localStorage keys 'm26-proxy' / 'm26-livehls'. Falls back to the shared workers. */
 const _relayOverride=(k,def)=>{try{const qs=new URLSearchParams(location.search);const q=qs.get(k);if(q){localStorage.setItem('m26-'+k,q);return q}const s=localStorage.getItem('m26-'+k);return s||def}catch{return def}};
-const PROXY=_relayOverride('proxy','https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=');
+/* v48: when the page itself is served over https, its OWN origin always exposes /proxy
+   (_worker.js on Cloudflare Workers/Pages, server.js on the node host) — and that proxy now
+   rewrites HLS playlists so every segment stays on this origin. Using it instead of the
+   SHARED community relay removes the rate-limited bottleneck that made mobile live playback
+   stutter and stick. The shared worker remains the fallback for non-https contexts
+   (Capacitor/file://), and the ?proxy= / localStorage override still wins over both. */
+const PROXY=_relayOverride('proxy',location.protocol==='https:'?location.origin+'/proxy?url=':'https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=');
 const LIVE_HLS=_relayOverride('livehls','https://smartertv-secure.gz-inzi84.workers.dev/live-hls?url=');
 const KEY='smarter-fresh-v1';
 const FAV='smarter-fresh-favs-v1';
@@ -295,7 +301,7 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
-const APP_VERSION='2.13';
+const APP_VERSION='2.0';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -530,6 +536,34 @@ function launchAppChain(urls,onGone,onFail){
   step();
   return stop;
 }
+/* v48: countdown gate for the external app buttons. Disables every "Open in <app>" button
+   until the connection-release window has passed, with a live countdown so the wait reads as
+   deliberate, then unlocks them. The unlocked tap is a fresh user gesture (Safari honors the
+   custom-scheme launch) that fires AFTER the panel has freed the slot — the two conditions
+   that must BOTH hold for the handoff to survive on a 1-connection line. Token-guarded: any
+   newer play request stops the countdown and re-enables the buttons. */
+function gateExtButtons(ms,label){
+  const ids=['extVlc','extExo','extMx','extInfuse','extNplayer'];
+  const tok=S.seq,until=Date.now()+ms;
+  const set=dis=>ids.forEach(id=>{const b=$(id);if(b){b.disabled=dis;b.style.opacity=dis?'.45':''}});
+  set(true);
+  const tick=()=>{
+    if(tok!==S.seq){set(false);return}
+    const left=until-Date.now();
+    if(left<=0){
+      set(false);
+      $('stateTitle').textContent='Ready — tap Open in '+label;
+      $('stateText').textContent='The connection is free now. Tap "Open in '+label+'" below — it will take the single connection cleanly, so the video keeps playing instead of dropping.';
+      $('netStatus').textContent='Ready';$('miniMeta').textContent='Tap to open';
+      return;
+    }
+    $('stateTitle').textContent='Freeing the connection...';
+    $('stateText').textContent='Your previous stream is releasing its connection slot. "Open in '+label+'" unlocks in '+Math.ceil(left/1000)+'s...';
+    $('netStatus').textContent='Releasing slot';$('miniMeta').textContent='Wait '+Math.ceil(left/1000)+'s';
+    setTimeout(tick,300);
+  };
+  tick();
+}
 async function playItemExternal(x,mode,armed){
   setCurrentItem(x);cleanup();
   /* v40: cleanup() just bumped S.seq — capture it as this launch's token. Any NEWER play
@@ -583,24 +617,28 @@ async function playItemExternal(x,mode,armed){
      panel's single slot may not be free yet, and a second connection (VLC) opened now gets
      killed a few seconds in -- the exact "video disappears after a few seconds" symptom. */
   const sinceConn=lastConn?Date.now()-lastConn:Infinity;
+  /* v48: widened from 3000ms. Real panels keep a closed session's slot "active" for 5s+
+     before their connection monitor frees it, and VLC needs ~1-2s to boot — with only 3s the
+     handoff could still land inside the busy window and get killed a few seconds in. */
+  const RELEASE=6500;
   if(d==='ios'){
     /* iOS: Safari only launches a custom scheme while the tap's activation is alive, so an
        awaited delay is impossible AND an instant fire would race the not-yet-freed slot. When
-       a stream was JUST torn down we ARM instead of firing: the overlay's "Open in <app>"
-       button re-enters here with armed=true after a human beat, so the launch carries fresh
-       activation and lands on a clean single connection and stays up. A cold launch (nothing
-       was streaming) fires immediately -- there is no slot to release. */
-    if(!armed&&sinceConn<3000){
-      $('stateTitle').textContent='Ready to open '+label;
-      $('stateText').textContent='Your previous stream was just closed. Tap the "Open in '+label+'" button below to start it now -- one tap opens '+label+' on a single clean connection, so the video will not drop after a few seconds.';
-      $('netStatus').textContent='Ready';$('miniMeta').textContent='Tap to open';
+       a stream was JUST torn down we ARM instead of firing. v48: arming alone was NOT enough —
+       users tapped "Open in VLC" ~1s after teardown, still inside the busy window, and the
+       stream died again. Now the app buttons stay DISABLED behind a visible countdown until
+       the slot-release window has fully passed; the tap that then fires carries fresh
+       activation and lands on a genuinely free connection. Cold launch (nothing was
+       streaming) fires immediately -- there is no slot to release. */
+    if(!armed&&sinceConn<RELEASE){
+      gateExtButtons(RELEASE-sinceConn,label);
       return;
     }
-  }else if(sinceConn<3000){
+  }else if(sinceConn<RELEASE){
     /* Android/desktop keep the tap's activation across an awaited timeout, so simply wait out
        the slot release, then fire once. */
     $('stateText').textContent='Closing the previous stream so '+label+' can take over the connection...';
-    await new Promise(r=>setTimeout(r,3000-sinceConn));
+    await new Promise(r=>setTimeout(r,RELEASE-sinceConn));
     if(token!==S.seq)return;
   }
   let chain;
@@ -826,8 +864,12 @@ function plan(x){
       /* https page can't touch the http origin (mixed content) — but the CORS proxy is https
          and streams bodies through, so the VLC-style continuous TS still works via one hop */
       if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
+      /* v48: the panel's own HLS through the same-origin rewriting proxy comes BEFORE the
+         shared third-party relay. On iPhone (no MSE) this is the primary live path: native
+         Safari HLS, playlist + segments all on this origin, no rate-limited middleman. The
+         relay drops to a fallback for panels that serve no live HLS at all. */
+      add('hls','Proxy HLS',proxyUrl(m3u8));
       add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
-      add('hls','Direct HLS',proxyUrl(m3u8));
     }
   }else{
     /* VOD / Series */
@@ -981,6 +1023,22 @@ async function tryPlans(plans,i){
       const be=bufEnd(),flowing=be>lastBufEnd+0.3;lastBufEnd=be;
       if(S.hls){try{S.hls.startLoad(-1)}catch{}}
       else if(S.ts&&!flowing){try{S.ts.unload();S.ts.load()}catch{}}
+      else if(!S.hls&&!S.ts&&live){
+        /* v48: native HLS (iPhone Safari — no MSE, so no S.hls/S.ts). The old resume only
+           called play(), which does nothing when the real problem is the playhead falling out
+           of the panel's tiny sliding live window — Safari then sits frozen forever ("live
+           videos getting stuck"). Recover the way Safari wants: re-seek near the live edge on
+           the SAME connection. Only if data is truly frozen after repeated tries, reload the
+           element (one reconnect, same URL) instead of tearing down to a worse plan. */
+        try{
+          const sk=v.seekable;
+          if(sk&&sk.length){
+            const st=sk.start(0),edge=sk.end(sk.length-1);
+            if(v.currentTime<st||edge-v.currentTime>8||!flowing)v.currentTime=Math.max(st,edge-3);
+          }
+          if(!flowing&&gentleResumes>=3)v.load();
+        }catch(e){}
+      }
       const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
       return true;
     }catch{return false}
