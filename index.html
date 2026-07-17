@@ -9,7 +9,7 @@
 <title>Media26 XT Player</title>
 <!-- FIX: load engines locally if present, else fall back to CDN so playback never dies when the local .min.js files are missing -->
 <script src="hls.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js';document.head.appendChild(s);"></script>
-<script src="mpegts.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js';s.onerror=function(){var u=document.createElement('script');u.src='https://unpkg.com/mpegts.js@1.7.3/dist/mpegts.js';document.head.appendChild(u);};document.head.appendChild(s);"></script>
+<script src="mpegts.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';s.onerror=function(){var u=document.createElement('script');u.src='https://unpkg.com/mpegts.js@1.8.0/dist/mpegts.js';document.head.appendChild(u);};document.head.appendChild(s);"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
 body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#607088;--soft:#26384f;--line:rgba(20,32,51,.11);--shadow:0 18px 45px rgba(27,39,62,.12)}
@@ -891,15 +891,20 @@ function plan(x){
       addTrans('MP4',rawMp4);
       if(direct)add('hls','Direct Relay',LIVE_HLS+encodeURIComponent(direct));
     }else if(isMob){
-      /* Non-MKV mobile VOD */
-      if(transcoderBase())addTrans('Preview',rawFirst,true);
+      /* Non-MKV mobile VOD. v49: the transcoder is no longer FIRST for
+         browser-safe formats — it re-encodes everything to 854p on a small
+         server, which was both the quality drop and a stutter source when the
+         encoder couldn't keep up. Direct full-quality playback leads; the
+         transcoder stays in the chain as the fallback for codecs the phone
+         can't decode. */
       if(direct)add(direct.includes('.m3u8')?'hls':'native','Direct',direct);
       add('native','MP4',rawMp4);
       add('native','MP4 Proxy',proxyUrl(rawMp4));
       add('hls','HLS',rawM3u8);
       add('hls','HLS Proxy',proxyUrl(rawM3u8));
       add('hls','Relay MP4',LIVE_HLS+encodeURIComponent(rawMp4));
-      if(!browserSafeExt(preferred)){addTrans(preferred.toUpperCase(),preferredUrl);addTrans('MP4',rawMp4);}
+      if(!browserSafeExt(preferred)){addTrans(preferred.toUpperCase(),preferredUrl,true);addTrans('MP4',rawMp4);}
+      else addTrans('Preview',rawFirst);
     }else{
       /* Desktop VOD — full format matrix */
       if(transcoderBase())addTrans('Preview',rawFirst,true);
@@ -923,448 +928,187 @@ function plan(x){
 }
 function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down — external launches wait until the origin has had time to release the slot (see playItemExternal) */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
 async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);const mode=resolvedPlayer(typeOf(x));if(mode==='basic'){await playItemBasic(x);return}if(isExternalMode(mode)&&!fromAlternative){/* v40: ignore re-taps on the SAME channel within 4s of an external launch. Users tap again when "nothing seems to happen" while VLC is still starting — the repeat intent restarted VLC and the instant reconnect got killed by the 1-connection line (stream died seconds after starting). The overlay's "Open app again" button still allows a deliberate manual retry. */if(S.extLaunch&&keyOf(S.extLaunch.x)===keyOf(x)&&S.lastExtLaunchAt&&Date.now()-S.lastExtLaunchAt<4000){toast('Opening in '+playerLabel(mode)+'...');return}await playItemExternal(x,mode);return}await playItemPreview(x)}
+/* =================== v49: built-in player - full rewrite =================== */
+/* The old engine accumulated ~40 versions of layered watchdogs (stall timers,
+   chronic-burst counters, gentle-resume budgets, MSE recovery storms) that
+   fought each other: their recovery restarts read as the video "looping back
+   after a few seconds", overlapping fallbacks opened rival connections that a
+   1-connection line instantly killed, and every extra layer added stutter of
+   its own. This rewrite keeps only what measurably worked:
+     - ONE connection, one engine at a time, plans tried strictly in order.
+     - VLC's model for live: a continuous TS feed into mpegts.js wherever
+       media-source playback exists - now including iPhone (iOS 17.1+, via
+       mpegts.js 1.8 ManagedMediaSource). Fat buffer, no live-edge chasing.
+     - ONE heartbeat (1s tick) watching currentTime. Every decision derives
+       from "is the playback clock advancing?", never from the media element's
+       noisy event storm.
+     - A started stream is sacred: recover IN PLACE (play nudge, loader
+       restart, live-edge seek for native HLS). A same-URL reconnect happens
+       only when the buffer is provably frozen, at most twice; only after that
+       does the next path get a turn. Nothing ever seeks backwards or rebuilds
+       the MediaSource mid-play - that was the "repeat/loop" bug. */
 async function tryPlans(plans,i){
   const v=$('video');
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
   cleanup();
   const token=++S.seq,p=plans[i],live=typeOf(S.current)==='live',transcoded=/Transcoded/i.test(p.label);
-  /* FIX: brief cooldown before a fallback attempt for live channels. Connection-limited
-     IPTV lines (see plan() comment above) may not release the previous attempt's slot on
-     the origin the instant we stop requesting it — immediately opening another connection
-     can collide with one that hasn't timed out yet. This doesn't fully solve a slow
-     server-side release, but combined with far fewer total fallback attempts it meaningfully
-     cuts how often our own retries collide with themselves. */
-  if(i>0&&live){await new Promise(r=>setTimeout(r,1200));if(token!==S.seq)return}
-  const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
+  /* between attempts, give the origin a beat to release the previous slot */
+  if(i>0&&live){$('netStatus').textContent='Switching path';await new Promise(r=>setTimeout(r,1500));if(token!==S.seq)return}
   $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
-  v.muted=false;v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
-  v.preload=transcoded?'auto':'metadata';v.loop=false;
-  /* v43: VLC's core stability trick — don't start the instant the first frame arrives. For
-     live in the MSE engines (mpegts.js / hls.js) autoplay is off and startVideo() waits for
-     a few seconds of buffered cushion (or a short cap) before pressing play, so playback
-     begins with slack instead of starving on the first network wobble. Native/iOS playback
-     keeps autoplay (Safari manages its own HLS buffer and reports 'buffered' unreliably). */
-  v.autoplay=!(live&&!transcoded&&(p.kind==='mpegts'||p.kind==='hls'));
-  let started=false,stallTimer=null,recoveryCount=0,lastMediaRecoverAt=0,audioSwapped=false,waitBurst=[],chronicBursts=0;
-  let shownPlaying=false,shownMuted=null;/* idempotency guards for markPlaying (see below) */
-  const clearStall=()=>{if(stallTimer){clearTimeout(stallTimer);stallTimer=null}};
-  /* FIX (steady-state stutter): markPlaying() fires on EVERY timeupdate (~4x/sec while a
-     stream plays). It used to unconditionally rewrite netStatus/miniMeta AND re-parse an SVG
-     via playBtn.innerHTML=ICONS.pause on every tick — a constant drip of style/layout recalc
-     on the main thread that a phone feels as micro-stutter a few seconds in. Make the UI paint
-     idempotent: once the "Playing" state is shown, later ticks only do the two cheap timer
-     resets and bail. shownPlaying is cleared whenever buffering/stall re-shows the overlay
-     (below) so it is correctly re-hidden on resume, and shownMuted tracks the mute toggle so
-     "tap for sound" still updates exactly once when it changes. */
-  const markPlaying=()=>{
-    if(token!==S.seq)return;clearStall();clearTimeout(S.timer);
-    if(shownPlaying&&shownMuted===v.muted)return;
-    shownPlaying=true;shownMuted=v.muted;
-    $('overlay').style.display='none';
-    $('netStatus').textContent=v.muted?'Playing muted':'Playing';
-    $('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';
-    if($('playBtn'))$('playBtn').innerHTML=ICONS.pause;
-  };
-  const nextPlan=()=>{if(token===S.seq){clearStall();tryPlans(plans,i+1)}};
-  const failNext=()=>{if(token===S.seq&&!started)nextPlan()};
-  /* FIX: recoverMediaError() tears down and rebuilds the MediaSource, which snaps
-     currentTime back to 0 and re-seeks — visually a "restart/loop" plus an audio
-     glitch. Calling it repeatedly in a tight burst (the old recoveryCount<4 cap with
-     no time gate) produced several of these resets back-to-back for a single fatal
-     error storm. Now: at most 2 real MSE recoveries per plan, spaced apart, with
-     swapAudioCodec() on the 2nd try (the hls.js-recommended fix for recurring
-     fragParsingError caused by audio codec mismatches). After that, give up on this
-     plan instead of resetting again and move on. */
-  const recoverMedia=()=>{
-    if(!S.hls||recoveryCount>=3)return false;
-    const now=Date.now();
-    if(lastMediaRecoverAt&&now-lastMediaRecoverAt<4000)return false;
-    lastMediaRecoverAt=now;recoveryCount++;
-    try{
-      if(recoveryCount>=2&&!audioSwapped){audioSwapped=true;try{S.hls.swapAudioCodec()}catch{}}
-      S.hls.recoverMediaError();
-      return true;
-    }catch{return false}
-  };
-  /* v32: the #1 cause of "video suddenly disappears and stops" was this watchdog tearing
-     down an already-playing stream on a transient hiccup: nextPlan()/tryLiveAlternative()
-     call cleanup() -> v.removeAttribute('src') -> black screen, then often land on a worse
-     or dead candidate. A brief network stall does NOT need a teardown — VLC just resumes the
-     same connection. So we now try up to 3 GENTLE in-place resumes first (hls.startLoad /
-     mpegts resume / v.play), which keep the existing frame and buffer, and only escalate to
-     the disruptive teardown path if those genuinely fail. */
-  let gentleResumes=0,lastGentleAt=0;
-  /* v43: for live in the built-in player, resume like VLC — keep retrying the SAME
-     connection in place (up to 12 tries with growing spacing) instead of giving up after 3
-     and tearing down to a fallback that blanks the screen. The counter resets after 20s of
-     clean playback (see ontimeupdate), so an evening of occasional hiccups never exhausts
-     the budget; only a genuinely dead source escalates to the next plan. */
-  const gentleCap=(live&&!transcoded)?12:3;
-  const gentleSpacing=()=>Math.min(10000,3500+gentleResumes*1200);
-  /* v47: fix the "plays a few seconds then loops" regression. The old resume ALWAYS did
-     ts.unload()+load() — a full engine restart that visibly snaps playback back to the
-     start. On a source that is merely SLOW (data still arriving, just under real-time),
-     that restart loop repeated up to the whole resume budget: play a bit, loop, play a
-     bit, loop. Now the buffer's leading edge is compared between resumes: still growing =
-     data is flowing, so never restart (just nudge play and ride it); frozen = the socket
-     really died, so a reconnect restart is justified. And if 3 resumes happen within 45s
-     the source is structurally too slow for real-time — escalate to the next stream path
-     instead of looping this one. */
-  let resumeTimes=[],lastBufEnd=0;
+  /* reset element state, including handlers older modes left behind */
+  v.onwaiting=v.onstalled=v.onsuspend=v.ontimeupdate=v.onplaying=v.onerror=null;
+  v.muted=false;v.loop=false;v.autoplay=false;v.preload='auto';
+  v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
+  const attachAt=Date.now();
+  const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null};
+  const startBudget=transcoded?35000:20000;
   const bufEnd=()=>{try{return v.buffered.length?v.buffered.end(v.buffered.length-1):0}catch(e){return 0}};
-  const gentleResume=()=>{
-    const now=Date.now();
-    if(gentleResumes>=gentleCap||(lastGentleAt&&now-lastGentleAt<gentleSpacing()))return false;
-    resumeTimes=resumeTimes.filter(t=>now-t<45000);
-    if(resumeTimes.length>=3)return false;
-    resumeTimes.push(now);
-    lastGentleAt=now;gentleResumes++;
-    try{
-      const be=bufEnd(),flowing=be>lastBufEnd+0.3;lastBufEnd=be;
-      if(S.hls){try{S.hls.startLoad(-1)}catch{}}
-      else if(S.ts&&!flowing){try{S.ts.unload();S.ts.load()}catch{}}
-      else if(!S.hls&&!S.ts&&live){
-        /* v48: native HLS (iPhone Safari — no MSE, so no S.hls/S.ts). The old resume only
-           called play(), which does nothing when the real problem is the playhead falling out
-           of the panel's tiny sliding live window — Safari then sits frozen forever ("live
-           videos getting stuck"). Recover the way Safari wants: re-seek near the live edge on
-           the SAME connection. Only if data is truly frozen after repeated tries, reload the
-           element (one reconnect, same URL) instead of tearing down to a worse plan. */
-        try{
-          const sk=v.seekable;
-          if(sk&&sk.length){
-            const st=sk.start(0),edge=sk.end(sk.length-1);
-            if(v.currentTime<st||edge-v.currentTime>8||!flowing)v.currentTime=Math.max(st,edge-3);
-          }
-          if(!flowing&&gentleResumes>=3)v.load();
-        }catch(e){}
-      }
-      const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
-      return true;
-    }catch{return false}
-  };
-  const switchIfStuck=()=>{
+  const overlay=(state,title,text,spin)=>{if(E.overlayState===state)return;E.overlayState=state;$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.toggle('hidden',!spin);$('stateTitle').textContent=title;$('stateText').textContent=text};
+  const showPlaying=()=>{if(E.overlayState==='playing'&&E.shownMuted===v.muted)return;E.overlayState='playing';E.shownMuted=v.muted;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
+  const nextPlan=()=>{if(token!==S.seq)return;tryPlans(plans,i+1)};
+  const mseLive=live&&!transcoded&&(p.kind==='mpegts'||(p.kind==='hls'&&window.Hls&&Hls.isSupported()));
+  /* autoplay waterfall: unmuted -> muted -> tap prompt */
+  const attempt=()=>{
     if(token!==S.seq)return;
-    /* tier 1: gentle in-place resume — never blanks the picture */
-    if(started&&gentleResume()){
-      /* if it actually recovers, onplaying clears the overlay; re-check shortly */
-      clearStall();stallTimer=setTimeout(()=>{if(token===S.seq&&(v.paused||v.readyState<3))switchIfStuck()},stallMs);
-      return;
-    }
-    /* tier 2: hls.js MSE recovery (kept bounded) */
-    if(live&&!transcoded&&S.hls&&recoverMedia())return;
-    /* tier 3: on live, do NOT open a rival connection (alternate channel) — the 1-connection
-       line kills it. Just move to the next SINGLE-connection plan for this same channel. On
-       VOD an alternate is fine. */
-    if(live&&!transcoded){nextPlan()}
-    else nextPlan();
-  };
-  /* --- Mobile-hardened stall/error watchdog --- */
-  const isAppleDev=/iphone|ipad|ipod/i.test(navigator.userAgent||'');
-  const isAndroidDev=/android/i.test(navigator.userAgent||'');
-  const isMobDev=mobile();
-  /* FIX: these were tuned progressively longer ("generous timeouts, IPTV servers are slow")
-     on the theory that patience helps. A side-by-side comparison against a known-smooth
-     production deployment (smartertv.shop, same relay backend) showed the opposite for live:
-     it uses shorter timeouts across the board and plays smoothly, while these longer values
-     just meant real stalls sat frozen far longer before anything reacted. Matched back to
-     those proven values. */
-  const stallMs=transcoded?14000:(isTv?6000:(isMobDev?10000:8000));
-  const waitMs =transcoded?15000:(isTv?7000:(isMobDev?12000:9000));
-  const startTimeout=transcoded?(isMobDev?35000:42000):(isTv?12000:(isMobDev?18000:20000));
-  v.onerror=()=>{if(token===S.seq){started?switchIfStuck():nextPlan()}};
-  /* onstalled: only react if truly started; iOS fires suspend routinely during normal load */
-  v.onstalled=()=>{
-    if(token!==S.seq||!started)return;
-    $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
-    /* FIX: netStatus/miniMeta are invisible on phone-width viewports (.status{display:none}
-       under the 760px media query, and miniMeta is always display:none) — so a stall used to
-       freeze the picture on a black/frozen frame with zero visible feedback for many seconds
-       until the watchdog below eventually acted. Reuse the same overlay spinner shown during
-       initial load so a rebuffer always looks like "buffering", never a silent hang. */
-    $('overlay').style.display='grid';shownPlaying=false;
-    if($('stateProgress'))$('stateProgress').classList.remove('hidden');
-    $('stateTitle').textContent='Reconnecting';
-    $('stateText').textContent='The stream stalled, reconnecting...';
-    clearStall();
-    /* NOTE: an earlier version doubled this timeout for live+hls.js, on the theory that hls.js
-       needed more room to self-recover before our watchdog stepped in. Measured data showed the
-       opposite: hls.js can go completely silent (no further events at all) for 30s+ with no
-       self-recovery in sight, and doubling just doubled how long the video sat frozen on "Playing"
-       before anything acted. The recoverMedia() gating below already prevents the rapid-fire reset
-       storm that motivated the longer timeout, so there's no need to also delay detection. */
-    stallTimer=setTimeout(switchIfStuck,stallMs);
-  };
-  /* onsuspend: iOS fires this constantly — only treat as stuck if not started after a long delay */
-  v.onsuspend=()=>{
-    if(token!==S.seq||started)return;
-    clearStall();
-    stallTimer=setTimeout(()=>{if(token===S.seq&&!started)nextPlan();},stallMs+5000);
-  };
-  v.onwaiting=()=>{
-    if(token!==S.seq)return;
-    $('netStatus').textContent='Buffering';$('miniMeta').textContent='Buffering...';
-    if(started){
-      $('overlay').style.display='grid';shownPlaying=false;
-      if($('stateProgress'))$('stateProgress').classList.remove('hidden');
-      $('stateTitle').textContent='Buffering';
-      $('stateText').textContent='Waiting for more data...';
-    }
-    /* FIX: chronic-stutter detector. Measured against this app's live relay with an
-       instrumented video element: some sources never produce a single long stall (which the
-       stallMs/waitMs watchdog below is built to catch) but instead re-buffer every ~5-6s
-       forever — confirmed root cause was a relay whose playlist reload cadence is fixed at
-       exactly 6000ms while it only appends ~2s of new content per reload, i.e. content can
-       physically never arrive faster than roughly 1/3 real-time. Every individual freeze is
-       brief enough (recovers before stallMs) that the existing watchdog treats each one as a
-       harmless one-off and never escalates — so the user sits through nonstop stutter
-       indefinitely. Track waiting events in a rolling 20s window; 4+ of them (a real source
-       recovering cleanly rarely re-stalls this often) means the source itself is structurally
-       too slow, so jump straight to the next candidate/alternate-quality channel instead of
-       waiting for a single-stall timeout that will never fire. */
-    if(started&&live&&!transcoded){
-      const now=Date.now();
-      waitBurst.push(now);
-      waitBurst=waitBurst.filter(t=>now-t<20000);
-      if(waitBurst.length>=8){
-        waitBurst=[];chronicBursts++;
-        clearStall();
-        /* v34: NEVER auto-switch to an alternate channel on a 1-connection line — that opens
-           a second upstream connection the provider immediately kills, which reads to the user
-           as "disconnected". Recover the SAME connection in place (hls.startLoad / ts reload)
-           and keep riding it, exactly like VLC does. */
-        /* v47: ...but only ONCE. A second chronic burst means this stream path physically
-           cannot deliver real-time — endless in-place recovery is the "stuck a lot" the
-           user sees. Move to the next single-connection plan for the same channel instead.
-           And never hard-reload mpegts while data is still flowing (that restart looks
-           like the video looping) — reload only a genuinely frozen connection. */
-        if(chronicBursts>=2){nextPlan();return}
-        const _be=bufEnd(),_flowing=_be>lastBufEnd+0.3;lastBufEnd=_be;
-        if(S.hls){try{S.hls.startLoad(-1)}catch{}}
-        else if(S.ts&&!_flowing){try{S.ts.unload();S.ts.load()}catch{}}
-        const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
+    const pr=v.play();
+    if(pr&&pr.catch)pr.catch(()=>{
+      if(token!==S.seq)return;
+      if(!E.mutedTried){
+        E.mutedTried=true;v.muted=true;
+        const p2=v.play();
+        if(p2&&p2.catch)p2.catch(()=>{if(token===S.seq&&!E.tapShown){E.tapShown=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)}});
         return;
       }
-    }
-    clearStall();
-    stallTimer=setTimeout(()=>{
-      if(token!==S.seq)return;
-      /* FIX: readyState>=2 here used to mean "do nothing" — but buffered-ahead data with
-         currentTime not advancing is exactly what a real stall looks like (confirmed live:
-         currentTime frozen for 30s+ while netStatus kept saying "Playing"). Only skip straight
-         to nextPlan() when there's truly no data (readyState<2); otherwise let switchIfStuck()
-         run its normal bounded recovery instead of silently doing nothing. */
-      if(live&&isMobDev&&v.readyState<2){nextPlan();return}
-      if(live&&isMobDev){switchIfStuck();return}
-      if(v.paused||v.readyState<3)switchIfStuck();
-    },waitMs);
-  };
-  v.onplaying=()=>{
-    started=true;
-    if(token!==S.seq)return;
-    clearStall();clearTimeout(S.timer);
-    /* FIX: this check used to be skipped entirely for live ("videoWidth unreliable on mobile
-       live"). In practice, live channels carrying an undecodable video track (typically
-       HEVC/4K the browser can't decode) fire 'playing' and keep currentTime advancing on
-       audio alone — markPlaying() below then reports "Playing" over a permanently black 0x0
-       frame with no error, no overlay, and no fallback, since every watchdog timer was just
-       cleared above. Confirmed live against real UHD channels. Run the same videoWidth check
-       for live too, but recover through switchIfStuck() (tries an alternate quality/plan)
-       instead of the VOD-style terminal fail(), since a same-channel SD/HD sibling is usually
-       genuinely playable. */
-    if(!transcoded){
-      clearTimeout(S.videoCheck);
-      S.videoCheck=setTimeout(()=>{
-        if(token!==S.seq)return;
-        if(v.currentTime>2&&v.videoWidth===0){
-          if(live)switchIfStuck();
-          else{S.audioOnly=true;fail('Audio only');}
-        }
-        else markPlaying();
-      },4000);
-    }
-    markPlaying();
-  };
-  /* timeupdate: currentTime>0 is enough — don't require videoWidth on mobile live */
-  v.ontimeupdate=()=>{if(token!==S.seq)return;if(v.currentTime>0.5)markPlaying();if(gentleResumes>0&&lastGentleAt&&Date.now()-lastGentleAt>20000)gentleResumes=0};
-  S.timer=setTimeout(()=>{if(token===S.seq&&!started)nextPlan();},startTimeout);
-  try{
-    if(p.kind==='native'){
-      v.src=p.url;v.load();startVideo(token);
-    }else if(p.kind==='hls'){
-      if(window.Hls&&Hls.isSupported()){
-        /* FIX: the previous "lean mobile buffer, fail-fast" tuning was measured live against
-           this app's actual relay (not just eyeballed) — instrumented the video element and
-           counted 'waiting' events over a straight 60s play of a normal (non-4K) channel:
-           22 rebuffers in 60s, roughly one every 2-4s like clockwork, with playback content
-           time visibly falling behind wall-clock time (stuttering, not just a display quirk).
-           Root cause: liveSyncDurationCount:2 pins playback within ~2 segments of the live
-           edge, and maxBufferLength:12 on mobile leaves almost no cushion — any minor jitter
-           in segment delivery immediately starves the buffer. Widened the cushion so hls.js
-           can build a few extra seconds of slack before the live edge instead of hugging it;
-           costs a little latency, buys a lot of stability, which is the trade this app's
-           users actually want for live TV. */
-        const hlsCfg={
-          enableWorker:true,
-          lowLatencyMode:false,
-          capLevelToPlayerSize:true,
-          startLevel:-1,
-          /* ABR bandwidth seed: TV > desktop > mobile */
-          abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
-          abrEwmaSlowFactor:6,abrEwmaFastFactor:3,
-          /* Buffer: TV/desktop generous, mobile still lean but no longer razor-thin */
-          /* v34: mobile buffer widened hard — the whole point is a cushion big enough to
-             ride out relay/network jitter without ever hitting empty. */
-          maxBufferLength:isTv?60:(mobile()?60:50),
-          maxMaxBufferLength:isTv?120:(mobile()?120:120),
-          backBufferLength:live?0:(isTv?30:24),
-          /* Live sync — wider cushion than a bare-minimum 2 segments so normal jitter doesn't
-             immediately starve the buffer */
-          liveSyncDurationCount:mobile()?4:(isTv?4:5),
-          liveMaxLatencyDurationCount:mobile()?18:(isTv?10:14),
-          maxLiveSyncPlaybackRate:1.1,
-          /* Retry policy: aggressive like ExoPlayer */
-          manifestLoadingMaxRetry:transcoded?6:(isTv?5:3),
-          levelLoadingMaxRetry:transcoded?6:(isTv?5:4),
-          fragLoadingMaxRetry:transcoded?8:(isTv?7:(mobile()?10:6)),
-          manifestLoadingRetryDelay:400,levelLoadingRetryDelay:500,fragLoadingRetryDelay:500,
-          manifestLoadingTimeOut:transcoded?18000:(isTv?14000:8000),
-          levelLoadingTimeOut:transcoded?20000:(isTv?16000:10000),
-          fragLoadingTimeOut:transcoded?24000:(isTv?18000:(mobile()?22000:14000)),
-          /* Codec/format safety */
-          enableSoftwareAES:true,
-          progressive:false,
-          /* Auto level switching speed */
-          abrBandWidthFactor:0.95,
-          abrBandWidthUpFactor:0.7,
-        };
-        S.hls=new Hls(hlsCfg);
-        S.hls.loadSource(p.url);
-        S.hls.attachMedia(v);
-        S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{
-          forceMobileSmoothLevel(S.hls);
-          if(isTv)S.hls.currentLevel=-1; /* ABR on TV */
-          startVideo(token,(live&&!transcoded)?2.5:0);
-        });
-        S.hls.on(Hls.Events.ERROR,(e,d)=>{
-          if(token!==S.seq||!d)return;
-          if(d.fatal){
-            /* v39: HTTP 401/403 on a segment WHILE PLAYING means the single connection was
-               taken by another device (provider-confirmed: 2nd connection => 401). Tell the
-               user instead of silently dying or looping recovery. */
-            if(started&&d.response&&(d.response.code===401||d.response.code===403)){showAccountConflict();return;}
-            if(!started){nextPlan();return}
-            if(S.hls){
-              try{
-                if(d.type===Hls.ErrorTypes.MEDIA_ERROR){
-                  if(!recoverMedia())switchIfStuck();
-                }else if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&recoveryCount<5){
-                  recoveryCount++;S.hls.startLoad(-1);
-                }else{switchIfStuck()}
-              }catch{switchIfStuck()}
-            }
-          }
-        });
-      }else if(nativeHls(v)){
-        v.src=p.url;v.load();startVideo(token);
-      }else nextPlan();
-    }else if(p.kind==='mpegts'){
-      if(!window.mpegts||!mpegts.isSupported()){nextPlan();return}
-      const tsLive=live;
-      S.ts=mpegts.createPlayer(
-        {type:'mpegts',isLive:tsLive,url:p.url,cors:true},
-        {
-          /* v34: worker ON everywhere — demuxing on the main thread was a major cause of
-             on-phone stutter (demux competes with the compositor). Stash raised so there's a
-             fat read-ahead cushion (VLC keeps seconds of buffer and never starves). */
-          enableWorker:true,
-          enableStashBuffer:true,
-          /* v47: 3MB initial stash delayed the first frame noticeably on phones — the v43
-             pre-play buffer gate now provides the anti-stutter cushion, so the stash can be
-             lean for fast starts. */
-          stashInitialSize:isTv?4*1024*1024:(mobile()?1*1024*1024:2*1024*1024),
-          lazyLoad:false,
-          autoCleanupSourceBuffer:true,
-          autoCleanupMaxBackwardDuration:tsLive?60:90,
-          autoCleanupMinBackwardDuration:tsLive?30:28,
-          fixAudioTimestampGap:true,
-          isLive:tsLive,
-          /* v20: latency chasing OFF for live. Chasing (maxLatency 4s) force-seeked toward the
-             live edge whenever buffer built up — each seek is a visible freeze, exactly the
-             stutter VLC doesn't have. VLC's model: read the continuous stream, let a few seconds
-             of buffer accumulate, never jump. Trade a little latency for steady playback. */
-          liveBufferLatencyChasing:false,
-          liveBufferLatencyMaxLatency:isTv?10:8,
-          liveBufferLatencyMinRemain:isTv?3:2,
-        }
-      );
-      S.ts.attachMediaElement(v);
-      S.ts.on(mpegts.Events.ERROR,()=>{started?switchIfStuck():nextPlan()});
-      S.ts.load();startVideo(token,tsLive?3:0);
-    }else{
-      v.src=p.url;v.load();startVideo(token);
-    }
-  }catch(e){nextPlan()}
-}
-function startVideo(token,prebufferSec){
-  const v=$('video');
-  const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
-  const ok=()=>{
-    if(token!==S.seq)return;
-    clearTimeout(S.timer);
-    $('overlay').style.display='none';
-    $('netStatus').textContent=v.muted?'Playing muted':'Playing';
-    $('miniMeta').textContent=v.muted?'Playing muted - tap speaker':'Playing';
-    if($('playBtn'))$('playBtn').innerHTML=ICONS.pause;
-  };
-  const showTap=()=>{
-    if(token!==S.seq)return;
-    $('overlay').style.display='grid';
-    if($('stateProgress'))$('stateProgress').classList.add('hidden');
-    $('stateTitle').textContent='Tap play to start';
-    $('stateText').textContent='Tap the video once to begin. If it still fails, the next stream path will be tried automatically.';
-    $('netStatus').textContent='Tap to play';
-    $('miniMeta').textContent='Tap to play';
-    if($('playBtn'))$('playBtn').innerHTML=ICONS.play;
-  };
-  ['playing','canplay','loadeddata','loadedmetadata'].forEach(ev=>v.addEventListener(ev,ok,{once:true}));
-  /* ExoPlayer-style autoplay waterfall: unmuted → muted → show tap prompt */
-  const attempt=(mutedRetry=false,tapRetry=false)=>{
-    if(token!==S.seq)return;
-    if(mutedRetry)v.muted=true;
-    /* TV browsers: skip muted retry, go straight to play */
-    const p=v.play();
-    if(p&&p.catch)p.catch(err=>{
-      if(token!==S.seq)return;
-      const isBlocked=/notallowed|gesture|interact|permission/i.test(String(err&&((err.name||'')+' '+(err.message||''))));
-      /* On mobile/TV first failure: retry muted (mirrors ExoPlayer's audio focus fallback) */
-      if(!mutedRetry&&!tapRetry&&(isBlocked||mobile()||isTv)){attempt(true);return}
-      if(v.readyState===0){$('netStatus').textContent='Loading stream';$('miniMeta').textContent='Connecting...';return}
-      /* Last resort: show tap overlay */
-      if(!tapRetry){attempt(false,true);return}
-      showTap();
+      if(!E.tapShown){E.tapShown=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)}
     });
   };
-  /* v43: pre-play buffer gate (VLC-style). When prebufferSec is set, poll the buffered
-     ranges and only press play once that many seconds of cushion exist — capped at 5s of
-     waiting so a slow source still starts. The overlay shows fill progress so the wait
-     reads as "buffering", not a hang. */
-  const begin=()=>{if(isTv){setTimeout(()=>attempt(false),120)}else{attempt(false);}};
-  if(prebufferSec&&prebufferSec>0){
-    const gateStart=Date.now();
-    const gate=()=>{
-      if(token!==S.seq)return;
-      let ahead=0;try{if(v.buffered.length)ahead=v.buffered.end(v.buffered.length-1)-v.currentTime}catch(e){}
-      if(ahead>=prebufferSec||Date.now()-gateStart>5000){begin();return}
-      $('stateTitle').textContent='Buffering';
-      $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(ahead/prebufferSec*100))+'%';
-      $('netStatus').textContent='Buffering '+Math.min(99,Math.round(ahead/prebufferSec*100))+'%';
-      setTimeout(gate,250);
-    };
-    gate();
-    return;
-  }
-  begin();
+  v.onerror=()=>{if(token===S.seq&&!E.started)nextPlan()};
+  try{
+    if(p.kind==='mpegts'){
+      if(!window.mpegts||!mpegts.isSupported()){nextPlan();return}
+      /* iOS ManagedMediaSource requires AirPlay disabled on the element */
+      try{v.disableRemotePlayback=true;v.setAttribute('disableremoteplayback','')}catch(e){}
+      S.ts=mpegts.createPlayer(
+        {type:'mpegts',isLive:live,url:p.url,cors:true},
+        {enableWorker:true,enableStashBuffer:true,
+         stashInitialSize:mobile()?1024*1024:2*1024*1024,
+         lazyLoad:false,autoCleanupSourceBuffer:true,
+         autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30,
+         fixAudioTimestampGap:true,isLive:live,
+         /* no latency chasing: chasing seeks toward the live edge and every
+            seek is a visible freeze - VLC trades a little latency for calm */
+         liveBufferLatencyChasing:false,liveBufferLatencyMaxLatency:10,liveBufferLatencyMinRemain:2}
+      );
+      S.ts.attachMediaElement(v);
+      S.ts.on(mpegts.Events.ERROR,()=>{if(token===S.seq&&!E.started)nextPlan()});
+      S.ts.load();
+    }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
+      try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
+      const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
+      S.hls=new Hls({
+        enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:true,startLevel:-1,
+        abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
+        maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:live?0:30,
+        liveSyncDurationCount:4,liveMaxLatencyDurationCount:18,maxLiveSyncPlaybackRate:1.1,
+        manifestLoadingMaxRetry:4,levelLoadingMaxRetry:4,fragLoadingMaxRetry:8,
+        manifestLoadingRetryDelay:500,levelLoadingRetryDelay:500,fragLoadingRetryDelay:500,
+        manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,fragLoadingTimeOut:22000,
+        enableSoftwareAES:true});
+      S.hls.loadSource(p.url);S.hls.attachMedia(v);
+      S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(token===S.seq)forceMobileSmoothLevel(S.hls)});
+      let mediaRecovered=false,netRetries=0;
+      S.hls.on(Hls.Events.ERROR,(e,d)=>{
+        if(token!==S.seq||!d||!d.fatal)return;
+        /* 401/403 on a segment mid-play = the single connection was taken by
+           another device (provider-confirmed). Say so instead of dying quietly. */
+        if(E.started&&d.response&&(d.response.code===401||d.response.code===403)){showAccountConflict();return}
+        if(!E.started){nextPlan();return}
+        try{
+          if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&netRetries<4){netRetries++;S.hls.startLoad(-1)}
+          else if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&!mediaRecovered){mediaRecovered=true;S.hls.recoverMediaError()}
+          else nextPlan();
+        }catch(err){nextPlan()}
+      });
+    }else{
+      /* native playback: Safari HLS (iPhone without MMS) and progressive files */
+      try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
+      if(p.kind==='hls'&&!(window.Hls&&Hls.isSupported())&&!nativeHls(v)){nextPlan();return}
+      v.src=p.url;v.load();
+    }
+  }catch(e){nextPlan();return}
+  /* the heartbeat: every stall/recovery/UI decision lives here, nowhere else */
+  const beat=()=>{
+    if(token!==S.seq)return;
+    const now=Date.now(),t=v.currentTime||0,be=bufEnd();
+    if(be>E.lastBuf+0.2){E.lastBuf=be;E.frozenAt=0}
+    else if(!E.frozenAt)E.frozenAt=now;
+    if(t>E.lastT+0.2){
+      E.lastT=t;E.lastProgress=now;
+      if(!E.started&&t>0.3)E.started=true;
+      if(E.started){
+        showPlaying();
+        /* one-time black-frame check: clock advancing with a 0-width video
+           means an undecodable video track (audio-only "playback") */
+        if(!E.videoChecked&&now-attachAt>8000){
+          E.videoChecked=true;
+          if(v.videoWidth===0){if(live){nextPlan();return}S.audioOnly=true;fail('Audio only');return}
+        }
+      }
+    }
+    const stalled=now-E.lastProgress;
+    if(!E.playTried){
+      /* pre-play cushion (VLC's trick): live MSE engines wait for ~2.5s of
+         buffer before the first play so playback starts with slack; capped
+         at 4s so a slow source still starts promptly */
+      if(!mseLive||be>=2.5||now-attachAt>4000){E.playTried=true;attempt()}
+      else{
+        E.overlayState='pre';$('overlay').style.display='grid';
+        if($('stateProgress'))$('stateProgress').classList.remove('hidden');
+        $('stateTitle').textContent='Buffering';
+        $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(be/2.5*100))+'%';
+      }
+      if(now-attachAt>startBudget){nextPlan();return}
+    }else if(!E.started){
+      if(now-attachAt>startBudget){nextPlan();return}
+      if(!E.tapShown)overlay('load','Loading',nameOf(S.current||{})||'Connecting...',true);
+    }else if(stalled>2500){
+      if(E.overlayState!=='buffer'&&!E.tapShown){
+        $('netStatus').textContent='Buffering';$('miniMeta').textContent='Buffering...';
+        overlay('buffer','Buffering','Waiting for more data...',true);
+      }
+      /* tier 1: in-place nudge, spaced 5s apart - keeps the same connection */
+      if(stalled>7000&&now-E.nudgeAt>5000){
+        E.nudgeAt=now;
+        try{
+          if(S.hls)S.hls.startLoad(-1);
+          if(!S.hls&&!S.ts&&live){
+            /* native Safari live: the playhead slipping out of the panel's
+               sliding window is unrecoverable without a re-seek to the edge */
+            const sk=v.seekable;
+            if(sk&&sk.length){const st=sk.start(0),ed=sk.end(sk.length-1);if(t<st||ed-t>10)v.currentTime=Math.max(st,ed-4)}
+          }
+          const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
+        }catch(e){}
+      }
+      /* tier 2: buffer provably frozen -> the socket is dead: reconnect the
+         SAME url (max 2), never a rival connection */
+      if(E.frozenAt&&now-E.frozenAt>12000&&stalled>12000){
+        if(E.reconnects>=2){nextPlan();return}
+        E.reconnects++;E.frozenAt=0;E.lastBuf=0;E.lastProgress=now;
+        overlay('reconnect','Reconnecting','Re-establishing the stream connection...',true);
+        try{
+          if(S.ts){S.ts.unload();S.ts.load()}
+          else if(S.hls){S.hls.stopLoad();S.hls.startLoad(-1)}
+          else{v.load()}
+          const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
+        }catch(e){nextPlan();return}
+      }
+      /* tier 3: nothing worked for a very long time -> next path */
+      if(stalled>90000){nextPlan();return}
+    }
+    S.timer=setTimeout(beat,1000);
+  };
+  S.timer=setTimeout(beat,250);
 }
 function showAccountConflict(msg){
   var m=$('conflictModal');if(!m)return;
