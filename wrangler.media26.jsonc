@@ -1,0 +1,20 @@
+/**
+ * Same deployment as wrangler.jsonc but named for the "media26" Workers
+ * Builds project (Workers Builds requires the config's name to match the
+ * project's Worker name). To use it, set that project's deploy command to:
+ *
+ *   npx wrangler deploy --config wrangler.media26.jsonc
+ *
+ * If the media26 project is just a duplicate of smarteriptv, deleting it in
+ * the Cloudflare dashboard is the simpler option.
+ */
+{
+  "name": "media26",
+  "main": "_worker.js",
+  "compatibility_date": "2025-06-01",
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  }
+}
