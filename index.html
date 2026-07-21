@@ -1031,11 +1031,16 @@ const PICON={
 };
 function playerOptions(){
   const d=deviceKind();
-  const o=[{mode:'browser',name:'Media26 Player',desc:'Built-in • smooth, one connection',rec:true}];
+  /* v54 (owner preference): Basic Player is the recommended, pre-selected default — simplest
+     path, plays and never interrupts. Media26 Player stays available for flaky channels that
+     benefit from auto-recovery. Order = selection order (row 0 is pre-highlighted). */
+  const o=[
+    {mode:'basic',name:'Basic Player',desc:'Simplest — plays and never interrupts',rec:true},
+    {mode:'browser',name:'Media26 Player',desc:'Smart — auto-recovers flaky channels'}
+  ];
   if(d==='android')o.push({mode:'vlc',name:'VLC',desc:'External app'},{mode:'mx',name:'MX Player',desc:'External app'},{mode:'exo',name:'Other app…',desc:'Pick any installed player'});
   else if(d==='ios')o.push({mode:'vlc',name:'VLC',desc:'External app'},{mode:'infuse',name:'Infuse',desc:'External app'},{mode:'nplayer',name:'nPlayer',desc:'External app'});
   else o.push({mode:'vlc',name:'VLC',desc:'Desktop app'});
-  o.push({mode:'basic',name:'Basic player',desc:'Bare, no watchdogs'});
   return o;
 }
 let _chooserItem=null,_chooserPick=null;
