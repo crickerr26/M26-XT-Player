@@ -339,6 +339,11 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
    time (chooser pops on each channel tap); a mode string = go straight to that player. */
 const CHOOSER_KEY='media26-chooser-default-v1';
 const APP_VERSION='2.0';
+/* v53: register the auto-update service worker (network-first app shell). This is what makes
+   an already-installed home-screen app pick up every new deployment on its next launch. It
+   never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
+   http or unsupported browsers. */
+if('serviceWorker'in navigator){try{addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}catch(e){}}
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -1332,26 +1337,28 @@ function seekBy(sec){
   $('playerBox').classList.add('showbar');
 }
 function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
-async function pip(){
+function pip(){
   const v=$('video');
   try{
     if(!S.current){toast('Pick a channel first');return}
-    if(document.pictureInPictureElement){await document.exitPictureInPicture();return}
+    if(document.pictureInPictureElement){document.exitPictureInPicture().catch(()=>{});return}
     if(v.webkitPresentationMode==='picture-in-picture'){try{v.webkitSetPresentationMode('inline')}catch(e){}return}
-    /* v51: PiP needs the video to be actively decoding a frame. In an installed (home-screen)
-       app users often tap PiP before playback is fully going, and the old code just bailed
-       with "start the video first". Kick playback first, then enter PiP — this is the fix for
-       "PiP doesn't work after adding to the home screen". */
-    if(v.paused){try{await v.play()}catch(e){}}
-    if(v.readyState<1){toast('Give the video a second to start, then tap PiP again');return}
-    /* iPhone/iPad Safari and its standalone (home-screen) web app use Apple's presentation API */
-    if(typeof v.webkitSetPresentationMode==='function'&&(typeof v.webkitSupportsPresentationMode!=='function'||v.webkitSupportsPresentationMode('picture-in-picture'))){
-      v.webkitSetPresentationMode('picture-in-picture');return;
+    /* v53: the PiP call MUST run synchronously inside this tap. The old code did
+       `await v.play()` first, which on iPhone throws away the tap's user-gesture, so iOS
+       then rejected PiP and the catch showed "tap the video to start it" — that WAS the bug.
+       Now: nudge play WITHOUT awaiting (fire-and-forget) and call PiP in the same tick. */
+    if(typeof v.webkitSetPresentationMode==='function'){
+      try{if(v.paused)v.play().catch(()=>{})}catch(e){}
+      try{v.webkitSetPresentationMode('picture-in-picture');return}catch(e){}
     }
-    /* Android Chrome / desktop */
-    if(document.pictureInPictureEnabled&&v.requestPictureInPicture){await v.requestPictureInPicture();return}
-    toast('Picture-in-Picture isn’t available in this browser. Tip: add the site to your Home Screen from Safari, or use a player app’s own PiP.');
-  }catch(e){toast('Tap the video to start it, then tap PiP again')}
+    /* Android Chrome / desktop: standard API (returns a promise, don't block the gesture) */
+    if(document.pictureInPictureEnabled&&v.requestPictureInPicture){
+      try{if(v.paused)v.play().catch(()=>{})}catch(e){}
+      v.requestPictureInPicture().catch(()=>toast('Give the video a second to start, then tap PiP again'));
+      return;
+    }
+    toast('Picture-in-Picture isn’t available in this browser. On iPhone, open the site in Safari and try again, or use a player app’s own PiP.');
+  }catch(e){toast('Picture-in-Picture could not start on this device')}
 }
 /* v32: automatic PiP — when the user switches tab/app while a stream is playing in the
    built-in player, pop it into a floating Picture-in-Picture window so it never stops.
