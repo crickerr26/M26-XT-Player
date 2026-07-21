@@ -190,6 +190,8 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .chooserActions .pillbtn{min-width:110px}
 .chooserActions .pillbtn:disabled{opacity:.45}
 .gestureHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:7;background:rgba(3,7,18,.82);color:#fff;font-weight:800;font-size:15px;padding:12px 18px;border-radius:14px;pointer-events:none;letter-spacing:.3px;box-shadow:0 10px 30px rgba(0,0,0,.4);backdrop-filter:blur(6px)}
+/* v55: hard guarantee — live TV never shows Play/Pause, Rewind, Forward or the scrubber */
+.player.liveMode #playBtn,.player.liveMode #backBtn,.player.liveMode #forwardBtn,.player.liveMode #seekRow{display:none!important}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -274,7 +276,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="login" id="login">
-  <span class="versionBadge login-version">v2.0</span>
+  <span class="versionBadge login-version">vv1</span>
   <div class="login-card">
     <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
@@ -338,7 +340,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 /* v50: remembered "Always" choice from the Android-style player chooser. Empty = ask every
    time (chooser pops on each channel tap); a mode string = go straight to that player. */
 const CHOOSER_KEY='media26-chooser-default-v1';
-const APP_VERSION='2.0';
+const APP_VERSION='v1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -491,6 +493,18 @@ function proxiedMediaUrl(u){return proxyUrl(u)}
 function transcoderBase(){try{return normalize($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
 function transcoderToken(){try{return ($('transcoderToken')?.value||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
 function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)return'';const token=transcoderToken();return `${base}/hls?profile=${encodeURIComponent(profile)}${token?'&token='+encodeURIComponent(token):''}&url=${encodeURIComponent(u)}`}
+/* v55: warm up the transcoder. It runs on a free host that goes to sleep after inactivity and
+   takes 30-60s to cold-start on the next request — that cold start was the big "movies/series
+   take too long to open" delay, because MKV/HEVC titles (which browsers can't decode) MUST go
+   through it. Pinging /health on load and when the user heads to Movies/Series wakes it early
+   so it's ready by the time a title is tapped. Fire-and-forget; never blocks or affects
+   playback. Throttled to once every 60s. */
+let _lastWarm=0;
+function warmTranscoder(){
+  const base=transcoderBase();if(!base)return;
+  const now=Date.now();if(now-_lastWarm<60000)return;_lastWarm=now;
+  try{fetch(base+'/health',{mode:'no-cors',cache:'no-store'}).catch(()=>{})}catch(e){}
+}
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
@@ -769,7 +783,16 @@ async function streamDoctor(){
 function openVlcForCurrent(){const u=nativeAppUrl(S.current);if(!u)return;location.href=vlcUrl(u);setTimeout(()=>{try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}},250)}
 function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live, Movies, or Series and tap an item.')}
 function openRawStream(){if(S.current)routePlayback(S.current,'browser',false)}
-function updateLiveControls(){/* FIX: live has no seekable timeline — hide Play/Pause, Rewind, Forward for live; keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. */const isLive=S.current&&typeOf(S.current)==='live';['playBtn','backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b)b.style.display=isLive?'none':'';});const sr=$('seekRow');if(sr)sr.classList.toggle('hidden',isLive);const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);}
+function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pause, Rewind, Forward and the scrubber for live;
+   keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. v55: also toggle a
+   `liveMode` class on the player as a CSS-level guarantee (with !important) so seek controls
+   can never appear on live even if some other code path touches their inline style. */
+  const isLive=S.current&&typeOf(S.current)==='live';
+  ['playBtn','backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b){b.style.display=isLive?'none':'';b.disabled=!!isLive;}});
+  const sr=$('seekRow');if(sr)sr.classList.toggle('hidden',isLive);
+  const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);
+  const pb=$('playerBox');if(pb)pb.classList.toggle('liveMode',!!isLive);
+}
 function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls()}
 async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))$('stateProgress').classList.add('hidden');if($('stateThumb'))$('stateThumb').classList.add('hidden');$('stateTitle').textContent='Opening VLC';$('stateText').textContent='If VLC is installed, the stream will open there. The link is also copied.';$('overlay').style.display='grid';$('netStatus').textContent='VLC mode';$('miniMeta').textContent='Opening VLC';openVlcForCurrent();toast('Opening in VLC')}
 async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
@@ -1395,7 +1418,7 @@ $('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>to
    for live TV keep the clean auto-hide after 1.8s. */
 const showBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.add('showbar');clearTimeout(_barTimer);_barTimer=setTimeout(()=>{if(!(S.current&&typeOf(S.current)!=='live'))pb.classList.remove('showbar')},1800)};$('playerBox').addEventListener('mousemove',showBar);$('playerBox').addEventListener('touchstart',showBar,{passive:true});$('video').addEventListener('playing',showBar);document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll()});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 /* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
    The old "buffer full" branch was removed: it fought hls.js's own live-sync controller
    and caused a forced seek every 3 seconds = constant freeze/stutter/audio cuts.
@@ -1594,7 +1617,7 @@ if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
 if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
 if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){store.removeItem(CHOOSER_KEY);$('nativeSheet').classList.remove('show');toast('The player chooser will ask every time')};
-restore();renderAll();
+restore();renderAll();warmTranscoder();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
    nPlayer on iOS — so each user only sees choices that can actually launch on their phone. */
