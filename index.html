@@ -170,6 +170,25 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .conflictCard p{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}
 .conflictActions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 @media(max-width:760px){.conflictCard{padding:18px}.conflictCard h3{font-size:17px}}
+.chooserModal{position:fixed;inset:0;z-index:420;display:none;align-items:flex-end;justify-content:center;padding:0;background:rgba(3,7,18,.72);backdrop-filter:blur(7px)}
+.chooserModal.show{display:flex}
+.chooserCard{width:min(460px,100%);background:var(--panel);border:1px solid var(--line);border-top-left-radius:22px;border-top-right-radius:22px;box-shadow:var(--shadow);padding:16px 16px calc(16px + env(safe-area-inset-bottom));animation:chooserUp .22s ease}
+@keyframes chooserUp{from{transform:translateY(24px);opacity:.4}to{transform:translateY(0);opacity:1}}
+.chooserHead{display:flex;align-items:center;gap:12px;padding:4px 4px 12px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.chooserThumb{width:46px;height:46px;border-radius:12px;object-fit:cover;background:rgba(255,255,255,.08);flex-shrink:0}
+.chooserHeadText{min-width:0}.chooserHeadText h3{font-size:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chooserHeadText p{font-size:12px;color:var(--muted);margin-top:2px}
+.chooserList{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.chooserRow{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:14px;background:transparent;border:1px solid transparent;text-align:left;color:var(--ink)}
+.chooserRow:hover{background:var(--panel2)}
+.chooserRow.sel{background:rgba(56,189,248,.16);border-color:var(--blue)}
+.chooserIcon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:900;font-size:13px;flex-shrink:0;box-shadow:0 6px 16px rgba(0,0,0,.28)}
+.chooserMeta{min-width:0;display:flex;flex-direction:column}
+.chooserMeta b{font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px}
+.chooserMeta b em{font-style:normal;font-size:10px;font-weight:800;color:#04111e;background:linear-gradient(135deg,var(--blue),var(--green));padding:2px 6px;border-radius:6px}
+.chooserMeta small{font-size:11px;color:var(--muted);margin-top:2px}
+.chooserActions{display:flex;gap:8px;justify-content:flex-end;padding-top:12px;margin-top:6px;border-top:1px solid var(--line)}
+.chooserActions .pillbtn{min-width:110px}
+.chooserActions .pillbtn:disabled{opacity:.45}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -267,14 +286,27 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   <div class="conflictCard">
     <div class="conflictIcon">⚠️</div>
     <h3>Account in use on another device</h3>
-    <p id="conflictMsg">Your login is being used somewhere else right now. This account allows only one device at a time, so playback here was stopped. Close the stream on the other device, then reconnect.</p>
+    <p id="conflictMsg">Your login is being used on another device right now. This account allows only one device at a time. Tap below to take over the connection here — the other device will be dropped and playback will start on this one.</p>
     <div class="conflictActions">
-      <button class="pillbtn primary" id="conflictRetry">Reconnect here</button>
+      <button class="pillbtn primary" id="conflictRetry">Log out other device &amp; watch here</button>
       <button class="pillbtn" id="conflictClose">Dismiss</button>
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="chooserModal" id="chooserModal">
+  <div class="chooserCard">
+    <div class="chooserHead">
+      <img id="chooserThumb" class="chooserThumb" src="" alt="">
+      <div class="chooserHeadText"><h3 id="chooserTitle">Open with</h3><p id="chooserSub">Choose which player opens this channel</p></div>
+    </div>
+    <div class="chooserList" id="chooserList"></div>
+    <div class="chooserActions">
+      <button class="pillbtn" id="chooserOnce" disabled>Just once</button>
+      <button class="pillbtn primary" id="chooserAlways" disabled>Always</button>
+    </div>
+  </div>
+</div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -301,6 +333,9 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 const DEFAULT_TRANSCODER='https://smarter-iptv-transcoder-wbh0.onrender.com';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
+/* v50: remembered "Always" choice from the Android-style player chooser. Empty = ask every
+   time (chooser pops on each channel tap); a mode string = go straight to that player. */
+const CHOOSER_KEY='media26-chooser-default-v1';
 const APP_VERSION='2.0';
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
@@ -726,7 +761,7 @@ async function streamDoctor(){
 }
 function openVlcForCurrent(){const u=nativeAppUrl(S.current);if(!u)return;location.href=vlcUrl(u);setTimeout(()=>{try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}},250)}
 function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live, Movies, or Series and tap an item.')}
-function openRawStream(){if(S.current)playItem(S.current)}
+function openRawStream(){if(S.current)routePlayback(S.current,'browser',false)}
 function updateLiveControls(){/* FIX: live has no seekable timeline — hide Play/Pause, Rewind, Forward for live; keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. */const isLive=S.current&&typeOf(S.current)==='live';['playBtn','backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b)b.style.display=isLive?'none':'';});const sr=$('seekRow');if(sr)sr.classList.toggle('hidden',isLive);const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);}
 function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls()}
 async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))$('stateProgress').classList.add('hidden');if($('stateThumb'))$('stateThumb').classList.add('hidden');$('stateTitle').textContent='Opening VLC';$('stateText').textContent='If VLC is installed, the stream will open there. The link is also copied.';$('overlay').style.display='grid';$('netStatus').textContent='VLC mode';$('miniMeta').textContent='Opening VLC';openVlcForCurrent();toast('Opening in VLC')}
@@ -927,7 +962,96 @@ function plan(x){
   return p;
 }
 function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down — external launches wait until the origin has had time to release the slot (see playItemExternal) */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
-async function playItem(item,fromAlternative=false){S.audioOnly=false;let x=smoothLiveStart(item);if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}if(!fromAlternative)S.altTried=new Set([keyOf(x)]);const mode=resolvedPlayer(typeOf(x));if(mode==='basic'){await playItemBasic(x);return}if(isExternalMode(mode)&&!fromAlternative){/* v40: ignore re-taps on the SAME channel within 4s of an external launch. Users tap again when "nothing seems to happen" while VLC is still starting — the repeat intent restarted VLC and the instant reconnect got killed by the 1-connection line (stream died seconds after starting). The overlay's "Open app again" button still allows a deliberate manual retry. */if(S.extLaunch&&keyOf(S.extLaunch.x)===keyOf(x)&&S.lastExtLaunchAt&&Date.now()-S.lastExtLaunchAt<4000){toast('Opening in '+playerLabel(mode)+'...');return}await playItemExternal(x,mode);return}await playItemPreview(x)}
+async function playItem(item,fromAlternative=false){
+  S.audioOnly=false;
+  let x=smoothLiveStart(item);
+  if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}
+  if(!fromAlternative)S.altTried=new Set([keyOf(x)]);
+  /* v50: Android-style chooser gate. On a fresh user tap, if no "Always" default is saved,
+     immediately show the channel thumbnail + loading bar and pop the player chooser. Internal
+     alternate-quality retries (fromAlternative) never re-ask and keep the current player.
+     NOTE: this only decides WHICH player runs — it never touches the playback engines. */
+  if(!fromAlternative){
+    const forced=store.getItem(CHOOSER_KEY);
+    if(!forced){prePreview(x);showPlayerChooser(x);return}
+    await routePlayback(x,forced,false);return;
+  }
+  await routePlayback(x,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(x)),true);
+}
+/* dispatcher only — the same routing playItem always used, factored out so the chooser can
+   call it too. No engine/playback logic lives here. */
+async function routePlayback(x,mode,fromAlternative){
+  if(mode==='basic'){await playItemBasic(x);return}
+  if(isExternalMode(mode)&&!fromAlternative){
+    /* v40 re-tap guard: ignore a repeat tap on the SAME channel within 4s of an external
+       launch — a duplicate intent restarts VLC and the instant reconnect gets killed. */
+    if(S.extLaunch&&keyOf(S.extLaunch.x)===keyOf(x)&&S.lastExtLaunchAt&&Date.now()-S.lastExtLaunchAt<4000){toast('Opening in '+playerLabel(mode)+'...');return}
+    await playItemExternal(x,mode);return;
+  }
+  await playItemPreview(x);
+}
+/* v50: instant feedback the moment a channel is tapped — channel logo/thumbnail + animated
+   loading bar in the preview area, shown while the chooser is open. Does not commit "recent"
+   (playItemPreview/Basic do that once playback actually starts). */
+function prePreview(x){
+  S.current=x;
+  if($('extActions'))$('extActions').classList.add('hidden');
+  const thumb=logoOf(x);
+  if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}
+  $('stateTitle').textContent=nameOf(x);
+  $('stateText').textContent=typeOf(x)==='live'?'Live channel':'Preparing…';
+  if($('stateProgress'))$('stateProgress').classList.remove('hidden');
+  $('overlay').style.display='grid';
+  $('netStatus').textContent='Loading';$('miniMeta').textContent='Loading';
+}
+/* resume the CURRENT channel in the current/last player without re-opening the chooser */
+function resumeCurrent(){if(S.current)routePlayback(S.current,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(S.current))||'browser',false)}
+/* v50: app-style icons for the chooser rows (self-contained, no external images) */
+const PICON={
+  browser:{bg:'linear-gradient(135deg,#38bdf8,#2dd4bf)',t:'M26'},
+  basic:{bg:'linear-gradient(135deg,#64748b,#334155)',t:'BAS'},
+  vlc:{bg:'linear-gradient(135deg,#ff8f1c,#e85d04)',t:'VLC'},
+  mx:{bg:'linear-gradient(135deg,#2563eb,#1e40af)',t:'MX'},
+  exo:{bg:'linear-gradient(135deg,#22c55e,#15803d)',t:'APP'},
+  infuse:{bg:'linear-gradient(135deg,#a78bfa,#7c3aed)',t:'INF'},
+  nplayer:{bg:'linear-gradient(135deg,#14b8a6,#0f766e)',t:'nP'}
+};
+function playerOptions(){
+  const d=deviceKind();
+  const o=[{mode:'browser',name:'Media26 Player',desc:'Built-in • smooth, one connection',rec:true}];
+  if(d==='android')o.push({mode:'vlc',name:'VLC',desc:'External app'},{mode:'mx',name:'MX Player',desc:'External app'},{mode:'exo',name:'Other app…',desc:'Pick any installed player'});
+  else if(d==='ios')o.push({mode:'vlc',name:'VLC',desc:'External app'},{mode:'infuse',name:'Infuse',desc:'External app'},{mode:'nplayer',name:'nPlayer',desc:'External app'});
+  else o.push({mode:'vlc',name:'VLC',desc:'Desktop app'});
+  o.push({mode:'basic',name:'Basic player',desc:'Bare, no watchdogs'});
+  return o;
+}
+let _chooserItem=null,_chooserPick=null;
+function showPlayerChooser(x){
+  _chooserItem=x;_chooserPick=null;
+  const list=$('chooserList');if(!list)return;list.innerHTML='';
+  const thumb=logoOf(x),ct=$('chooserThumb');
+  if(ct){ct.src=thumb||'';ct.style.display=thumb?'':'none'}
+  $('chooserTitle').textContent='Open '+nameOf(x);
+  $('chooserSub').textContent='Choose which player opens this channel';
+  $('chooserOnce').disabled=true;$('chooserAlways').disabled=true;
+  playerOptions().forEach((op,idx)=>{
+    const ic=PICON[op.mode]||PICON.browser;
+    const row=document.createElement('button');
+    row.className='chooserRow';row.dataset.mode=op.mode;
+    row.innerHTML='<span class="chooserIcon" style="background:'+ic.bg+'">'+ic.t+'</span>'
+      +'<span class="chooserMeta"><b>'+esc(op.name)+(op.rec?' <em>Recommended</em>':'')+'</b><small>'+esc(op.desc||'')+'</small></span>';
+    row.onclick=()=>{_chooserPick=op.mode;Array.prototype.forEach.call(list.children,c=>c.classList.toggle('sel',c===row));$('chooserOnce').disabled=false;$('chooserAlways').disabled=false};
+    list.appendChild(row);
+    if(idx===0)row.click();
+  });
+  $('chooserModal').classList.add('show');
+}
+function chooserResolve(save){
+  const x=_chooserItem,mode=_chooserPick||'browser';
+  $('chooserModal').classList.remove('show');
+  if(save)store.setItem(CHOOSER_KEY,mode);
+  if(x)routePlayback(x,mode,false);
+}
 /* =================== v49: built-in player - full rewrite =================== */
 /* The old engine accumulated ~40 versions of layered watchdogs (stall timers,
    chronic-burst counters, gentle-resume budgets, MSE recovery storms) that
@@ -1325,7 +1449,15 @@ if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type===
   }
 })();
 if($('conflictClose'))$('conflictClose').onclick=function(){$('conflictModal').classList.remove('show')};
-if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').classList.remove('show');if(S.current)playItem(S.current)};
+/* v50: "Log out other device & watch here" — take over the single connection by reconnecting
+   the current channel HERE (on a 1-connection line, the newest connection claims the slot and
+   the provider drops the other device). Skips the chooser so it resumes in the same player. */
+if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').classList.remove('show');$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Taking over';$('stateText').textContent='Logging out the other device and reconnecting here...';resumeCurrent()};
+/* v50: player chooser (Android-style) + Stream Tools reset */
+if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
+if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
+if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
+if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){store.removeItem(CHOOSER_KEY);$('nativeSheet').classList.remove('show');toast('The player chooser will ask every time')};
 restore();renderAll();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
