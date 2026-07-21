@@ -1204,12 +1204,17 @@ async function tryPlans(plans,i){
       if(now-attachAt>startBudget){nextPlan();return}
       if(!E.tapShown)overlay('load','Loading',nameOf(S.current||{})||'Connecting...',true);
     }else if(stalled>2500){
+      /* v52: a user just seeked (button or scrubber) — the buffering that follows is normal,
+         NOT a dead stream, so hold off every recovery tier for a moment. This is the direct
+         fix for "forward makes the movie start over": the watchdog used to see the post-seek
+         gap as frozen and reload the element, which for a movie restarts it at 0. */
+      const seeking=Date.now()-(S.lastSeekAt||0)<12000;
       if(E.overlayState!=='buffer'&&!E.tapShown){
         $('netStatus').textContent='Buffering';$('miniMeta').textContent='Buffering...';
         overlay('buffer','Buffering','Waiting for more data...',true);
       }
       /* tier 1: in-place nudge, spaced 5s apart - keeps the same connection */
-      if(stalled>7000&&now-E.nudgeAt>5000){
+      if(!seeking&&stalled>7000&&now-E.nudgeAt>5000){
         E.nudgeAt=now;
         try{
           if(S.hls)S.hls.startLoad(-1);
@@ -1222,21 +1227,37 @@ async function tryPlans(plans,i){
           const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
         }catch(e){}
       }
-      /* tier 2: buffer provably frozen -> the socket is dead: reconnect the
-         SAME url (max 2), never a rival connection */
-      if(E.frozenAt&&now-E.frozenAt>12000&&stalled>12000){
-        if(E.reconnects>=2){nextPlan();return}
-        E.reconnects++;E.frozenAt=0;E.lastBuf=0;E.lastProgress=now;
-        overlay('reconnect','Reconnecting','Re-establishing the stream connection...',true);
-        try{
-          if(S.ts){S.ts.unload();S.ts.load()}
-          else if(S.hls){S.hls.stopLoad();S.hls.startLoad(-1)}
-          else{v.load()}
-          const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
-        }catch(e){nextPlan();return}
+      /* tier 2: buffer provably frozen -> reconnect the SAME url (max 2). VOD and live are
+         handled differently: a movie must NEVER reload from 0 or jump to another plan (both
+         restart it) — it reconnects IN PLACE and its exact position is restored. Live keeps
+         the reconnect-or-next-plan behavior. */
+      if(!seeking&&E.frozenAt&&now-E.frozenAt>12000&&stalled>12000){
+        if(!live){
+          if(E.reconnects<2){
+            E.reconnects++;E.frozenAt=0;E.lastBuf=0;E.lastProgress=now;
+            const pos=v.currentTime||0;
+            overlay('reconnect','Reconnecting','Reloading the video at your place...',true);
+            try{
+              if(S.hls){S.hls.stopLoad();S.hls.startLoad(-1)}
+              else{const restore=()=>{try{if(pos>0)v.currentTime=pos}catch(e){}v.removeEventListener('loadedmetadata',restore)};v.addEventListener('loadedmetadata',restore);S.lastSeekAt=Date.now();v.load()}
+              const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
+            }catch(e){}
+          }
+          /* after 2 tries, leave the last frame up rather than restarting the movie */
+        }else{
+          if(E.reconnects>=2){nextPlan();return}
+          E.reconnects++;E.frozenAt=0;E.lastBuf=0;E.lastProgress=now;
+          overlay('reconnect','Reconnecting','Re-establishing the stream connection...',true);
+          try{
+            if(S.ts){S.ts.unload();S.ts.load()}
+            else if(S.hls){S.hls.stopLoad();S.hls.startLoad(-1)}
+            else{v.load()}
+            const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
+          }catch(e){nextPlan();return}
+        }
       }
-      /* tier 3: nothing worked for a very long time -> next path */
-      if(stalled>90000){nextPlan();return}
+      /* tier 3: only LIVE escalates to the next path (a movie would restart) */
+      if(!seeking&&live&&stalled>90000){nextPlan();return}
     }
     S.timer=setTimeout(beat,1000);
   };
@@ -1298,7 +1319,18 @@ function fail(msg){
   const d=$('details');
   if(d&&S.current)d.textContent='Smart STB, MX Player, IPTV Smarters, and VLC use native/FFmpeg decoders. A web preview needs the same idea on a server: FFmpeg converts MKV, HEVC/H.265, AC3, and unstable TS into browser-friendly HLS.';
 }
-function seekBy(sec){const v=$('video');if(!S.current||!isFinite(v.duration)){toast('Seek is available for Movies and Series');return}v.currentTime=Math.max(0,Math.min(v.duration||0,(v.currentTime||0)+sec));$('playerBox').classList.add('showbar')}
+function seekBy(sec){
+  const v=$('video');
+  if(!S.current||typeOf(S.current)==='live'){toast('Seek is available for Movies and Series');return}
+  /* v52: fall back to the seekable range when duration isn't a finite number (streamed VOD),
+     and record the seek so the stall watchdog treats the buffering that follows as "seeking",
+     not "dead stream" — the watchdog reloading was what snapped the movie back to the start. */
+  const dur=isFinite(v.duration)&&v.duration>0?v.duration:(v.seekable&&v.seekable.length?v.seekable.end(v.seekable.length-1):0);
+  if(!dur){toast('This source does not allow seeking');return}
+  S.lastSeekAt=Date.now();
+  v.currentTime=Math.max(0,Math.min(dur-0.5,(v.currentTime||0)+sec));
+  $('playerBox').classList.add('showbar');
+}
 function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
 async function pip(){
   const v=$('video');
@@ -1379,21 +1411,27 @@ if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type===
   const v=$('video'),track=$('seekTrack'),fill=$('seekFill'),handle=$('seekHandle'),cur=$('curTime'),dur=$('durTime');
   if(!v||!track)return;
   const fmt=s=>{if(!isFinite(s)||s<0)s=0;const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60);return(h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(sec).padStart(2,'0')};
+  /* v52: effective duration — use v.duration, else the seekable range end (streamed VOD
+     often reports duration=Infinity but IS seekable). This is why the slider looked "not
+     built": it bailed the moment duration wasn't a plain finite number. */
+  const effDur=()=>{const d=v.duration;if(isFinite(d)&&d>0)return d;try{if(v.seekable&&v.seekable.length)return v.seekable.end(v.seekable.length-1)}catch(e){}return 0};
   const sync=()=>{
-    if(!v.duration||!isFinite(v.duration)){fill.style.width='0%';handle.style.left='0%';cur.textContent='0:00';dur.textContent='0:00';return}
-    const pct=Math.max(0,Math.min(100,(v.currentTime/v.duration)*100));
+    const D=effDur();
+    if(!D){fill.style.width='0%';handle.style.left='0%';cur.textContent='0:00';dur.textContent='0:00';return}
+    const pct=Math.max(0,Math.min(100,(v.currentTime/D)*100));
     fill.style.width=pct+'%';handle.style.left=pct+'%';
-    cur.textContent=fmt(v.currentTime);dur.textContent=fmt(v.duration);
+    cur.textContent=fmt(v.currentTime);dur.textContent=fmt(D);
   };
-  ['timeupdate','loadedmetadata','durationchange'].forEach(ev=>v.addEventListener(ev,sync));
+  ['timeupdate','loadedmetadata','durationchange','progress','seeked'].forEach(ev=>v.addEventListener(ev,sync));
   let dragging=false;
   const seekTo=clientX=>{
-    if(!v.duration||!isFinite(v.duration))return;
+    const D=effDur();if(!D)return;
     const r=track.getBoundingClientRect();
     const pct=Math.max(0,Math.min(1,(clientX-r.left)/r.width));
-    v.currentTime=pct*v.duration;sync();
+    S.lastSeekAt=Date.now();
+    v.currentTime=Math.min(D-0.5,pct*D);sync();
   };
-  track.addEventListener('pointerdown',e=>{if(!v.duration||!isFinite(v.duration))return;dragging=true;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
+  track.addEventListener('pointerdown',e=>{if(!effDur())return;dragging=true;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
   track.addEventListener('pointermove',e=>{if(dragging)seekTo(e.clientX)});
   const stopDrag=e=>{dragging=false;try{track.releasePointerCapture(e.pointerId)}catch{}};
   track.addEventListener('pointerup',stopDrag);track.addEventListener('pointercancel',stopDrag);
