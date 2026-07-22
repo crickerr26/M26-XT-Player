@@ -296,7 +296,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 <div class="login" id="login">
   <span class="versionBadge login-version">vv1</span>
   <div class="login-card">
-    <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
+    <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version vv1</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
     <div class="field"><label>Username</label><input id="user" autocomplete="username"></div>
     <div class="field"><label>Password</label><div class="pwWrap"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="pwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
@@ -1586,6 +1586,9 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;
   $('themeBtn').innerHTML=ICONS.theme;
   if($('pwToggle'))$('pwToggle').innerHTML=ICONS.eye;
   document.querySelectorAll('.versionBadge').forEach(e=>e.textContent='v'+APP_VERSION);
+  /* version line under the developer credit on the login page — always reflects APP_VERSION,
+     so it stays present and correct on every deployment. */
+  if($('appVersionLine'))$('appVersionLine').textContent='Version v'+APP_VERSION;
 })();
 if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type==='password';inp.type=show?'text':'password';$('pwToggle').innerHTML=show?ICONS.eyeOff:ICONS.eye};
 /* Seek/progress bar for VOD & Series — hidden for live via updateLiveControls(). Uses
