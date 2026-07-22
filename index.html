@@ -305,7 +305,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </div>
     <div class="chooserList" id="chooserList"></div>
     <div class="chooserActions">
-      <button class="pillbtn" id="chooserOnce" disabled>This session</button>
+      <button class="pillbtn" id="chooserOnce" disabled>Just once</button>
       <button class="pillbtn primary" id="chooserAlways" disabled>Always</button>
     </div>
   </div>
@@ -636,13 +636,12 @@ async function playItemExternal(x,mode,armed){
   if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}
   $('stateProgress').classList.add('hidden');
   $('extActions').classList.remove('hidden');
-  /* v38: ExoPlayer launch only works on Android; hide that button elsewhere so desktop/iOS
-     users aren't offered a button that can't work. v41: same device-gating for the new
-     targets — MX Player is Android-only, Infuse/nPlayer are iOS-only. */
-  if($('extExo'))$('extExo').style.display=(deviceKind()==='android')?'':'none';
-  if($('extMx'))$('extMx').style.display=(deviceKind()==='android')?'':'none';
-  if($('extInfuse'))$('extInfuse').style.display=(deviceKind()==='ios')?'':'none';
-  if($('extNplayer'))$('extNplayer').style.display=(deviceKind()==='ios')?'':'none';
+  /* v57: the player was ALREADY chosen in the popup, so the preview must not show a menu of
+     other players (that was the "player choosing option on preview" the owner didn't want).
+     Show only the retry button for the CHOSEN app; "Play here instead" and "Copy link" stay. */
+  const _extMap={vlc:'extVlc',mx:'extMx',exo:'extExo',infuse:'extInfuse',nplayer:'extNplayer'};
+  ['extVlc','extMx','extExo','extInfuse','extNplayer'].forEach(id=>{const b=$(id);if(b)b.style.display='none'});
+  const _showBtn=$(_extMap[mode]||'extVlc');if(_showBtn)_showBtn.style.display='';
   $('overlay').style.display='grid';
   $('stateTitle').textContent='Opening '+label;
   $('netStatus').textContent='External player';$('miniMeta').textContent='Opening '+label;
@@ -1008,15 +1007,14 @@ async function playItem(item,fromAlternative=false){
      alternate-quality retries (fromAlternative) never re-ask and keep the current player.
      NOTE: this only decides WHICH player runs — it never touches the playback engines. */
   if(!fromAlternative){
-    /* v56: "forced" = a saved default. It can come from "Always" (persisted in CHOOSER_KEY)
-       OR from a pick made earlier THIS session (_sessionPlayer). Once the user has chosen a
-       player, we stop re-asking on every channel — that repeated popup was the complaint. To
-       be asked again, use Stream Tools -> "Ask player every time". */
-    const forced=store.getItem(CHOOSER_KEY)||_sessionPlayer;
+    /* v57: the popup asks on EVERY channel tap until the user commits with "Always" (saved in
+       CHOOSER_KEY). "Just once" plays now and does NOT save, so the next channel asks again —
+       this is the behavior the owner wants. */
+    const forced=store.getItem(CHOOSER_KEY);
     if(!forced){prePreview(x);showPlayerChooser(x);return}
     await routePlayback(x,forced,false);return;
   }
-  await routePlayback(x,store.getItem(CHOOSER_KEY)||_sessionPlayer||resolvedPlayer(typeOf(x)),true);
+  await routePlayback(x,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(x)),true);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the chooser can
    call it too. No engine/playback logic lives here. */
@@ -1070,7 +1068,7 @@ function playerOptions(){
   else o.push({mode:'vlc',name:'VLC',desc:'Desktop app'});
   return o;
 }
-let _chooserItem=null,_chooserPick=null,_sessionPlayer=null;
+let _chooserItem=null,_chooserPick=null;
 function showPlayerChooser(x){
   _chooserItem=x;_chooserPick=null;
   const list=$('chooserList');if(!list)return;list.innerHTML='';
@@ -1094,9 +1092,8 @@ function showPlayerChooser(x){
 function chooserResolve(save){
   const x=_chooserItem,mode=_chooserPick||'browser';
   $('chooserModal').classList.remove('show');
-  /* remember for this session either way, so the popup never re-appears on the next channel;
-     "Always" additionally persists the choice across app restarts. */
-  _sessionPlayer=mode;
+  /* only "Always" saves a default; "Just once" plays now and leaves the popup to ask again
+     on the next channel. */
   if(save)store.setItem(CHOOSER_KEY,mode);
   if(x)routePlayback(x,mode,false);
 }
@@ -1623,7 +1620,7 @@ if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').c
 if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
 if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
-if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){store.removeItem(CHOOSER_KEY);_sessionPlayer=null;$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
+if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){store.removeItem(CHOOSER_KEY);$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
 restore();renderAll();warmTranscoder();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
