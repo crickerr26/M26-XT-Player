@@ -305,7 +305,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </div>
     <div class="chooserList" id="chooserList"></div>
     <div class="chooserActions">
-      <button class="pillbtn" id="chooserOnce" disabled>Just once</button>
+      <button class="pillbtn" id="chooserOnce" disabled>This session</button>
       <button class="pillbtn primary" id="chooserAlways" disabled>Always</button>
     </div>
   </div>
@@ -1008,11 +1008,15 @@ async function playItem(item,fromAlternative=false){
      alternate-quality retries (fromAlternative) never re-ask and keep the current player.
      NOTE: this only decides WHICH player runs — it never touches the playback engines. */
   if(!fromAlternative){
-    const forced=store.getItem(CHOOSER_KEY);
+    /* v56: "forced" = a saved default. It can come from "Always" (persisted in CHOOSER_KEY)
+       OR from a pick made earlier THIS session (_sessionPlayer). Once the user has chosen a
+       player, we stop re-asking on every channel — that repeated popup was the complaint. To
+       be asked again, use Stream Tools -> "Ask player every time". */
+    const forced=store.getItem(CHOOSER_KEY)||_sessionPlayer;
     if(!forced){prePreview(x);showPlayerChooser(x);return}
     await routePlayback(x,forced,false);return;
   }
-  await routePlayback(x,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(x)),true);
+  await routePlayback(x,store.getItem(CHOOSER_KEY)||_sessionPlayer||resolvedPlayer(typeOf(x)),true);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the chooser can
    call it too. No engine/playback logic lives here. */
@@ -1066,7 +1070,7 @@ function playerOptions(){
   else o.push({mode:'vlc',name:'VLC',desc:'Desktop app'});
   return o;
 }
-let _chooserItem=null,_chooserPick=null;
+let _chooserItem=null,_chooserPick=null,_sessionPlayer=null;
 function showPlayerChooser(x){
   _chooserItem=x;_chooserPick=null;
   const list=$('chooserList');if(!list)return;list.innerHTML='';
@@ -1090,6 +1094,9 @@ function showPlayerChooser(x){
 function chooserResolve(save){
   const x=_chooserItem,mode=_chooserPick||'browser';
   $('chooserModal').classList.remove('show');
+  /* remember for this session either way, so the popup never re-appears on the next channel;
+     "Always" additionally persists the choice across app restarts. */
+  _sessionPlayer=mode;
   if(save)store.setItem(CHOOSER_KEY,mode);
   if(x)routePlayback(x,mode,false);
 }
@@ -1616,7 +1623,7 @@ if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').c
 if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
 if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
-if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){store.removeItem(CHOOSER_KEY);$('nativeSheet').classList.remove('show');toast('The player chooser will ask every time')};
+if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){store.removeItem(CHOOSER_KEY);_sessionPlayer=null;$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
 restore();renderAll();warmTranscoder();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
