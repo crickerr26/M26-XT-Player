@@ -92,11 +92,11 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .liveBadge{height:24px;padding:0 8px;font-size:10px}
 }
 /* --- v19: watermark logo, bottom-right, visible only while video is playing --- */
-.watermark{position:absolute;right:14px;bottom:92px;width:clamp(46px,7%,84px);height:auto;opacity:0;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:opacity .4s ease}
+.watermark{position:absolute;left:14px;bottom:92px;width:clamp(46px,7%,84px);height:auto;opacity:0;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.5));transition:opacity .4s ease}
 .watermark.on{opacity:.55}
 .player:fullscreen .watermark.on,.player:-webkit-full-screen .watermark.on{opacity:.55!important;z-index:2147483647}
 .player:fullscreen .watermark,.player:-webkit-full-screen .watermark{display:block!important}
-@media(max-width:760px){.watermark{right:9px;bottom:76px;width:clamp(38px,9%,66px)}}
+@media(max-width:760px){.watermark{left:9px;bottom:76px;width:clamp(38px,9%,66px)}}
 /* --- v18 device-aware external player layer --- */
 .nativePanel{display:block;overflow-y:auto}
 .nativePanel .episodeHead{margin-bottom:10px}
@@ -1164,11 +1164,13 @@ function chooserResolve(save){
      on the next channel. */
   if(save)store.setItem(CHOOSER_KEY,mode);
   if(!x)return;
-  /* v59: launch external players DIRECTLY from this tap (armed=true) instead of showing the
-     "Freeing the connection / Open in VLC" gate screen. The previous stream was already torn
-     down when the popup opened, so the seconds spent choosing in the popup freed the account's
-     connection slot — VLC can open straight away on this fresh tap without racing the slot. */
-  if(isExternalMode(mode)){playItemExternal(x,mode,true);return}
+  /* v64: route external players through the normal handoff, which honours the connection-slot
+     release gate. v59 launched VLC instantly from this tap and skipped that gate — on a
+     single-connection line VLC then opened before the app's slot was freed, so the provider
+     killed it after a few seconds ("plays then disappears"). The gate is what made VLC
+     reliable before, so it's back. The previous stream is still torn down when the popup opens
+     (below), so much of the release time elapses WHILE choosing and the gate is usually
+     instant; only a very fast pick shows the brief "Open in VLC" confirm. */
   routePlayback(x,mode,false);
 }
 /* =================== v49: built-in player - full rewrite =================== */
