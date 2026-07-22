@@ -1037,7 +1037,7 @@ async function playItem(item,fromAlternative=false){
        CHOOSER_KEY). "Just once" plays now and does NOT save, so the next channel asks again —
        this is the behavior the owner wants. */
     const forced=store.getItem(CHOOSER_KEY);
-    if(!forced){prePreview(x);showPlayerChooser(x);return}
+    if(!forced){cleanup();prePreview(x);showPlayerChooser(x);return}
     await routePlayback(x,forced,false);return;
   }
   await routePlayback(x,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(x)),true);
@@ -1121,7 +1121,13 @@ function chooserResolve(save){
   /* only "Always" saves a default; "Just once" plays now and leaves the popup to ask again
      on the next channel. */
   if(save)store.setItem(CHOOSER_KEY,mode);
-  if(x)routePlayback(x,mode,false);
+  if(!x)return;
+  /* v59: launch external players DIRECTLY from this tap (armed=true) instead of showing the
+     "Freeing the connection / Open in VLC" gate screen. The previous stream was already torn
+     down when the popup opened, so the seconds spent choosing in the popup freed the account's
+     connection slot — VLC can open straight away on this fresh tap without racing the slot. */
+  if(isExternalMode(mode)){playItemExternal(x,mode,true);return}
+  routePlayback(x,mode,false);
 }
 /* =================== v49: built-in player - full rewrite =================== */
 /* The old engine accumulated ~40 versions of layered watchdogs (stall timers,
