@@ -487,16 +487,18 @@ async function login(){
   catch(e){$('err').textContent=e.message||'Could not connect'}finally{load(false)}
 }
 async function refreshAll(){
-  load(true,'Loading live channels...');
+  load(true,'Loading channels...');
   const [lc,lv]=await Promise.all([getJson('get_live_categories').catch(()=>[]),getJson('get_live_streams').catch(()=>[])]);
   S.liveCats=lc||[];S.live=(lv||[]).map(x=>({...x,_type:'live'}));
   $('liveCount').textContent=S.live.length.toLocaleString();renderAll();
-  load(true,'Loading movies...');
-  const [vc,vv]=await Promise.all([getJson('get_vod_categories').catch(()=>[]),getJson('get_vod_streams').catch(()=>[])]);
-  S.vodCats=vc||[];S.vod=(vv||[]).map(x=>({...x,_type:'vod'}));$('vodCount').textContent=S.vod.length.toLocaleString();renderAll();
-  load(true,'Loading series...');
-  const [sc,ss]=await Promise.all([getJson('get_series_categories').catch(()=>[]),getJson('get_series').catch(()=>[])]);
-  S.seriesCats=sc||[];S.series=(ss||[]).map(x=>({...x,_type:'series'}));$('seriesCount').textContent=S.series.length.toLocaleString();renderAll();load(false);
+  /* v63: stop blocking the moment live is ready — the whole catalog no longer holds up the
+     main loading screen. Movies and Series load together in the BACKGROUND (in parallel, not
+     one-after-another), so the app is usable immediately and switching tabs doesn't reload. */
+  load(false);
+  await Promise.all([
+    Promise.all([getJson('get_vod_categories').catch(()=>[]),getJson('get_vod_streams').catch(()=>[])]).then(([vc,vv])=>{S.vodCats=vc||[];S.vod=(vv||[]).map(x=>({...x,_type:'vod'}));$('vodCount').textContent=S.vod.length.toLocaleString();renderAll()}),
+    Promise.all([getJson('get_series_categories').catch(()=>[]),getJson('get_series').catch(()=>[])]).then(([sc,ss])=>{S.seriesCats=sc||[];S.series=(ss||[]).map(x=>({...x,_type:'series'}));$('seriesCount').textContent=S.series.length.toLocaleString();renderAll()})
+  ]).catch(()=>{});
 }
 function renderAll(){renderCats();renderGrid();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
 function renderCats(){
@@ -843,7 +845,10 @@ async function playItemBasic(x){
   setCurrentItem(x);cleanup();
   const token=S.seq,v=$('video'),live=typeOf(x)==='live';
   $('extActions').classList.add('hidden');
-  if($('stateThumb'))$('stateThumb').classList.add('hidden');
+  /* v63: show the channel logo + loading bar right away so the wait reads as "this channel is
+     loading", not a blank screen. */
+  const _thumb=logoOf(x);
+  if($('stateThumb')){if(_thumb){$('stateThumb').src=_thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}}
   if($('stateProgress'))$('stateProgress').classList.remove('hidden');
   $('stateTitle').textContent='Loading';
   $('stateText').textContent=nameOf(x);
@@ -886,12 +891,15 @@ async function playItemBasic(x){
     v.onerror=()=>{if(token!==S.seq)return;startedB?stopMsg():next()};
     try{
       if(p.kind==='mpegts'){
-        S.ts=mpegts.createPlayer({type:'mpegts',isLive:live,url:p.url,cors:true},{enableWorker:true,lazyLoad:false,isLive:live});
+        /* v63: faster first frame — a smaller initial stash means mpegts starts decoding as
+           soon as a little data arrives instead of waiting to fill the default ~384KB. */
+        S.ts=mpegts.createPlayer({type:'mpegts',isLive:live,url:p.url,cors:true},{enableWorker:true,lazyLoad:false,isLive:live,enableStashBuffer:true,stashInitialSize:mobile()?128*1024:256*1024,liveBufferLatencyChasing:false,autoCleanupSourceBuffer:true});
         S.ts.attachMediaElement(v);
         S.ts.on(mpegts.Events.ERROR,()=>{if(token!==S.seq)return;startedB?stopMsg():next()});
         S.ts.load();
       }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
-        S.hls=new Hls({enableWorker:true,lowLatencyMode:false});
+        /* v63: start nearer the live edge and prefetch the first fragment for a quicker start */
+        S.hls=new Hls({enableWorker:true,lowLatencyMode:false,liveSyncDurationCount:3,startFragPrefetch:true,maxBufferLength:30});
         S.hls.loadSource(p.url);S.hls.attachMedia(v);
         S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;startedB?stopMsg():next()});
       }else{
