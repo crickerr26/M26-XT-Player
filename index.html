@@ -827,7 +827,7 @@ function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pau
   const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);
   const pb=$('playerBox');if(pb)pb.classList.toggle('liveMode',!!isLive);
 }
-function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls()}
+function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls();updateMediaSession(x)}
 async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))$('stateProgress').classList.add('hidden');if($('stateThumb'))$('stateThumb').classList.add('hidden');$('stateTitle').textContent='Opening VLC';$('stateText').textContent='If VLC is installed, the stream will open there. The link is also copied.';$('overlay').style.display='grid';$('netStatus').textContent='VLC mode';$('miniMeta').textContent='Opening VLC';openVlcForCurrent();toast('Opening in VLC')}
 async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
 /* v48: BASIC player mode (owner request). The full built-in player carries watchdog timers,
@@ -1461,6 +1461,34 @@ function pip(){
     toast('Picture-in-Picture isn’t available in this browser. On iPhone, open the site in Safari and try again, or use a player app’s own PiP.');
   }catch(e){toast('Picture-in-Picture could not start on this device')}
 }
+/* v61: background play. MediaSession is the real mechanism: on Android/desktop it keeps AUDIO
+   playing when the screen is off or the app is backgrounded, and everywhere it drives the
+   lock-screen / control-center media controls (channel name, artwork, play/pause). It applies
+   to BOTH built-in players because it lives on the shared <video> element. On iPhone, full
+   background of a <video> also needs Picture-in-Picture (the auto-PiP below), because iOS
+   pauses inline video when it goes to the background — so on iPhone the floating PiP window is
+   what keeps it playing. */
+function updateMediaSession(x){
+  if(!('mediaSession'in navigator)||!x)return;
+  try{
+    const logo=logoOf(x);
+    navigator.mediaSession.metadata=new MediaMetadata({
+      title:nameOf(x),artist:'Media26 XT Player',album:typeOf(x).toUpperCase(),
+      artwork:logo?[{src:logo,sizes:'512x512',type:'image/png'},{src:logo,sizes:'256x256',type:'image/png'}]:[]
+    });
+  }catch(e){}
+}
+(function(){
+  if(!('mediaSession'in navigator))return;
+  const v=$('video');if(!v)return;
+  const set=(a,fn)=>{try{navigator.mediaSession.setActionHandler(a,fn)}catch(e){}};
+  set('play',()=>{v.play().catch(()=>{})});
+  set('pause',()=>{v.pause()});
+  set('stop',()=>{try{cleanup()}catch(e){}});
+  v.addEventListener('playing',()=>{try{navigator.mediaSession.playbackState='playing'}catch(e){}});
+  v.addEventListener('play',()=>{try{navigator.mediaSession.playbackState='playing'}catch(e){}});
+  v.addEventListener('pause',()=>{try{navigator.mediaSession.playbackState='paused'}catch(e){}});
+})();
 /* v32: automatic PiP — when the user switches tab/app while a stream is playing in the
    built-in player, pop it into a floating Picture-in-Picture window so it never stops.
    External players (VLC/Exo) have their OWN background/PiP — this only covers the web player. */
