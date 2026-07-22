@@ -865,9 +865,12 @@ async function playItemBasic(x){
   let plans;
   if(live){
     const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
-    /* v58: for 4K/UHD on iPhone, lead with native HLS (hardware decode + deinterlace, like
-       VLC) instead of mpegts.js software MSE decode, which combs/flickers on 4K. */
-    plans=(isApple&&is4k)?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
+    /* v65: on iPhone/iPad prefer NATIVE HLS for ALL live, not just 4K. Safari's native HLS uses
+       the phone's HARDWARE decoder + deinterlacer — the exact thing dedicated apps (Smart STB,
+       IPTV Smarters, TiviMate) use — so it plays H.264/HEVC/4K/interlaced cleanly and stays up,
+       whereas mpegts.js decodes in SOFTWARE via MediaSource, which combs 4K and drops after a
+       while. mpegts.js stays only as a fallback. Non-Apple keeps mpegts-first (VLC-style TS). */
+    plans=isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
   }else{
     const direct=String(x.direct_source||x.stream_url||'').trim();
@@ -875,33 +878,54 @@ async function playItemBasic(x){
     plans=[{kind:u.includes('.m3u8')?'hls':'native',url:u}];
   }
   let idx=0,startedB=false;
+  /* v65: keep-alive state. Dedicated IPTV apps stay up because they RECONNECT the moment a
+     stream stalls. We do the same, but safely: reconnect the SAME url in place (live rejoins
+     the live edge, VOD keeps its position), never seek backwards, never switch to a worse
+     stream — so it can't loop/repeat like the old Media26 engine did. The counter resets after
+     30s of clean playback, so an evening of occasional blips never exhausts it. */
+  let lastT=0,lastProg=Date.now(),reconnects=0,lastRc=0,cleanSince=Date.now();
   const hide=()=>{$('overlay').style.display='none';$('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const stopMsg=m=>{$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.add('hidden');$('stateTitle').textContent='Stream stopped';$('stateText').textContent=m||'Tap the channel again to reconnect.';$('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped'};
   const dropEngines=()=>{if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.ts){try{S.ts.destroy()}catch(e){}S.ts=null}};
   const next=()=>{
     if(token!==S.seq)return;
     idx++;
-    if(idx>=plans.length){stopMsg('This channel did not load. Try another channel, or set the player back to Auto in Stream Tools.');return}
+    if(idx>=plans.length){stopMsg('This channel did not load. Try another channel.');return}
     dropEngines();
     attach(plans[idx]);
+  };
+  /* reconnect the current stream in place (the "why dedicated apps don't die" fix) */
+  const reconnect=()=>{
+    if(token!==S.seq)return;
+    const now=Date.now();
+    if(now-lastRc<3000)return;                 /* don't hammer */
+    if(reconnects>=40){stopMsg('Stream lost. Tap the channel to reconnect.');return}
+    lastRc=now;reconnects++;lastProg=now;lastT=v.currentTime||0;
+    $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
+    const keepPos=(!live&&isFinite(v.duration)&&v.duration>0)?v.currentTime:0;
+    dropEngines();
+    attach(plans[idx]);
+    if(keepPos>0){const rp=()=>{try{v.currentTime=keepPos}catch(e){}v.removeEventListener('loadedmetadata',rp)};v.addEventListener('loadedmetadata',rp)}
   };
   const attach=p=>{
     if(token!==S.seq)return;
     v.onplaying=()=>{if(token===S.seq){startedB=true;hide()}};
-    v.onerror=()=>{if(token!==S.seq)return;startedB?stopMsg():next()};
+    /* after the stream has started, an error means a mid-play drop -> RECONNECT (don't die).
+       before it starts, fall through to the next candidate. */
+    v.onerror=()=>{if(token!==S.seq)return;startedB?reconnect():next()};
     try{
       if(p.kind==='mpegts'){
         /* v63: faster first frame — a smaller initial stash means mpegts starts decoding as
            soon as a little data arrives instead of waiting to fill the default ~384KB. */
         S.ts=mpegts.createPlayer({type:'mpegts',isLive:live,url:p.url,cors:true},{enableWorker:true,lazyLoad:false,isLive:live,enableStashBuffer:true,stashInitialSize:mobile()?128*1024:256*1024,liveBufferLatencyChasing:false,autoCleanupSourceBuffer:true});
         S.ts.attachMediaElement(v);
-        S.ts.on(mpegts.Events.ERROR,()=>{if(token!==S.seq)return;startedB?stopMsg():next()});
+        S.ts.on(mpegts.Events.ERROR,()=>{if(token!==S.seq)return;startedB?reconnect():next()});
         S.ts.load();
       }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
         /* v63: start nearer the live edge and prefetch the first fragment for a quicker start */
         S.hls=new Hls({enableWorker:true,lowLatencyMode:false,liveSyncDurationCount:3,startFragPrefetch:true,maxBufferLength:30});
         S.hls.loadSource(p.url);S.hls.attachMedia(v);
-        S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;startedB?stopMsg():next()});
+        S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;startedB?reconnect():next()});
       }else{
         v.src=p.url;v.load();
       }
@@ -910,6 +934,21 @@ async function playItemBasic(x){
     if(pr&&pr.catch)pr.catch(()=>{if(token!==S.seq)return;v.muted=true;const p2=v.play();if(p2&&p2.catch)p2.catch(()=>{})});
   };
   attach(plans[0]);
+  /* v65: one calm 1s heartbeat — the only watchdog. If the playback clock stops advancing for
+     ~9s after the stream had started (a real freeze, not brief buffering), reconnect in place.
+     30s of clean advancement resets the reconnect budget. This is exactly how Smart STB /
+     Smarters stay alive; it never touches a healthy stream, so no stutter of its own. */
+  const beat=()=>{
+    if(token!==S.seq)return;
+    const now=Date.now();
+    /* any clock movement — forward playback OR a user seek — counts as "alive"; only a truly
+       frozen clock triggers a reconnect. */
+    if(Math.abs((v.currentTime||0)-lastT)>0.25){lastT=v.currentTime||0;lastProg=now;if(now-cleanSince>30000){reconnects=0;cleanSince=now}}
+    else if(startedB){cleanSince=now}
+    if(startedB&&!v.paused&&!v.ended&&now-lastProg>9000)reconnect();
+    S.timer=setTimeout(beat,1000);
+  };
+  clearTimeout(S.timer);S.timer=setTimeout(beat,1000);
 }
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
 function forceMobileSmoothLevel(hls){
