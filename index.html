@@ -821,10 +821,14 @@ async function playItemBasic(x){
   v.autoplay=true;v.loop=false;v.preload='auto';v.muted=false;
   const wrap=u=>blocked(u)?proxyUrl(u):u;
   const tsOk=!!(window.mpegts&&mpegts.isSupported());
+  const isApple=/iphone|ipad|ipod/i.test(navigator.userAgent||''),is4k=/\b(4k|uhd)\b/i.test(nameOf(x));
   let plans;
   if(live){
     const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
-    plans=tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}];
+    /* v58: for 4K/UHD on iPhone, lead with native HLS (hardware decode + deinterlace, like
+       VLC) instead of mpegts.js software MSE decode, which combs/flickers on 4K. */
+    plans=(isApple&&is4k)?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
+      :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
   }else{
     const direct=String(x.direct_source||x.stream_url||'').trim();
     const u=wrap(direct||directUrl(x,String(x.container_extension||'mp4')));
@@ -887,6 +891,7 @@ function plan(x){
   const isAndroid=/android/i.test(ua);
   const isMob=mobile();
   const isMkv=mkvLike(orig);
+  const is4k=/\b(4k|uhd)\b/i.test(nameOf(x));
   /* v20: dedupe by kind+url (was url only, which silently dropped legitimate fallbacks that
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
@@ -918,22 +923,43 @@ function plan(x){
        MSE for this, so it keeps native HLS first. All HLS paths remain as automatic fallbacks
        (codec not supported by MSE, CORS-blocked origin, etc. move on within seconds). */
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
+    /* v58: 4K/UHD live is usually HEVC and often interlaced. mpegts.js decodes it in SOFTWARE
+       through MSE — no hardware decode, no deinterlace — which shows on screen as the
+       combing/scan-line flicker the owner reported (VLC is fine because it decodes AND
+       deinterlaces natively). iPhone's NATIVE HLS path hardware-decodes HEVC and deinterlaces
+       like VLC, so for 4K on Apple we lead with native HLS and keep mpegts.js only as a
+       fallback. Non-4K keeps mpegts-first (the smooth VLC-style single-connection path). */
+    const nativeFirst=isApple&&is4k;
     if(!blocked(m3u8)){
-      if(tsOk)add('mpegts','Direct TS',ts);
-      add('native','Direct',m3u8);
-      add('hls','Direct HLS',m3u8);
-      if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
+      if(nativeFirst){
+        add('native','Direct 4K',m3u8);
+        add('hls','Direct HLS',m3u8);
+        if(tsOk)add('mpegts','Direct TS',ts);
+        if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
+      }else{
+        if(tsOk)add('mpegts','Direct TS',ts);
+        add('native','Direct',m3u8);
+        add('hls','Direct HLS',m3u8);
+        if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
+      }
       add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
     }else{
       /* https page can't touch the http origin (mixed content) — but the CORS proxy is https
          and streams bodies through, so the VLC-style continuous TS still works via one hop */
-      if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
-      /* v48: the panel's own HLS through the same-origin rewriting proxy comes BEFORE the
-         shared third-party relay. On iPhone (no MSE) this is the primary live path: native
-         Safari HLS, playlist + segments all on this origin, no rate-limited middleman. The
-         relay drops to a fallback for panels that serve no live HLS at all. */
-      add('hls','Proxy HLS',proxyUrl(m3u8));
-      add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+      if(nativeFirst){
+        /* 4K on Apple: native Safari HLS through the same-origin rewriting proxy comes first */
+        add('native','Proxy HLS 4K',proxyUrl(m3u8));
+        add('hls','Proxy HLS',proxyUrl(m3u8));
+        add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+        if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
+      }else{
+        if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
+        /* v48: the panel's own HLS through the same-origin rewriting proxy comes BEFORE the
+           shared third-party relay. On iPhone (no MSE) this is the primary live path: native
+           Safari HLS, playlist + segments all on this origin, no rate-limited middleman. */
+        add('hls','Proxy HLS',proxyUrl(m3u8));
+        add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+      }
     }
   }else{
     /* VOD / Series */
