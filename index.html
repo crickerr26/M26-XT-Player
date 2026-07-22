@@ -865,12 +865,15 @@ async function playItemBasic(x){
   let plans;
   if(live){
     const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
-    /* v65: on iPhone/iPad prefer NATIVE HLS for ALL live, not just 4K. Safari's native HLS uses
-       the phone's HARDWARE decoder + deinterlacer — the exact thing dedicated apps (Smart STB,
-       IPTV Smarters, TiviMate) use — so it plays H.264/HEVC/4K/interlaced cleanly and stays up,
-       whereas mpegts.js decodes in SOFTWARE via MediaSource, which combs 4K and drops after a
-       while. mpegts.js stays only as a fallback. Non-Apple keeps mpegts-first (VLC-style TS). */
-    plans=isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
+    /* v66: LIGHTNING-FAST live start. mpegts.js on the raw continuous .ts opens ONE connection
+       and shows the first frame almost immediately — no playlist fetch, no per-segment
+       round-trips, minimal proxy overhead — so it's the fastest path and is the primary for
+       live. Native HLS (Safari hardware decode) is kept FIRST only for 4K/UHD, where mpegts.js
+       software decoding combs the picture. If mpegts proves flaky at runtime, the smart
+       reconnect below auto-switches to native HLS, so speed never costs reliability. */
+    const fastTs=tsOk&&!is4k;
+    plans=fastTs?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]
+      :isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
   }else{
     const direct=String(x.direct_source||x.stream_url||'').trim();
@@ -883,7 +886,7 @@ async function playItemBasic(x){
      the live edge, VOD keeps its position), never seek backwards, never switch to a worse
      stream — so it can't loop/repeat like the old Media26 engine did. The counter resets after
      30s of clean playback, so an evening of occasional blips never exhausts it. */
-  let lastT=0,lastProg=Date.now(),reconnects=0,lastRc=0,cleanSince=Date.now();
+  let lastT=0,lastProg=Date.now(),reconnects=0,lastRc=0,cleanSince=Date.now(),rcTimes=[];
   const hide=()=>{$('overlay').style.display='none';$('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const stopMsg=m=>{$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.add('hidden');$('stateTitle').textContent='Stream stopped';$('stateText').textContent=m||'Tap the channel again to reconnect.';$('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped'};
   const dropEngines=()=>{if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.ts){try{S.ts.destroy()}catch(e){}S.ts=null}};
@@ -899,6 +902,11 @@ async function playItemBasic(x){
     if(token!==S.seq)return;
     const now=Date.now();
     if(now-lastRc<3000)return;                 /* don't hammer */
+    /* v66: smart escalation — if the current stream drops 3x within 60s it's not reliable, so
+       switch to the NEXT path (e.g. the fast mpegts -> steady native HLS) instead of endlessly
+       reconnecting the same one. This is what lets us lead with the fast engine safely. */
+    rcTimes=rcTimes.filter(t=>now-t<60000);rcTimes.push(now);
+    if(rcTimes.length>=3&&idx+1<plans.length){rcTimes=[];reconnects=0;lastRc=now;lastProg=now;dropEngines();idx++;$('netStatus').textContent='Switching to a steadier stream';attach(plans[idx]);return}
     if(reconnects>=40){stopMsg('Stream lost. Tap the channel to reconnect.');return}
     lastRc=now;reconnects++;lastProg=now;lastT=v.currentTime||0;
     $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
@@ -915,9 +923,11 @@ async function playItemBasic(x){
     v.onerror=()=>{if(token!==S.seq)return;startedB?reconnect():next()};
     try{
       if(p.kind==='mpegts'){
-        /* v63: faster first frame — a smaller initial stash means mpegts starts decoding as
-           soon as a little data arrives instead of waiting to fill the default ~384KB. */
-        S.ts=mpegts.createPlayer({type:'mpegts',isLive:live,url:p.url,cors:true},{enableWorker:true,lazyLoad:false,isLive:live,enableStashBuffer:true,stashInitialSize:mobile()?128*1024:256*1024,liveBufferLatencyChasing:false,autoCleanupSourceBuffer:true});
+        /* v66: fastest possible first frame — for LIVE the stash is tiny (32KB) so mpegts emits
+           and decodes as soon as the first packets arrive instead of filling the default
+           ~384KB; worker on so demux never blocks the compositor; no latency chasing (chasing
+           seeks toward the edge and each seek is a visible hitch). VOD keeps a normal stash. */
+        S.ts=mpegts.createPlayer({type:'mpegts',isLive:live,url:p.url,cors:true},{enableWorker:true,lazyLoad:false,isLive:live,enableStashBuffer:true,stashInitialSize:live?32*1024:(mobile()?256*1024:512*1024),liveBufferLatencyChasing:false,autoCleanupSourceBuffer:true});
         S.ts.attachMediaElement(v);
         S.ts.on(mpegts.Events.ERROR,()=>{if(token!==S.seq)return;startedB?reconnect():next()});
         S.ts.load();
