@@ -263,11 +263,16 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .chooserActions .pillbtn{min-width:110px}
 .chooserActions .pillbtn:disabled{opacity:.45}
 .gestureHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:7;background:rgba(3,7,18,.82);color:#fff;font-weight:800;font-size:15px;padding:12px 18px;border-radius:14px;pointer-events:none;letter-spacing:.3px;box-shadow:0 10px 30px rgba(0,0,0,.4);backdrop-filter:blur(6px)}
-/* v55: hard guarantee — live TV never shows Play/Pause, Rewind, Forward or the scrubber */
-.player.liveMode #playBtn,.player.liveMode #backBtn,.player.liveMode #forwardBtn,.player.liveMode #seekRow{display:none!important}
-/* v67: Movies/Series always show the control bar + seek/progress bar (no fade-out) */
-.player.vodMode .playerbar{opacity:1!important;pointer-events:auto!important}
-.player.vodMode #seekRow{display:flex!important}
+/* v70: the SAME bar + scrubber design shows on Live, Movies and Series. On live the scrubber
+   is a non-draggable LIVE indicator and the rewind/forward skips are hidden (a live feed has no
+   timeline to jump within — play/pause still works to pause & rejoin live). Movies/Series get
+   the full seekable scrubber. Both keep the bar permanently visible (no fade-out). */
+.player.liveMode #backBtn,.player.liveMode #forwardBtn{display:none!important}
+.player.liveMode #seekRow .seekTrack{pointer-events:none;cursor:default}
+.player.liveMode .playerbar,.player.vodMode .playerbar{opacity:1!important;pointer-events:auto!important}
+.player.liveMode #seekRow,.player.vodMode #seekRow{display:flex!important}
+/* live scrubber tint: a solid live-red bar rather than a progress fill */
+.player.liveMode #seekFill{width:100%!important}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -921,8 +926,12 @@ function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pau
    can never appear on live even if some other code path touches their inline style. */
   const isLive=S.current&&typeOf(S.current)==='live';
   const isVod=!!(S.current&&!isLive);
-  ['playBtn','backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b){b.style.display=isLive?'none':'';b.disabled=!!isLive;}});
-  const sr=$('seekRow');if(sr)sr.classList.toggle('hidden',isLive);
+  /* v70: play/pause shows on all three; only the rewind/forward skips are hidden on live
+     (nothing to skip on a live timeline). The scrubber shows on all three — on live it's a
+     read-only LIVE indicator (see the seek-bar sync()), on VOD it's fully seekable. */
+  const pbn=$('playBtn');if(pbn){pbn.style.display='';pbn.disabled=false;}
+  ['backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b){b.style.display=isLive?'none':'';b.disabled=!!isLive;}});
+  const sr=$('seekRow');if(sr)sr.classList.remove('hidden');
   const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);
   const pb=$('playerBox');
   if(pb){pb.classList.toggle('liveMode',!!isLive);
@@ -1003,6 +1012,13 @@ async function playItemBasic(x){
   const reconnect=()=>{
     if(token!==S.seq)return;
     const now=Date.now();
+    /* v70: a user seek is NOT a stream failure. On Movies/Series a forward/back jump (button or
+       scrubber) briefly makes the element fire 'error'/'stalled' or an hls fatal while it
+       fetches the new position — and every caller of reconnect() (v.onerror, the mpegts/hls
+       ERROR handlers, and the heartbeat) used to reload the source here, which is exactly what
+       restarted the movie from 0:00. Guarding at the source covers ALL those callers: if the
+       user is mid-seek or seeked within the last 12s, do nothing and let the element settle. */
+    if(!live&&(v.seeking||(now-(S.lastSeekAt||0))<12000)){lastProg=now;lastT=v.currentTime||0;return;}
     if(now-lastRc<3000)return;                 /* don't hammer */
     /* v66: smart escalation — if the current stream drops 3x within 60s it's not reliable, so
        switch to the NEXT path (e.g. the fast mpegts -> steady native HLS) instead of endlessly
@@ -1012,7 +1028,9 @@ async function playItemBasic(x){
     if(reconnects>=40){stopMsg('Stream lost. Tap the channel to reconnect.');return}
     lastRc=now;reconnects++;lastProg=now;lastT=v.currentTime||0;
     $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
-    const keepPos=(!live&&isFinite(v.duration)&&v.duration>0)?v.currentTime:0;
+    /* v70: preserve the playhead on ANY VOD reconnect, including streamed VOD whose duration
+       reports Infinity (isFinite was false there, so it used to resume from 0). */
+    const keepPos=(!live&&v.currentTime>0)?v.currentTime:0;
     dropEngines();
     attach(plans[idx]);
     if(keepPos>0){const rp=()=>{try{v.currentTime=keepPos}catch(e){}v.removeEventListener('loadedmetadata',rp)};v.addEventListener('loadedmetadata',rp)}
@@ -1840,7 +1858,11 @@ applyColour(savedColour());
      often reports duration=Infinity but IS seekable). This is why the slider looked "not
      built": it bailed the moment duration wasn't a plain finite number. */
   const effDur=()=>{const d=v.duration;if(isFinite(d)&&d>0)return d;try{if(v.seekable&&v.seekable.length)return v.seekable.end(v.seekable.length-1)}catch(e){}return 0};
+  const isLiveNow=()=>!!(S.current&&typeOf(S.current)==='live');
   const sync=()=>{
+    /* v70: live shows the SAME scrubber design but as a read-only LIVE indicator — a full red
+       bar with the handle at the live edge and a LIVE label, never a 0:00/0:00 timeline. */
+    if(isLiveNow()){fill.style.width='100%';handle.style.left='100%';cur.textContent='LIVE';dur.textContent='';return}
     const D=effDur();
     if(!D){fill.style.width='0%';handle.style.left='0%';cur.textContent='0:00';dur.textContent='0:00';return}
     const pct=Math.max(0,Math.min(100,(v.currentTime/D)*100));
@@ -1850,13 +1872,14 @@ applyColour(savedColour());
   ['timeupdate','loadedmetadata','durationchange','progress','seeked'].forEach(ev=>v.addEventListener(ev,sync));
   let dragging=false;
   const seekTo=clientX=>{
+    if(isLiveNow())return;                     /* live is not seekable — keep it live */
     const D=effDur();if(!D)return;
     const r=track.getBoundingClientRect();
     const pct=Math.max(0,Math.min(1,(clientX-r.left)/r.width));
     S.lastSeekAt=Date.now();
     v.currentTime=Math.min(D-0.5,pct*D);sync();
   };
-  track.addEventListener('pointerdown',e=>{if(!effDur())return;dragging=true;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
+  track.addEventListener('pointerdown',e=>{if(isLiveNow()||!effDur())return;dragging=true;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
   track.addEventListener('pointermove',e=>{if(dragging)seekTo(e.clientX)});
   const stopDrag=e=>{dragging=false;try{track.releasePointerCapture(e.pointerId)}catch{}};
   track.addEventListener('pointerup',stopDrag);track.addEventListener('pointercancel',stopDrag);
