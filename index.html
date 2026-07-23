@@ -178,6 +178,10 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @keyframes m26breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
 @keyframes m26dot{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-6px);opacity:1}}
 @keyframes m26sweep{0%{left:-45%}100%{left:100%}}
+/* v83: when a movie's poster is previewed behind the chooser, dim the overlay much less so the
+   artwork reads clearly, and give the poster a subtle fill. */
+.player.posterPreview #overlay{background:linear-gradient(180deg,rgba(3,7,18,.12),rgba(3,7,18,.5))!important}
+.player.posterPreview video{object-fit:cover}
 /* quality popover above the bar */
 .qMenu{position:absolute;right:14px;bottom:70px;z-index:8;min-width:158px;max-height:250px;overflow-y:auto;background:rgba(12,20,36,.97);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);backdrop-filter:blur(18px)}
 .qMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;height:38px;padding:0 12px;border-radius:10px;background:transparent;color:var(--ink);font-weight:800;font-size:13px}
@@ -554,7 +558,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 const CHOOSER_KEY='media26-chooser-default-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='1.9';
+const APP_VERSION='2.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -729,13 +733,14 @@ async function loadType(type){
 }
 function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='vod'?S.loadedVod:S.loadedSeries;const loading=type==='live'?S.loadingLive:type==='vod'?S.loadingVod:S.loadingSeries;if(!loaded&&!loading)return loadType(type);}
 async function refreshAll(){
-  load(true,'Loading…');
   S.loadedLive=S.loadedVod=S.loadedSeries=false;
-  /* Live first so the app opens fast; drop the loading screen once Live is in (or after 12s so
-     it can never hang), then Movies and Series load one-after-another in the background. */
-  const liveP=loadType('live');
-  S._catalog=liveP.then(()=>loadType('vod')).then(()=>loadType('series'));
-  await Promise.race([liveP,new Promise(r=>setTimeout(r,12000))]);
+  /* v83: show each stage on the loading screen, one after another (sequential = no concurrent
+     requests the panel might drop), then "Load completed" before entering the app. */
+  load(true,'Loading Live TV…');   await loadType('live');
+  load(true,'Loading Movies…');    await loadType('vod');
+  load(true,'Loading Series…');    await loadType('series');
+  load(true,'Load completed ✓');
+  await new Promise(r=>setTimeout(r,750));
   load(false);
 }
 function renderAll(){renderCats();renderGrid();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
@@ -1483,7 +1488,13 @@ function prePreview(x){
   S.current=x;
   if($('extActions'))$('extActions').classList.add('hidden');
   const thumb=logoOf(x);
-  if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}
+  /* v83: fill the preview area with the clicked movie's poster while the chooser is open, so the
+     user sees exactly what they tapped. The <video> poster is cleared automatically once real
+     playback begins. */
+  const v=$('video');try{if(v){if(thumb)v.poster=thumb;else v.removeAttribute('poster');}}catch(e){}
+  const pbx=$('playerBox');if(pbx)pbx.classList.toggle('posterPreview',!!thumb);
+  /* the poster now fills the preview, so the small centred thumbnail would be redundant */
+  if(thumb){$('stateThumb').classList.add('hidden')}else{$('stateThumb').classList.add('hidden')}
   $('stateTitle').textContent=nameOf(x);
   $('stateText').textContent=typeOf(x)==='live'?'Live channel':'Preparing…';
   if($('stateProgress'))$('stateProgress').classList.remove('hidden');
@@ -1502,17 +1513,26 @@ const PICON={
   infuse:{bg:'linear-gradient(135deg,#a78bfa,#7c3aed)',t:'INF'},
   nplayer:{bg:'linear-gradient(135deg,#14b8a6,#0f766e)',t:'nP'}
 };
-function playerOptions(){
+function playerOptions(type){
   const d=deviceKind();
-  /* v62 (owner request): Media26 Player removed — it lagged and looped/repeated. The Basic
-     player is now the ONLY built-in engine (simple, plays and never touches the stream). */
-  const o=[
-    {mode:'basic',name:'Basic Player',desc:'Built-in — plays smoothly, one connection',rec:true}
-  ];
-  if(d==='android')o.push({mode:'vlc',name:'VLC',desc:'External app'},{mode:'mx',name:'MX Player',desc:'External app'},{mode:'exo',name:'Other app…',desc:'Pick any installed player'});
-  else if(d==='ios')o.push({mode:'vlc',name:'VLC',desc:'External app'},{mode:'infuse',name:'Infuse',desc:'External app'},{mode:'nplayer',name:'nPlayer',desc:'External app'});
-  else o.push({mode:'vlc',name:'VLC',desc:'Desktop app'});
-  return o;
+  const isVod=type==='vod'||type==='series';
+  const basic={mode:'basic',name:'Basic Player',desc:'Built-in — plays smoothly, one connection'};
+  let ext;
+  if(d==='android')ext=[{mode:'vlc',name:'VLC',desc:'External app'},{mode:'mx',name:'MX Player',desc:'External app'},{mode:'exo',name:'Other app…',desc:'Pick any installed player'}];
+  else if(d==='ios')ext=[{mode:'infuse',name:'Infuse',desc:'External app'},{mode:'vlc',name:'VLC',desc:'External app'},{mode:'nplayer',name:'nPlayer',desc:'External app'}];
+  else ext=[{mode:'vlc',name:'VLC',desc:'Desktop app'}];
+  /* v83 (owner request): for MOVIES/SERIES recommend an external player (Infuse on iOS, VLC
+     elsewhere) — they often use codecs the browser can't decode, so the app player fails.
+     For LIVE the Basic built-in player is the recommendation. The recommended option is put
+     first and pre-selected in the popup. */
+  if(isVod){
+    const recMode=d==='ios'?'infuse':'vlc';
+    ext.forEach(o=>{if(o.mode===recMode){o.rec=true;o.desc='Best for movies — plays every format'}});
+    ext.sort((a,b)=>(b.rec?1:0)-(a.rec?1:0));
+    return [...ext,basic];
+  }
+  basic.rec=true;
+  return [basic,...ext];
 }
 let _chooserItem=null,_chooserPick=null;
 function showPlayerChooser(x){
@@ -1523,10 +1543,13 @@ function showPlayerChooser(x){
   $('chooserTitle').textContent='Open '+nameOf(x);
   $('chooserSub').textContent='Choose which player opens this channel';
   $('chooserOnce').disabled=true;$('chooserAlways').disabled=true;
-  /* v82: pre-select the player the user last chose (saved default), else the first option */
+  /* v83: pre-select the recommended player for this content type (Infuse for movies/series,
+     Basic for live). A player the user explicitly saved as their default still wins if present. */
   let saved='';try{saved=store.getItem(CHOOSER_KEY)||''}catch(e){}
-  const opts=playerOptions();
-  let preIdx=opts.findIndex(o=>o.mode===saved);if(preIdx<0)preIdx=0;
+  const opts=playerOptions(typeOf(x));
+  let preIdx=opts.findIndex(o=>o.mode===saved);
+  if(preIdx<0)preIdx=opts.findIndex(o=>o.rec);
+  if(preIdx<0)preIdx=0;
   opts.forEach((op,idx)=>{
     const ic=PICON[op.mode]||PICON.browser;
     const row=document.createElement('button');
@@ -1948,6 +1971,7 @@ const toggleBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.contains
 $('playerBox').addEventListener('mousemove',showBar);
 $('video').addEventListener('playing',showBar);
 $('video').addEventListener('pause',showBar);
+$('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.classList.remove('posterPreview');});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
