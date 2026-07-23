@@ -558,7 +558,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 const CHOOSER_KEY='media26-chooser-default-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='2.0';
+const APP_VERSION='2.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -923,6 +923,11 @@ async function playItemExternal(x,mode,armed){
   const _extMap={vlc:'extVlc',mx:'extMx',exo:'extExo',infuse:'extInfuse',nplayer:'extNplayer'};
   ['extVlc','extMx','extExo','extInfuse','extNplayer'].forEach(id=>{const b=$(id);if(b)b.style.display='none'});
   const _showBtn=$(_extMap[mode]||'extVlc');if(_showBtn)_showBtn.style.display='';
+  /* v84: the player was already chosen in the popup — the preview must NOT look like a second
+     chooser. Hide "Play here instead" and "Copy link"; keep only the single "Open in <app>"
+     as a quiet retry in case iOS needs a confirming tap. */
+  if($('extBrowser'))$('extBrowser').style.display='none';
+  if($('extCopy'))$('extCopy').style.display='none';
   $('overlay').style.display='grid';
   $('stateTitle').textContent='Opening '+label;
   $('netStatus').textContent='External player';$('miniMeta').textContent='Opening '+label;
@@ -1028,10 +1033,12 @@ async function playItemExternal(x,mode,armed){
     ?' Floating video (PiP): in MX Player tap the 3-dot menu > Play > Background Play > "In PIP window".'
     :' Tip: most player apps support floating Picture-in-Picture video — look for a PiP option in the player’s settings.';
   S.stopExtChain=launchAppChain(chain,
-    ()=>{S.stopExtChain=null;$('stateText').textContent='Playing in '+label+'. Come back here anytime to pick another channel.'+pipTip;$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
-    ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){$('stateTitle').textContent='Is the video playing?';$('stateText').textContent=(d==='ios')
-      ?'If '+label+' did not open: tap "Open app again" and then tap OPEN on the iPhone popup that asks to open the app. iPhones only launch apps from a direct tap, so this button is the reliable way.'
-      :'If your player did not open: tap "Open app again", or "Play here instead" to watch in the browser. If it IS playing, just ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
+    /* opened successfully → clean state, no buttons (v84) */
+    ()=>{S.stopExtChain=null;if($('extActions'))$('extActions').classList.add('hidden');$('stateTitle').textContent='Playing in '+label;$('stateText').textContent='Enjoy — come back anytime to pick another title.'+pipTip;$('netStatus').textContent='Playing in '+label;$('miniMeta').textContent='Playing in '+label},
+    /* only if the app clearly did NOT open do we surface a single retry button (v84) */
+    ()=>{S.stopExtChain=null;if(S.current&&keyOf(S.current)===keyOf(x)){if($('extActions'))$('extActions').classList.remove('hidden');$('stateTitle').textContent='Is the video playing?';$('stateText').textContent=(d==='ios')
+      ?'If '+label+' did not open, tap "Open in '+label+'" below and then tap OPEN on the iPhone popup. Otherwise just ignore this — it is already playing in '+label+'.'
+      :'If your player did not open, tap "Open in '+label+'" below. If it IS playing, ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
   );
 }
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show')}
@@ -1477,7 +1484,11 @@ async function routePlayback(x,mode,fromAlternative){
     /* v40 re-tap guard: ignore a repeat tap on the SAME channel within 4s of an external
        launch — a duplicate intent restarts VLC and the instant reconnect gets killed. */
     if(S.extLaunch&&keyOf(S.extLaunch.x)===keyOf(x)&&S.lastExtLaunchAt&&Date.now()-S.lastExtLaunchAt<4000){toast('Opening in '+playerLabel(mode)+'...');return}
-    await playItemExternal(x,mode);return;
+    /* v84: for Movies/Series, launch the chosen app DIRECTLY inside the tap — no "freeing the
+       connection" wait and no second chooser on the preview. VOD isn't the fragile live
+       single-connection case the release gate exists for, and the app opens straight from the
+       popup tap's activation. Live keeps the gate for reliability. */
+    await playItemExternal(x,mode,typeOf(x)!=='live');return;
   }
   await playItemBasic(x);
 }
