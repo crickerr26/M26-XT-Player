@@ -556,9 +556,17 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 /* v50: remembered "Always" choice from the Android-style player chooser. Empty = ask every
    time (chooser pops on each channel tap); a mode string = go straight to that player. */
 const CHOOSER_KEY='media26-chooser-default-v1';
+/* v85: PER-TYPE "Always" defaults. Tapping "Always" for a Movie remembers the player for
+   Movies only (Live and Series keep asking until they get their own default). A type with a
+   saved default never shows the popup again — it opens straight in that player. */
+const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
+function chooserDefaults(){try{const o=JSON.parse(store.getItem(CHOOSER_TYPES_KEY)||'{}');return(o&&typeof o==='object')?o:{}}catch(e){return{}}}
+function chooserDefault(type){return chooserDefaults()[type]||''}
+function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try{store.setItem(CHOOSER_TYPES_KEY,JSON.stringify(o))}catch(e){}}
+function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='2.1';
+const APP_VERSION='2.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -598,7 +606,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{}};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -1227,6 +1235,9 @@ async function playItemBasic(x){
   const attach=p=>{
     if(token!==S.seq)return;
     attachAt=Date.now();   /* v67: for the start-timeout watchdog below */
+    /* v85: resume Movies/Series from where they were left this session (in-memory, so a refresh
+       or force-close starts fresh). Seek once the media knows its duration. */
+    if(!live){const ra=(S.resume&&S.resume[keyOf(x)])||0;if(ra>5){const rs=()=>{try{if((v.currentTime||0)<1.5)v.currentTime=ra}catch(e){}v.removeEventListener('loadedmetadata',rs)};v.addEventListener('loadedmetadata',rs);}}
     v.onplaying=()=>{if(token===S.seq){startedB=true;hide()}};
     /* after the stream has started, an error means a mid-play drop -> RECONNECT (don't die).
        before it starts, fall through to the next candidate. */
@@ -1465,15 +1476,13 @@ async function playItem(item,fromAlternative=false){
      alternate-quality retries (fromAlternative) never re-ask and keep the current player.
      NOTE: this only decides WHICH player runs — it never touches the playback engines. */
   if(!fromAlternative){
-    /* v82 (owner request): the player-selection popup ALWAYS appears on a fresh tap of any Live
-       channel, Movie or Series — it is no longer suppressed by a saved "Always" default. That
-       default (CHOOSER_KEY) now only pre-selects the player in the popup, so the user taps once
-       to play. This also fixes movies that "wouldn't load in the built-in player": a stale
-       CHOOSER_KEY pointing at an external app used to route taps straight to VLC/Infuse instead
-       of ever offering the Basic player. */
+    /* v85: if the user tapped "Always" for THIS content type, skip the popup and open straight
+       in that player. Otherwise show the popup (per type). */
+    const forced=chooserDefault(typeOf(x));
+    if(forced){await routePlayback(x,forced,false);return;}
     cleanup();prePreview(x);showPlayerChooser(x);return;
   }
-  await routePlayback(x,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(x)),true);
+  await routePlayback(x,chooserDefault(typeOf(x))||resolvedPlayer(typeOf(x)),true);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the chooser can
    call it too. No engine/playback logic lives here. */
@@ -1554,9 +1563,8 @@ function showPlayerChooser(x){
   $('chooserTitle').textContent='Open '+nameOf(x);
   $('chooserSub').textContent='Choose which player opens this channel';
   $('chooserOnce').disabled=true;$('chooserAlways').disabled=true;
-  /* v83: pre-select the recommended player for this content type (Infuse for movies/series,
-     Basic for live). A player the user explicitly saved as their default still wins if present. */
-  let saved='';try{saved=store.getItem(CHOOSER_KEY)||''}catch(e){}
+  /* v83/v85: pre-select this type's saved default if any, else the recommended player. */
+  let saved=chooserDefault(typeOf(x));
   const opts=playerOptions(typeOf(x));
   let preIdx=opts.findIndex(o=>o.mode===saved);
   if(preIdx<0)preIdx=opts.findIndex(o=>o.rec);
@@ -1576,9 +1584,9 @@ function showPlayerChooser(x){
 function chooserResolve(save){
   const x=_chooserItem,mode=_chooserPick||'browser';
   $('chooserModal').classList.remove('show');
-  /* only "Always" saves a default; "Just once" plays now and leaves the popup to ask again
-     on the next channel (v72: reverted the session-wide suppression that hid the popup). */
-  if(save)store.setItem(CHOOSER_KEY,mode);
+  /* v85: "Always" saves the default for THIS content type only (Movies/Live/Series each get
+     their own), so that type stops asking. "Just once" plays now and asks again next time. */
+  if(save&&x){setChooserDefault(typeOf(x),mode);toast('Always using '+playerLabel(mode)+' for '+(typeOf(x)==='live'?'Live TV':typeOf(x)==='vod'?'Movies':'Series'))}
   if(!x)return;
   /* v64: route external players through the normal handoff, which honours the connection-slot
      release gate. v59 launched VLC instantly from this tap and skipped that gate — on a
@@ -1983,6 +1991,9 @@ $('playerBox').addEventListener('mousemove',showBar);
 $('video').addEventListener('playing',showBar);
 $('video').addEventListener('pause',showBar);
 $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.classList.remove('posterPreview');});
+/* v85: remember the play position of the current Movie/Series (session-only) so replaying it
+   resumes where it left off. Cleared on refresh/force-close (it lives in memory). */
+$('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const mv=e.target.closest('[data-move]');if(mv){moveItem(mv.dataset.key,Number(mv.dataset.move));return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
@@ -2362,7 +2373,7 @@ if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').c
 if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
 if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
-if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){store.removeItem(CHOOSER_KEY);$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
+if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){clearChooserDefaults();$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
 restore();renderAll();warmTranscoder();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
