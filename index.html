@@ -554,7 +554,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 const CHOOSER_KEY='media26-chooser-default-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='1.6';
+const APP_VERSION='1.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1122,11 +1122,13 @@ async function playItemBasic(x){
        live. Native HLS (Safari hardware decode) is kept FIRST only for 4K/UHD, where mpegts.js
        software decoding combs the picture. If mpegts proves flaky at runtime, the smart
        reconnect below auto-switches to native HLS, so speed never costs reliability. */
-    /* v72: on iPhone/iPad, mpegts.js runs through ManagedMediaSource which renders the INLINE
-       (small) video at a reduced, blurry resolution and only sharpens in fullscreen. Safari's
-       native HLS decodes in hardware and is crisp inline, so on Apple we lead with native HLS
-       for live (mpegts stays as the fallback). Android/desktop keep mpegts-first for speed. */
-    const fastTs=tsOk&&!is4k&&!isApple;
+    /* v80: mpegts-first on EVERY device (including iPhone) for the fastest, most reliable live
+       start — one connection on the raw .ts, first frame almost immediately. The earlier
+       Apple-only "native HLS first" was added to fix an inline blur, but that blur was really a
+       CSS backdrop-filter (fixed in v1.4), so routing iOS live through the slower proxied
+       playlist only hurt speed and reliability. mpegts is primary; native HLS is the fallback,
+       and it still leads for 4K/UHD where mpegts.js software decode would comb the picture. */
+    const fastTs=tsOk&&!is4k;
     plans=fastTs?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]
       :isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
