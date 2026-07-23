@@ -505,7 +505,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = ask which player to use each time (the popup). Pick a specific player here to always open that category in it — no popup.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = built-in preview player (tapping a name plays there). Pick a specific app to send that whole category to it instead. VLC is not offered for Live TV because it drops live channels mid-view; use the per-row app buttons for one-off launches.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -581,7 +581,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='2.4';
+const APP_VERSION='2.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -786,15 +786,17 @@ function baseFiltered(){const q=S.q.toLowerCase().trim();return list().filter(x=
 function ordered(arr){const order=S.orders[S.tab]||[],pos=new Map(order.map((k,i)=>[k,i]));return arr.slice().sort((a,b)=>(pos.has(keyOf(a))?pos.get(keyOf(a)):999999)-(pos.has(keyOf(b))?pos.get(keyOf(b)):999999))}
 function filtered(){const base=baseFiltered();if(S.cat==='__recent'){const pos=new Map(S.recent.map((k,i)=>[k,i]));return base.slice().sort((a,b)=>(pos.get(keyOf(a))??999999)-(pos.get(keyOf(b))??999999))}return ordered(base)}
 function moveItem(k,dir){const arr=filtered(),keys=arr.map(keyOf),i=keys.indexOf(k),j=i+dir;if(i<0||j<0||j>=keys.length)return;[keys[i],keys[j]]=[keys[j],keys[i]];const old=S.orders[S.tab]||[];S.orders[S.tab]=[...keys,...old.filter(x=>!keys.includes(x))];saveOrders();renderGrid();toast('Order saved')}
-function renderGrid(){const arr=filtered();$('sectionSub').textContent=arr.length.toLocaleString()+' items';$('grid').innerHTML=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}).join('')||(tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'</button></div>')}
+function renderGrid(){const arr=filtered();$('sectionSub').textContent=arr.length.toLocaleString()+' items';$('grid').innerHTML=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}).join('')||(tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'</button></div>')}
 function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.loadingVod:!!S.loadingSeries}
 /* v87: per-row quick-launch player buttons (replace the up/down reorder arrows). Tapping one
    opens that channel/movie straight in the chosen app — no popup. Device-appropriate set. */
-function rowPlayerButtons(key){
+function rowPlayerButtons(key,type){
   const d=deviceKind();
-  const list=d==='ios'?[['vlc','VLC'],['infuse','Infuse'],['nplayer','nPlayer']]
+  let list=d==='ios'?[['vlc','VLC'],['infuse','Infuse'],['nplayer','nPlayer']]
     :d==='android'?[['vlc','VLC'],['mx','MX'],['exo','App']]
     :[['vlc','VLC']];
+  /* v88: VLC drops LIVE channels a few seconds in, so it's not offered for live */
+  if(type==='live')list=list.filter(([m])=>m!=='vlc');
   return list.map(([m,lbl])=>'<button class="qp qp-'+m+'" type="button" data-play="'+m+'" data-key="'+key+'" title="Open in '+lbl+'">'+lbl+'</button>').join('');
 }
 function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
@@ -1499,23 +1501,22 @@ async function playItem(item,fromAlternative=false){
      immediately show the channel thumbnail + loading bar and pop the player chooser. Internal
      alternate-quality retries (fromAlternative) never re-ask and keep the current player.
      NOTE: this only decides WHICH player runs — it never touches the playback engines. */
-  if(!fromAlternative){
-    /* v86: the "Player per category" setting (Stream tools) is the single source of truth.
-       - a specific player (VLC / Infuse / Built-in / ...) opens STRAIGHT in it, no popup
-       - 'auto' or 'exo' (App chooser) shows the popup
-       Picking "Always" in the popup writes back to this same setting, so both stay in sync. */
-    const pm=(S.playerModes&&S.playerModes[typeOf(x)])||'auto';
-    if(pm!=='auto'&&pm!=='exo'){await routePlayback(x,pm==='browser'?'basic':pm,false);return;}
-    cleanup();prePreview(x);showPlayerChooser(x);return;
-  }
-  const rpm=(S.playerModes&&S.playerModes[typeOf(x)])||'auto';
-  await routePlayback(x,(rpm==='auto'||rpm==='exo')?'basic':(rpm==='browser'?'basic':rpm),true);
+  /* v88: tapping the channel/movie/series NAME plays in the built-in preview by default. The
+     per-category setting can still route a category to an app, but VLC is NEVER used for LIVE
+     (it drops live channels mid-view) — live falls back to the built-in player. To open a
+     specific app, use the app buttons on the row. No popup. */
+  const pm=(S.playerModes&&S.playerModes[typeOf(x)])||'auto';
+  let mode=(pm==='auto'||pm==='exo'||pm==='browser')?'basic':pm;
+  if(typeOf(x)==='live'&&mode==='vlc')mode='basic';
+  await routePlayback(x,mode,fromAlternative?true:false);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the chooser can
    call it too. No engine/playback logic lives here. */
 async function routePlayback(x,mode,fromAlternative){
   /* v62: Media26 ('browser') is gone — every built-in request now uses the Basic player. */
   if(mode==='browser')mode='basic';
+  /* v88: VLC drops LIVE channels mid-view — never route live to VLC, use the built-in player */
+  if(mode==='vlc'&&typeOf(x)==='live')mode='basic';
   if(isExternalMode(mode)&&!fromAlternative){
     /* v40 re-tap guard: ignore a repeat tap on the SAME channel within 4s of an external
        launch — a duplicate intent restarts VLC and the instant reconnect gets killed. */
@@ -1578,6 +1579,8 @@ function playerOptions(type){
     ext.sort((a,b)=>(b.rec?1:0)-(a.rec?1:0));
     return [...ext,basic];
   }
+  /* v88: no VLC for Live — it drops live channels mid-view */
+  if(type==='live')ext=ext.filter(o=>o.mode!=='vlc');
   basic.rec=true;
   return [basic,...ext];
 }
@@ -2413,7 +2416,10 @@ restore();renderAll();warmTranscoder();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
    nPlayer on iOS — so each user only sees choices that can actually launch on their phone. */
-[['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{const el=$(id);if(!el)return;const dk=deviceKind();const extra=(dk==='android'?[['mx','MX Player']]:dk==='ios'?[['infuse','Infuse'],['nplayer','nPlayer']]:[]).concat([['basic','Basic player (minimal, steadiest)']]);extra.forEach(([val,lbl])=>{if(el.querySelector('option[value="'+val+'"]'))return;const o=document.createElement('option');o.value=val;o.textContent=lbl;el.appendChild(o)});const saved=S.playerModes[t]||'auto';el.value=el.querySelector('option[value="'+saved+'"]')?saved:'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series')+' updated')}});
+[['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{const el=$(id);if(!el)return;const dk=deviceKind();const extra=(dk==='android'?[['mx','MX Player']]:dk==='ios'?[['infuse','Infuse'],['nplayer','nPlayer']]:[]).concat([['basic','Basic player (minimal, steadiest)']]);extra.forEach(([val,lbl])=>{if(el.querySelector('option[value="'+val+'"]'))return;const o=document.createElement('option');o.value=val;o.textContent=lbl;el.appendChild(o)});
+  /* v88: VLC is not offered for Live TV — it drops live channels mid-view */
+  if(t==='live'){const vo=el.querySelector('option[value="vlc"]');if(vo)vo.remove();if(S.playerModes.live==='vlc'){S.playerModes.live='auto';try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}}}
+  const saved=S.playerModes[t]||'auto';el.value=el.querySelector('option[value="'+saved+'"]')?saved:'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series')+' updated')}});
 </script>
 <!-- v22: PWA install layer — asks to save Media26 to the phone with its own icon -->
 <div class="a2hs" id="a2hs">
