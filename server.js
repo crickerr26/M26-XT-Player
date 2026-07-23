@@ -16,6 +16,13 @@ const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
+/* Media26 watermark burned into transcoded video. PiP (and Chromecast/AirPlay) show only the
+   decoded picture, so the only way to make the logo appear there is to bake it into the stream.
+   Any re-encoding profile picks it up automatically when this file is present. */
+const WATERMARK = process.env.WATERMARK_PATH || path.join(__dirname, 'image_482ee8.png');
+const HAS_WATERMARK = (() => { try { return fs.existsSync(WATERMARK); } catch { return false; } })();
+const WM_OPACITY = process.env.WATERMARK_OPACITY || '0.5';
+function reencodesVideo(profile) { return profile !== 'audio' && profile !== 'copy' && profile !== 'remux'; }
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 30 * 60 * 1000);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN || '';
@@ -115,23 +122,30 @@ function safePath(id, file = '') {
   return { dir, target };
 }
  
-function profileArgs(profile) {
+function profileArgs(profile, wm) {
   if (profile === 'audio') return ['-vn', '-c:a', 'aac', '-b:a', '96k'];
   if (profile === 'copy') return ['-c', 'copy'];
   if (profile === 'remux') return ['-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-ac', '2'];
   const videoBitrate = profile === 'vod' ? '1200k' : '750k';
   const maxrate = profile === 'vod' ? '1500k' : '900k';
   const bufsize = profile === 'vod' ? '3000k' : '1800k';
+  const scale = 'scale=w=min(854\\,iw):h=-2';
+  /* With a watermark input present (added in start()), build a filter graph that scales the
+     video, then overlays the logo bottom-left at ~14% width and low alpha, and map that output.
+     Without it, keep the simple -vf scale path unchanged. */
+  const videoIO = wm
+    ? ['-filter_complex',
+        `[0:v]${scale}[base];[1:v]scale=120:-1,format=rgba,colorchannelmixer=aa=${WM_OPACITY}[wm];[base][wm]overlay=x=14:y=H-h-14[vout]`,
+        '-map', '[vout]', '-map', '0:a:0?']
+    : ['-map', '0:v:0?', '-map', '0:a:0?', '-vf', scale];
   return [
-    '-map', '0:v:0?',
-    '-map', '0:a:0?',
+    ...videoIO,
     '-c:v', 'libx264',
     '-preset', 'superfast',
     '-tune', 'zerolatency',
     '-profile:v', 'main',
     '-level', '3.1',
     '-pix_fmt', 'yuv420p',
-    '-vf', 'scale=w=min(854\\,iw):h=-2',
     '-g', '50',
     '-keyint_min', '50',
     '-sc_threshold', '0',
@@ -233,9 +247,13 @@ function start(url, profile = 'mobile') {
   fs.mkdirSync(dir, { recursive: true });
  
   const playlist = path.join(dir, 'index.m3u8');
+  /* Burn the Media26 logo in only for profiles that actually re-encode video (copy/remux/audio
+     can't be overlaid). The logo is added as a second ffmpeg input, consumed by profileArgs. */
+  const wm = HAS_WATERMARK && reencodesVideo(profile);
   const args = [
     ...inputArgs(profile, url),
-    ...profileArgs(profile),
+    ...(wm ? ['-i', WATERMARK] : []),
+    ...profileArgs(profile, wm),
     '-avoid_negative_ts', 'make_zero',
     '-muxdelay', '0',
     '-muxpreload', '0',
