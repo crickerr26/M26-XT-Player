@@ -1053,7 +1053,11 @@ async function playItemBasic(x){
        live. Native HLS (Safari hardware decode) is kept FIRST only for 4K/UHD, where mpegts.js
        software decoding combs the picture. If mpegts proves flaky at runtime, the smart
        reconnect below auto-switches to native HLS, so speed never costs reliability. */
-    const fastTs=tsOk&&!is4k;
+    /* v72: on iPhone/iPad, mpegts.js runs through ManagedMediaSource which renders the INLINE
+       (small) video at a reduced, blurry resolution and only sharpens in fullscreen. Safari's
+       native HLS decodes in hardware and is crisp inline, so on Apple we lead with native HLS
+       for live (mpegts stays as the fallback). Android/desktop keep mpegts-first for speed. */
+    const fastTs=tsOk&&!is4k&&!isApple;
     plans=fastTs?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]
       :isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
@@ -1161,7 +1165,10 @@ async function playItemBasic(x){
        the safety net that was missing — before, a stalled engine that never fired an error
        just sat on "Loading". */
     if(!startedB){
-      if(attachAt&&now-attachAt>(live?12000:22000))next();
+      /* v72: give Movies/Series a longer budget — a large VOD file over the proxy can take a
+         while to buffer its first frame, and killing it at 22s produced the "Stream stopped —
+         did not load" screen on movies that would have started a few seconds later. */
+      if(attachAt&&now-attachAt>(live?14000:40000))next();
     }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
     /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
        then buffer at the new spot — that is NOT a stall. Without this guard the watchdog fired
@@ -1345,11 +1352,11 @@ async function playItem(item,fromAlternative=false){
     /* v57: the popup asks on EVERY channel tap until the user commits with "Always" (saved in
        CHOOSER_KEY). "Just once" plays now and does NOT save, so the next channel asks again —
        this is the behavior the owner wants. */
-    /* v71 (owner request): once a player has been chosen from the popup, never ask again — not
-       on the next channel and not a second time on the preview. "Always" persists across app
-       launches (CHOOSER_KEY); any pick also sets a session default (S.sessionPlayer) so the
-       popup does not reappear this session even if they tapped "Just once". */
-    const forced=store.getItem(CHOOSER_KEY)||S.sessionPlayer;
+    /* v72 (owner request): the player-selection popup must appear on EVERY channel tap (Live,
+       Movies, Series) until the user commits with "Always" (saved in CHOOSER_KEY). "Just once"
+       plays now and lets the popup ask again next time. (v71's session default suppressed the
+       popup entirely — reverted.) The preview never shows a second chooser. */
+    const forced=store.getItem(CHOOSER_KEY);
     if(!forced){cleanup();prePreview(x);showPlayerChooser(x);return}
     await routePlayback(x,forced,false);return;
   }
@@ -1430,9 +1437,8 @@ function showPlayerChooser(x){
 function chooserResolve(save){
   const x=_chooserItem,mode=_chooserPick||'browser';
   $('chooserModal').classList.remove('show');
-  /* v71: remember the pick for the whole session so the chooser never reappears (owner
-     request). "Always" additionally persists across app launches. */
-  S.sessionPlayer=mode;
+  /* only "Always" saves a default; "Just once" plays now and leaves the popup to ask again
+     on the next channel (v72: reverted the session-wide suppression that hid the popup). */
   if(save)store.setItem(CHOOSER_KEY,mode);
   if(!x)return;
   /* v64: route external players through the normal handoff, which honours the connection-slot
