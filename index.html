@@ -554,7 +554,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 const CHOOSER_KEY='media26-chooser-default-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='1.8';
+const APP_VERSION='1.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1453,16 +1453,13 @@ async function playItem(item,fromAlternative=false){
      alternate-quality retries (fromAlternative) never re-ask and keep the current player.
      NOTE: this only decides WHICH player runs — it never touches the playback engines. */
   if(!fromAlternative){
-    /* v57: the popup asks on EVERY channel tap until the user commits with "Always" (saved in
-       CHOOSER_KEY). "Just once" plays now and does NOT save, so the next channel asks again —
-       this is the behavior the owner wants. */
-    /* v72 (owner request): the player-selection popup must appear on EVERY channel tap (Live,
-       Movies, Series) until the user commits with "Always" (saved in CHOOSER_KEY). "Just once"
-       plays now and lets the popup ask again next time. (v71's session default suppressed the
-       popup entirely — reverted.) The preview never shows a second chooser. */
-    const forced=store.getItem(CHOOSER_KEY);
-    if(!forced){cleanup();prePreview(x);showPlayerChooser(x);return}
-    await routePlayback(x,forced,false);return;
+    /* v82 (owner request): the player-selection popup ALWAYS appears on a fresh tap of any Live
+       channel, Movie or Series — it is no longer suppressed by a saved "Always" default. That
+       default (CHOOSER_KEY) now only pre-selects the player in the popup, so the user taps once
+       to play. This also fixes movies that "wouldn't load in the built-in player": a stale
+       CHOOSER_KEY pointing at an external app used to route taps straight to VLC/Infuse instead
+       of ever offering the Basic player. */
+    cleanup();prePreview(x);showPlayerChooser(x);return;
   }
   await routePlayback(x,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(x)),true);
 }
@@ -1526,7 +1523,11 @@ function showPlayerChooser(x){
   $('chooserTitle').textContent='Open '+nameOf(x);
   $('chooserSub').textContent='Choose which player opens this channel';
   $('chooserOnce').disabled=true;$('chooserAlways').disabled=true;
-  playerOptions().forEach((op,idx)=>{
+  /* v82: pre-select the player the user last chose (saved default), else the first option */
+  let saved='';try{saved=store.getItem(CHOOSER_KEY)||''}catch(e){}
+  const opts=playerOptions();
+  let preIdx=opts.findIndex(o=>o.mode===saved);if(preIdx<0)preIdx=0;
+  opts.forEach((op,idx)=>{
     const ic=PICON[op.mode]||PICON.browser;
     const row=document.createElement('button');
     row.className='chooserRow';row.dataset.mode=op.mode;
@@ -1534,7 +1535,7 @@ function showPlayerChooser(x){
       +'<span class="chooserMeta"><b>'+esc(op.name)+(op.rec?' <em>Recommended</em>':'')+'</b><small>'+esc(op.desc||'')+'</small></span>';
     row.onclick=()=>{_chooserPick=op.mode;Array.prototype.forEach.call(list.children,c=>c.classList.toggle('sel',c===row));$('chooserOnce').disabled=false;$('chooserAlways').disabled=false};
     list.appendChild(row);
-    if(idx===0)row.click();
+    if(idx===preIdx)row.click();
   });
   $('chooserModal').classList.add('show');
 }
