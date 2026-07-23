@@ -973,7 +973,11 @@ async function playItemBasic(x){
        just sat on "Loading". */
     if(!startedB){
       if(attachAt&&now-attachAt>(live?12000:22000))next();
-    }else if(!v.paused&&!v.ended&&now-lastProg>9000){reconnect();}
+    }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
+    /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
+       then buffer at the new spot — that is NOT a stall. Without this guard the watchdog fired
+       reconnect() ~9s later, which reloads the source and snapped Movies/Series back to the
+       start. We now never reconnect while v.seeking is true or within 12s of a seek. */
     S.timer=setTimeout(beat,1000);
   };
   clearTimeout(S.timer);S.timer=setTimeout(beat,1000);
