@@ -110,7 +110,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .seekFill{background:linear-gradient(90deg,#ff3b30,#ff6a52)!important}
 .seekTrack::before{background:rgba(255,255,255,.30)}
 /* ===== v71: Infuse-style full-video overlay ===== */
-.playerbar.infuse{position:absolute;inset:0;left:0;right:0;top:0;bottom:0;padding:0;border-radius:0;background:none;display:block;pointer-events:none}
+.playerbar.infuse{position:absolute;inset:0;left:0;right:0;top:0;bottom:0;padding:0;border-radius:0;background:none;display:block;pointer-events:none;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 /* container never eats taps meant for the video; only its controls are interactive */
 .player.vodMode .playerbar.infuse,.player.liveMode .playerbar.infuse,.player.showbar .playerbar.infuse{pointer-events:none!important}
 .playerbar.infuse .ovTop,.playerbar.infuse .ovBottom{position:absolute;left:0;right:0;pointer-events:none}
@@ -160,6 +160,24 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .ovCenter{gap:40px}
   .ovTitle{max-width:36%}
 }
+/* ===== v77: branded animated loader ===== */
+.loader{background:radial-gradient(circle at 50% 42%,rgba(20,38,64,.66),rgba(5,10,20,.82))!important}
+.m26load{display:flex;flex-direction:column;align-items:center;gap:22px}
+.m26orb{position:relative;width:132px;height:132px;display:grid;place-items:center}
+.m26ring{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,transparent 0deg,rgba(56,189,248,.05) 90deg,var(--blue) 300deg,var(--green) 355deg,transparent 360deg);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 5px));mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 5px));animation:m26spin 1.15s cubic-bezier(.5,.15,.5,.85) infinite}
+.m26ring.r2{inset:14px;background:conic-gradient(from 180deg,transparent 0deg,rgba(45,212,191,.04) 90deg,var(--green) 300deg,var(--blue) 355deg,transparent 360deg);animation:m26spin 1.7s linear reverse infinite;opacity:.75}
+.m26core{width:88px;height:88px;border-radius:26px;display:grid;place-items:center;background:radial-gradient(circle at 32% 28%,rgba(56,189,248,.22),rgba(9,17,31,.6));box-shadow:inset 0 0 0 1px rgba(255,255,255,.08),0 14px 40px rgba(56,189,248,.28);animation:m26breathe 1.9s ease-in-out infinite}
+.m26core span{font-size:40px;font-weight:900;letter-spacing:-2px;background:linear-gradient(135deg,#2fd3f2,#2dd4bf);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;filter:drop-shadow(0 4px 18px rgba(47,211,242,.55))}
+.m26dots{position:absolute;bottom:-2px;left:50%;transform:translateX(-50%);display:flex;gap:7px}
+.m26dots i{width:8px;height:8px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--green));animation:m26dot 1s ease-in-out infinite}
+.m26dots i:nth-child(2){animation-delay:.15s}.m26dots i:nth-child(3){animation-delay:.3s}
+.m26text{font-weight:850;font-size:15px;color:#dbeafe;letter-spacing:.3px;text-align:center;max-width:80vw}
+.m26bar{width:190px;height:5px;border-radius:5px;background:rgba(255,255,255,.1);overflow:hidden;position:relative}
+.m26bar span{position:absolute;top:0;left:0;height:100%;width:42%;border-radius:5px;background:linear-gradient(90deg,transparent,var(--blue),var(--green),transparent);animation:m26sweep 1.25s cubic-bezier(.5,.05,.5,.95) infinite}
+@keyframes m26spin{to{transform:rotate(360deg)}}
+@keyframes m26breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.07)}}
+@keyframes m26dot{0%,100%{transform:translateY(0);opacity:.45}50%{transform:translateY(-6px);opacity:1}}
+@keyframes m26sweep{0%{left:-45%}100%{left:100%}}
 /* quality popover above the bar */
 .qMenu{position:absolute;right:14px;bottom:70px;z-index:8;min-width:158px;max-height:250px;overflow-y:auto;background:rgba(12,20,36,.97);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);backdrop-filter:blur(18px)}
 .qMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;height:38px;padding:0 12px;border-radius:10px;background:transparent;color:var(--ink);font-weight:800;font-size:13px}
@@ -466,7 +484,16 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   </div>
 </div>
 <div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
-<div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
+<div class="loader" id="loader"><div class="m26load">
+  <div class="m26orb">
+    <div class="m26ring"></div>
+    <div class="m26ring r2"></div>
+    <div class="m26core"><span>26</span></div>
+    <div class="m26dots"><i></i><i></i><i></i></div>
+  </div>
+  <div class="m26text" id="loaderText">Loading…</div>
+  <div class="m26bar"><span></span></div>
+</div></div>
 <div class="episodeSheet" id="settingsSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Player settings</h3><button class="iconbtn" id="settingsClose">×</button></div>
   <div class="setSection"><label class="setLabel">Colour mode</label>
     <div class="chipRow" id="colourRow">
@@ -524,7 +551,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 const CHOOSER_KEY='media26-chooser-default-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='1.3';
+const APP_VERSION='1.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
