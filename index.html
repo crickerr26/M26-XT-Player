@@ -522,7 +522,9 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 /* v50: remembered "Always" choice from the Android-style player chooser. Empty = ask every
    time (chooser pops on each channel tap); a mode string = go straight to that player. */
 const CHOOSER_KEY='media26-chooser-default-v1';
-const APP_VERSION='v1';
+/* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
+   Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
+const APP_VERSION='1.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -608,19 +610,29 @@ async function fetchJsonChain(raw){
   const tries=blocked(S.url)?[]:[{u:raw,trusted:true}];
   for(const r of CORS_RELAYS)tries.push({u:r.mk(raw),trusted:r.trusted});
   let last='',lastTrusted='';
-  for(let i=0;i<tries.length;i++){
-    const {u,trusted}=tries[i];
-    try{
-      const r=await fetchWithTimeout(u,i===0?15000:12000);
-      if(!r.ok)throw Error('HTTP '+r.status);
-      const txt=await r.text();
-      if(!txt||!txt.trim())throw Error('Empty response');
-      return JSON.parse(txt);
-    }catch(e){
-      last=e.name==='TimeoutError'?'timed out':(e.message||'failed');
-      if(trusted)lastTrusted=last;
-      console.warn('[XT] fetch path '+(i+1)+'/'+tries.length+' failed:',u.slice(0,80),'-',last);
+  /* v73: AUTO-RETRY. The portal (and the CORS relays) occasionally drop or time out a request,
+     which used to make login fail so the user had to press Connect several times, and left
+     Movies/Series/Live only partly loaded. We now sweep every path up to 3 rounds with a short
+     backoff, so a transient hiccup self-heals instead of surfacing as a failure. A real auth
+     error (401/403 = wrong credentials) stops immediately — retrying can't fix bad creds. */
+  const ROUNDS=3;let auth=false;
+  for(let round=0;round<ROUNDS&&!auth;round++){
+    for(let i=0;i<tries.length;i++){
+      const {u,trusted}=tries[i];
+      try{
+        const r=await fetchWithTimeout(u,i===0?15000:12000);
+        if(!r.ok)throw Error('HTTP '+r.status);
+        const txt=await r.text();
+        if(!txt||!txt.trim())throw Error('Empty response');
+        return JSON.parse(txt);
+      }catch(e){
+        last=e.name==='TimeoutError'?'timed out':(e.message||'failed');
+        if(trusted)lastTrusted=last;
+        if(/HTTP 401|HTTP 403/.test(last)){auth=true;break;}
+        console.warn('[XT] fetch path '+(i+1)+'/'+tries.length+' (round '+(round+1)+') failed:',u.slice(0,80),'-',last);
+      }
     }
+    if(round<ROUNDS-1&&!auth)await new Promise(r=>setTimeout(r,600*(round+1)));
   }
   const main=lastTrusted||last;
   throw Error(/HTTP 401|HTTP 403/.test(lastTrusted)?'Login rejected — check username/password'
