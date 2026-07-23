@@ -91,6 +91,59 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .timeLabel{font-size:10px;min-width:30px}
   .liveBadge{height:24px;padding:0 8px;font-size:10px}
 }
+/* v69: Infuse/Apple-style player bar to match the reference — full-width red scrubber on top,
+   volume pill on the left, centered transport, quality + settings on the right. */
+.playerbar{gap:6px;padding:10px 12px;border-radius:16px}
+.barRow{gap:6px}
+.transport{display:flex;align-items:center;gap:12px}
+.round.big{width:48px;height:48px;background:rgba(255,255,255,.2)}
+.round.big:hover{background:rgba(255,255,255,.32)}
+.round.big svg{width:22px;height:22px}
+.volPill{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.12);border-radius:999px;padding:2px 12px 2px 2px;max-width:150px}
+.volPill .round.vol{width:34px;height:34px;background:transparent}
+.volPill .round.vol:hover{background:rgba(255,255,255,.18)}
+.volSlider{-webkit-appearance:none;appearance:none;width:78px;height:4px;border-radius:4px;background:rgba(255,255,255,.4);outline:none;cursor:pointer}
+.volSlider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:12px;height:12px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.volSlider::-moz-range-thumb{width:12px;height:12px;border:0;border-radius:50%;background:#fff}
+.qBtn{width:auto;min-width:44px;padding:0 12px;font-size:12px;font-weight:900;letter-spacing:.3px}
+/* red scrubber, matching the reference */
+.seekFill{background:linear-gradient(90deg,#ff3b30,#ff6a52)!important}
+.seekTrack::before{background:rgba(255,255,255,.30)}
+/* quality popover above the bar */
+.qMenu{position:absolute;right:14px;bottom:70px;z-index:8;min-width:158px;max-height:250px;overflow-y:auto;background:rgba(12,20,36,.97);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);backdrop-filter:blur(18px)}
+.qMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;height:38px;padding:0 12px;border-radius:10px;background:transparent;color:var(--ink);font-weight:800;font-size:13px}
+.qMenu button:hover{background:rgba(255,255,255,.08)}
+.qMenu button.active{background:rgba(56,189,248,.16);color:#eaf6ff}
+.qMenu button small{opacity:.55;font-weight:700}
+.qMenu button .qtick{opacity:0;color:var(--green);font-weight:900}
+.qMenu button.active .qtick{opacity:1}
+.qMenu .qHint{font-size:11px;color:var(--muted);padding:6px 12px 4px;line-height:1.35}
+/* player settings sheet: colour mode + equalizer */
+.setSection{margin-top:14px}
+.setLabel{display:block;font-size:12px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:9px}
+.chipRow{display:flex;flex-wrap:wrap;gap:8px}
+.chip{height:38px;padding:0 14px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);font-weight:800;font-size:13px}
+.chip.active{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}
+.eqBands{margin-top:12px;display:flex;flex-direction:column;gap:12px}
+.eqBand{display:grid;grid-template-columns:56px 1fr 34px;align-items:center;gap:12px}
+.eqBand>span{font-size:12px;font-weight:800;color:var(--soft)}
+.eqBand>b{font-size:12px;font-weight:900;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.eqBand input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:5px;background:rgba(255,255,255,.18);outline:none;cursor:pointer}
+.eqBand input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--green));box-shadow:0 1px 5px rgba(0,0,0,.5)}
+.eqBand input[type=range]::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:50%;background:var(--blue)}
+@media(max-width:760px){
+  .volPill{max-width:56px;padding-right:2px}
+  .volSlider{display:none}
+  .round.big{width:44px;height:44px}
+  .transport{gap:8px}
+  .qMenu{bottom:64px}
+  /* keep the bar from overflowing on phones: the external-launch button here duplicates the
+     player chooser, and the volume slider is redundant (iOS blocks web volume, Android uses
+     hardware keys), so both collapse away on small screens. */
+  #extBtn{display:none}
+  .barRow{gap:5px}
+  .round{width:36px;height:36px}
+}
 /* --- v19/v68: watermark logo, bottom-left. Owner wants it on the video at ALL times —
    on the preview/idle box, while playing, and in fullscreen. So the base opacity is now
    visible (not 0); it never fully hides while an item is open. */
@@ -267,16 +320,25 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
             <span class="timeLabel" id="durTime">0:00</span>
           </div>
           <div class="barRow">
-            <button class="round" id="playBtn" title="Play / Pause" aria-label="Play or pause"></button>
-            <button class="round" id="backBtn" title="Rewind 10s" aria-label="Rewind 10 seconds"></button>
-            <button class="round" id="forwardBtn" title="Forward 10s" aria-label="Forward 10 seconds"></button>
-            <span class="liveBadge hidden" id="liveBadge"><i class="liveDot"></i>LIVE</span>
+            <div class="volPill" id="volPill">
+              <button class="round vol" id="muteBtn" title="Mute / Unmute" aria-label="Mute or unmute"></button>
+              <input type="range" id="volSlider" class="volSlider" min="0" max="100" value="100" aria-label="Volume">
+            </div>
             <div class="grow"></div>
+            <div class="transport">
+              <button class="round" id="backBtn" title="Rewind 10s" aria-label="Rewind 10 seconds"></button>
+              <button class="round big" id="playBtn" title="Play / Pause" aria-label="Play or pause"></button>
+              <button class="round" id="forwardBtn" title="Forward 10s" aria-label="Forward 10 seconds"></button>
+              <span class="liveBadge hidden" id="liveBadge"><i class="liveDot"></i>LIVE</span>
+            </div>
+            <div class="grow"></div>
+            <button class="round qBtn" id="qualityBtn" title="Video quality" aria-label="Video quality">Auto</button>
             <button class="round" id="extBtn" title="Open in ExoPlayer / VLC" aria-label="Open in external player"></button>
-            <button class="round" id="muteBtn" title="Mute / Unmute" aria-label="Mute or unmute"></button>
             <button class="round" id="pipBtn" title="Picture in Picture" aria-label="Picture in picture"></button>
+            <button class="round" id="settingsBtn" title="Player settings" aria-label="Player settings"></button>
             <button class="round" id="fsBtn" title="Fullscreen" aria-label="Toggle fullscreen"></button>
           </div>
+          <div class="qMenu hidden" id="qMenu" role="menu" aria-label="Quality"></div>
         </div>
       </section>
       <section class="now"><div><h2 id="sectionTitle">Live Channels</h2><p id="sectionSub">0 items</p></div><div class="status" id="netStatus">Ready</div></section>
@@ -335,6 +397,32 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 </div>
 <div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div style="text-align:center"><div class="spin"></div><div id="loaderText" style="margin-top:12px;font-weight:850">Loading...</div></div></div>
+<div class="episodeSheet" id="settingsSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Player settings</h3><button class="iconbtn" id="settingsClose">×</button></div>
+  <div class="setSection"><label class="setLabel">Colour mode</label>
+    <div class="chipRow" id="colourRow">
+      <button class="chip" data-col="standard">Standard</button>
+      <button class="chip" data-col="cinema">Cinema</button>
+      <button class="chip" data-col="vivid">Vivid</button>
+      <button class="chip" data-col="cool">Cool</button>
+      <button class="chip" data-col="warm">Warm</button>
+    </div>
+  </div>
+  <div class="setSection"><label class="setLabel">Equalizer</label>
+    <div class="chipRow" id="eqRow">
+      <button class="chip" data-eq="flat">Flat</button>
+      <button class="chip" data-eq="bass">Bass boost</button>
+      <button class="chip" data-eq="vocal">Vocal</button>
+      <button class="chip" data-eq="treble">Treble</button>
+      <button class="chip" data-eq="live">Live</button>
+    </div>
+    <div class="eqBands">
+      <div class="eqBand"><span>Bass</span><input type="range" id="eqBass" min="-12" max="12" step="1" value="0"><b id="eqBassV">0</b></div>
+      <div class="eqBand"><span>Mid</span><input type="range" id="eqMid" min="-12" max="12" step="1" value="0"><b id="eqMidV">0</b></div>
+      <div class="eqBand"><span>Treble</span><input type="range" id="eqTreble" min="-12" max="12" step="1" value="0"><b id="eqTrebleV">0</b></div>
+    </div>
+    <p class="nativeText" id="eqNote" style="margin-top:8px">Colour mode and equalizer apply instantly to the built-in player.</p>
+  </div>
+</div></div>
 <div class="toast" id="toast"></div>
 <script>
 /* v34: relay endpoints are now overridable. When the page is served over HTTPS but the
@@ -392,7 +480,10 @@ const ICONS={
   menu:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>',
   theme:'<svg viewBox="0 0 24 24" width="18" height="18"><path d="M12 3a9 9 0 000 18z" fill="currentColor"/><circle cx="12" cy="12" r="8.3" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>',
   eye:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
-  eyeOff:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-4.2 4.9M6.3 6.3A15.5 15.5 0 0 0 2 12s3.6 7 10 7c1.4 0 2.6-.2 3.7-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>'
+  eyeOff:'<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.4 10.4 0 0 1 12 5c6.4 0 10 7 10 7a15.6 15.6 0 0 1-4.2 4.9M6.3 6.3A15.5 15.5 0 0 0 2 12s3.6 7 10 7c1.4 0 2.6-.2 3.7-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
+  settings:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+  airplay:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><polygon points="12 15 17 21 7 21 12 15" fill="currentColor" stroke="none"/></svg>',
+  quality:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>'
 };
 const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
@@ -944,10 +1035,16 @@ async function playItemBasic(x){
         S.ts.on(mpegts.Events.ERROR,()=>{if(token!==S.seq)return;startedB?reconnect():next()});
         S.ts.load();
       }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
-        /* v63: start nearer the live edge and prefetch the first fragment for a quicker start */
-        S.hls=new Hls({enableWorker:true,lowLatencyMode:false,liveSyncDurationCount:3,startFragPrefetch:true,maxBufferLength:30});
+        /* v63: start nearer the live edge and prefetch the first fragment for a quicker start.
+           v69: startLevel -1 = hls.js measures bandwidth and auto-picks the best quality your
+           connection can sustain at start; the quality menu can then pin a level manually. */
+        S.hls=new Hls({enableWorker:true,lowLatencyMode:false,liveSyncDurationCount:3,startFragPrefetch:true,maxBufferLength:30,startLevel:-1,abrEwmaDefaultEstimate:mobile()?1200000:4000000});
         S.hls.loadSource(p.url);S.hls.attachMedia(v);
         S.hls.on(Hls.Events.ERROR,(e,d)=>{if(token!==S.seq||!d||!d.fatal)return;startedB?reconnect():next()});
+        /* v69: quality menu — populate from the real variant list, honour a saved preference,
+           and keep the button label in sync as ABR/levels change. */
+        S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(token!==S.seq)return;applySavedQuality();refreshQualityUI();});
+        S.hls.on(Hls.Events.LEVEL_SWITCHED,()=>{if(token===S.seq)refreshQualityUI();});
       }else{
         v.src=p.url;v.load();
       }
@@ -996,6 +1093,12 @@ function forceMobileSmoothLevel(hls){
 }function liveBaseName(n){return String(n||'').toLowerCase().replace(/\b(4k|uhd|fhd|full\s*hd|1080p|720p|hd|sd|hq|hevc|h265|h\.265)\b/g,' ').replace(/[^a-z0-9]+/g,' ').trim()}
 function liveQualityRank(n){n=String(n||'').toLowerCase();if(/\b(sd|480p|576p)\b/.test(n))return 1;if(/\b(hd|720p)\b/.test(n))return 2;if(/\b(fhd|1080p|full\s*hd)\b/.test(n))return 3;if(/\b(4k|uhd)\b/.test(n))return 4;return 2}
 function liveAlternative(ch){if(typeOf(ch)!=='live')return null;const base=liveBaseName(nameOf(ch));if(!base)return null;const cat=String(ch.category_id||'');const currentKey=keyOf(ch);const tried=S.altTried||(S.altTried=new Set());return S.live.filter(x=>keyOf(x)!==currentKey&&!tried.has(keyOf(x))&&String(x.category_id||'')===cat&&liveBaseName(nameOf(x))===base).sort((a,b)=>liveQualityRank(a.name)-liveQualityRank(b.name))[0]||null}
+/* v69: all sibling live channels that are the same channel at a different quality (e.g.
+   "BeIN 1 SD", "BeIN 1 HD", "BeIN 1 FHD", "BeIN 1 4K"), keyed by quality tier. Used by the
+   on-bar quality picker so a user can jump a live channel to another resolution. */
+const TIER_RANK={sd:1,hd:2,fhd:3,'4k':4};
+function liveSiblings(ch){if(typeOf(ch)!=='live')return [];const base=liveBaseName(nameOf(ch));if(!base)return [];const cat=String(ch.category_id||'');const out=[ch];S.live.forEach(x=>{if(keyOf(x)!==keyOf(ch)&&String(x.category_id||'')===cat&&liveBaseName(nameOf(x))===base)out.push(x);});return out;}
+function liveSiblingByTier(ch,tier){const want=TIER_RANK[tier]||0;if(!want)return null;return liveSiblings(ch).find(x=>liveQualityRank(nameOf(x))===want)||null;}
 function smoothLiveStart(ch){/* v3: play EXACTLY the channel the user tapped — no silent SD/HD downgrade on mobile. If a 4K channel struggles, the existing liveAlternative() fallback still kicks in automatically after real failures. */return ch}
 async function tryLiveAlternative(msg){const alt=S.current&&liveAlternative(S.current);if(!alt)return false;S.altTried.add(keyOf(alt));toast('Trying '+nameOf(alt));await playItem(alt,true);return true}
 function plan(x){
@@ -1613,6 +1716,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;
   $('muteBtn').innerHTML=ICONS.unmuted;
   if($('extBtn'))$('extBtn').innerHTML=ICONS.external;
   $('pipBtn').innerHTML=ICONS.pip;
+  if($('settingsBtn'))$('settingsBtn').innerHTML=ICONS.settings;
   $('fsBtn').innerHTML=ICONS.fsEnter;
   $('menuBtn').innerHTML=ICONS.menu;
   $('themeBtn').innerHTML=ICONS.theme;
@@ -1623,6 +1727,108 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;
   if($('appVersionLine'))$('appVersionLine').textContent='Version v'+APP_VERSION;
 })();
 if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type==='password';inp.type=show?'text':'password';$('pwToggle').innerHTML=show?ICONS.eyeOff:ICONS.eye};
+/* ===================== v69: on-bar Quality picker =====================
+   Real per-stream switching where it exists: for HLS (multi-bitrate live and transcoded VOD)
+   we drive hls.js levels, with "Auto" = ABR picking the best your connection sustains. For raw
+   live channels that publish separate SD/HD/FHD/4K feeds, the picker hops to the sibling
+   channel. Single-file VOD has one quality, shown honestly. */
+const QUALITY_KEY='m26-quality';
+function savedQuality(){try{return store.getItem(QUALITY_KEY)||'auto'}catch(e){return 'auto'}}
+function hlsLevelLabel(lv){if(!lv)return 'Auto';const h=lv.height||0;if(h>=2000)return '4K';if(h>=1440)return '1440p';if(h>=1080)return '1080p';if(h>=720)return '720p';if(h>=576)return '576p';if(h>=480)return '480p';if(h)return h+'p';if(lv.bitrate)return Math.round(lv.bitrate/1000)+'k';return 'Auto';}
+function hlsTierName(lv){const h=lv&&lv.height||0;if(h>=1440)return '4K';if(h>=1080)return 'FHD';if(h>=720)return 'HD';return 'LQ';}
+function tierOf(name){const r=liveQualityRank(name);return r===4?'4K':r===3?'FHD':r===2?'HD':'SD';}
+function refreshQualityUI(){
+  const btn=$('qualityBtn');if(!btn)return;const q=savedQuality();
+  if(S.hls&&Array.isArray(S.hls.levels)&&S.hls.levels.length){
+    if(q==='auto'){const cur=S.hls.levels[S.hls.currentLevel];btn.textContent=cur?hlsTierName(cur):'Auto';}
+    else{const lv=S.hls.levels[parseInt(q,10)];btn.textContent=lv?hlsTierName(lv):'Auto';}
+  }else if(S.current&&typeOf(S.current)==='live'){btn.textContent=tierOf(nameOf(S.current));}
+  else{btn.textContent='Auto';}
+}
+function applySavedQuality(){const q=savedQuality();if(q==='auto'||!S.hls||!S.hls.levels||!S.hls.levels.length)return;const idx=parseInt(q,10);if(!isNaN(idx)&&S.hls.levels[idx])S.hls.currentLevel=idx;}
+function buildQualityMenu(){
+  const menu=$('qMenu');if(!menu)return;menu.innerHTML='';const q=savedQuality();
+  const add=(val,label,sub,active)=>{const b=document.createElement('button');b.dataset.q=val;b.innerHTML='<span>'+label+(sub?' <small>'+sub+'</small>':'')+'</span><span class="qtick">✓</span>';if(active)b.classList.add('active');b.onclick=()=>{applyQuality(val);closeQMenu();};menu.appendChild(b);};
+  if(S.hls&&Array.isArray(S.hls.levels)&&S.hls.levels.length){
+    add('auto','Auto','best for your line',q==='auto');
+    S.hls.levels.map((lv,i)=>i).sort((a,b)=>(S.hls.levels[b].height||0)-(S.hls.levels[a].height||0)).forEach(i=>add(String(i),hlsLevelLabel(S.hls.levels[i]),hlsTierName(S.hls.levels[i]),q===String(i)));
+    return;
+  }
+  if(S.current&&typeOf(S.current)==='live'){
+    add('auto','Auto','best available',q==='auto');let any=false;
+    [['4k','4K UHD'],['fhd','FHD 1080p'],['hd','HD 720p'],['sd','SD']].forEach(([t,label])=>{if(liveSiblingByTier(S.current,t)){any=true;add(t,label,'',q===t);}});
+    if(!any){const h=document.createElement('div');h.className='qHint';h.textContent='Only one quality is published for this channel.';menu.appendChild(h);}
+    return;
+  }
+  const h=document.createElement('div');h.className='qHint';h.textContent='This video is served at a single quality.';menu.appendChild(h);
+}
+function applyQuality(val){
+  try{store.setItem(QUALITY_KEY,val)}catch(e){}
+  if(S.hls&&Array.isArray(S.hls.levels)&&S.hls.levels.length){
+    if(val==='auto'){S.hls.currentLevel=-1;S.hls.loadLevel=-1;S.hls.nextLevel=-1;toast('Quality: Auto');}
+    else{const idx=parseInt(val,10);if(!isNaN(idx)){S.hls.currentLevel=idx;toast('Quality: '+hlsLevelLabel(S.hls.levels[idx]));}}
+    refreshQualityUI();return;
+  }
+  if(S.current&&typeOf(S.current)==='live'){
+    if(val==='auto'){refreshQualityUI();toast('Quality: Auto');return;}
+    const sib=liveSiblingByTier(S.current,val);
+    if(sib&&keyOf(sib)!==keyOf(S.current)){toast('Switching to '+nameOf(sib));playItem(sib);return;}
+    if(sib){refreshQualityUI();return;}
+    toast('That quality is not available for this channel');return;
+  }
+  refreshQualityUI();
+}
+function closeQMenu(){const m=$('qMenu');if(m)m.classList.add('hidden');}
+function toggleQMenu(){const m=$('qMenu');if(!m)return;if(m.classList.contains('hidden')){buildQualityMenu();m.classList.remove('hidden');}else m.classList.add('hidden');}
+if($('qualityBtn'))$('qualityBtn').onclick=e=>{e.stopPropagation();toggleQMenu();};
+document.addEventListener('click',e=>{const m=$('qMenu');if(m&&!m.classList.contains('hidden')&&!m.contains(e.target)&&e.target!==$('qualityBtn'))m.classList.add('hidden');});
+(function(){const v=$('video');if(v)v.addEventListener('playing',refreshQualityUI);})();
+
+/* ===================== v69: Colour mode + Equalizer (Sony-TV-style) =====================
+   Colour mode is pure CSS filters on the <video> — instant, reliable, and never touches the
+   decode path. The equalizer is a real Web-Audio 3-band graph, but it only spins up the audio
+   graph once the user picks a non-flat setting, so the default audio path stays untouched
+   (important on iOS, where re-routing MSE audio is delicate). Both persist across sessions. */
+const COLOUR_KEY='m26-colour',EQ_KEY='m26-eq';
+const COLOUR_FILTERS={standard:'none',cinema:'contrast(1.08) saturate(1.06) brightness(.95) sepia(.05)',vivid:'contrast(1.15) saturate(1.4) brightness(1.03)',cool:'contrast(1.05) saturate(1.08) brightness(1.02) hue-rotate(-10deg)',warm:'contrast(1.03) saturate(1.12) brightness(1) sepia(.18) hue-rotate(-6deg)'};
+function savedColour(){try{return store.getItem(COLOUR_KEY)||'standard'}catch(e){return 'standard'}}
+function applyColour(mode){const v=$('video');if(!v)return;const f=COLOUR_FILTERS[mode]||'none';v.style.filter=f==='none'?'':f;try{store.setItem(COLOUR_KEY,mode)}catch(e){}document.querySelectorAll('#colourRow .chip').forEach(b=>b.classList.toggle('active',b.dataset.col===mode));}
+let _actx=null,_eqNodes=null,_eqReady=false;
+const EQ_PRESETS={flat:[0,0,0],bass:[9,1,-1],vocal:[-3,6,2],treble:[-2,0,8],live:[4,2,5]};
+function ensureEq(){
+  if(_eqReady)return true;const v=$('video');if(!v)return false;
+  try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;
+    _actx=new AC();const src=_actx.createMediaElementSource(v);
+    const bass=_actx.createBiquadFilter();bass.type='lowshelf';bass.frequency.value=120;
+    const mid=_actx.createBiquadFilter();mid.type='peaking';mid.frequency.value=1200;mid.Q.value=1;
+    const treble=_actx.createBiquadFilter();treble.type='highshelf';treble.frequency.value=3200;
+    src.connect(bass);bass.connect(mid);mid.connect(treble);treble.connect(_actx.destination);
+    _eqNodes={bass,mid,treble};_eqReady=true;return true;
+  }catch(e){return false;}
+}
+function eqResume(){try{if(_actx&&_actx.state==='suspended')_actx.resume()}catch(e){}}
+function isFlat(g){return g[0]===0&&g[1]===0&&g[2]===0;}
+function savedEq(){try{const s=store.getItem(EQ_KEY);if(s){const a=JSON.parse(s);if(Array.isArray(a)&&a.length===3)return a.map(Number);}}catch(e){}return [0,0,0];}
+function setEqGains(g,persist){
+  if(!isFlat(g)){if(!ensureEq()){toast('Equalizer is not supported on this device');return;}eqResume();}
+  if(_eqReady){_eqNodes.bass.gain.value=g[0];_eqNodes.mid.gain.value=g[1];_eqNodes.treble.gain.value=g[2];}
+  if($('eqBass')){$('eqBass').value=g[0];$('eqMid').value=g[1];$('eqTreble').value=g[2];}
+  if($('eqBassV')){$('eqBassV').textContent=(g[0]>0?'+':'')+g[0];$('eqMidV').textContent=(g[1]>0?'+':'')+g[1];$('eqTrebleV').textContent=(g[2]>0?'+':'')+g[2];}
+  if(persist){try{store.setItem(EQ_KEY,JSON.stringify(g))}catch(e){}}
+  const match=Object.keys(EQ_PRESETS).find(k=>EQ_PRESETS[k].join(',')===g.join(','));
+  document.querySelectorAll('#eqRow .chip').forEach(b=>b.classList.toggle('active',b.dataset.eq===match));
+}
+if($('settingsBtn'))$('settingsBtn').onclick=()=>{$('settingsSheet').classList.add('show');};
+if($('settingsClose'))$('settingsClose').onclick=()=>$('settingsSheet').classList.remove('show');
+if($('settingsSheet'))$('settingsSheet').onclick=e=>{if(e.target.id==='settingsSheet')$('settingsSheet').classList.remove('show');};
+document.querySelectorAll('#colourRow .chip').forEach(b=>b.onclick=()=>applyColour(b.dataset.col));
+document.querySelectorAll('#eqRow .chip').forEach(b=>b.onclick=()=>setEqGains((EQ_PRESETS[b.dataset.eq]||[0,0,0]).slice(),true));
+['eqBass','eqMid','eqTreble'].forEach(id=>{const el=$(id);if(el)el.oninput=()=>setEqGains([+$('eqBass').value,+$('eqMid').value,+$('eqTreble').value],true);});
+if($('volSlider'))$('volSlider').oninput=()=>{const v=$('video'),val=+$('volSlider').value/100;try{v.volume=val}catch(e){}if(val>0&&v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;}};
+/* apply persisted prefs on load */
+applyColour(savedColour());
+(function(){const g=savedEq();if(isFlat(g)){setEqGains(g,false);}else{const arm=()=>{setEqGains(g,false);document.removeEventListener('pointerdown',arm);};document.addEventListener('pointerdown',arm,{once:true});}})();
+
 /* Seek/progress bar for VOD & Series — hidden for live via updateLiveControls(). Uses
    Pointer Events so mouse drag and touch drag share one code path with correct axis math
    (the STB prototype's scrub bar broke under a CSS rotate hack; this app has no such hack). */
