@@ -524,7 +524,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 const CHOOSER_KEY='media26-chooser-default-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='1.0';
+const APP_VERSION='1.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -620,7 +620,7 @@ async function fetchJsonChain(raw){
     for(let i=0;i<tries.length;i++){
       const {u,trusted}=tries[i];
       try{
-        const r=await fetchWithTimeout(u,i===0?15000:12000);
+        const r=await fetchWithTimeout(u,i===0?25000:20000);   /* v74: bigger window for large catalogs */
         if(!r.ok)throw Error('HTTP '+r.status);
         const txt=await r.text();
         if(!txt||!txt.trim())throw Error('Empty response');
@@ -671,18 +671,35 @@ async function login(){
   catch(e){$('err').textContent=e.message||'Could not connect'}finally{load(false)}
 }
 async function refreshAll(){
-  load(true,'Loading channels...');
-  const [lc,lv]=await Promise.all([getJson('get_live_categories').catch(()=>[]),getJson('get_live_streams').catch(()=>[])]);
-  S.liveCats=lc||[];S.live=(lv||[]).map(x=>({...x,_type:'live'}));
-  $('liveCount').textContent=S.live.length.toLocaleString();renderAll();
-  /* v63: stop blocking the moment live is ready — the whole catalog no longer holds up the
-     main loading screen. Movies and Series load together in the BACKGROUND (in parallel, not
-     one-after-another), so the app is usable immediately and switching tabs doesn't reload. */
+  /* v74: load Live, Movies AND Series ALL IN PARALLEL. The old code awaited live first, so a
+     slow/failing live fetch (made longer by the new auto-retry) blocked the whole thing on
+     "Loading channels…" and Movies/Series — which only started AFTER that await — never ran.
+     Now each type loads on its own and renders the moment its data arrives; nothing blocks
+     anything else, and the loading screen is capped so it can never hang. */
+  load(true,'Loading…');
+  S.loadingLive=S.loadingVod=S.loadingSeries=true;renderAll();
+  const one=(catAction,strmAction,type,countId)=>Promise.all([getJson(catAction).catch(()=>[]),getJson(strmAction).catch(()=>[])])
+    .then(([c,s])=>{
+      const arr=(s||[]).map(x=>({...x,_type:type}));
+      if(type==='live'){S.liveCats=c||[];S.live=arr;}
+      else if(type==='vod'){S.vodCats=c||[];S.vod=arr;}
+      else{S.seriesCats=c||[];S.series=arr;}
+    })
+    .catch(()=>{})
+    .finally(()=>{
+      if(type==='live')S.loadingLive=false;else if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
+      const n=(type==='live'?S.live:type==='vod'?S.vod:S.series).length;
+      if($(countId))$(countId).textContent=n.toLocaleString();
+      renderAll();
+    });
+  const liveP=one('get_live_categories','get_live_streams','live','liveCount');
+  const vodP=one('get_vod_categories','get_vod_streams','vod','vodCount');
+  const serP=one('get_series_categories','get_series','series','seriesCount');
+  S._catalog=Promise.allSettled([liveP,vodP,serP]);
+  /* drop the loading screen as soon as the FIRST type is ready (or after 9s), so it never
+     sits stuck; the other tabs keep filling in the background. */
+  await Promise.race([liveP,vodP,serP,new Promise(r=>setTimeout(r,9000))]);
   load(false);
-  await Promise.all([
-    Promise.all([getJson('get_vod_categories').catch(()=>[]),getJson('get_vod_streams').catch(()=>[])]).then(([vc,vv])=>{S.vodCats=vc||[];S.vod=(vv||[]).map(x=>({...x,_type:'vod'}));$('vodCount').textContent=S.vod.length.toLocaleString();renderAll()}),
-    Promise.all([getJson('get_series_categories').catch(()=>[]),getJson('get_series').catch(()=>[])]).then(([sc,ss])=>{S.seriesCats=sc||[];S.series=(ss||[]).map(x=>({...x,_type:'series'}));$('seriesCount').textContent=S.series.length.toLocaleString();renderAll()})
-  ]).catch(()=>{});
 }
 function renderAll(){renderCats();renderGrid();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
 function renderCats(){
@@ -704,7 +721,8 @@ function baseFiltered(){const q=S.q.toLowerCase().trim();return list().filter(x=
 function ordered(arr){const order=S.orders[S.tab]||[],pos=new Map(order.map((k,i)=>[k,i]));return arr.slice().sort((a,b)=>(pos.has(keyOf(a))?pos.get(keyOf(a)):999999)-(pos.has(keyOf(b))?pos.get(keyOf(b)):999999))}
 function filtered(){const base=baseFiltered();if(S.cat==='__recent'){const pos=new Map(S.recent.map((k,i)=>[k,i]));return base.slice().sort((a,b)=>(pos.get(keyOf(a))??999999)-(pos.get(keyOf(b))??999999))}return ordered(base)}
 function moveItem(k,dir){const arr=filtered(),keys=arr.map(keyOf),i=keys.indexOf(k),j=i+dir;if(i<0||j<0||j>=keys.length)return;[keys[i],keys[j]]=[keys[j],keys[i]];const old=S.orders[S.tab]||[];S.orders[S.tab]=[...keys,...old.filter(x=>!keys.includes(x))];saveOrders();renderGrid();toast('Order saved')}
-function renderGrid(){const arr=filtered();$('sectionSub').textContent=arr.length.toLocaleString()+' items';$('grid').innerHTML=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="reorder"><button class="move" type="button" data-move="-1" data-key="${esc(keyOf(x))}" title="Move up">↑</button><button class="move" type="button" data-move="1" data-key="${esc(keyOf(x))}" title="Move down">↓</button></div><button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div>`}).join('')||'<div style="color:var(--muted);padding:18px">No items found.</div>'}
+function renderGrid(){const arr=filtered();$('sectionSub').textContent=arr.length.toLocaleString()+' items';$('grid').innerHTML=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="reorder"><button class="move" type="button" data-move="-1" data-key="${esc(keyOf(x))}" title="Move up">↑</button><button class="move" type="button" data-move="1" data-key="${esc(keyOf(x))}" title="Move down">↓</button></div><button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div>`}).join('')||(tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'…</div>':'<div style="color:var(--muted);padding:18px">No items found.</div>')}
+function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.loadingVod:!!S.loadingSeries}
 function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
 async function openEpisodePicker(x){load(true,'Loading episodes...');try{const d=await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);$('episodeList').innerHTML=eps.map((ep,i)=>`<button class="episodeBtn" data-ep="${i}"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></button>`).join('');$('episodeSheet').classList.add('show');$('episodeList').onclick=e=>{const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
