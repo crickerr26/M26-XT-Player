@@ -490,7 +490,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = the built-in Media26 player on every device (VLC-style buffering, one steady connection, no external app needed). Pick VLC or another app here only if you prefer external playback.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = ask which player to use each time (the popup). Pick a specific player here to always open that category in it — no popup.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -566,7 +566,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='2.2';
+const APP_VERSION='2.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1476,13 +1476,16 @@ async function playItem(item,fromAlternative=false){
      alternate-quality retries (fromAlternative) never re-ask and keep the current player.
      NOTE: this only decides WHICH player runs — it never touches the playback engines. */
   if(!fromAlternative){
-    /* v85: if the user tapped "Always" for THIS content type, skip the popup and open straight
-       in that player. Otherwise show the popup (per type). */
-    const forced=chooserDefault(typeOf(x));
-    if(forced){await routePlayback(x,forced,false);return;}
+    /* v86: the "Player per category" setting (Stream tools) is the single source of truth.
+       - a specific player (VLC / Infuse / Built-in / ...) opens STRAIGHT in it, no popup
+       - 'auto' or 'exo' (App chooser) shows the popup
+       Picking "Always" in the popup writes back to this same setting, so both stay in sync. */
+    const pm=(S.playerModes&&S.playerModes[typeOf(x)])||'auto';
+    if(pm!=='auto'&&pm!=='exo'){await routePlayback(x,pm==='browser'?'basic':pm,false);return;}
     cleanup();prePreview(x);showPlayerChooser(x);return;
   }
-  await routePlayback(x,chooserDefault(typeOf(x))||resolvedPlayer(typeOf(x)),true);
+  const rpm=(S.playerModes&&S.playerModes[typeOf(x)])||'auto';
+  await routePlayback(x,(rpm==='auto'||rpm==='exo')?'basic':(rpm==='browser'?'basic':rpm),true);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the chooser can
    call it too. No engine/playback logic lives here. */
@@ -1563,8 +1566,9 @@ function showPlayerChooser(x){
   $('chooserTitle').textContent='Open '+nameOf(x);
   $('chooserSub').textContent='Choose which player opens this channel';
   $('chooserOnce').disabled=true;$('chooserAlways').disabled=true;
-  /* v83/v85: pre-select this type's saved default if any, else the recommended player. */
-  let saved=chooserDefault(typeOf(x));
+  /* v86: pre-select this type's saved player (from Player-per-category) if set, else the
+     recommended one. 'browser' maps back to the Basic option. */
+  let saved=(S.playerModes&&S.playerModes[typeOf(x)])||'';if(saved==='browser')saved='basic';if(saved==='auto'||saved==='exo')saved='';
   const opts=playerOptions(typeOf(x));
   let preIdx=opts.findIndex(o=>o.mode===saved);
   if(preIdx<0)preIdx=opts.findIndex(o=>o.rec);
@@ -1584,9 +1588,16 @@ function showPlayerChooser(x){
 function chooserResolve(save){
   const x=_chooserItem,mode=_chooserPick||'browser';
   $('chooserModal').classList.remove('show');
-  /* v85: "Always" saves the default for THIS content type only (Movies/Live/Series each get
-     their own), so that type stops asking. "Just once" plays now and asks again next time. */
-  if(save&&x){setChooserDefault(typeOf(x),mode);toast('Always using '+playerLabel(mode)+' for '+(typeOf(x)==='live'?'Live TV':typeOf(x)==='vod'?'Movies':'Series'))}
+  /* v86: "Always" saves the player for THIS content type into the SAME "Player per category"
+     setting the Stream-tools dropdown uses — so that type stops asking AND the dropdown reflects
+     it. "Just once" plays now and asks again next time. */
+  if(save&&x){
+    const t=typeOf(x),pmVal=(mode==='basic'?'browser':mode);
+    S.playerModes[t]=pmVal;try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}
+    const sel=$(t==='live'?'modeLive':t==='vod'?'modeVod':'modeSeries');
+    if(sel){if(!sel.querySelector('option[value="'+pmVal+'"]')){const o=document.createElement('option');o.value=pmVal;o.textContent=playerLabel(mode);sel.appendChild(o)}sel.value=pmVal;}
+    toast('Always using '+playerLabel(mode)+' for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series'));
+  }
   if(!x)return;
   /* v64: route external players through the normal handoff, which honours the connection-slot
      release gate. v59 launched VLC instantly from this tap and skipped that gate — on a
@@ -2373,7 +2384,7 @@ if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').c
 if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
 if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
-if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){clearChooserDefaults();$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
+if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes={live:'auto',vod:'auto',series:'auto'};try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}clearChooserDefaults();['modeLive','modeVod','modeSeries'].forEach(id=>{const s=$(id);if(s)s.value='auto'});$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
 restore();renderAll();warmTranscoder();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
