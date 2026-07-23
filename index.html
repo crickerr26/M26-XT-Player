@@ -554,7 +554,7 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
 const CHOOSER_KEY='media26-chooser-default-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='1.7';
+const APP_VERSION='1.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1133,9 +1133,21 @@ async function playItemBasic(x){
       :isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
   }else{
+    /* v81: Movies/Series — give playback several shots so a title actually plays in the built-in
+       player instead of dead-ending. Order: the listed container, then the .mp4 remux endpoint
+       (panels often serve a browser-friendly stream there even when the movie is listed as
+       mkv/avi, which browsers can't decode), then mpegts on the raw stream, then a transcoded
+       HLS if a transcoder is configured. */
+    const cont=String(x.container_extension||'mp4').toLowerCase();
     const direct=String(x.direct_source||x.stream_url||'').trim();
-    const u=wrap(direct||directUrl(x,String(x.container_extension||'mp4')));
-    plans=[{kind:u.includes('.m3u8')?'hls':'native',url:u}];
+    plans=[];
+    const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
+    if(direct){const du=wrap(direct);addv(du.includes('.m3u8')?'hls':'native',du);}
+    addv('native',wrap(directUrl(x,'mp4')));                 /* browser-friendly remux endpoint first */
+    if(cont!=='mp4')addv('native',wrap(directUrl(x,cont)));  /* then the exact listed container */
+    if(tsOk)addv('mpegts',wrap(directUrl(x,'ts')));          /* some VOD plays as raw TS via mpegts.js */
+    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tu=transcodeUrl(externalStreamUrl(x),'vod');if(tu)addv('hls',tu);}}catch(e){}
+    if(!plans.length)addv('native',wrap(directUrl(x,cont)));
   }
   let idx=0,startedB=false;
   /* v65: keep-alive state. Dedicated IPTV apps stay up because they RECONNECT the moment a
@@ -1255,10 +1267,12 @@ async function playItemBasic(x){
        the safety net that was missing — before, a stalled engine that never fired an error
        just sat on "Loading". */
     if(!startedB){
-      /* v72: give Movies/Series a longer budget — a large VOD file over the proxy can take a
-         while to buffer its first frame, and killing it at 22s produced the "Stream stopped —
-         did not load" screen on movies that would have started a few seconds later. */
-      if(attachAt&&now-attachAt>(live?14000:40000))next();
+      /* v81: fail-fast through fallback candidates so playback reaches a format the browser can
+         actually play quickly; only the LAST candidate gets the long grace period for a big file
+         to buffer its first frame. */
+      const last=idx>=plans.length-1;
+      const budget=live?14000:(last?35000:11000);
+      if(attachAt&&now-attachAt>budget)next();
     }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
     /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
        then buffer at the new spot — that is NOT a stall. Without this guard the watchdog fired
