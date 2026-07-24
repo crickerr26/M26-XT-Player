@@ -197,6 +197,53 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .rowActions{gap:4px}
   .qp{height:30px;min-width:30px;padding:0 6px;font-size:10px}
 }
+/* ===================== v89: Home hub (post-login landing) ===================== */
+.home{position:fixed;inset:0;z-index:15;display:grid;place-items:center;overflow:hidden;padding:24px max(18px,env(safe-area-inset-left)) calc(24px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.16),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),radial-gradient(circle at 50% 108%,rgba(45,212,191,.16),transparent 46%),linear-gradient(160deg,#0a1220,#0d1a2e 55%,#0a1220)}
+.home.hidden{display:none}
+.home-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.home-bg span{position:absolute;border-radius:50%;filter:blur(40px);opacity:.5;animation:homeFloat 15s ease-in-out infinite}
+.home-bg span:nth-child(1){width:300px;height:300px;left:-70px;top:6%;background:radial-gradient(circle,#38bdf8,transparent 70%)}
+.home-bg span:nth-child(2){width:250px;height:250px;right:-50px;top:20%;background:radial-gradient(circle,#a855f7,transparent 70%);animation-delay:-4s}
+.home-bg span:nth-child(3){width:280px;height:280px;left:18%;bottom:-70px;background:radial-gradient(circle,#2dd4bf,transparent 70%);animation-delay:-8s}
+.home-bg span:nth-child(4){width:210px;height:210px;right:12%;bottom:4%;background:radial-gradient(circle,#f59e0b,transparent 70%);animation-delay:-2s}
+@keyframes homeFloat{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(26px,-32px) scale(1.08)}66%{transform:translate(-22px,22px) scale(.94)}}
+.home-inner{position:relative;z-index:1;width:min(780px,100%);display:flex;flex-direction:column;align-items:center;gap:26px}
+.home-head{text-align:center;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
+.home-brand{width:68px;height:68px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(45,212,191,.14));display:grid;place-items:center;box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08);animation:homeBrandPulse 3s ease-in-out infinite}
+.home-brand img{width:72%;height:72%;object-fit:contain}
+.home-head h1{font-size:clamp(22px,5.2vw,32px);font-weight:900;letter-spacing:-.6px;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.home-head p{margin-top:6px;color:#93a7c7;font-size:14px;font-weight:600}
+.home-cards{width:100%;display:grid;grid-template-columns:1fr;gap:14px}
+.home-card{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;text-align:left;padding:20px;border-radius:22px;border:1px solid rgba(255,255,255,.1);color:#fff;min-height:106px;box-shadow:0 18px 40px rgba(0,0,0,.35);transition:transform .18s ease,box-shadow .18s ease;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
+.home-card:nth-child(1){animation-delay:.06s}.home-card:nth-child(2){animation-delay:.14s}.home-card:nth-child(3){animation-delay:.22s}
+.home-card:active{transform:scale(.975)}
+@media(hover:hover){.home-card:hover{transform:translateY(-4px);box-shadow:0 26px 56px rgba(0,0,0,.46)}}
+.hc-live{background:linear-gradient(135deg,#2563eb,#38bdf8 58%,#22d3ee)}
+.hc-vod{background:linear-gradient(135deg,#7c3aed,#a855f7 54%,#ec4899)}
+.hc-series{background:linear-gradient(135deg,#0d9488,#14b8a6 52%,#f59e0b)}
+.hc-ic{flex-shrink:0;width:64px;height:64px;border-radius:18px;background:rgba(255,255,255,.17);display:grid;place-items:center;animation:hcIconFloat 3.6s ease-in-out infinite}
+.home-card:nth-child(2) .hc-ic{animation-delay:-1.2s}.home-card:nth-child(3) .hc-ic{animation-delay:-2.4s}
+.hc-ic svg{width:36px;height:36px;color:#fff}
+.hc-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+.hc-txt b{font-size:22px;font-weight:900;letter-spacing:-.3px}
+.hc-txt small{font-size:13px;opacity:.92;font-weight:700}.hc-txt small i{font-style:normal;font-weight:900}
+.hc-arrow{font-size:24px;font-weight:900;opacity:.85;flex-shrink:0;transition:transform .18s ease}
+@media(hover:hover){.home-card:hover .hc-arrow{transform:translateX(5px)}}
+.hc-shine{position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.3),transparent);transform:skewX(-18deg);animation:hcShine 5s ease-in-out infinite;pointer-events:none}
+.home-card:nth-child(2) .hc-shine{animation-delay:-1.6s}.home-card:nth-child(3) .hc-shine{animation-delay:-3.2s}
+.home-exit{margin-top:4px;height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800;animation:homeRise .7s ease .3s both}
+@keyframes homeRise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes hcIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes hcShine{0%,100%{left:-60%}46%,54%{left:118%}}
+@keyframes homeBrandPulse{0%,100%{box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08)}50%{box-shadow:0 12px 54px rgba(56,189,248,.5),inset 0 0 0 1px rgba(255,255,255,.18)}}
+@media(min-width:720px){
+  .home-cards{grid-template-columns:repeat(3,1fr)}
+  .home-card{flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:210px;gap:16px}
+  .hc-arrow{position:absolute;right:18px;top:18px}
+}
+body.light .home{background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.2),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),linear-gradient(160deg,#eef5ff,#e4edfb)}
+body.light .home-head h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+body.light .home-head p{color:#5a6f90}
 /* quality popover above the bar */
 .qMenu{position:absolute;right:14px;bottom:70px;z-index:8;min-width:158px;max-height:250px;overflow-y:auto;background:rgba(12,20,36,.97);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);backdrop-filter:blur(18px)}
 .qMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;height:38px;padding:0 12px;border-radius:10px;background:transparent;color:var(--ink);font-weight:800;font-size:13px}
@@ -470,6 +517,37 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
     </aside>
   </div>
 </div>
+<div class="home hidden" id="home">
+  <div class="home-bg"><span></span><span></span><span></span><span></span></div>
+  <div class="home-inner">
+    <div class="home-head">
+      <div class="home-brand"><img src="image_482ee8.png" alt="Media26"></div>
+      <h1>What do you want to watch?</h1>
+      <p>Pick a category to get started</p>
+    </div>
+    <div class="home-cards">
+      <button class="home-card hc-live" data-go="live">
+        <span class="hc-shine"></span>
+        <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg></span>
+        <span class="hc-txt"><b>Live TV</b><small><i id="homeLiveCount">—</i> channels</small></span>
+        <span class="hc-arrow">→</span>
+      </button>
+      <button class="home-card hc-vod" data-go="vod">
+        <span class="hc-shine"></span>
+        <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg></span>
+        <span class="hc-txt"><b>Movies</b><small><i id="homeVodCount">—</i> titles</small></span>
+        <span class="hc-arrow">→</span>
+      </button>
+      <button class="home-card hc-series" data-go="series">
+        <span class="hc-shine"></span>
+        <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></span>
+        <span class="hc-txt"><b>Series</b><small><i id="homeSeriesCount">—</i> shows</small></span>
+        <span class="hc-arrow">→</span>
+      </button>
+    </div>
+    <button class="home-exit" id="homeExit">Log out</button>
+  </div>
+</div>
 <div class="login" id="login">
   <span class="versionBadge login-version">vv1</span>
   <div class="login-card">
@@ -581,7 +659,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='2.6';
+const APP_VERSION='2.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -725,9 +803,13 @@ async function login(){
   if(ui.status&&!/^active$/i.test(String(ui.status)))toast('Account status: '+ui.status);
   const _act=parseInt(ui.active_cons||'0',10),_max=parseInt(ui.max_connections||'1',10)||1;
   if(_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
-  saveCreds();await refreshAll();$('login').classList.add('hidden');toast('Playlist loaded')}
+  saveCreds();$('login').classList.add('hidden');showHome();await refreshAll();updateHomeCounts();toast('Playlist loaded')}
   catch(e){$('err').textContent=e.message||'Could not connect'}finally{load(false)}
 }
+/* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
+function updateHomeCounts(){if($('homeLiveCount'))$('homeLiveCount').textContent=(S.live.length||0).toLocaleString();if($('homeVodCount'))$('homeVodCount').textContent=(S.vod.length||0).toLocaleString();if($('homeSeriesCount'))$('homeSeriesCount').textContent=(S.series.length||0).toLocaleString();}
+function showHome(){updateHomeCounts();if($('home'))$('home').classList.remove('hidden');}
+function goCategory(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}}
 /* v75: load ONE catalog type at a time. Firing all of Live+Movies+Series at once made the
    portal/relay drop the concurrent requests, so only Live came back and Movies/Series stayed
    empty. Now each type is its own request set, loaded sequentially, and also loadable ON DEMAND
@@ -751,6 +833,7 @@ async function loadType(type){
     if(type==='live')S.loadingLive=false;else if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
     const n=(type==='live'?S.live:type==='vod'?S.vod:S.series).length;
     if($(countId))$(countId).textContent=n.toLocaleString();
+    if(typeof updateHomeCounts==='function')updateHomeCounts();
     renderAll();
   }
 }
@@ -2016,7 +2099,11 @@ function downloadCurrent(){
   document.body.appendChild(a);a.click();a.remove();
   toast('Downloading “'+fname+'” — check your Downloads / Files app');
 }
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};
+/* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
+if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
+if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();$('login').classList.remove('hidden')};
+(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
    for live TV keep the clean auto-hide after 1.8s. */
 /* v79: consistent auto-hiding controls (like Infuse). Tap the video to reveal them; they fade
    out together after a few seconds of no interaction while playing, and stay up while paused or
