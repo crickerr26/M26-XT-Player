@@ -97,6 +97,19 @@ async function handleProxy(request) {
       headers: responseHeaders
     });
   }
+  /* FIX (v3.9): the proxied URL carries no file extension, so Safari's native <video> decides
+     whether it can play a movie purely from the Content-Type header. Xtream panels routinely serve
+     VOD files as application/octet-stream (or text/html), which Safari refuses — so EVERY movie
+     failed in the browser while external apps (which hit the file directly) played fine. Derive the
+     correct media MIME from the target file extension and set it, so the browser recognises the
+     stream as playable video/audio. */
+  const EXT_MIME = { mp4:'video/mp4', m4v:'video/mp4', mov:'video/quicktime', m4s:'video/iso.segment',
+    ts:'video/mp2t', mkv:'video/x-matroska', webm:'video/webm', avi:'video/x-msvideo', flv:'video/x-flv',
+    ogv:'video/ogg', '3gp':'video/3gpp', mpg:'video/mpeg', mpeg:'video/mpeg',
+    mp3:'audio/mpeg', aac:'audio/aac', m4a:'audio/mp4', ogg:'audio/ogg', flac:'audio/flac', wav:'audio/wav' };
+  const extM = /\.([a-z0-9]{2,4})(?:$|\?)/i.exec(target.pathname + target.search);
+  const ext = extM ? extM[1].toLowerCase() : '';
+  if (EXT_MIME[ext]) responseHeaders.set('content-type', EXT_MIME[ext]);
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
