@@ -777,7 +777,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='3.8';
+const APP_VERSION='3.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1173,7 +1173,7 @@ function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'aut
    installed player (Just Player, Kodi, mpv, ...) so nothing is locked out. */
 const EXTERNAL_MODES=['exo','vlc','mx','infuse','nplayer'];
 function isExternalMode(m){return EXTERNAL_MODES.includes(m)}
-function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX Player';if(mode==='infuse')return'Infuse';if(mode==='nplayer')return'nPlayer';if(mode==='basic')return'Basic player';if(mode==='exo')return deviceKind()==='android'?'your player':'VLC';return'browser'}
+function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX Player';if(mode==='infuse')return'Infuse';if(mode==='nplayer')return'nPlayer';if(mode==='basic')return'Media26 Player';if(mode==='exo')return deviceKind()==='android'?'your player':'VLC';return'browser'}
 /* v23: live streams handed to VLC/external apps now use HLS (.m3u8) instead of raw .ts.
    A raw .ts stream is ONE long HTTP connection — any server hiccup or timeout kills it
    and the player goes black after a few minutes with no way to recover. HLS is fetched
@@ -1463,7 +1463,7 @@ async function playItemBasic(x){
   $('stateTitle').textContent='Loading';
   $('stateText').textContent=nameOf(x);
   $('overlay').style.display='grid';
-  $('netStatus').textContent='Basic player';$('miniMeta').textContent='Loading';
+  $('netStatus').textContent='Media26 Player';$('miniMeta').textContent='Loading';
   /* neutralize any handlers the full player left on the element — basic mode means NOTHING
      reacts to waiting/stalled events */
   v.onwaiting=null;v.onstalled=null;v.onsuspend=null;v.ontimeupdate=null;
