@@ -812,7 +812,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='4.6';
+const APP_VERSION='4.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2487,14 +2487,18 @@ function downloadCurrent(){
   if(!raw){toast('No downloadable file for this title');return}
   /* always fetch through the SAME-ORIGIN proxy: browsers only honour the download filename for
      same-origin links; a cross-origin one would just open/stream in the browser instead. */
-  const url=(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
   let ext=String(x.container_extension||'').replace(/^\./,'').toLowerCase();
   if(!ext){const m=raw.split('?')[0].match(/\.([a-z0-9]{2,4})$/i);ext=m?m[1].toLowerCase():'mp4';}
   const fname=safeFileName(nameOf(x))+'.'+ext;
+  /* v4.7: hand the download to the browser's NATIVE download manager (dl=1 makes the proxy send
+     Content-Disposition: attachment). On iPhone that means Safari's Downloads — it runs in the
+     BACKGROUND and, because the proxy forwards byte-range requests, it PAUSES on a network drop and
+     resumes when you're back online instead of failing. Same on Android/desktop. */
+  const url=(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw)+'&dl=1&name='+encodeURIComponent(fname);
   const a=document.createElement('a');
   a.href=url;a.download=fname;a.rel='noopener';
   document.body.appendChild(a);a.click();a.remove();
-  toast('Downloading “'+fname+'” — check your Downloads / Files app');
+  toast('Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
 $('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};
 /* v4.1: share-profile wiring */

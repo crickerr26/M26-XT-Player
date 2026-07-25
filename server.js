@@ -381,6 +381,16 @@ function relayFetch(target, req, res, hops) {
     const em = /\.([a-z0-9]{2,4})(?:$|\?)/i.exec((t.pathname || '') + (t.search || ''));
     const ex = em ? em[1].toLowerCase() : '';
     if (EXT_MIME[ex]) outHeaders['content-type'] = EXT_MIME[ex];
+    /* v4.7: dl=1 → download as an attachment (native download manager: background + resume). */
+    try {
+      const rq = new URL(req.url, `http://${req.headers.host}`).searchParams;
+      if (rq.get('dl')) {
+        const raw = rq.get('name') || ('video.' + (ex || 'mp4'));
+        const safe = raw.replace(/[\r\n"\\]/g, '').replace(/[^\w.\-() ]+/g, '_').slice(0, 120) || 'video';
+        outHeaders['content-disposition'] = 'attachment; filename="' + safe + '"';
+        if (!outHeaders['accept-ranges']) outHeaders['accept-ranges'] = 'bytes';
+      }
+    } catch (e) {}
     res.writeHead(up.statusCode, outHeaders);
     up.pipe(res);
   });

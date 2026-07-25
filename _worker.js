@@ -110,6 +110,16 @@ async function handleProxy(request) {
   const extM = /\.([a-z0-9]{2,4})(?:$|\?)/i.exec(target.pathname + target.search);
   const ext = extM ? extM[1].toLowerCase() : '';
   if (EXT_MIME[ext]) responseHeaders.set('content-type', EXT_MIME[ext]);
+  /* v4.7: download mode. dl=1 tells the browser to SAVE the file (attachment) instead of playing it,
+     which hands it to the native download manager — background + auto pause/resume on network drops.
+     accept-ranges must be exposed so the downloader can resume with byte-range requests. */
+  const q = new URL(request.url).searchParams;
+  if (q.get('dl')) {
+    const raw = q.get('name') || ('video.' + (ext || 'mp4'));
+    const safe = raw.replace(/[\r\n"\\]/g, '').replace(/[^\w.\-() ]+/g, '_').slice(0, 120) || 'video';
+    responseHeaders.set('content-disposition', 'attachment; filename="' + safe + '"');
+    if (!responseHeaders.get('accept-ranges')) responseHeaders.set('accept-ranges', 'bytes');
+  }
   return new Response(upstream.body, {
     status: upstream.status,
     statusText: upstream.statusText,
