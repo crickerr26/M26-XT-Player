@@ -77,6 +77,12 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .infoPlot{margin-top:12px;font-size:13.5px;line-height:1.55;color:var(--soft)}
 .infoActions{position:sticky;bottom:0;display:grid;grid-template-columns:1fr auto;gap:8px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--panel) 34%)}
 .infoActions .pillbtn{height:46px;justify-content:center}
+/* Share-profile QR (v4.1) */
+.shareQrWrap{display:flex;justify-content:center;margin:6px 0 12px}
+.shareQr{width:212px;height:212px;padding:12px;border-radius:16px;background:#fff;display:grid;place-items:center;box-shadow:0 12px 30px rgba(0,0,0,.35)}
+.shareQr img,.shareQr canvas{width:100%!important;height:100%!important;display:block;image-rendering:pixelated}
+.shareQr .shareQrFallback{color:#0b1b33;font-size:12px;font-weight:800;text-align:center;padding:8px}
+#shareCodeBox,#pairCodeBox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;letter-spacing:.3px;word-break:break-all}
 .cats::-webkit-scrollbar,.grid::-webkit-scrollbar,.details::-webkit-scrollbar,.episodeList::-webkit-scrollbar{width:7px}
 .cats::-webkit-scrollbar-thumb,.grid::-webkit-scrollbar-thumb,.details::-webkit-scrollbar-thumb,.episodeList::-webkit-scrollbar-thumb{background:rgba(148,180,215,.35);border-radius:8px}
 .cats::-webkit-scrollbar-thumb:hover,.grid::-webkit-scrollbar-thumb:hover,.details::-webkit-scrollbar-thumb:hover,.episodeList::-webkit-scrollbar-thumb:hover{background:rgba(148,180,215,.6)}
@@ -650,7 +656,8 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
     <div class="field"><label>Username</label><input id="user" autocomplete="username"></div>
     <div class="field"><label>Password</label><div class="pwWrap"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="pwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
-    <button class="pillbtn primary" id="loginBtn">Connect and load playlist</button><div class="err" id="err"></div>
+    <button class="pillbtn primary" id="loginBtn">Connect and load playlist</button>
+    <button class="pillbtn" id="loginPairBtn" style="width:100%;margin-top:8px">Load from another device</button><div class="err" id="err"></div>
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
@@ -737,6 +744,24 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </div>
     <p class="nativeText" id="eqNote" style="margin-top:8px">Colour mode and equalizer apply instantly to the built-in player.</p>
   </div>
+  <div class="setSection"><label class="setLabel">Share profile</label>
+    <p class="nativeText" style="margin:2px 0 8px">Set up Media26 on another device without typing anything. Scan the code (or type it) on the other phone and its playlist loads automatically.</p>
+    <button class="pillbtn primary" id="shareOpenBtn" style="width:100%">Share to another device</button>
+  </div>
+</div></div>
+<div class="episodeSheet" id="shareSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Share to another device</h3><button class="iconbtn" id="shareClose">×</button></div>
+  <p class="nativeText">On the other phone, open Media26 and tap <b>“Load from another device”</b>, then scan this code with its camera or type the code below. Share it with one device you trust — anyone with the code can load this playlist.</p>
+  <div class="shareQrWrap"><div id="shareQr" class="shareQr"></div></div>
+  <div class="field nativeField"><label>Share code</label><input id="shareCodeBox" readonly autocomplete="off" spellcheck="false"></div>
+  <div class="nativeActions"><button class="pillbtn primary" id="shareCopy">Copy code</button><button class="pillbtn" id="shareCancel">Done</button></div>
+</div></div>
+<div class="episodeSheet" id="pairSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Load from another device</h3><button class="iconbtn" id="pairClose">×</button></div>
+  <p class="nativeText">Paste the share code from your other phone (or scan its QR with your camera to open it automatically). Your playlist will load here.</p>
+  <div class="field nativeField"><label>Share code</label><input id="pairCodeBox" placeholder="M26…" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
+  <div class="err" id="pairErr" style="min-height:0"></div>
+  <div class="nativeActions"><button class="pillbtn primary" id="pairLoad">Load playlist</button><button class="pillbtn" id="pairCancel">Cancel</button></div>
 </div></div>
 <div class="toast" id="toast"></div>
 <script>
@@ -777,7 +802,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='4.0';
+const APP_VERSION='4.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -910,6 +935,55 @@ function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
 function saveOrders(){store.setItem(ORDER,JSON.stringify(S.orders))}
 function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)].slice(0,30);store.setItem(RECENT,JSON.stringify(S.recent))}
+/* ===== Share profile between devices (v4.1) =====
+   The share code carries the portal + username + password in a compact base64url blob, so scanning
+   or typing it on another phone loads that playlist with zero typing (Cast4K-style). A QR of a deep
+   link (origin/#p=CODE) lets the other phone's plain camera open the app already paired. */
+function makeShareCode(){
+  const payload={u:S.url||normalize($('url').value||''),n:(S.user||$('user').value||'').trim(),p:(S.pass||$('pass').value||''),t:Date.now(),v:1};
+  if(!payload.u||!payload.n||payload.p==='')throw Error('Log in first, then share.');
+  const b64=btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  return 'M26'+b64.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+function parseShareCode(raw){
+  let s=String(raw||'').trim();
+  const m=s.match(/[#?&]p=([^&\s]+)/);if(m)s=decodeURIComponent(m[1]);   /* accept a full deep link too */
+  if(/^M26/.test(s))s=s.slice(3);
+  s=s.replace(/-/g,'+').replace(/_/g,'/');while(s.length%4)s+='=';
+  let o;try{o=JSON.parse(decodeURIComponent(escape(atob(s))))}catch(e){throw Error('That code is not valid.')}
+  if(!o||!o.u||!o.n||o.p==null)throw Error('That code is not valid.');
+  return o;
+}
+let _qrLibLoading=null;
+function loadQrLib(){
+  if(window.QRCode)return Promise.resolve(true);
+  if(_qrLibLoading)return _qrLibLoading;
+  _qrLibLoading=new Promise(res=>{
+    const urls=['https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js','https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js'];
+    let i=0;const tryNext=()=>{if(i>=urls.length){res(false);return}const sc=document.createElement('script');sc.src=urls[i++];sc.onload=()=>res(!!window.QRCode);sc.onerror=tryNext;document.head.appendChild(sc);};tryNext();
+  });
+  return _qrLibLoading;
+}
+async function openShare(){
+  let code;try{code=makeShareCode()}catch(e){toast(e.message);return}
+  if($('shareCodeBox'))$('shareCodeBox').value=code;
+  $('shareSheet').classList.add('show');
+  const box=$('shareQr');if(!box)return;box.innerHTML='<div class="shareQrFallback">Loading QR…</div>';
+  const link=location.origin+'/#p='+encodeURIComponent(code);
+  const ok=await loadQrLib();
+  if(ok&&window.QRCode){box.innerHTML='';try{new QRCode(box,{text:link,width:188,height:188,correctLevel:QRCode.CorrectLevel.M});}catch(e){box.innerHTML='<div class="shareQrFallback">Type the code below on the other device.</div>';}}
+  else{box.innerHTML='<div class="shareQrFallback">No internet for the QR — type the code below on the other device.</div>';}
+}
+async function importFromCode(raw){
+  const o=parseShareCode(raw);   /* throws with a friendly message on bad input */
+  S.url=normalize(o.u);S.user=String(o.n).trim();S.pass=String(o.p);
+  if($('url'))$('url').value=S.url;if($('user'))$('user').value=S.user;if($('pass'))$('pass').value=S.pass;
+  saveCreds();
+  ['shareSheet','pairSheet'].forEach(id=>{if($(id))$(id).classList.remove('show')});
+  try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}
+  await login();
+}
+function openPairSheet(prefill){if($('pairErr'))$('pairErr').textContent='';if($('pairCodeBox'))$('pairCodeBox').value=prefill||'';$('pairSheet').classList.add('show');setTimeout(()=>{try{$('pairCodeBox').focus()}catch(e){}},60);}
 async function login(){
   $('err').textContent='';
   try{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const info=await fetchJsonChain(accountUrl());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');
@@ -2364,6 +2438,16 @@ function downloadCurrent(){
   toast('Downloading “'+fname+'” — check your Downloads / Files app');
 }
 $('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};
+/* v4.1: share-profile wiring */
+if($('shareOpenBtn'))$('shareOpenBtn').onclick=()=>openShare();
+if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove('show');
+if($('shareCancel'))$('shareCancel').onclick=()=>$('shareSheet').classList.remove('show');
+if($('shareCopy'))$('shareCopy').onclick=()=>{const v=$('shareCodeBox')&&$('shareCodeBox').value;if(!v)return;try{navigator.clipboard.writeText(v);toast('Share code copied')}catch(e){toast('Copy failed — long-press the code to select')}};
+if($('loginPairBtn'))$('loginPairBtn').onclick=()=>openPairSheet('');
+if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
+if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
+if($('pairLoad'))$('pairLoad').onclick=async()=>{const code=$('pairCodeBox')&&$('pairCodeBox').value;if($('pairErr'))$('pairErr').textContent='';try{await importFromCode(code)}catch(e){if($('pairErr'))$('pairErr').textContent=e.message||'Could not load that code.'}};
+['shareSheet','pairSheet'].forEach(id=>{const s=$(id);if(s)s.onclick=e=>{if(e.target.id===id)s.classList.remove('show')}});
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
 /* v90: categories page interactions */
@@ -2812,6 +2896,9 @@ if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
 if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes={live:'auto',vod:'auto',series:'auto'};try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}clearChooserDefaults();['modeLive','modeVod','modeSeries'].forEach(id=>{const s=$(id);if(s)s.value='auto'});$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
 restore();renderAll();warmTranscoder();
+/* v4.1: if the app was opened from a shared QR / deep link (origin/#p=CODE), auto-load that
+   playlist — the receiving device pairs with one tap, no typing. */
+(function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]p=([^&\s]+)/);if(m&&m[1]){const code=decodeURIComponent(m[1]);setTimeout(()=>{importFromCode(code).catch(err=>{if($('login'))$('login').classList.remove('hidden');openPairSheet(code);if($('pairErr'))$('pairErr').textContent=(err&&err.message)||'Could not load that code.';});},200);}}catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
    nPlayer on iOS — so each user only sees choices that can actually launch on their phone. */
