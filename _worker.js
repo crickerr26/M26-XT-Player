@@ -103,9 +103,16 @@ async function handleProxy(request) {
      failed in the browser while external apps (which hit the file directly) played fine. Derive the
      correct media MIME from the target file extension and set it, so the browser recognises the
      stream as playable video/audio. */
+  /* v5.0: use PERMISSIVE video/mp4 for container extensions the browser's <video> would otherwise
+     REFUSE (mkv/avi/wmv/…). Panels often label a perfectly playable H.264/AAC file as .mkv; telling
+     the browser video/x-matroska made iOS reject it outright, even though the same bytes play fine
+     when downloaded. video/mp4 makes AVFoundation actually load and sniff the file — so mislabeled
+     titles now play natively in the preview. A genuinely-incompatible file still errors and falls
+     through to the transcoder. */
   const EXT_MIME = { mp4:'video/mp4', m4v:'video/mp4', mov:'video/quicktime', m4s:'video/iso.segment',
-    ts:'video/mp2t', mkv:'video/x-matroska', webm:'video/webm', avi:'video/x-msvideo', flv:'video/x-flv',
-    ogv:'video/ogg', '3gp':'video/3gpp', mpg:'video/mpeg', mpeg:'video/mpeg',
+    ts:'video/mp2t', mkv:'video/mp4', webm:'video/webm', avi:'video/mp4', flv:'video/mp4',
+    wmv:'video/mp4', vob:'video/mp4', divx:'video/mp4', m2ts:'video/mp4', mpg:'video/mp4', mpeg:'video/mp4',
+    ogv:'video/ogg', '3gp':'video/3gpp',
     mp3:'audio/mpeg', aac:'audio/aac', m4a:'audio/mp4', ogg:'audio/ogg', flac:'audio/flac', wav:'audio/wav' };
   const extM = /\.([a-z0-9]{2,4})(?:$|\?)/i.exec(target.pathname + target.search);
   const ext = extM ? extM[1].toLowerCase() : '';
