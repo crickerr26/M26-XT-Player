@@ -376,8 +376,9 @@ function relayFetch(target, req, res, hops) {
     /* v3.9: derive a correct media Content-Type from the file extension so the browser's native
        <video> recognises a proxied movie as playable (panels often send octet-stream). */
     const EXT_MIME = { mp4:'video/mp4', m4v:'video/mp4', mov:'video/quicktime', ts:'video/mp2t',
-      mkv:'video/x-matroska', webm:'video/webm', avi:'video/x-msvideo', flv:'video/x-flv',
-      mpg:'video/mpeg', mpeg:'video/mpeg', mp3:'audio/mpeg', aac:'audio/aac', m4a:'audio/mp4' };
+      mkv:'video/mp4', webm:'video/webm', avi:'video/mp4', flv:'video/mp4', wmv:'video/mp4',
+      vob:'video/mp4', divx:'video/mp4', m2ts:'video/mp4', mpg:'video/mp4', mpeg:'video/mp4',
+      mp3:'audio/mpeg', aac:'audio/aac', m4a:'audio/mp4' };
     const em = /\.([a-z0-9]{2,4})(?:$|\?)/i.exec((t.pathname || '') + (t.search || ''));
     const ex = em ? em[1].toLowerCase() : '';
     if (EXT_MIME[ex]) outHeaders['content-type'] = EXT_MIME[ex];
