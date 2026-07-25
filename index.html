@@ -655,7 +655,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = built-in preview player (tapping a name plays there). Pick a specific app to send that whole category to it instead. VLC is not offered for Live TV because it drops live channels mid-view; use the per-row app buttons for one-off launches.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Pre-configured with a free transcoder — change or clear it anytime.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="exo">App chooser (VLC / Media26 ...)</option><option value="vlc">VLC</option><option value="browser">Built-in player (default)</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto = built-in preview player (tapping a name plays there). Pick a specific app to send that whole category to it instead. VLC is not offered for Live TV because it drops live channels mid-view; use the per-row app buttons for one-off launches.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><p class="nativeText" style="margin-top:6px">Comes pre-set with a shared transcoder so unplayable formats convert automatically. For your own always-fast server, one-click deploy from the project README and paste its https URL here.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -731,7 +731,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='3.2';
+const APP_VERSION='3.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1453,7 +1453,13 @@ async function playItemBasic(x){
     if($('stateProgress'))$('stateProgress').classList.add('hidden');
     if($('stateThumb')){const th=logoOf(x);if(th){$('stateThumb').src=th;$('stateThumb').classList.remove('hidden')}}
     $('stateTitle').textContent='Open in a video app';
-    $('stateText').textContent='This title’s format can’t play in the browser. Tap a player below to watch it.';
+    /* v3.3: this dead-end only happens when the device can't decode the format AND no transcoder
+       is set. If one WERE set, the auto-fallback would have converted it in-app. So nudge the user
+       to set one up once — after that these titles play in the built-in player automatically. */
+    const hasTrans=(typeof transcoderBase==='function')&&transcoderBase();
+    $('stateText').textContent=hasTrans
+      ? 'This title’s format can’t play in the browser. Tap a player below to watch it.'
+      : 'This title’s format needs converting. Set up your Media26 Transcoder once (Stream Tools) and titles like this play right here — automatically. Or tap a player below for now.';
     $('netStatus').textContent='Needs an app';$('miniMeta').textContent='Open in app';
     const d=deviceKind(),ids={vlc:'extVlc',mx:'extMx',exo:'extExo',infuse:'extInfuse',nplayer:'extNplayer'};
     ['extVlc','extMx','extExo','extInfuse','extNplayer'].forEach(id=>{const el=$(id);if(el)el.style.display='none'});
@@ -1501,6 +1507,10 @@ async function playItemBasic(x){
   const attach=p=>{
     if(token!==S.seq)return;
     attachAt=Date.now();   /* v67: for the start-timeout watchdog below */
+    /* v3.3: when the auto-fallback reaches the transcoder route, say so — the first play of a
+       title spins up FFmpeg for a few seconds, and a labelled wait reads far better than a blank
+       "Loading". Detected by the /hls? transcoder endpoint shape. */
+    if(p.kind==='hls'&&/\/hls\?/.test(p.url||'')){if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Converting for your device';$('stateText').textContent='Preparing '+nameOf(x)+' — the first few seconds are the converter warming up…';}
     /* v85: resume Movies/Series from where they were left this session (in-memory, so a refresh
        or force-close starts fresh). Seek once the media knows its duration. */
     if(!live){const ra=(S.resume&&S.resume[keyOf(x)])||0;if(ra>5){const rs=()=>{try{if((v.currentTime||0)<1.5)v.currentTime=ra}catch(e){}v.removeEventListener('loadedmetadata',rs)};v.addEventListener('loadedmetadata',rs);}}
@@ -1563,8 +1573,12 @@ async function playItemBasic(x){
       /* v3.2: adaptive start budget so we reach the route that actually works FAST.
          A candidate that has received NO bytes (wrong endpoint / codec rejected) is a dead end —
          abandon it in ~6.5s. One that IS buffering gets a longer grace to fill its first frame. */
+      /* v3.3: the transcoder route needs a much longer grace — a free-tier server can COLD START
+         (~30-50s) and FFmpeg then needs a few seconds to emit the first HLS segments. Give it that
+         room so first-play-after-idle succeeds instead of being cut off. */
+      const cp=plans[idx],isTrans=cp&&cp.kind==='hls'&&/\/hls\?/.test(cp.url||'');
       const gotData=v.readyState>=2||(v.buffered&&v.buffered.length>0);
-      const budget=live?14000:(last?35000:(gotData?13000:6500));
+      const budget=isTrans?70000:(live?14000:(last?35000:(gotData?13000:6500)));
       if(attachAt&&now-attachAt>budget)next();
     }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
     /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
