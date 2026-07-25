@@ -811,7 +811,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='4.3';
+const APP_VERSION='4.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1620,20 +1620,32 @@ async function playItemBasic(x){
        normal titles that the browser CAN play were being sent the slow way round. If a title truly
        can't decode, we fall to the external-app option quickly instead of converting. */
     const mp4u=wrap(directUrl(x,'mp4')),m3u=wrap(directUrl(x,'m3u8')),tsu=wrap(directUrl(x,'ts')),lcu=wrap(directUrl(x,cont));
+    /* the transcoder repackage URL (fastvod = copy video, no slow re-encode) if a transcoder is set */
+    let transUrl='';try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function')transUrl=transcodeUrl(externalStreamUrl(x),'fastvod')||'';}catch(e){}
+    /* v4.4: containers the browser physically can't open (MKV/AVI/WMV/…). We KNOW these can't play
+       natively, so don't waste attempts probing them — go STRAIGHT to the transcoder automatically,
+       no user selection. Native stays only as a last-ditch in case the panel serves a real mp4. */
+    const UNPLAYABLE=/^(mkv|avi|wmv|flv|vob|divx|ogm|mpg|mpeg|m2ts|rm|rmvb|3gp|ts)$/;
+    const cantOpen=UNPLAYABLE.test(cont);
     plans=[];
     const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
     if(direct){const du=wrap(direct);addv(du.includes('.m3u8')?'hls':'native',du);}
-    addv('native',mp4u);                                    /* fast path — plays instantly like before */
-    if(cont!=='mp4')addv('native',lcu);                     /* exact listed container */
-    if(isApple){if(hlsUsable)addv('hls',m3u);if(tsOk)addv('mpegts',tsu);}
-    else{if(tsOk)addv('mpegts',tsu);if(hlsUsable)addv('hls',m3u);}
-    /* v3.8 — SECOND ENGINE. When every native route above fails, a title's container/codec is one
-       the browser genuinely can't open (usually MKV). Rather than dead-end, repackage it through the
-       transcoder's FAST 'fastvod' profile (COPY video — no slow re-encode — just re-wrap + fix audio)
-       and play the result right here in the built-in <video>. It runs SILENTLY (plain "Loading", no
-       "converting" text, no player-chooser) and only after the instant native routes, so titles the
-       browser CAN play are never sent this way. */
-    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tu=transcodeUrl(externalStreamUrl(x),'fastvod');if(tu)addv('hls',tu);}}catch(e){}
+    if(cantOpen){
+      /* MKV & friends: transcoder FIRST (auto), then the panel's own HLS remux if it has one, then a
+         raw-TS remux, and native only as a last-ditch. No doomed native-file probes up front. */
+      if(transUrl)addv('hls',transUrl);
+      if(hlsUsable)addv('hls',m3u);
+      if(tsOk)addv('mpegts',tsu);
+      addv('native',mp4u);
+    }else{
+      /* browser-openable containers: native FIRST (instant, like before), remux routes next, and the
+         transcoder as the final safety net (e.g. HEVC-in-mp4 the device can't decode). */
+      addv('native',mp4u);
+      if(cont!=='mp4')addv('native',lcu);
+      if(isApple){if(hlsUsable)addv('hls',m3u);if(tsOk)addv('mpegts',tsu);}
+      else{if(tsOk)addv('mpegts',tsu);if(hlsUsable)addv('hls',m3u);}
+      if(transUrl)addv('hls',transUrl);
+    }
     if(!plans.length)addv('native',lcu);
   }
   let idx=0,startedB=false;
