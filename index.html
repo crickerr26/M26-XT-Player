@@ -86,6 +86,7 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .tStatus[data-state="checking"]{color:#38bdf8}
 .tStatus[data-state="online"]{color:#22c55e;background:rgba(34,197,94,.12);border-color:rgba(34,197,94,.35)}
 .tStatus[data-state="offline"]{color:#f87171;background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.35)}
+.tStatus[data-state="outdated"]{color:#fbbf24;background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.4)}
 /* Share-profile QR (v4.1) */
 .shareQrWrap{display:flex;justify-content:center;margin:6px 0 12px}
 .shareQr{width:212px;height:212px;padding:12px;border-radius:16px;background:#fff;display:grid;place-items:center;box-shadow:0 12px 30px rgba(0,0,0,.35)}
@@ -811,7 +812,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='4.5';
+const APP_VERSION='4.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1236,11 +1237,20 @@ async function testTranscoder(){
   if(!$('transcoderStatus'))return;
   if(!base){setTStatus('offline','No transcoder URL set');return;}
   setTStatus('checking','Checking…');
-  const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),30000);const t0=Date.now();
+  const ctrl=new AbortController();const to=setTimeout(()=>ctrl.abort(),30000);
   try{
     const r=await fetch(base.replace(/\/+$/,'')+'/health',{cache:'no-store',signal:ctrl.signal});
     clearTimeout(to);
-    if(r.ok){const ms=Date.now()-t0;setTStatus('online',ms>4000?'Online (just woke up)':'Online — MKV will play');}
+    if(r.ok){
+      let data=null;try{data=await r.json()}catch(e){}
+      /* v4.6: green ONLY when the server can actually do the fast copy-mode ('fastvod'). An old
+         build answers /health but lacks it — it would try a slow full re-encode and movies hang.
+         Say so plainly so the user redeploys the current server instead of staring at "Loading". */
+      const fast=!!(data&&Array.isArray(data.profiles)&&data.profiles.indexOf('fastvod')>=0);
+      S.transFast=fast;
+      if(fast)setTStatus('online','Online — MKV will play');
+      else setTStatus('outdated','Online but OUTDATED — redeploy so MKV plays fast');
+    }
     else setTStatus('offline','Reachable but error '+r.status);
   }catch(e){clearTimeout(to);setTStatus('offline',(e&&e.name==='AbortError')?'No response — server asleep or down':'Offline / unreachable');}
 }

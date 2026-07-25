@@ -477,7 +477,9 @@ const server = http.createServer(async (req, res) => {
     // --- END API ROUTES ---
  
     if (u.pathname === '/health') {
-      return json(res, 200, { ok: true, sessions: sessions.size });
+      /* Report capabilities so the app can tell a CURRENT server (fast copy-mode MKV) from an old
+         one. 'fastvod' is the quick copy-video profile; its presence here means MKV plays fast. */
+      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, profiles: ['fastvod', 'vod', 'remux', 'copy', 'audio'] });
     }
 
     // Same-origin CORS relay: /proxy?url=<encoded target>. index.html tries this
