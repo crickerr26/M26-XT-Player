@@ -164,7 +164,14 @@ function profileArgs(profile, wm) {
 }
  
 function inputArgs(profile, url) {
-  const liveTuning = (profile === 'live' || profile === 'remux') ? [
+  /* fastvod is the "quick play" repackage path — copy the video, don't re-encode. Keep the input
+     probe SMALL so FFmpeg emits the first segment almost immediately instead of analysing seconds of
+     the file first. */
+  const liveTuning = (profile === 'fastvod') ? [
+    '-fflags', '+genpts+discardcorrupt+nobuffer',
+    '-analyzeduration', '1000000',
+    '-probesize', '1500000'
+  ] : (profile === 'live' || profile === 'remux') ? [
     '-fflags', '+genpts+discardcorrupt',
     '-analyzeduration', '2500000',
     '-probesize', '5000000'
@@ -186,9 +193,12 @@ function inputArgs(profile, url) {
  
 function hlsArgs(profile, dir, playlist) {
   const live = profile === 'live' || profile === 'remux';
+  /* fastvod keeps a full seekable playlist (not live) but uses SHORT 2s segments so the very first
+     one is ready — and playback can begin — in ~2s of copied content instead of a 6s segment. */
+  const seg = (live || profile === 'fastvod') ? '2' : '6';
   return [
     '-f', 'hls',
-    '-hls_time', live ? '2' : '6',
+    '-hls_time', seg,
     '-hls_list_size', live ? '15' : '0',
     '-hls_delete_threshold', live ? '4' : '1',
     '-hls_flags', live
@@ -275,16 +285,19 @@ function start(url, profile = 'mobile') {
 async function waitForPlaylist(session, ms = 30000) {
   const file = session.playlist;
   const startAt = Date.now();
+  /* fastvod: return as soon as the FIRST segment exists — native HLS starts on one segment while
+     the rest are still being written, shaving a couple seconds off the perceived load time. */
+  const need = session.profile === 'fastvod' ? 1 : 2;
   while (Date.now() - startAt < ms) {
     if (session.exited && !fs.existsSync(file)) return false;
     if (fs.existsSync(file)) {
       try {
         const content = fs.readFileSync(file, 'utf8');
         const segments = (content.match(/#EXTINF:/g) || []).length;
-        if (segments >= 2 || content.includes('#EXT-X-ENDLIST')) return true;
+        if (segments >= need || content.includes('#EXT-X-ENDLIST')) return true;
       } catch (e) {}
     }
-    await new Promise(resolve => setTimeout(resolve, 250));
+    await new Promise(resolve => setTimeout(resolve, 150));
   }
   return false;
 }
