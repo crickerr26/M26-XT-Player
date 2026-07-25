@@ -244,6 +244,56 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 body.light .home{background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.2),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),linear-gradient(160deg,#eef5ff,#e4edfb)}
 body.light .home-head h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 body.light .home-head p{color:#5a6f90}
+/* ===== Categories page (v2.8) — a beautiful full-screen list shown after tapping a Home card ===== */
+.catpage{position:fixed;inset:0;z-index:16;overflow:hidden;padding:calc(16px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 0 max(14px,env(safe-area-inset-right));background:linear-gradient(165deg,#0a1220,#0d1a2e 55%,#0a1220)}
+.catpage.hidden{display:none}
+.catpage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(var(--cp-rgb),.20),transparent 42%),radial-gradient(circle at 88% 96%,rgba(var(--cp-rgb),.14),transparent 44%)}
+.catpage.theme-live{--cp-a:#38bdf8;--cp-b:#2563eb;--cp-rgb:56,189,248}
+.catpage.theme-vod{--cp-a:#c084fc;--cp-b:#7c3aed;--cp-rgb:168,85,247}
+.catpage.theme-series{--cp-a:#2dd4bf;--cp-b:#0d9488;--cp-rgb:45,212,191}
+.cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
+.cp-head{display:flex;align-items:center;gap:12px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) both}
+.cp-back{flex-shrink:0;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
+.cp-back svg{width:22px;height:22px}
+.cp-back:active{transform:scale(.92)}
+@media(hover:hover){.cp-back:hover{background:rgba(255,255,255,.12)}}
+.cp-titlewrap{display:flex;align-items:center;gap:13px;min-width:0}
+.cp-ic{flex-shrink:0;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--cp-b),var(--cp-a));box-shadow:0 10px 26px rgba(var(--cp-rgb),.42)}
+.cp-ic svg{width:30px;height:30px}
+.cp-tt{min-width:0}
+.cp-tt h1{font-size:clamp(21px,5vw,28px);font-weight:900;letter-spacing:-.5px;line-height:1.05;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-tt p{margin-top:2px;color:#8fa5c6;font-size:12.5px;font-weight:700}
+.cp-searchwrap{position:relative;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) .05s both}
+.cp-searchic{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:#7f93b4;pointer-events:none}
+.cp-searchwrap input{width:100%;height:46px;padding:0 14px 0 40px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:#eaf1fb;font-size:14px;font-weight:600}
+.cp-searchwrap input:focus{outline:none;border-color:var(--cp-a);box-shadow:0 0 0 3px rgba(var(--cp-rgb),.18)}
+.cp-searchwrap input::placeholder{color:#7f93b4}
+.cp-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:1fr;gap:10px;padding:2px 2px calc(20px + env(safe-area-inset-bottom))}
+.cp-cat{position:relative;overflow:hidden;display:flex;align-items:center;gap:14px;padding:14px 15px;border-radius:16px;background:linear-gradient(120deg,rgba(255,255,255,.055),rgba(255,255,255,.025));border:1px solid rgba(255,255,255,.09);color:#eaf1fb;text-align:left;animation:cpIn .45s cubic-bezier(.2,.8,.2,1) both;transition:transform .15s ease,border-color .15s ease,background .15s ease}
+.cp-cat::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--cp-a),var(--cp-b));opacity:.9}
+.cp-cat:active{transform:scale(.985)}
+@media(hover:hover){.cp-cat:hover{background:linear-gradient(120deg,rgba(var(--cp-rgb),.16),rgba(255,255,255,.03));border-color:rgba(var(--cp-rgb),.4);transform:translateY(-2px)}}
+.cp-cat.active{border-color:var(--cp-a);background:linear-gradient(120deg,rgba(var(--cp-rgb),.2),rgba(255,255,255,.04))}
+.cp-cbadge{flex-shrink:0;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:15px;color:#fff;background:linear-gradient(135deg,rgba(var(--cp-rgb),.85),rgba(var(--cp-rgb),.45))}
+.cp-cbadge svg{width:21px;height:21px}
+.cp-cn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cp-cn b{font-size:15px;font-weight:800;letter-spacing:-.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-cn small{font-size:11.5px;font-weight:700;color:#8ea3c4}
+.cp-count{flex-shrink:0;min-width:34px;height:26px;padding:0 9px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:900;color:#cfe0f6;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1)}
+.cp-star{flex-shrink:0;width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:17px;line-height:1;color:#61759a;background:transparent}
+.cp-star.on{color:#fbbf24}
+.cp-star:active{transform:scale(.85)}
+.cp-chev{flex-shrink:0;color:#5c7098;font-size:20px;font-weight:800}
+@keyframes cpIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:720px){.cp-list{grid-template-columns:1fr 1fr}}
+body.light .catpage{background:linear-gradient(165deg,#eef5ff,#e4edfb)}
+body.light .cp-tt h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+body.light .cp-tt p{color:#5a6f90}
+body.light .cp-back{background:rgba(20,50,90,.06);border-color:rgba(20,50,90,.14);color:#22539c}
+body.light .cp-searchwrap input{background:rgba(20,50,90,.05);border-color:rgba(20,50,90,.12);color:#12325a}
+body.light .cp-cat{background:linear-gradient(120deg,rgba(20,50,90,.05),rgba(20,50,90,.02));border-color:rgba(20,50,90,.1);color:#12325a}
+body.light .cp-cn small{color:#5a6f90}
+body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rgba(20,50,90,.1)}
 /* quality popover above the bar */
 .qMenu{position:absolute;right:14px;bottom:70px;z-index:8;min-width:158px;max-height:250px;overflow-y:auto;background:rgba(12,20,36,.97);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);backdrop-filter:blur(18px)}
 .qMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;height:38px;padding:0 12px;border-radius:10px;background:transparent;color:var(--ink);font-weight:800;font-size:13px}
@@ -548,6 +598,25 @@ body.light .home-head p{color:#5a6f90}
     <button class="home-exit" id="homeExit">Log out</button>
   </div>
 </div>
+<div class="catpage hidden" id="catpage">
+  <div class="home-bg"><span></span><span></span><span></span><span></span></div>
+  <div class="cp-inner">
+    <div class="cp-head">
+      <button class="cp-back" id="catBack" aria-label="Back to home">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="cp-titlewrap">
+        <span class="cp-ic" id="catIcon"></span>
+        <div class="cp-tt"><h1 id="catHeading">Live TV</h1><p id="catSub">— categories</p></div>
+      </div>
+    </div>
+    <div class="cp-searchwrap">
+      <svg class="cp-searchic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="catSearch" placeholder="Search categories…" autocomplete="off">
+    </div>
+    <div class="cp-list" id="catList"></div>
+  </div>
+</div>
 <div class="login" id="login">
   <span class="versionBadge login-version">vv1</span>
   <div class="login-card">
@@ -659,7 +728,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='2.7';
+const APP_VERSION='2.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -699,7 +768,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{}};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -808,8 +877,71 @@ async function login(){
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
 function updateHomeCounts(){if($('homeLiveCount'))$('homeLiveCount').textContent=(S.live.length||0).toLocaleString();if($('homeVodCount'))$('homeVodCount').textContent=(S.vod.length||0).toLocaleString();if($('homeSeriesCount'))$('homeSeriesCount').textContent=(S.series.length||0).toLocaleString();}
-function showHome(){updateHomeCounts();if($('home'))$('home').classList.remove('hidden');}
-function goCategory(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}}
+function showHome(){updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
+/* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
+   (All / Favorites / Recently Played + every category with its count + a favorite star).
+   Tapping a category then drops into that category's channel grid. */
+const CATPAGE_META={
+  live:{label:'Live TV',unit:'channels',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg>'},
+  vod:{label:'Movies',unit:'titles',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg>'},
+  series:{label:'Series',unit:'shows',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg>'}
+};
+const CP_STAR='<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.27 5.82.85-4.21 4.1.99 5.79L12 16.9l-5.2 2.73.99-5.79-4.21-4.1 5.82-.85z"/></svg>';
+const CP_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>';
+const CP_GRID='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>';
+function showCategories(tab){
+  S.tab=tab;S.catQ='';
+  const cp=$('catpage');if(!cp)return goCategoryDirect(tab);
+  const meta=CATPAGE_META[tab]||CATPAGE_META.live;
+  cp.className='catpage theme-'+tab;
+  if($('catIcon'))$('catIcon').innerHTML=meta.icon;
+  if($('catHeading'))$('catHeading').textContent=meta.label;
+  if($('catSearch'))$('catSearch').value='';
+  ensureTypeLoaded(tab);
+  renderCatPage();
+  if($('home'))$('home').classList.add('hidden');
+  if($('catList'))$('catList').scrollTop=0;
+  if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}
+}
+function renderCatPage(){
+  const list_=$('catList');if(!list_)return;
+  const meta=CATPAGE_META[S.tab]||CATPAGE_META.live;
+  const loading=S.tab==='live'?S.loadingLive:S.tab==='vod'?S.loadingVod:S.loadingSeries;
+  const total=list().length;
+  if($('catSub'))$('catSub').textContent=loading&&!total?('Loading '+meta.unit+'…'):(cats().length.toLocaleString()+' categories · '+total.toLocaleString()+' '+meta.unit);
+  const q=(S.catQ||'').toLowerCase().trim();
+  const favCount=list().filter(x=>S.favs.has(keyOf(x))).length;
+  const recCount=list().filter(x=>S.recent.includes(keyOf(x))).length;
+  const specials=[
+    {id:'',name:'All '+meta.label,sub:'Everything in one place',count:total,badge:CP_GRID},
+    {id:'__fav',name:'Favorites',sub:'Your starred '+meta.unit,count:favCount,badge:CP_STAR},
+    {id:'__recent',name:'Recently Played',sub:'Jump back in',count:recCount,badge:CP_CLOCK}
+  ];
+  let html='';
+  for(const sp of specials){
+    if(q&&!sp.name.toLowerCase().includes(q))continue;
+    html+=`<button class="cp-cat ${String(S.cat)===String(sp.id)?'active':''}" data-cat="${esc(sp.id)}"><span class="cp-cbadge">${sp.badge}</span><span class="cp-cn"><b>${esc(sp.name)}</b><small>${esc(sp.sub)}</small></span><span class="cp-count">${sp.count.toLocaleString()}</span><span class="cp-chev">›</span></button>`;
+  }
+  const cs=cats().slice().sort((a,b)=>(S.favCats.has(catFavKey(a))?0:1)-(S.favCats.has(catFavKey(b))?0:1));
+  let shown=0;
+  for(const c of cs){
+    const name=c.category_name||'Other';
+    if(q&&!name.toLowerCase().includes(q))continue;
+    const isF=S.favCats.has(catFavKey(c));
+    const cnt=countCat(c.category_id);
+    const initial=esc((name.trim()[0]||'#').toUpperCase());
+    html+=`<button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-count">${cnt.toLocaleString()}</span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button>`;
+    shown++;
+  }
+  if(!html){
+    html=loading?`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">Loading ${esc(meta.label)}…</div>`:`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">${q?'No categories match “'+esc(q)+'”':'No categories yet.'}</div>`;
+  }
+  list_.innerHTML=html;
+}
+function goCategoryDirect(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}}
+function goCategory(tab){showCategories(tab);}
+/* pick a category from the category page → drop into its channel grid */
+function openCategory(cat){S.cat=cat;S.q='';if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
 /* v75: load ONE catalog type at a time. Firing all of Live+Movies+Series at once made the
    portal/relay drop the concurrent requests, so only Live came back and Movies/Series stayed
    empty. Now each type is its own request set, loaded sequentially, and also loadable ON DEMAND
@@ -849,7 +981,7 @@ async function refreshAll(){
   await new Promise(r=>setTimeout(r,750));
   load(false);
 }
-function renderAll(){renderCats();renderGrid();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
+function renderAll(){renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
 function renderCats(){
   const rows=[
     `<button class="cat ${!S.cat?'active':''}" data-cat=""><span class="catStar spacer"></span><span class="catName">All</span><span class="catCount">${list().length}</span></button>`,
@@ -2102,8 +2234,16 @@ function downloadCurrent(){
 $('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
+/* v90: categories page interactions */
+if($('catBack'))$('catBack').onclick=()=>showHome();
+if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;renderCatPage()};
+if($('catList'))$('catList').addEventListener('click',e=>{
+  const st=e.target.closest('[data-favcat]');
+  if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCatPage();return}
+  const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
+});
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();$('login').classList.remove('hidden')};
-(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>$('side').classList.toggle('open');$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
+(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))showCategories(S.tab);else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
    for live TV keep the clean auto-hide after 1.8s. */
 /* v79: consistent auto-hiding controls (like Infuse). Tap the video to reveal them; they fade
    out together after a few seconds of no interaction while playing, and stay up while paused or
