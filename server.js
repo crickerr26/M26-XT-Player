@@ -22,7 +22,7 @@ const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 const WATERMARK = process.env.WATERMARK_PATH || path.join(__dirname, 'image_482ee8.png');
 const HAS_WATERMARK = (() => { try { return fs.existsSync(WATERMARK); } catch { return false; } })();
 const WM_OPACITY = process.env.WATERMARK_OPACITY || '0.5';
-function reencodesVideo(profile) { return profile !== 'audio' && profile !== 'copy' && profile !== 'remux'; }
+function reencodesVideo(profile) { return profile !== 'audio' && profile !== 'copy' && profile !== 'remux' && profile !== 'fastvod'; }
 const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 30 * 60 * 1000);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN || '';
@@ -126,6 +126,11 @@ function profileArgs(profile, wm) {
   if (profile === 'audio') return ['-vn', '-c:a', 'aac', '-b:a', '96k'];
   if (profile === 'copy') return ['-c', 'copy'];
   if (profile === 'remux') return ['-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-ac', '2'];
+  /* fastvod: the "second player" for movies/series. COPY the video (no slow re-encode — near
+     instant, low CPU) and only re-wrap the container + transcode the audio to AAC, so a title the
+     browser can't open (MKV/AVI, AC3/DTS audio, HEVC on Apple) plays in the built-in <video>.
+     Unlike 'remux' this is treated as VOD below (full, seekable HLS playlist). */
+  if (profile === 'fastvod') return ['-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ac', '2'];
   const videoBitrate = profile === 'vod' ? '1200k' : '750k';
   const maxrate = profile === 'vod' ? '1500k' : '900k';
   const bufsize = profile === 'vod' ? '3000k' : '1800k';
