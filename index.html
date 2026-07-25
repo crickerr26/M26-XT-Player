@@ -802,7 +802,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='4.1';
+const APP_VERSION='4.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -995,7 +995,7 @@ async function login(){
   if(ui.status&&!/^active$/i.test(String(ui.status)))toast('Account status: '+ui.status);
   const _act=parseInt(ui.active_cons||'0',10),_max=parseInt(ui.max_connections||'1',10)||1;
   if(_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
-  saveCreds();$('login').classList.add('hidden');showHome();await refreshAll();updateHomeCounts();toast('Playlist loaded')}
+  saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();await refreshAll();updateHomeCounts();toast('Playlist loaded')}
   catch(e){$('err').textContent=e.message||'Could not connect'}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
@@ -1206,6 +1206,18 @@ function warmTranscoder(){
   const base=transcoderBase();if(!base)return;
   const now=Date.now();if(now-_lastWarm<60000)return;_lastWarm=now;
   try{fetch(base+'/health',{mode:'no-cors',cache:'no-store'}).catch(()=>{})}catch(e){}
+}
+/* v4.2: keep the transcoder AWAKE so movies load fast. Free hosting (Render/Railway) puts an idle
+   instance to sleep, and waking it costs 30-50s on the next play — the "slow loading" the user hit.
+   Pinging /health every ~4 min while the app is open (and the moment it returns to the foreground)
+   keeps it warm so the transcode starts immediately when a title is opened. */
+let _warmTimer=null;
+function keepTranscoderWarm(){
+  if(_warmTimer)return;
+  const ping=()=>{const base=transcoderBase();if(base&&(document.visibilityState!=='hidden')){_lastWarm=Date.now();try{fetch(base+'/health',{mode:'no-cors',cache:'no-store'}).catch(()=>{})}catch(e){}}};
+  ping();
+  _warmTimer=setInterval(ping,240000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')ping();});
 }
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
@@ -2895,7 +2907,7 @@ if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
 if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
 if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes={live:'auto',vod:'auto',series:'auto'};try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}clearChooserDefaults();['modeLive','modeVod','modeSeries'].forEach(id=>{const s=$(id);if(s)s.value='auto'});$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
-restore();renderAll();warmTranscoder();
+restore();renderAll();warmTranscoder();keepTranscoderWarm();
 /* v4.1: if the app was opened from a shared QR / deep link (origin/#p=CODE), auto-load that
    playlist — the receiving device pairs with one tap, no typing. */
 (function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]p=([^&\s]+)/);if(m&&m[1]){const code=decodeURIComponent(m[1]);setTimeout(()=>{importFromCode(code).catch(err=>{if($('login'))$('login').classList.remove('hidden');openPairSheet(code);if($('pairErr'))$('pairErr').textContent=(err&&err.message)||'Could not load that code.';});},200);}}catch(e){}})();
