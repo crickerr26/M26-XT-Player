@@ -777,7 +777,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='3.7';
+const APP_VERSION='3.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1516,6 +1516,13 @@ async function playItemBasic(x){
     if(cont!=='mp4')addv('native',lcu);                     /* exact listed container */
     if(isApple){if(hlsUsable)addv('hls',m3u);if(tsOk)addv('mpegts',tsu);}
     else{if(tsOk)addv('mpegts',tsu);if(hlsUsable)addv('hls',m3u);}
+    /* v3.8 — SECOND ENGINE. When every native route above fails, a title's container/codec is one
+       the browser genuinely can't open (usually MKV). Rather than dead-end, repackage it through the
+       transcoder's FAST 'fastvod' profile (COPY video — no slow re-encode — just re-wrap + fix audio)
+       and play the result right here in the built-in <video>. It runs SILENTLY (plain "Loading", no
+       "converting" text, no player-chooser) and only after the instant native routes, so titles the
+       browser CAN play are never sent this way. */
+    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tu=transcodeUrl(externalStreamUrl(x),'fastvod');if(tu)addv('hls',tu);}}catch(e){}
     if(!plans.length)addv('native',lcu);
   }
   let idx=0,startedB=false;
@@ -1647,7 +1654,8 @@ async function playItemBasic(x){
          a real chance (12s), and the last one a long grace (38s) to fill a big first frame. A truly
          unsupported codec still fails instantly via the element's own error event, so this patience
          costs nothing on real dead ends. */
-      const budget=live?14000:(last?38000:12000);
+      const cp=plans[idx],isTrans=cp&&cp.kind==='hls'&&/\/hls\?/.test(cp.url||'');
+      const budget=isTrans?60000:(live?14000:(last?38000:12000));
       if(attachAt&&now-attachAt>budget)next();
     }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
     /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
