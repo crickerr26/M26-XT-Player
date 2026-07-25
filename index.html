@@ -811,7 +811,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='4.4';
+const APP_VERSION='4.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1718,9 +1718,9 @@ async function playItemBasic(x){
   const attach=p=>{
     if(token!==S.seq)return;
     attachAt=Date.now();   /* v67: for the start-timeout watchdog below */
-    /* v4.0: honest status for the transcoder route — this only runs for containers the browser
-       can't decode itself (MKV etc.), where the only in-app option is a transcoder repackaging it. */
-    if(!live&&p.kind==='hls'&&/\/hls\?/.test(p.url||'')){$('stateTitle').textContent='Preparing HD stream';$('stateText').textContent=nameOf(x)+' — this format needs a transcoder to play in here.';}
+    /* v4.5: the transcoder route plays SILENTLY on the preview — it looks exactly like any other
+       load ("Loading" + the title), with no mention of a transcoder. */
+    if(!live&&p.kind==='hls'&&/\/hls\?/.test(p.url||'')){$('stateTitle').textContent='Loading';$('stateText').textContent=nameOf(x);if($('stateProgress'))$('stateProgress').classList.remove('hidden');}
     /* v85: resume Movies/Series from where they were left this session (in-memory, so a refresh
        or force-close starts fresh). Seek once the media knows its duration. */
     if(!live){const ra=(S.resume&&S.resume[keyOf(x)])||0;if(ra>5){const rs=()=>{try{if((v.currentTime||0)<1.5)v.currentTime=ra}catch(e){}v.removeEventListener('loadedmetadata',rs)};v.addEventListener('loadedmetadata',rs);}}
