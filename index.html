@@ -54,6 +54,29 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
 :root{--blue:#2fd3f2;--shadow:0 24px 60px rgba(0,0,0,.42)}
 body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 *{scrollbar-width:thin;scrollbar-color:rgba(148,180,215,.45) transparent}
+/* Movie/Series details popup (v3.5) — opens when the poster is tapped */
+.infoSheet{position:fixed;inset:0;background:rgba(3,7,18,.7);z-index:26;display:none;align-items:flex-end;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.infoSheet.show{display:flex}
+.infoPanel{position:relative;width:100%;max-width:560px;margin:0 auto;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border:1px solid var(--line);border-radius:22px 22px 0 0;box-shadow:var(--shadow);animation:infoUp .32s cubic-bezier(.2,.8,.2,1)}
+@keyframes infoUp{from{transform:translateY(34px);opacity:.3}to{transform:translateY(0);opacity:1}}
+@media(min-width:620px){.infoSheet{align-items:center}.infoPanel{border-radius:22px;max-height:86vh}}
+.infoClose{position:absolute;top:12px;right:12px;z-index:4;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;font-size:22px;line-height:1;display:grid;place-items:center;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.infoHero{position:relative;padding:20px 18px;display:flex;gap:16px;align-items:flex-end;min-height:186px;overflow:hidden;border-radius:22px 22px 0 0}
+.infoHeroBg{position:absolute;inset:0;background-size:cover;background-position:center 20%;filter:blur(3px) brightness(.5);transform:scale(1.1)}
+.infoHero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,17,31,.15),rgba(9,17,31,.55) 55%,var(--panel))}
+.infoPoster{position:relative;z-index:2;width:98px;height:147px;object-fit:cover;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.55);background:var(--panel2);flex-shrink:0}
+.infoHeroText{position:relative;z-index:2;min-width:0;flex:1;padding-bottom:2px}
+.infoHeroText h3{font-size:20px;font-weight:900;line-height:1.16;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.55);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.infoChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.infoChip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:11.5px;font-weight:800;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.infoChip.rating{background:rgba(251,191,36,.26);color:#fde68a}
+.infoBody{padding:14px 18px 4px}
+.infoRow{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+.infoLabel{flex-shrink:0;width:66px;color:var(--muted);font-weight:800}
+.infoVal{flex:1;min-width:0;color:var(--soft);font-weight:600}
+.infoPlot{margin-top:12px;font-size:13.5px;line-height:1.55;color:var(--soft)}
+.infoActions{position:sticky;bottom:0;display:grid;grid-template-columns:1fr auto;gap:8px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--panel) 34%)}
+.infoActions .pillbtn{height:46px;justify-content:center}
 .cats::-webkit-scrollbar,.grid::-webkit-scrollbar,.details::-webkit-scrollbar,.episodeList::-webkit-scrollbar{width:7px}
 .cats::-webkit-scrollbar-thumb,.grid::-webkit-scrollbar-thumb,.details::-webkit-scrollbar-thumb,.episodeList::-webkit-scrollbar-thumb{background:rgba(148,180,215,.35);border-radius:8px}
 .cats::-webkit-scrollbar-thumb:hover,.grid::-webkit-scrollbar-thumb:hover,.details::-webkit-scrollbar-thumb:hover,.episodeList::-webkit-scrollbar-thumb:hover{background:rgba(148,180,215,.6)}
@@ -631,6 +654,29 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
+<div class="infoSheet" id="infoSheet">
+  <div class="infoPanel">
+    <button class="infoClose" id="infoClose" aria-label="Close">&times;</button>
+    <div class="infoHero">
+      <div class="infoHeroBg" id="infoHeroBg"></div>
+      <img class="infoPoster" id="infoPoster" alt="" onerror="this.style.visibility='hidden'">
+      <div class="infoHeroText">
+        <h3 id="infoTitleTxt">Title</h3>
+        <div class="infoChips" id="infoChips"></div>
+      </div>
+    </div>
+    <div class="infoBody">
+      <div class="infoRow" id="infoDirectorRow"><span class="infoLabel">Director</span><span class="infoVal" id="infoDirector">—</span></div>
+      <div class="infoRow" id="infoCastRow"><span class="infoLabel">Cast</span><span class="infoVal" id="infoCast">—</span></div>
+      <div class="infoRow" id="infoGenreRow"><span class="infoLabel">Genre</span><span class="infoVal" id="infoGenre">—</span></div>
+      <p class="infoPlot" id="infoPlot"></p>
+    </div>
+    <div class="infoActions">
+      <button class="pillbtn primary" id="infoPlay">Play</button>
+      <button class="pillbtn" id="infoCancel">Close</button>
+    </div>
+  </div>
+</div>
 <div class="conflictModal" id="conflictModal">
   <div class="conflictCard">
     <div class="conflictIcon">⚠️</div>
@@ -731,7 +777,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='3.4';
+const APP_VERSION='3.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1025,6 +1071,50 @@ function rowPlayerButtons(key,type){
 function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
 async function openEpisodePicker(x){load(true,'Loading episodes...');try{const d=await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);$('episodeList').innerHTML=eps.map((ep,i)=>`<button class="episodeBtn" data-ep="${i}"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></button>`).join('');$('episodeSheet').classList.add('show');$('episodeList').onclick=e=>{const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
+/* v3.5: Movie/Series details popup — opens when the poster is tapped. Pulls the rich metadata
+   (director, cast, release date, rating, genre, plot) from the Xtream get_vod_info /
+   get_series_info endpoints and shows it over a blurred poster backdrop. */
+let _infoItem=null;
+function _pick(o,keys){for(const k of keys){const v=o&&o[k];if(v!=null&&String(v).trim()!==''&&String(v).trim().toLowerCase()!=='n/a')return String(v).trim()}return ''}
+function _infoYear(o){const d=_pick(o,['releasedate','releaseDate','release_date','year','added']);const m=String(d).match(/\d{4}/);return m?m[0]:''}
+function _infoRating(o){const r=_pick(o,['rating']);const r5=_pick(o,['rating_5based']);let v=r?parseFloat(r):(r5?parseFloat(r5)*2:0);if(!v||isNaN(v)||v<=0)return '';return (Math.round(v*10)/10).toFixed(1)}
+function _infoDuration(o){const d=_pick(o,['duration','episode_run_time','runtime']);if(!d)return '';if(/^\d+$/.test(d)){const n=Number(d);return n>0?(n>=60?Math.floor(n/60)+'h '+(n%60)+'m':n+' min'):''}const m=String(d).match(/\d{1,2}:\d{2}:\d{2}/);return m?m[0]:d}
+async function openInfo(x){
+  const type=typeOf(x);
+  if(type==='live'){playItem(x);return;}
+  _infoItem=x;
+  const poster=logoOf(x);
+  const setBg=u=>{$('infoHeroBg').style.backgroundImage=u?`url("${String(u).replace(/["\\]/g,'')}")`:'none'};
+  $('infoPoster').style.visibility=poster?'':'hidden';$('infoPoster').src=poster||'';setBg(poster);
+  $('infoTitleTxt').textContent=nameOf(x);
+  $('infoChips').innerHTML='<span class="infoChip">'+(type==='series'?'Series':'Movie')+'</span>';
+  ['infoDirectorRow','infoCastRow','infoGenreRow'].forEach(id=>{if($(id))$(id).style.display='none'});
+  $('infoPlot').textContent='Loading details…';
+  $('infoPlay').textContent=type==='series'?'View Episodes':'Play';
+  $('infoSheet').classList.add('show');
+  try{
+    let info={};
+    if(type==='vod'){const d=await getJson('get_vod_info','&vod_id='+encodeURIComponent(idOf(x)));info=Object.assign({},d&&d.movie_data,d&&d.info);}
+    else{const d=await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));info=(d&&d.info)||d||{};}
+    if(_infoItem!==x)return;
+    renderInfo(x,info,type);
+  }catch(e){ if(_infoItem===x)$('infoPlot').textContent='Details are unavailable for this title.'; }
+}
+function renderInfo(x,info,type){
+  const poster=_pick(info,['movie_image','cover_big','cover','backdrop_path'])||logoOf(x);
+  if(poster){$('infoPoster').style.visibility='';$('infoPoster').src=poster;$('infoHeroBg').style.backgroundImage=`url("${String(poster).replace(/["\\]/g,'')}")`;}
+  const chips=['<span class="infoChip">'+(type==='series'?'Series':'Movie')+'</span>'];
+  const yr=_infoYear(info);if(yr)chips.push('<span class="infoChip">'+esc(yr)+'</span>');
+  const rt=_infoRating(info);if(rt)chips.push('<span class="infoChip rating">★ '+esc(rt)+'</span>');
+  const du=_infoDuration(info);if(du)chips.push('<span class="infoChip">'+esc(du)+'</span>');
+  $('infoChips').innerHTML=chips.join('');
+  const setRow=(rowId,valId,val)=>{const v=String(val||'').trim();if($(valId))$(valId).textContent=v;if($(rowId))$(rowId).style.display=v?'':'none';};
+  setRow('infoDirectorRow','infoDirector',_pick(info,['director']));
+  setRow('infoCastRow','infoCast',_pick(info,['cast','actors']));
+  setRow('infoGenreRow','infoGenre',_pick(info,['genre']));
+  const plot=_pick(info,['plot','description','overview','storyline']);
+  $('infoPlot').textContent=plot||'No description available for this title.';
+}
 function directUrl(x,ext){const type=typeOf(x), sid=idOf(x);let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
 function playableUrl(u,type){return blocked(u)?proxyUrl(u):u}
 function proxiedMediaUrl(u){return proxyUrl(u)}
@@ -2350,7 +2440,11 @@ $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.c
 $('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
+if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
+if($('infoSheet'))$('infoSheet').onclick=e=>{if(e.target.id==='infoSheet')$('infoSheet').classList.remove('show')};
+if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').classList.remove('show');if(x)playItem(x)};
 /* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
    The old "buffer full" branch was removed: it fought hls.js's own live-sync controller
    and caused a forced seek every 3 seconds = constant freeze/stutter/audio cuts.
