@@ -245,12 +245,12 @@ body.light .home{background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.2
 body.light .home-head h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 body.light .home-head p{color:#5a6f90}
 /* ===== Categories page (v2.8) — a beautiful full-screen list shown after tapping a Home card ===== */
-.catpage{position:fixed;inset:0;z-index:16;overflow:hidden;padding:calc(16px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 0 max(14px,env(safe-area-inset-right));background:linear-gradient(165deg,#0a1220,#0d1a2e 55%,#0a1220)}
+/* Apple-style graphite grey theme (unified across Live / Movies / Series) */
+.catpage{--cp-a:#aeb6c4;--cp-b:#5c6472;--cp-rgb:160,168,182;position:fixed;inset:0;z-index:16;overflow:hidden;padding:calc(16px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 0 max(14px,env(safe-area-inset-right));background:linear-gradient(165deg,#0c0e13,#14171f 55%,#0c0e13)}
 .catpage.hidden{display:none}
-.catpage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(var(--cp-rgb),.20),transparent 42%),radial-gradient(circle at 88% 96%,rgba(var(--cp-rgb),.14),transparent 44%)}
-.catpage.theme-live{--cp-a:#38bdf8;--cp-b:#2563eb;--cp-rgb:56,189,248}
-.catpage.theme-vod{--cp-a:#c084fc;--cp-b:#7c3aed;--cp-rgb:168,85,247}
-.catpage.theme-series{--cp-a:#2dd4bf;--cp-b:#0d9488;--cp-rgb:45,212,191}
+.catpage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(var(--cp-rgb),.12),transparent 46%),radial-gradient(circle at 88% 96%,rgba(var(--cp-rgb),.09),transparent 48%)}
+.catpage .home-bg span{filter:grayscale(1) blur(46px);opacity:.14}
+.catpage.theme-live,.catpage.theme-vod,.catpage.theme-series{--cp-a:#aeb6c4;--cp-b:#5c6472;--cp-rgb:160,168,182}
 .cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
 .cp-head{display:flex;align-items:center;gap:12px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) both}
 .cp-back{flex-shrink:0;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
@@ -258,8 +258,8 @@ body.light .home-head p{color:#5a6f90}
 .cp-back:active{transform:scale(.92)}
 @media(hover:hover){.cp-back:hover{background:rgba(255,255,255,.12)}}
 .cp-titlewrap{display:flex;align-items:center;gap:13px;min-width:0}
-.cp-ic{flex-shrink:0;width:52px;height:52px;border-radius:16px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--cp-b),var(--cp-a));box-shadow:0 10px 26px rgba(var(--cp-rgb),.42)}
-.cp-ic svg{width:30px;height:30px}
+.cp-ic{flex-shrink:0;width:48px;height:48px;border-radius:15px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--cp-b),var(--cp-a));box-shadow:0 8px 22px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.22)}
+.cp-ic svg{width:27px;height:27px}
 .cp-tt{min-width:0}
 .cp-tt h1{font-size:clamp(21px,5vw,28px);font-weight:900;letter-spacing:-.5px;line-height:1.05;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cp-tt p{margin-top:2px;color:#8fa5c6;font-size:12.5px;font-weight:700}
@@ -268,25 +268,25 @@ body.light .home-head p{color:#5a6f90}
 .cp-searchwrap input{width:100%;height:46px;padding:0 14px 0 40px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:#eaf1fb;font-size:14px;font-weight:600}
 .cp-searchwrap input:focus{outline:none;border-color:var(--cp-a);box-shadow:0 0 0 3px rgba(var(--cp-rgb),.18)}
 .cp-searchwrap input::placeholder{color:#7f93b4}
-.cp-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:1fr;gap:11px;padding:4px 3px calc(24px + env(safe-area-inset-bottom))}
+.cp-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;grid-template-columns:1fr;gap:9px;padding:4px 3px calc(24px + env(safe-area-inset-bottom))}
 /* min-height keeps a definite box height: without it, overflow:hidden turns each
    card into a scroll container whose intrinsic height ignores its flex children,
    collapsing every row on top of the next in the auto-sized grid (the iOS bug). */
-.cp-cat{position:relative;overflow:hidden;min-height:74px;box-sizing:border-box;display:flex;align-items:center;gap:15px;padding:12px 16px 12px 22px;border-radius:20px;background:linear-gradient(135deg,rgba(255,255,255,.072),rgba(255,255,255,.028));border:1px solid rgba(255,255,255,.09);box-shadow:0 10px 26px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.06);color:#eaf1fb;text-align:left;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);animation:cpIn .5s cubic-bezier(.2,.8,.2,1) both;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease}
-.cp-cat::before{content:"";position:absolute;left:9px;top:15px;bottom:15px;width:4px;border-radius:4px;background:linear-gradient(180deg,var(--cp-a),var(--cp-b));box-shadow:0 0 14px rgba(var(--cp-rgb),.6)}
+.cp-cat{position:relative;overflow:hidden;min-height:58px;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:8px 14px 8px 18px;border-radius:15px;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.022));border:1px solid rgba(255,255,255,.08);box-shadow:0 6px 18px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.05);color:#eaeef5;text-align:left;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);animation:cpIn .45s cubic-bezier(.2,.8,.2,1) both;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease}
+.cp-cat::before{content:"";position:absolute;left:7px;top:12px;bottom:12px;width:3px;border-radius:3px;background:linear-gradient(180deg,var(--cp-a),var(--cp-b));box-shadow:0 0 10px rgba(var(--cp-rgb),.45)}
 .cp-cat:active{transform:scale(.985)}
-@media(hover:hover){.cp-cat:hover{background:linear-gradient(135deg,rgba(var(--cp-rgb),.16),rgba(255,255,255,.03));border-color:rgba(var(--cp-rgb),.45);box-shadow:0 16px 36px rgba(0,0,0,.36),0 0 0 1px rgba(var(--cp-rgb),.25),inset 0 1px 0 rgba(255,255,255,.08);transform:translateY(-2px)}}
-.cp-cat.active{border-color:rgba(var(--cp-rgb),.7);background:linear-gradient(135deg,rgba(var(--cp-rgb),.22),rgba(255,255,255,.04));box-shadow:0 14px 32px rgba(0,0,0,.34),0 0 0 1px rgba(var(--cp-rgb),.4),inset 0 1px 0 rgba(255,255,255,.1)}
-.cp-cbadge{flex-shrink:0;width:48px;height:48px;border-radius:15px;display:grid;place-items:center;font-weight:900;font-size:17px;letter-spacing:.3px;color:#fff;background:linear-gradient(140deg,var(--cp-a),var(--cp-b));box-shadow:0 6px 16px rgba(var(--cp-rgb),.4),inset 0 1px 0 rgba(255,255,255,.35),inset 0 -2px 6px rgba(0,0,0,.2);text-shadow:0 1px 2px rgba(0,0,0,.25)}
-.cp-cbadge svg{width:24px;height:24px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
-.cp-cn{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.cp-cn b{font-size:15.5px;font-weight:800;letter-spacing:-.2px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#f2f7ff}
-.cp-cn small{font-size:11.5px;font-weight:700;letter-spacing:.2px;color:#93a7c8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cp-count{flex-shrink:0;min-width:42px;height:28px;padding:0 11px;border-radius:999px;display:grid;place-items:center;font-size:12.5px;font-weight:900;color:#eaf3ff;background:rgba(var(--cp-rgb),.16);border:1px solid rgba(var(--cp-rgb),.3);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
-.cp-star{flex-shrink:0;width:36px;height:36px;border-radius:11px;display:grid;place-items:center;font-size:18px;line-height:1;color:#5b6f92;background:transparent;transition:transform .14s ease,color .14s ease}
+@media(hover:hover){.cp-cat:hover{background:linear-gradient(135deg,rgba(var(--cp-rgb),.14),rgba(255,255,255,.025));border-color:rgba(var(--cp-rgb),.38);box-shadow:0 12px 28px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.07);transform:translateY(-1px)}}
+.cp-cat.active{border-color:rgba(var(--cp-rgb),.6);background:linear-gradient(135deg,rgba(var(--cp-rgb),.2),rgba(255,255,255,.03));box-shadow:0 10px 26px rgba(0,0,0,.32),0 0 0 1px rgba(var(--cp-rgb),.35),inset 0 1px 0 rgba(255,255,255,.08)}
+.cp-cbadge{flex-shrink:0;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:15px;letter-spacing:.3px;color:#f4f6fa;background:linear-gradient(140deg,var(--cp-a),var(--cp-b));box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 5px rgba(0,0,0,.22);text-shadow:0 1px 2px rgba(0,0,0,.28)}
+.cp-cbadge svg{width:21px;height:21px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.28))}
+.cp-cn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cp-cn b{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eef1f6}
+.cp-cn small{font-size:11px;font-weight:700;letter-spacing:.2px;color:#93a0b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cp-count{flex-shrink:0;min-width:38px;height:26px;padding:0 10px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:900;color:#e6eaf1;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.cp-star{flex-shrink:0;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:17px;line-height:1;color:#6a7488;background:transparent;transition:transform .14s ease,color .14s ease}
 .cp-star.on{color:#fbbf24;text-shadow:0 0 12px rgba(251,191,36,.5)}
 .cp-star:active{transform:scale(.82)}
-.cp-chev{flex-shrink:0;color:#54688d;font-size:19px;font-weight:800;margin-left:-4px}
+.cp-chev{flex-shrink:0;color:#5f6a7e;font-size:18px;font-weight:800;margin-left:-3px}
 @keyframes cpIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 @media(min-width:720px){.cp-list{grid-template-columns:1fr 1fr}}
 body.light .catpage{background:linear-gradient(165deg,#eef5ff,#e4edfb)}
@@ -731,7 +731,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='2.9';
+const APP_VERSION='3.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -771,7 +771,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:''};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -892,18 +892,21 @@ const CATPAGE_META={
 const CP_STAR='<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.27 5.82.85-4.21 4.1.99 5.79L12 16.9l-5.2 2.73.99-5.79-4.21-4.1 5.82-.85z"/></svg>';
 const CP_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>';
 const CP_GRID='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>';
-function showCategories(tab){
-  S.tab=tab;S.catQ='';
+function showCategories(tab,restore){
+  S.tab=tab;
+  if(!restore)S.catQ='';
   const cp=$('catpage');if(!cp)return goCategoryDirect(tab);
   const meta=CATPAGE_META[tab]||CATPAGE_META.live;
   cp.className='catpage theme-'+tab;
   if($('catIcon'))$('catIcon').innerHTML=meta.icon;
   if($('catHeading'))$('catHeading').textContent=meta.label;
-  if($('catSearch'))$('catSearch').value='';
+  if($('catSearch'))$('catSearch').value=restore?(S.catQ||''):'';
   ensureTypeLoaded(tab);
   renderCatPage();
   if($('home'))$('home').classList.add('hidden');
-  if($('catList'))$('catList').scrollTop=0;
+  /* restore==true (coming BACK from a category) returns you to the exact same
+     scroll spot in the list — e.g. the Tamil row at #30 — not the top. */
+  if($('catList'))$('catList').scrollTop=(restore&&S.catScrollTab===tab)?(S.catScroll||0):0;
   if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}
 }
 function renderCatPage(){
@@ -944,7 +947,9 @@ function renderCatPage(){
 function goCategoryDirect(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}}
 function goCategory(tab){showCategories(tab);}
 /* pick a category from the category page → drop into its channel grid */
-function openCategory(cat){S.cat=cat;S.q='';if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
+function openCategory(cat){if($('catList')){S.catScroll=$('catList').scrollTop;S.catScrollTab=S.tab;}S.cat=cat;S.q='';if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
+/* return to the category list, restoring scroll (used by menu button + edge-swipe) */
+function backToCategories(){showCategories(S.tab,true);}
 /* v75: load ONE catalog type at a time. Firing all of Live+Movies+Series at once made the
    portal/relay drop the concurrent requests, so only Live came back and Movies/Series stayed
    empty. Now each type is its own request set, loaded sequentially, and also loadable ON DEMAND
@@ -2239,6 +2244,38 @@ $('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>to
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
 /* v90: categories page interactions */
 if($('catBack'))$('catBack').onclick=()=>showHome();
+/* v3.0: iOS-style swipe-from-left-edge to go back.
+   In the channel grid it returns to the category list at the SAME scroll spot;
+   on the category page it returns to Home. */
+(function(){
+  let sx=0,sy=0,st=0,tracking=false;
+  const busy=()=>{
+    if(document.fullscreenElement||document.webkitFullscreenElement)return true;
+    const ns=$('nativeSheet'),es=$('episodeSheet');
+    if(ns&&ns.classList.contains('show'))return true;
+    if(es&&es.classList.contains('show'))return true;
+    const lg=$('login');if(lg&&!lg.classList.contains('hidden'))return true;
+    return false;
+  };
+  const goBack=()=>{
+    const cp=$('catpage'),hm=$('home');
+    if(cp&&!cp.classList.contains('hidden')){showHome();return true;}
+    if(hm&&!hm.classList.contains('hidden'))return false;/* already home */
+    backToCategories();return true;
+  };
+  document.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1||busy()){tracking=false;return;}
+    const t=e.touches[0];
+    if(t.clientX>28){tracking=false;return;}
+    sx=t.clientX;sy=t.clientY;st=Date.now();tracking=true;
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(!tracking)return;tracking=false;
+    const t=(e.changedTouches&&e.changedTouches[0]);if(!t)return;
+    const dx=t.clientX-sx,dy=t.clientY-sy,dt=Date.now()-st;
+    if(dx>58&&Math.abs(dy)<48&&dx>Math.abs(dy)*1.6&&dt<650)goBack();
+  },{passive:true});
+})();
 if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;renderCatPage()};
 if($('catList'))$('catList').addEventListener('click',e=>{
   const st=e.target.closest('[data-favcat]');
@@ -2246,7 +2283,7 @@ if($('catList'))$('catList').addEventListener('click',e=>{
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
 });
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();$('login').classList.remove('hidden')};
-(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))showCategories(S.tab);else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
+(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))backToCategories();else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
    for live TV keep the clean auto-hide after 1.8s. */
 /* v79: consistent auto-hiding controls (like Infuse). Tap the video to reveal them; they fade
    out together after a few seconds of no interaction while playing, and stay up while paused or
