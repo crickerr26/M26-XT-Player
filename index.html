@@ -731,7 +731,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='3.3';
+const APP_VERSION='3.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1412,23 +1412,30 @@ async function playItemBasic(x){
     const cont=String(x.container_extension||'mp4').toLowerCase();
     const direct=String(x.direct_source||x.stream_url||'').trim();
     const hlsUsable=(window.Hls&&Hls.isSupported())||nativeHls(v);
+    /* v3.4 — match external-app speed. Route by CONTAINER so we lead with the fastest path that can
+       actually work, instead of always probing native mp4 first and burning seconds when it can't.
+       - Browser-openable containers (mp4/mov/m4v/ts): hand the raw file to <video> FIRST — it starts
+         instantly, exactly like VLC/Infuse do.
+       - Containers a browser can't demux (mkv/avi/wmv/flv/vob/mpg…): skip straight to the panel's
+         remux route (HLS on Apple = hardware HEVC; mpegts elsewhere). No wasted failing attempt. */
+    const FRIENDLY=/^(mp4|mov|m4v|ts|m2ts|mpegts)$/;
+    const browserOK=FRIENDLY.test(cont);
     const mp4u=wrap(directUrl(x,'mp4')),m3u=wrap(directUrl(x,'m3u8')),tsu=wrap(directUrl(x,'ts')),lcu=wrap(directUrl(x,cont));
     plans=[];
     const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
     if(direct){const du=wrap(direct);addv(du.includes('.m3u8')?'hls':'native',du);}
-    if(isApple){
-      /* Apple decodes H.264/HEVC/AAC/AC3 in hardware — try the file direct, then the panel's HLS
-         remux (hardware HEVC + adaptive quality), then a raw-TS remux, then the listed container. */
+    if(browserOK){
+      /* native FIRST = instant start, just like an external app */
       addv('native',mp4u);
-      if(hlsUsable)addv('hls',m3u);
-      if(tsOk)addv('mpegts',tsu);
       if(cont!=='mp4')addv('native',lcu);
+      if(isApple){if(hlsUsable)addv('hls',m3u);if(tsOk)addv('mpegts',tsu);}
+      else{if(tsOk)addv('mpegts',tsu);if(hlsUsable)addv('hls',m3u);}
     }else{
-      /* Android/desktop: mp4 direct, then mpegts.js (H.264, and HEVC where MSE allows), then HLS. */
+      /* container the browser can't open — go straight to the remux route; native is only a
+         last-ditch in case the panel happens to serve a real mp4 at that path */
+      if(isApple){if(hlsUsable)addv('hls',m3u);if(tsOk)addv('mpegts',tsu);}
+      else{if(tsOk)addv('mpegts',tsu);if(hlsUsable)addv('hls',m3u);}
       addv('native',mp4u);
-      if(tsOk)addv('mpegts',tsu);
-      if(hlsUsable)addv('hls',m3u);
-      if(cont!=='mp4')addv('native',lcu);
     }
     /* last-resort in-player route: a configured transcoder returns browser-native HLS for anything
        the device genuinely can't decode (e.g. HEVC on Chrome, AC3/DTS audio, MKV/AVI containers). */
@@ -1547,7 +1554,7 @@ async function playItemBasic(x){
       }
     }catch(e){next();return}
     const pr=v.play();
-    if(pr&&pr.catch)pr.catch(()=>{if(token!==S.seq)return;/* v79: unmuted autoplay was blocked — play muted so it never stalls, but auto-unmute on the very next interaction (any tap) so the user never has to find the sound button */v.muted=true;const p2=v.play();if(p2&&p2.catch)p2.catch(()=>{});armUnmute();});
+    if(pr&&pr.catch)pr.catch(()=>{if(token!==S.seq)return;/* v79: unmuted autoplay was blocked — play muted so it never stalls, but auto-unmute on the very next interaction (any tap) so the user never has to find the sound button */v.muted=true;/* v3.4: reflect the real state — show the MUTED icon so the user knows to tap it to enable sound */if($('muteBtn'))$('muteBtn').innerHTML=ICONS.muted;const p2=v.play();if(p2&&p2.catch)p2.catch(()=>{});armUnmute();});
   };
   attach(plans[0]);
   /* v65: one calm 1s heartbeat — the only watchdog. If the playback clock stops advancing for
@@ -1578,7 +1585,10 @@ async function playItemBasic(x){
          room so first-play-after-idle succeeds instead of being cut off. */
       const cp=plans[idx],isTrans=cp&&cp.kind==='hls'&&/\/hls\?/.test(cp.url||'');
       const gotData=v.readyState>=2||(v.buffered&&v.buffered.length>0);
-      const budget=isTrans?70000:(live?14000:(last?35000:(gotData?13000:6500)));
+      /* v3.4: fail faster to reach the working route quickly. A dead endpoint (no bytes) is dropped
+         in ~4.5s; a buffering-but-not-yet-playing candidate gets ~8s; only the last file candidate
+         keeps a long grace for a big first frame, and the transcoder keeps room for cold start. */
+      const budget=isTrans?70000:(live?14000:(last?35000:(gotData?8000:4500)));
       if(attachAt&&now-attachAt>budget)next();
     }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
     /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
@@ -2318,7 +2328,11 @@ if($('catList'))$('catList').addEventListener('click',e=>{
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
 });
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();$('login').classList.remove('hidden')};
-(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))backToCategories();else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
+(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))backToCategories();else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved')}};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
+/* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
+   toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
+   always shows the muted icon the user can tap to turn sound on. */
+if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
    for live TV keep the clean auto-hide after 1.8s. */
 /* v79: consistent auto-hiding controls (like Infuse). Tap the video to reveal them; they fade
    out together after a few seconds of no interaction while playing, and stay up while paused or
