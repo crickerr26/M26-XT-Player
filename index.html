@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='6.0';
+const APP_VERSION='6.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1708,12 +1708,17 @@ async function playItemBasic(x){
        player can now play them directly, exactly like the download's View does. Try the raw file
        first (mp4 endpoint, then the listed container), then the panel's HLS remux, then mpegts, and
        only fall to the transcoder if the file genuinely can't decode. */
-    /* v5.3: only wait on the transcoder when it's CONFIRMED to actually play MKV fast (S.transFast).
-       An offline / old (yellow) server used to make the player hang ~25s before giving the verdict.
-       Now, if there's no confirmed transcoder, an unplayable file goes straight to the message. */
-    const canTrans=!!(transUrl&&S.transFast);
+    /* v6.1: if a transcoder URL is CONFIGURED, always keep it as the MKV/HEVC fallback route.
+       Earlier this was gated on S.transFast (a background /health ping). On the free Render plan the
+       server sleeps when idle, so that ping is often still pending or briefly failed at play time —
+       which made a perfectly good transcoder get skipped and MKV dead-end on "This file is MKV". Now
+       route inclusion depends only on a URL being set; S.transFast just governs the quick-verdict
+       wording. A sleeping server simply means the first MKV waits (25s budget) while it wakes, then
+       plays — instead of never being tried. */
+    const hasTrans=!!transUrl;
+    const canTrans=hasTrans;
     const UNPLAYABLE=/^(mkv|avi|wmv|flv|vob|divx|ogm|rm|rmvb)$/;
-    quickVerdict=UNPLAYABLE.test(cont)&&!canTrans;   /* known-hard format, nothing to convert -> decide fast */
+    quickVerdict=UNPLAYABLE.test(cont)&&!hasTrans;   /* only decide fast when there is NO transcoder at all */
     plans=[];
     const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
     if(direct){const du=wrap(direct);addv(du.includes('.m3u8')?'hls':'native',du);}
@@ -1883,11 +1888,12 @@ async function playItemBasic(x){
          unsupported codec still fails instantly via the element's own error event, so this patience
          costs nothing on real dead ends. */
       const cp=plans[idx],isTrans=cp&&cp.kind==='hls'&&/\/hls\?/.test(cp.url||'');
-      /* v4.0: don't hang forever on a dead/asleep shared transcoder — give it 25s, then fail to the
-         honest "this is an MKV" message so the user isn't stuck watching a spinner. */
-      /* v5.3: a known-hard format with no transcoder gets a SHORT budget so the "This file is MKV"
-         verdict appears in a few seconds instead of a long loading bar. */
-      const budget=isTrans?25000:(quickVerdict?7000:(live?14000:(last?38000:12000)));
+      /* v6.1: a free Render/Railway transcoder SLEEPS when idle and takes ~30-50s to wake on the
+         first request, then plays fast. Give the transcoder candidate 50s so a cold wake finishes and
+         the first MKV plays instead of timing out at 25s and dropping to the "can't play" message.
+         (Browsing Movies/Series already fires a warm ping, so it's usually awake before you tap.)
+         A known-hard format with NO transcoder still gets the short 7s quick verdict. */
+      const budget=isTrans?50000:(quickVerdict?7000:(live?14000:(last?38000:12000)));
       if(attachAt&&now-attachAt>budget)next();
     }else if(!v.paused&&!v.ended&&!v.seeking&&(now-(S.lastSeekAt||0))>12000&&now-lastProg>9000){reconnect();}
     /* v68: a user seek (forward/back button OR dragging the scrubber) makes the clock jump and
