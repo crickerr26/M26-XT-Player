@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='5.7';
+const APP_VERSION='5.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1741,10 +1741,20 @@ async function playItemBasic(x){
     const unplayable=/^(mkv|avi|wmv|flv|vob|divx|m2ts|ts)$/.test(c);
     $('stateTitle').textContent=unplayable?('This file is '+c.toUpperCase()):'Couldn’t play this title';
     $('stateText').textContent=unplayable
-      ? 'Web browsers can’t decode '+c.toUpperCase()+' directly. Tap VLC / Infuse / nPlayer on this row to watch it instantly — or set up a transcoder (Stream Tools) to play these in here.'
-      : 'Use the VLC / Infuse / nPlayer button on this title’s row to watch it.';
+      ? 'Web browsers can’t decode '+c.toUpperCase()+' directly. Tap a player below to watch it instantly — or set up a transcoder (Stream Tools) to play these right here.'
+      : 'Tap a player below to watch this title.';
     $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
-    if($('extActions'))$('extActions').classList.add('hidden');
+    /* v5.8: instead of pointing at the per-row buttons, show the external players that CAN open
+       this file right below the message — no overlap, one tap. VLC/Infuse/nPlayer on iOS,
+       VLC/MX/ExoPlayer on Android, VLC on desktop. */
+    if($('extActions')){
+      $('extActions').classList.remove('hidden');
+      const d=deviceKind();
+      const show=d==='android'?['extVlc','extMx','extExo']:d==='ios'?['extInfuse','extNplayer','extVlc']:['extVlc'];
+      ['extVlc','extMx','extExo','extInfuse','extNplayer'].forEach(id=>{const b=$(id);if(b){b.disabled=false;b.style.opacity='';b.style.display=show.indexOf(id)>=0?'':'none'}});
+      if($('extBrowser'))$('extBrowser').style.display='none';
+      if($('extCopy'))$('extCopy').style.display='';
+    }
   };
   const dropEngines=()=>{if(S.hls){try{S.hls.destroy()}catch(e){}S.hls=null}if(S.ts){try{S.ts.destroy()}catch(e){}S.ts=null}};
   const next=()=>{
@@ -2622,8 +2632,13 @@ if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$(
    out together after a few seconds of no interaction while playing, and stay up while paused or
    while a menu is open. Nothing is permanently on screen, so the video isn't cluttered. */
 const menusOpen=()=>{const q=$('qMenu'),m=$('playerMenu');return (q&&!q.classList.contains('hidden'))||(m&&!m.classList.contains('hidden'))};
+/* v5.8: an overlay STATE MESSAGE is up (loading, "Tap play", "This file is MKV", error) means the
+   video isn't really playing — showing the transport (rewind/play/forward) there just overlaps the
+   message. So while the overlay is visible, keep the bar hidden; the transport only appears on tap
+   once a title is actually playing (overlay hidden). */
+const overlayUp=()=>{const o=$('overlay');return !!o&&o.style.display!=='none'};
 const hideBar=()=>{const pb=$('playerBox');if(!pb)return;clearTimeout(_barTimer);pb.classList.remove('showbar')};
-const showBar=()=>{const pb=$('playerBox');if(!pb||!S.current)return;pb.classList.add('showbar');clearTimeout(_barTimer);const v=$('video');_barTimer=setTimeout(()=>{if(v&&!v.paused&&!v.ended&&!menusOpen())pb.classList.remove('showbar')},2800)};
+const showBar=()=>{const pb=$('playerBox');if(!pb||!S.current)return;if(overlayUp()){hideBar();return}pb.classList.add('showbar');clearTimeout(_barTimer);const v=$('video');_barTimer=setTimeout(()=>{if(v&&!v.paused&&!v.ended&&!menusOpen())pb.classList.remove('showbar')},2800)};
 const toggleBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.contains('showbar')?hideBar():showBar()};
 $('playerBox').addEventListener('mousemove',showBar);
 $('video').addEventListener('playing',showBar);
