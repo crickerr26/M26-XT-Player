@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='5.8';
+const APP_VERSION='5.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1630,12 +1630,26 @@ async function playItemBasic(x){
   /* v63: show the channel logo + loading bar right away so the wait reads as "this channel is
      loading", not a blank screen. */
   const _thumb=logoOf(x);
-  if($('stateThumb')){if(_thumb){$('stateThumb').src=_thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}}
-  if($('stateProgress'))$('stateProgress').classList.remove('hidden');
   $('stateTitle').textContent='Loading';
   $('stateText').textContent=nameOf(x);
-  $('overlay').style.display='grid';
   $('netStatus').textContent='Media26 Player';$('miniMeta').textContent='Loading';
+  let idx=0,startedB=false;
+  /* v5.9: OPTIMISTIC START for Movies/Series — a title the browser can play should start with NO
+     loading screen. Show the poster on the <video> and begin playback immediately; only reveal the
+     spinner if the first frame is genuinely slow (>500ms) or the title can't decode. Fast files
+     (the vast majority) jump straight to picture, so tapping a movie plays instantly. Live keeps the
+     immediate spinner — a live connection has real setup time and the feedback is expected. */
+  let _spinTimer=null;
+  const showLoadingUI=()=>{if(token!==S.seq||startedB)return;if($('stateThumb')){if(_thumb){$('stateThumb').src=_thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}}if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Loading';$('stateText').textContent=nameOf(x);$('overlay').style.display='grid';$('miniMeta').textContent='Loading';};
+  if(live){
+    showLoadingUI();
+  }else{
+    try{if(_thumb)v.poster=_thumb;else v.removeAttribute('poster')}catch(e){}
+    const pbx=$('playerBox');if(pbx)pbx.classList.toggle('posterPreview',!!_thumb);
+    if($('stateThumb'))$('stateThumb').classList.add('hidden');
+    $('overlay').style.display='none';
+    _spinTimer=setTimeout(showLoadingUI,500);
+  }
   /* neutralize any handlers the full player left on the element — basic mode means NOTHING
      reacts to waiting/stalled events */
   v.onwaiting=null;v.onstalled=null;v.onsuspend=null;v.ontimeupdate=null;
@@ -1714,14 +1728,13 @@ async function playItemBasic(x){
     }
     if(!plans.length)addv('native',lcu);
   }
-  let idx=0,startedB=false;
   /* v65: keep-alive state. Dedicated IPTV apps stay up because they RECONNECT the moment a
      stream stalls. We do the same, but safely: reconnect the SAME url in place (live rejoins
      the live edge, VOD keeps its position), never seek backwards, never switch to a worse
      stream — so it can't loop/repeat like the old Media26 engine did. The counter resets after
      30s of clean playback, so an evening of occasional blips never exhausts it. */
   let lastT=0,lastProg=Date.now(),reconnects=0,lastRc=0,cleanSince=Date.now(),rcTimes=[],attachAt=0;
-  const hide=()=>{$('overlay').style.display='none';$('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
+  const hide=()=>{if(_spinTimer){clearTimeout(_spinTimer);_spinTimer=null}$('overlay').style.display='none';$('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const stopMsg=m=>{$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.add('hidden');$('stateTitle').textContent='Stream stopped';$('stateText').textContent=m||'Tap the channel again to reconnect.';$('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped'};
   /* v76: when a MOVIE/SERIES can't play in the browser (usually an HEVC/10-bit mp4 Safari or
      Chrome can't decode, or a proxy that the panel blocks), don't dead-end on "Stream stopped".
@@ -1731,6 +1744,7 @@ async function playItemBasic(x){
      show a plain message and keep the app-chooser off the preview entirely — the per-row
      VLC / Infuse / nPlayer buttons are always there for the rare undecodable title. */
   const vodFailedFallback=()=>{
+    if(_spinTimer){clearTimeout(_spinTimer);_spinTimer=null}
     $('overlay').style.display='grid';
     if($('stateProgress'))$('stateProgress').classList.add('hidden');
     if($('stateThumb')){const th=logoOf(x);if(th){$('stateThumb').src=th;$('stateThumb').classList.remove('hidden')}}
