@@ -336,21 +336,21 @@ body.light .home-head p{color:#5a6f90}
 /* min-height keeps a definite box height: without it, overflow:hidden turns each
    card into a scroll container whose intrinsic height ignores its flex children,
    collapsing every row on top of the next in the auto-sized grid (the iOS bug). */
-.cp-cat{position:relative;overflow:hidden;min-height:58px;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:8px 14px 8px 18px;border-radius:15px;background:linear-gradient(135deg,rgba(255,255,255,.06),rgba(255,255,255,.022));border:1px solid rgba(255,255,255,.08);box-shadow:0 6px 18px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.05);color:#eaeef5;text-align:left;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);animation:cpIn .45s cubic-bezier(.2,.8,.2,1) both;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease}
+.cp-cat{position:relative;overflow:hidden;min-height:58px;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:8px 14px 8px 18px;border-radius:15px;background:linear-gradient(145deg,#131722 0%,#000000 100%);border:1px solid rgba(255,255,255,.1);box-shadow:0 6px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);color:#eaeef5;text-align:left;animation:cpIn .45s cubic-bezier(.2,.8,.2,1) both;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease}
 .cp-cat::before{content:"";position:absolute;left:7px;top:12px;bottom:12px;width:3px;border-radius:3px;background:linear-gradient(180deg,var(--cp-a),var(--cp-b));box-shadow:0 0 10px rgba(var(--cp-rgb),.45)}
 .cp-cat:active{transform:scale(.985)}
-@media(hover:hover){.cp-cat:hover{background:linear-gradient(135deg,rgba(var(--cp-rgb),.14),rgba(255,255,255,.025));border-color:rgba(var(--cp-rgb),.38);box-shadow:0 12px 28px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.07);transform:translateY(-1px)}}
-.cp-cat.active{border-color:rgba(var(--cp-rgb),.6);background:linear-gradient(135deg,rgba(var(--cp-rgb),.2),rgba(255,255,255,.03));box-shadow:0 10px 26px rgba(0,0,0,.32),0 0 0 1px rgba(var(--cp-rgb),.35),inset 0 1px 0 rgba(255,255,255,.08)}
+@media(hover:hover){.cp-cat:hover{background:linear-gradient(145deg,#1a2032 0%,#05070c 100%);border-color:rgba(var(--cp-rgb),.42);box-shadow:0 12px 30px rgba(0,0,0,.55),0 0 0 1px rgba(var(--cp-rgb),.16),inset 0 1px 0 rgba(255,255,255,.07);transform:translateY(-1px)}}
+.cp-cat.active{border-color:rgba(var(--cp-rgb),.6);background:linear-gradient(145deg,#1d2740 0%,#070a12 100%);box-shadow:0 10px 28px rgba(0,0,0,.55),0 0 0 1px rgba(var(--cp-rgb),.42),inset 0 1px 0 rgba(255,255,255,.08)}
 .cp-cbadge{flex-shrink:0;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:15px;letter-spacing:.3px;color:#f4f6fa;background:linear-gradient(140deg,var(--cp-a),var(--cp-b));box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 5px rgba(0,0,0,.22);text-shadow:0 1px 2px rgba(0,0,0,.28)}
 .cp-cbadge svg{width:21px;height:21px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.28))}
 .cp-cn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .cp-cn b{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eef1f6}
 .cp-cn small{font-size:11px;font-weight:700;letter-spacing:.2px;color:#93a0b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cp-count{flex-shrink:0;min-width:38px;height:26px;padding:0 10px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:900;color:#e6eaf1;background:rgba(255,255,255,.09);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.cp-count{flex-shrink:0;min-width:38px;height:26px;padding:0 10px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:900;color:#eef1f8;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .cp-star{flex-shrink:0;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:17px;line-height:1;color:#6a7488;background:transparent;transition:transform .14s ease,color .14s ease}
 .cp-star.on{color:#fbbf24;text-shadow:0 0 12px rgba(251,191,36,.5)}
 .cp-star:active{transform:scale(.82)}
-.cp-chev{flex-shrink:0;color:#5f6a7e;font-size:18px;font-weight:800;margin-left:-3px}
+.cp-chev{flex-shrink:0;color:#77839a;font-size:18px;font-weight:800;margin-left:-3px}
 @keyframes cpIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
 @media(min-width:720px){.cp-list{grid-template-columns:1fr 1fr}}
 body.light .catpage{background:linear-gradient(165deg,#eef5ff,#e4edfb)}
@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='5.6';
+const APP_VERSION='5.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
