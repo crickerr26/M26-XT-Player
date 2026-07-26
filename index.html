@@ -85,8 +85,8 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 @media(hover:hover){.viewToggle:hover{background:rgba(56,189,248,.14);color:#fff}}
 /* v5.6: compact portrait poster grid — 4 small tiles per row on phones, edge-to-edge (no wasted
    side margins), tiny name below. Matches the reference the owner shared. */
-.grid.gridview{grid-template-columns:repeat(4,1fr);align-content:start;gap:12px 8px;padding:4px 6px calc(20px + env(safe-area-inset-bottom))}
-.gcard{display:block;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);animation:gcIn .3s ease both}
+.grid.gridview{grid-template-columns:repeat(4,1fr);align-content:start;gap:12px 8px;padding:4px 6px calc(20px + env(safe-area-inset-bottom));box-sizing:border-box;width:100%;max-width:100%;overflow-x:hidden}
+.gcard{display:block;min-width:0;max-width:100%;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);animation:gcIn .3s ease both}
 @keyframes gcIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 /* 2:3 portrait tile via padding-ratio (150%) — iOS Safari collapses aspect-ratio boxes with a
    full-size image inside, so padding-ratio is used instead. object-fit:cover fills the poster art. */
@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='5.9';
+const APP_VERSION='6.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1640,7 +1640,10 @@ async function playItemBasic(x){
      (the vast majority) jump straight to picture, so tapping a movie plays instantly. Live keeps the
      immediate spinner — a live connection has real setup time and the feedback is expected. */
   let _spinTimer=null;
-  const showLoadingUI=()=>{if(token!==S.seq||startedB)return;if($('stateThumb')){if(_thumb){$('stateThumb').src=_thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}}if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Loading';$('stateText').textContent=nameOf(x);$('overlay').style.display='grid';$('miniMeta').textContent='Loading';};
+  /* v6.0: while a Movie/Series is loading, the POSTER stays on screen as the backdrop (not a black
+     box with a tiny thumbnail) so the wait looks like the title, not a blank load. Only live shows
+     the small centred thumbnail (no poster art on the <video> for live). */
+  const showLoadingUI=()=>{if(token!==S.seq||startedB)return;if($('stateThumb')){if(live&&_thumb){$('stateThumb').src=_thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}}if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Loading';$('stateText').textContent=nameOf(x);$('overlay').style.display='grid';$('miniMeta').textContent='Loading';};
   if(live){
     showLoadingUI();
   }else{
@@ -1648,7 +1651,9 @@ async function playItemBasic(x){
     const pbx=$('playerBox');if(pbx)pbx.classList.toggle('posterPreview',!!_thumb);
     if($('stateThumb'))$('stateThumb').classList.add('hidden');
     $('overlay').style.display='none';
-    _spinTimer=setTimeout(showLoadingUI,500);
+    /* v6.0: wider optimistic window (900ms) — most titles that CAN play start within it and show no
+       spinner at all; the poster is shown meanwhile, so even a slow title never looks "stuck". */
+    _spinTimer=setTimeout(showLoadingUI,900);
   }
   /* neutralize any handlers the full player left on the element — basic mode means NOTHING
      reacts to waiting/stalled events */
