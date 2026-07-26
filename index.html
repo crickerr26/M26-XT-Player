@@ -86,10 +86,13 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .grid.gridview{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));align-content:start;gap:14px 10px}
 .gcard{display:flex;flex-direction:column;gap:6px;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);min-height:0;animation:gcIn .35s ease both}
 @keyframes gcIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-.gposter{position:relative;aspect-ratio:2/3;border-radius:13px;overflow:hidden;background:linear-gradient(150deg,var(--panel),var(--panel2));display:grid;place-items:center;color:#5b6f92;font-size:26px;box-shadow:0 8px 20px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.06);transition:transform .15s ease}
+/* padding-ratio (150% = 2:3) instead of aspect-ratio — iOS Safari collapses aspect-ratio boxes that
+   contain a height:100% image, which squashed the posters into short pills. This holds everywhere. */
+.gposter{position:relative;width:100%;height:0;padding-bottom:150%;border-radius:13px;overflow:hidden;background:linear-gradient(150deg,var(--panel),var(--panel2));box-shadow:0 8px 20px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.06);transition:transform .15s ease}
 .gcard:active .gposter{transform:scale(.97)}
 .gcard.active .gposter{outline:2px solid var(--blue);outline-offset:-2px}
-.gposter img{width:100%;height:100%;object-fit:cover;display:block}
+.gposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.gph{position:absolute;inset:0;display:grid;place-items:center;color:#5b6f92;font-size:26px}
 .gstar{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:9px;background:rgba(3,7,18,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fbbf24;font-size:16px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.12)}
 .gstar[data-off="1"]{color:#c9d6ea}
 .gtitle{font-size:12.5px;font-weight:800;line-height:1.2;color:#eef1f6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -832,7 +835,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='5.1';
+const APP_VERSION='5.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1174,7 +1177,7 @@ function renderGrid(){
   let html;
   if(mode==='grid'){
     /* v5.1: poster-thumbnail grid — big artwork, title + year, favourite in the corner. */
-    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));return `<div class="gcard ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button></div><div class="gtitle">${esc(nameOf(x))}</div><div class="gmeta">${esc(gridMeta(x))}</div></div>`}).join('');
+    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));return `<div class="gcard ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"><span class="gph">▶</span>${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button></div><div class="gtitle">${esc(nameOf(x))}</div><div class="gmeta">${esc(gridMeta(x))}</div></div>`}).join('');
   }else{
     html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}).join('');
   }
