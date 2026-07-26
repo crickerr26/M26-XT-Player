@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='6.3';
+const APP_VERSION='6.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1034,7 +1034,7 @@ async function login(){
   const _act=parseInt(ui.active_cons||'0',10),_max=parseInt(ui.max_connections||'1',10)||1;
   if(_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
   saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();await refreshAll();updateHomeCounts();toast('Playlist loaded')}
-  catch(e){$('err').textContent=e.message||'Could not connect'}finally{load(false)}
+  catch(e){$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
 function updateHomeCounts(){if($('homeLiveCount'))$('homeLiveCount').textContent=(S.live.length||0).toLocaleString();if($('homeVodCount'))$('homeVodCount').textContent=(S.vod.length||0).toLocaleString();if($('homeSeriesCount'))$('homeSeriesCount').textContent=(S.series.length||0).toLocaleString();}
@@ -1829,6 +1829,16 @@ async function playItemBasic(x){
        before it starts, fall through to the next candidate. */
     v.onerror=()=>{if(token!==S.seq)return;startedB?reconnect():next()};
     try{
+      if(p.kind==='hls'&&/\/hls\?/.test(p.url||'')&&!p._resolved){
+        /* v6.4: THE MKV FIX. The transcoder /hls endpoint BLOCKS while ffmpeg makes the first
+           segment, and a free server also needs ~30-50s to wake — longer than hls.js's 10s manifest
+           timeout and iOS AVPlayer's patience, so the player gave up before the playlist arrived and
+           MKV dead-ended on "This file is MKV" even with a green transcoder. Resolve the URL with our
+           OWN fetch first (bounded by the 50s transcoder budget, no player timeout), then re-attach
+           with the READY playlist URL so the player loads something that responds instantly. */
+        fetch(p.url,{cache:'no-store'}).then(r=>{if(token!==S.seq)return;if(!r||!r.ok){next();return;}attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(()=>{if(token===S.seq)next();});
+        return;
+      }
       if(p.kind==='mpegts'){
         /* v66: fastest possible first frame — for LIVE the stash is tiny (32KB) so mpegts emits
            and decodes as soon as the first packets arrive instead of filling the default
@@ -2593,7 +2603,7 @@ function downloadCurrent(){
   document.body.appendChild(a);a.click();a.remove();
   toast('Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();$('login').classList.remove('hidden')};
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden')};
 /* v4.1: share-profile wiring */
 if($('shareOpenBtn'))$('shareOpenBtn').onclick=()=>openShare();
 if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove('show');
@@ -2646,7 +2656,7 @@ if($('catList'))$('catList').addEventListener('click',e=>{
   if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCatPage();return}
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
 });
-if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();$('login').classList.remove('hidden')};
+if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden')};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))backToCategories();else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
    toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
@@ -3061,6 +3071,15 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
 /* v4.1: if the app was opened from a shared QR / deep link (origin/#p=CODE), auto-load that
    playlist — the receiving device pairs with one tap, no typing. */
 (function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]p=([^&\s]+)/);if(m&&m[1]){const code=decodeURIComponent(m[1]);setTimeout(()=>{importFromCode(code).catch(err=>{if($('login'))$('login').classList.remove('hidden');openPairSheet(code);if($('pairErr'))$('pairErr').textContent=(err&&err.message)||'Could not load that code.';});},200);}}catch(e){}})();
+/* v6.4: STAY LOGGED IN. If credentials are already saved, connect automatically on launch so the
+   login screen only appears for a brand-new user or after an explicit Exit/logout (which clears the
+   saved credentials). Skips when a deep-link pairing code is present — that flow loads its own list. */
+(function(){try{
+  const hasDeepLink=/[#?&]p=/.test(String(location.hash||'')+String(location.search||''));
+  if(hasDeepLink)return;
+  const c=JSON.parse(store.getItem(KEY)||'null');
+  if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();}
+}catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
    nPlayer on iOS — so each user only sees choices that can actually launch on their phone. */
