@@ -83,21 +83,24 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .viewToggle svg{width:19px;height:19px}
 .viewToggle:active{transform:scale(.94)}
 @media(hover:hover){.viewToggle:hover{background:rgba(56,189,248,.14);color:#fff}}
-.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(104px,1fr));align-content:start;gap:14px 10px}
-.gcard{display:flex;flex-direction:column;gap:6px;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);min-height:0;animation:gcIn .35s ease both}
+.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));align-content:start;gap:16px 12px}
+.gcard{display:flex;flex-direction:column;gap:7px;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);min-height:0;animation:gcIn .35s ease both}
 @keyframes gcIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-/* padding-ratio (150% = 2:3) instead of aspect-ratio — iOS Safari collapses aspect-ratio boxes that
-   contain a height:100% image, which squashed the posters into short pills. This holds everywhere. */
-.gposter{position:relative;width:100%;height:0;padding-bottom:150%;border-radius:13px;overflow:hidden;background:linear-gradient(150deg,var(--panel),var(--panel2));box-shadow:0 8px 20px rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.06);transition:transform .15s ease}
+/* v5.4: uniform 16:9 tile that shows the WHOLE thumbnail (object-fit:contain — never cropped) on a
+   dark backdrop, so every tile is the same size and the full artwork is visible whatever its shape.
+   padding-ratio (56.25% = 16:9) instead of aspect-ratio, which iOS Safari collapses with a full-size
+   image inside. */
+.gposter{position:relative;width:100%;height:0;padding-bottom:56.25%;border-radius:12px;overflow:hidden;background:#0a1424;box-shadow:0 6px 16px rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.06);transition:transform .15s ease}
 .gcard:active .gposter{transform:scale(.97)}
 .gcard.active .gposter{outline:2px solid var(--blue);outline-offset:-2px}
-.gposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.gph{position:absolute;inset:0;display:grid;place-items:center;color:#5b6f92;font-size:26px}
-.gstar{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:9px;background:rgba(3,7,18,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fbbf24;font-size:16px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.12)}
+.gposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
+.gph{position:absolute;inset:0;display:grid;place-items:center;color:#5b6f92;font-size:24px}
+.gstar{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:9px;background:rgba(3,7,18,.6);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fbbf24;font-size:16px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.14)}
 .gstar[data-off="1"]{color:#c9d6ea}
-.gtitle{font-size:12.5px;font-weight:800;line-height:1.2;color:#eef1f6;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+/* full title — no truncation, wraps to as many lines as the name needs */
+.gtitle{font-size:12.5px;font-weight:800;line-height:1.28;color:#eef1f6;word-break:break-word}
 .gmeta{font-size:11px;font-weight:700;color:var(--muted)}
-@media(min-width:760px){.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}}
+@media(min-width:760px){.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}}
 /* Transcoder status chip (v4.3) */
 .transcoderStatusRow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
 .transcoderStatusRow .pillbtn{height:34px;padding:0 14px;text-decoration:none}
@@ -835,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='5.3';
+const APP_VERSION='5.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
