@@ -83,24 +83,24 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .viewToggle svg{width:19px;height:19px}
 .viewToggle:active{transform:scale(.94)}
 @media(hover:hover){.viewToggle:hover{background:rgba(56,189,248,.14);color:#fff}}
-.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));align-content:start;gap:16px 12px}
-.gcard{display:flex;flex-direction:column;gap:7px;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);min-height:0;animation:gcIn .35s ease both}
-@keyframes gcIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-/* v5.4: uniform 16:9 tile that shows the WHOLE thumbnail (object-fit:contain — never cropped) on a
-   dark backdrop, so every tile is the same size and the full artwork is visible whatever its shape.
-   padding-ratio (56.25% = 16:9) instead of aspect-ratio, which iOS Safari collapses with a full-size
-   image inside. */
-.gposter{position:relative;width:100%;height:0;padding-bottom:56.25%;border-radius:12px;overflow:hidden;background:#0a1424;box-shadow:0 6px 16px rgba(0,0,0,.32);border:1px solid rgba(255,255,255,.06);transition:transform .15s ease}
-.gcard:active .gposter{transform:scale(.97)}
+/* v5.6: compact portrait poster grid — 4 small tiles per row on phones, edge-to-edge (no wasted
+   side margins), tiny name below. Matches the reference the owner shared. */
+.grid.gridview{grid-template-columns:repeat(4,1fr);align-content:start;gap:12px 8px;padding:4px 6px calc(20px + env(safe-area-inset-bottom))}
+.gcard{display:block;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);animation:gcIn .3s ease both}
+@keyframes gcIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+/* 2:3 portrait tile via padding-ratio (150%) — iOS Safari collapses aspect-ratio boxes with a
+   full-size image inside, so padding-ratio is used instead. object-fit:cover fills the poster art. */
+.gposter{position:relative;width:100%;height:0;padding-bottom:150%;border-radius:9px;overflow:hidden;background:#0a1424;box-shadow:0 4px 12px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.06);transition:transform .15s ease}
+.gcard:active .gposter{transform:scale(.96)}
 .gcard.active .gposter{outline:2px solid var(--blue);outline-offset:-2px}
-.gposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block}
-.gph{position:absolute;inset:0;display:grid;place-items:center;color:#5b6f92;font-size:24px}
-.gstar{position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:9px;background:rgba(3,7,18,.6);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);color:#fbbf24;font-size:16px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.14)}
-.gstar[data-off="1"]{color:#c9d6ea}
-/* full title — no truncation, wraps to as many lines as the name needs */
-.gtitle{font-size:12.5px;font-weight:800;line-height:1.28;color:#eef1f6;word-break:break-word}
-.gmeta{font-size:11px;font-weight:700;color:var(--muted)}
-@media(min-width:760px){.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}}
+.gposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.gph{position:absolute;inset:0;display:grid;place-items:center;color:#5b6f92;font-size:20px}
+.gstar{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:7px;background:rgba(3,7,18,.5);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);color:#fbbf24;font-size:13px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.14)}
+.gstar[data-off="1"]{color:#e6ecf6}
+.ginfo{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:7px;background:rgba(3,7,18,.5);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);color:#fff;font-size:15px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.14)}
+.gtitle{margin-top:5px;font-size:11px;font-weight:700;line-height:1.22;color:#e9edf4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.gmeta{margin-top:2px;font-size:10px;font-weight:700;color:var(--muted)}
+@media(min-width:520px){.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(108px,1fr))}}
 /* Transcoder status chip (v4.3) */
 .transcoderStatusRow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
 .transcoderStatusRow .pillbtn{height:34px;padding:0 14px;text-decoration:none}
@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='5.5';
+const APP_VERSION='5.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1180,7 +1180,7 @@ function renderGrid(){
   let html;
   if(mode==='grid'){
     /* v5.1: poster-thumbnail grid — big artwork, title + year, favourite in the corner. */
-    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));return `<div class="gcard ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"><span class="gph">▶</span>${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button></div><div class="gtitle">${esc(nameOf(x))}</div><div class="gmeta">${esc(gridMeta(x))}</div></div>`}).join('');
+    html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));return `<div class="gcard ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"><span class="gph">▶</span>${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button>${typeOf(x)!=='live'?`<button class="ginfo" type="button" data-info="${esc(keyOf(x))}" aria-label="Details">⋮</button>`:''}</div><div class="gtitle">${esc(nameOf(x))}</div><div class="gmeta">${esc(gridMeta(x))}</div></div>`}).join('');
   }else{
     html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}).join('');
   }
@@ -2634,7 +2634,7 @@ $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.c
 $('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.1: poster grid — tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
