@@ -838,7 +838,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='6.4';
+const APP_VERSION='6.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1633,7 +1633,7 @@ async function playItemBasic(x){
   $('stateTitle').textContent='Loading';
   $('stateText').textContent=nameOf(x);
   $('netStatus').textContent='Media26 Player';$('miniMeta').textContent='Loading';
-  let idx=0,startedB=false;
+  let idx=0,startedB=false,transErr='';
   /* v5.9: OPTIMISTIC START for Movies/Series — a title the browser can play should start with NO
      loading screen. Show the poster on the <video> and begin playback immediately; only reveal the
      spinner if the first frame is genuinely slow (>500ms) or the title can't decode. Fast files
@@ -1763,10 +1763,19 @@ async function playItemBasic(x){
        point to the instant per-row app buttons. No player-chooser on the preview. */
     const c=String(x.container_extension||'').toLowerCase();
     const unplayable=/^(mkv|avi|wmv|flv|vob|divx|m2ts|ts)$/.test(c);
-    $('stateTitle').textContent=unplayable?('This file is '+c.toUpperCase()):'Couldn’t play this title';
-    $('stateText').textContent=unplayable
-      ? 'Web browsers can’t decode '+c.toUpperCase()+' directly. Tap a player below to watch it instantly — or set up a transcoder (Stream Tools) to play these right here.'
-      : 'Tap a player below to watch this title.';
+    /* v6.5: when a transcoder WAS tried, say what actually went wrong (server error / unreachable /
+       codec the device couldn't play) instead of the generic "browsers can't decode MKV" — that
+       message only fits when there's no transcoder at all. The version tag confirms the running
+       build at a glance. */
+    if(transErr){
+      $('stateTitle').textContent='Couldn’t play this '+(c?c.toUpperCase():'file');
+      $('stateText').textContent='The transcoder was tried but '+transErr+'. Free servers sleep when idle — if it says "server returned 504" or "no response", wait ~30s and tap the title again. Or use a player below. (v'+APP_VERSION+')';
+    }else{
+      $('stateTitle').textContent=unplayable?('This file is '+c.toUpperCase()):'Couldn’t play this title';
+      $('stateText').textContent=(unplayable
+        ? 'Web browsers can’t decode '+c.toUpperCase()+' directly. Tap a player below to watch it instantly — or set up a transcoder (Stream Tools) to play these right here.'
+        : 'Tap a player below to watch this title.')+' (v'+APP_VERSION+')';
+    }
     $('netStatus').textContent='Stopped';$('miniMeta').textContent='Stopped';
     /* v5.8: instead of pointing at the per-row buttons, show the external players that CAN open
        this file right below the message — no overlap, one tap. VLC/Infuse/nPlayer on iOS,
@@ -1829,6 +1838,10 @@ async function playItemBasic(x){
        before it starts, fall through to the next candidate. */
     v.onerror=()=>{if(token!==S.seq)return;startedB?reconnect():next()};
     try{
+      /* v6.5: the resolved transcoder stream is attaching. If it fails to START (codec the device
+         still can't decode), the fallback will surface this reason; if it plays, the overlay is
+         hidden and this is never seen. */
+      if(p._resolved){transErr='the converted stream wouldn’t start on this device (likely an HEVC/H.265 or 10-bit source)';}
       if(p.kind==='hls'&&/\/hls\?/.test(p.url||'')&&!p._resolved){
         /* v6.4: THE MKV FIX. The transcoder /hls endpoint BLOCKS while ffmpeg makes the first
            segment, and a free server also needs ~30-50s to wake — longer than hls.js's 10s manifest
@@ -1836,7 +1849,7 @@ async function playItemBasic(x){
            MKV dead-ended on "This file is MKV" even with a green transcoder. Resolve the URL with our
            OWN fetch first (bounded by the 50s transcoder budget, no player timeout), then re-attach
            with the READY playlist URL so the player loads something that responds instantly. */
-        fetch(p.url,{cache:'no-store'}).then(r=>{if(token!==S.seq)return;if(!r||!r.ok){next();return;}attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(()=>{if(token===S.seq)next();});
+        fetch(p.url,{cache:'no-store'}).then(r=>{if(token!==S.seq)return;if(!r||!r.ok){transErr=r?('server returned '+r.status):'no response';next();return;}attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(e=>{if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';next();});
         return;
       }
       if(p.kind==='mpegts'){
@@ -2098,8 +2111,9 @@ async function playItem(item,fromAlternative=false){
 async function routePlayback(x,mode,fromAlternative){
   /* v62: Media26 ('browser') is gone — every built-in request now uses the Basic player. */
   if(mode==='browser')mode='basic';
-  /* v88: VLC drops LIVE channels mid-view — never route live to VLC, use the built-in player */
-  if(mode==='vlc'&&typeOf(x)==='live')mode='basic';
+  /* v6.5: the per-row VLC button is an explicit one-off launch, so LIVE + VLC now actually opens
+     VLC (the old guard silently rerouted it to the built-in player, which is why tapping VLC on a
+     live channel did nothing). VLC still isn't a whole-category default for live. */
   if(isExternalMode(mode)&&!fromAlternative){
     /* v40 re-tap guard: ignore a repeat tap on the SAME channel within 4s of an external
        launch — a duplicate intent restarts VLC and the instant reconnect gets killed. */
