@@ -841,7 +841,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='7.1';
+const APP_VERSION='7.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1706,6 +1706,13 @@ async function playItemBasic(x){
     plans=fastTs?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]
       :isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
+    /* v7.2: TRANSCODER FALLBACK FOR LIVE. Lots of live channels (esp. "4K"/HEVC ones) use a codec
+       mpegts.js can't decode and a panel that serves no HLS — so they failed in the built-in player
+       with no safety net, even though the owner runs a transcoder (which was only wired for
+       movies/series). Now, if a transcoder is configured, add it as the LAST live route: it re-wraps
+       the channel into browser-playable rolling HLS ('remux' = copy video + AAC audio, low CPU), so
+       a channel that can't play natively still comes up in the inbuilt player. */
+    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(externalStreamUrl(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.push({kind:'hls',url:tlu});}}catch(e){}
   }else{
     /* v3.2 SmartPlay for Movies/Series — the goal is that ANY title plays in the built-in player
        on ANY device by exhausting every route the device can actually DECODE, in the right order.
@@ -1817,7 +1824,7 @@ async function playItemBasic(x){
   const next=()=>{
     if(token!==S.seq)return;
     idx++;
-    if(idx>=plans.length){if(!live){vodFailedFallback();}else{stopMsg('This channel did not load. Try another channel.');}return}
+    if(idx>=plans.length){if(!live){vodFailedFallback();}else{stopMsg((transErr?('Channel failed — transcoder: '+transErr+'. Free servers sleep when idle; wait ~30s and tap again.'):'This channel did not load. Try another channel, or open it in VLC / KMPlayer.')+' (v'+APP_VERSION+')');}return}
     dropEngines();
     attach(plans[idx]);
   };
