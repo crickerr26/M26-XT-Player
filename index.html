@@ -330,6 +330,11 @@ body.light .home-head p{color:#5a6f90}
 .cp-tt{min-width:0}
 .cp-tt h1{font-size:clamp(21px,5vw,28px);font-weight:900;letter-spacing:-.5px;line-height:1.05;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cp-tt p{margin-top:2px;color:#8fa5c6;font-size:12.5px;font-weight:700}
+/* v7.3: Live TV / Movies / Series switcher on the category page (segmented control). */
+.cp-tabs{display:flex;gap:5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:5px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) .04s both}
+.cp-tab{flex:1;min-width:0;height:40px;border:0;border-radius:10px;background:transparent;color:#9fb2d0;font-size:14px;font-weight:800;letter-spacing:.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;transition:background .16s ease,color .16s ease,box-shadow .16s ease}
+.cp-tab.active{background:linear-gradient(135deg,var(--cp-a),var(--cp-b));color:#fff;box-shadow:0 5px 14px rgba(var(--cp-rgb),.4)}
+.cp-tab:active{transform:scale(.96)}
 .cp-searchwrap{position:relative;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) .05s both}
 .cp-searchic{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:#7f93b4;pointer-events:none}
 .cp-searchwrap input{width:100%;height:46px;padding:0 14px 0 40px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:#eaf1fb;font-size:16px;font-weight:600}
@@ -680,6 +685,11 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <div class="cp-tt"><h1 id="catHeading">Live TV</h1><p id="catSub">— categories</p></div>
       </div>
     </div>
+    <div class="cp-tabs" id="catTabs">
+      <button class="cp-tab" type="button" data-cattab="live">Live TV</button>
+      <button class="cp-tab" type="button" data-cattab="vod">Movies</button>
+      <button class="cp-tab" type="button" data-cattab="series">Series</button>
+    </div>
     <div class="cp-searchwrap">
       <svg class="cp-searchic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="catSearch" placeholder="Search categories…" autocomplete="off">
@@ -841,7 +851,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='7.2';
+const APP_VERSION='7.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1076,6 +1086,7 @@ function showCategories(tab,restore){
   const cp=$('catpage');if(!cp)return goCategoryDirect(tab);
   const meta=CATPAGE_META[tab]||CATPAGE_META.live;
   cp.className='catpage theme-'+tab;
+  document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('active',b.dataset.cattab===tab));
   if($('catIcon'))$('catIcon').innerHTML=meta.icon;
   if($('catHeading'))$('catHeading').textContent=meta.label;
   if($('catSearch'))$('catSearch').value=restore?(S.catQ||''):'';
@@ -2664,6 +2675,8 @@ if($('pairLoad'))$('pairLoad').onclick=async()=>{const code=$('pairCodeBox')&&$(
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
 /* v90: categories page interactions */
 if($('catBack'))$('catBack').onclick=()=>showHome();
+/* v7.3: top tabs on the category page switch Live TV / Movies / Series in place. */
+if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(!b)return;const t=b.dataset.cattab;if(t&&t!==S.tab)showCategories(t);};
 /* v3.0: iOS-style swipe-from-left-edge to go back.
    In the channel grid it returns to the category list at the SAME scroll spot;
    on the category page it returns to Home. */
