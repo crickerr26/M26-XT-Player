@@ -840,7 +840,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='6.5';
+const APP_VERSION='6.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1194,9 +1194,9 @@ function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.lo
    opens that channel/movie straight in the chosen app — no popup. Device-appropriate set. */
 function rowPlayerButtons(key,type){
   const d=deviceKind();
-  let list=d==='ios'?[['vlc','VLC'],['infuse','Infuse'],['nplayer','nPlayer']]
+  let list=d==='ios'?[['vlc','VLC'],['km','KM'],['infuse','Infuse'],['nplayer','nPlayer']]
     :d==='android'?[['vlc','VLC'],['mx','MX'],['km','KM'],['exo','App']]
-    :[['vlc','VLC']];
+    :[['vlc','VLC'],['km','KM']];
   /* v6.3: VLC is now offered on LIVE rows too (owner request) — the per-row button is a one-off
      launch into VLC, so it appears next to Infuse / nPlayer for live channels as well. */
   return list.map(([m,lbl])=>'<button class="qp qp-'+m+'" type="button" data-play="'+m+'" data-key="'+key+'" title="Open in '+lbl+'">'+lbl+'</button>').join('');
@@ -1368,6 +1368,9 @@ function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encode
 function iosInfuseUrl(u){return'infuse://x-callback-url/play?url='+encodeURIComponent(u)}
 /* nPlayer registers scheme-prefixed URLs: nplayer-http://host/... opens the http stream */
 function iosNplayerUrl(u){return'nplayer-'+u}
+/* KMPlayer (iOS) registers the kmplayer:// scheme; hand it the stream by swapping http(s):// for it.
+   Falls back to the raw scheme-prefixed form if there's no protocol to swap. */
+function iosKmUrl(u){return /^https?:\/\//i.test(u)?u.replace(/^https?:\/\//i,'kmplayer://'):('kmplayer://'+u)}
 function vlcDesktopUrl(u){return 'vlc://'+u}
 function downloadM3u(u,title){try{const blob=new Blob(['#EXTM3U\n#EXTINF:-1,'+String(title||'Media26 stream').replace(/[\r\n]+/g,' ')+'\n'+u+'\n'],{type:'audio/x-mpegurl'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='media26-play.m3u';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href);a.remove()}catch{}},4000);return true}catch{return false}}
 function launchAppChain(urls,onGone,onFail){
@@ -1532,6 +1535,7 @@ async function playItemExternal(x,mode,armed){
   }else{
     chain=mode==='infuse'?[iosInfuseUrl(u)]
       :mode==='nplayer'?[iosNplayerUrl(u)]
+      :mode==='km'?[iosKmUrl(u)]
       :[iosVlcUrl(u)];
   }
   chain=chain.filter(Boolean);
@@ -1787,7 +1791,7 @@ async function playItemBasic(x){
     if($('extActions')){
       $('extActions').classList.remove('hidden');
       const d=deviceKind();
-      const show=d==='android'?['extVlc','extMx','extKm','extExo']:d==='ios'?['extInfuse','extNplayer','extVlc']:['extVlc'];
+      const show=d==='android'?['extVlc','extMx','extKm','extExo']:d==='ios'?['extInfuse','extNplayer','extVlc','extKm']:['extVlc','extKm'];
       ['extVlc','extMx','extKm','extExo','extInfuse','extNplayer'].forEach(id=>{const b=$(id);if(b){b.disabled=false;b.style.opacity='';b.style.display=show.indexOf(id)>=0?'':'none'}});
       if($('extBrowser'))$('extBrowser').style.display='none';
       if($('extCopy'))$('extCopy').style.display='';
@@ -2158,6 +2162,7 @@ const PICON={
   basic:{bg:'linear-gradient(135deg,#64748b,#334155)',t:'BAS'},
   vlc:{bg:'linear-gradient(135deg,#ff8f1c,#e85d04)',t:'VLC'},
   mx:{bg:'linear-gradient(135deg,#2563eb,#1e40af)',t:'MX'},
+  km:{bg:'linear-gradient(135deg,#6366f1,#4338ca)',t:'KM'},
   exo:{bg:'linear-gradient(135deg,#22c55e,#15803d)',t:'APP'},
   infuse:{bg:'linear-gradient(135deg,#a78bfa,#7c3aed)',t:'INF'},
   nplayer:{bg:'linear-gradient(135deg,#14b8a6,#0f766e)',t:'nP'}
@@ -2679,7 +2684,7 @@ if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
    toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
    always shows the muted icon the user can tap to turn sound on. */
-if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
+if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extKm'))$('extKm').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'km',true)};if($('extInfuse'))$('extInfuse').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'infuse',true)};if($('extNplayer'))$('extNplayer').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'nplayer',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
    for live TV keep the clean auto-hide after 1.8s. */
 /* v79: consistent auto-hiding controls (like Infuse). Tap the video to reveal them; they fade
    out together after a few seconds of no interaction while playing, and stay up while paused or
