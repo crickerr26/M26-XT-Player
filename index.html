@@ -840,7 +840,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='6.6';
+const APP_VERSION='6.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1368,9 +1368,11 @@ function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encode
 function iosInfuseUrl(u){return'infuse://x-callback-url/play?url='+encodeURIComponent(u)}
 /* nPlayer registers scheme-prefixed URLs: nplayer-http://host/... opens the http stream */
 function iosNplayerUrl(u){return'nplayer-'+u}
-/* KMPlayer (iOS) registers the kmplayer:// scheme; hand it the stream by swapping http(s):// for it.
-   Falls back to the raw scheme-prefixed form if there's no protocol to swap. */
-function iosKmUrl(u){return /^https?:\/\//i.test(u)?u.replace(/^https?:\/\//i,'kmplayer://'):('kmplayer://'+u)}
+/* KMPlayer (iOS) registers the kmplayer:// scheme. Swapping the scheme (kmplayer://host/path) opens
+   the app but doesn't hand it the stream, so instead PASS the whole original URL after the scheme —
+   kmplayer://http://host/path — which is the form KMPlayer parses to start the stream. The stream
+   link is also copied to the clipboard on launch as a fallback for KMPlayer's manual "Open URL". */
+function iosKmUrl(u){return'kmplayer://'+u}
 function vlcDesktopUrl(u){return 'vlc://'+u}
 function downloadM3u(u,title){try{const blob=new Blob(['#EXTM3U\n#EXTINF:-1,'+String(title||'Media26 stream').replace(/[\r\n]+/g,' ')+'\n'+u+'\n'],{type:'audio/x-mpegurl'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='media26-play.m3u';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href);a.remove()}catch{}},4000);return true}catch{return false}}
 function launchAppChain(urls,onGone,onFail){
@@ -1539,7 +1541,14 @@ async function playItemExternal(x,mode,armed){
       :[iosVlcUrl(u)];
   }
   chain=chain.filter(Boolean);
-  $('stateText').textContent=(d==='android'&&mode!=='vlc')
+  /* v6.7: KMPlayer's iOS URL scheme isn't officially documented, so the auto-push may not catch on
+     every build. Copy the stream link to the clipboard on launch so the user can paste it into
+     KMPlayer's "Open URL" if it opens without the video. */
+  const kmIos=(mode==='km'&&d==='ios');
+  if(kmIos){try{navigator.clipboard&&navigator.clipboard.writeText(u)}catch(e){}}
+  $('stateText').textContent=kmIos
+    ?'Opening KMPlayer with "'+title+'". If it opens without the video, tap KMPlayer’s "Open URL" and paste — the link is already copied.'
+    :(d==='android'&&mode!=='vlc')
     ?'Android will ask which app should play "'+title+'" — choose VLC or Media26 Player and tap "Always" to remember your choice.'
     :'Launching '+label+' with "'+title+'". If no player app opens, use the buttons below.';
   /* v21: NO automatic browser-preview fallback after an external launch. This account allows
