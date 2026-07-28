@@ -841,12 +841,29 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='6.9';
+const APP_VERSION='7.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
    http or unsupported browsers. */
 if('serviceWorker'in navigator){try{addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}catch(e){}}
+/* v7.0: FORCE-UPDATE a stale installed app. On a flaky connection the network-first worker can
+   keep serving an OLD cached shell for a long time, so home-screen users were stuck versions behind
+   (missing the instant-start, the flicker fix, the logos...). On launch, fetch the live index.html
+   straight from the network, read its APP_VERSION, and if a NEWER build is deployed, drop all caches
+   and reload once to it — guarded per-version so it can never loop. Silent no-op when already current
+   or offline. */
+(function(){try{
+  var sc=(function(){try{sessionStorage.setItem('__m26v','1');sessionStorage.removeItem('__m26v');return sessionStorage}catch(e){return null}})();
+  var cmp=function(a,b){var pa=String(a).split('.').map(Number),pb=String(b).split('.').map(Number);for(var i=0;i<Math.max(pa.length,pb.length);i++){var d=(pa[i]||0)-(pb[i]||0);if(d)return d}return 0};
+  fetch(location.pathname+'?vc='+Date.now(),{cache:'no-store'}).then(function(r){return r&&r.ok?r.text():''}).then(function(t){
+    var m=t.match(/APP_VERSION='([\d.]+)'/);if(!m)return;
+    var latest=m[1];if(cmp(latest,APP_VERSION)<=0)return;
+    var flag='m26up-'+latest;if(sc&&sc.getItem(flag))return;if(sc)sc.setItem(flag,'1');
+    var go=function(){try{location.reload(true)}catch(e){location.reload()}};
+    if(window.caches&&caches.keys){caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}).then(go,go)}else go();
+  }).catch(function(){});
+}catch(e){}})();
 /* FIX (v19): when the app is opened from a data: URL, a sandboxed iframe, or some
    privacy modes, reading window.localStorage THROWS ("Storage is disabled inside
    'data:' URLs") — that exception used to surface in the login error box and block
@@ -1705,13 +1722,13 @@ async function playItemBasic(x){
        CSS backdrop-filter (fixed in v1.4), so routing iOS live through the slower proxied
        playlist only hurt speed and reliability. mpegts is primary; native HLS is the fallback,
        and it still leads for 4K/UHD where mpegts.js software decode would comb the picture. */
-    /* v6.9: FIX LIVE FLICKER on iOS. mpegts.js feeds the browser via MSE, which on iOS does NOT
-       deinterlace — so interlaced (1080i) live channels comb/flicker on motion (the horizontal
-       "teeth" the owner saw). Safari's NATIVE HLS path (AVPlayer) hardware-decodes AND deinterlaces,
-       giving a clean picture. So on Apple lead with native HLS for ALL live (not just 4K); mpegts is
-       the fallback if a channel has no HLS. Non-Apple keeps mpegts-first (fast, and desktop/Android
-       Chrome deinterlace the MSE path fine). */
-    const fastTs=tsOk&&!is4k&&!isApple;
+    /* v7.0: INSTANT LIVE START wins. v6.9 tried native-HLS-first on iOS to hardware-deinterlace, but
+       many panels are TS-only for live — so HLS just failed, the app fell back to mpegts anyway (still
+       combed) AND the failed HLS attempt added seconds of "loading". So go back to mpegts-first: the
+       raw .ts shows the first frame almost immediately. 4K/UHD still leads with native HLS (mpegts.js
+       software-decoding 4K combs/stutters). Interlaced channels that comb are a source/panel limit
+       the browser can't deinterlace on the TS path — VLC / KMPlayer give a clean picture there. */
+    const fastTs=tsOk&&!is4k;
     plans=fastTs?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]
       :isApple?[{kind:'hls',url:m3},{kind:'mpegts',url:ts}]
       :(tsOk?[{kind:'mpegts',url:ts},{kind:'hls',url:m3}]:[{kind:'hls',url:m3}]);
