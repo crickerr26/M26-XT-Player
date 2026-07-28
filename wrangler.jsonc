@@ -15,7 +15,7 @@
  * to:  npx wrangler deploy --config wrangler.media26.jsonc
  */
 {
-  "name": "smarteriptv",
+  "name": "media26",
   "main": "_worker.js",
   "compatibility_date": "2025-06-01",
   "assets": {
