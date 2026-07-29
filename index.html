@@ -854,7 +854,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='7.6';
+const APP_VERSION='7.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1099,7 +1099,7 @@ function showCategories(tab,restore){
   document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('active',b.dataset.cattab===tab));
   if($('catIcon'))$('catIcon').innerHTML=meta.icon;
   if($('catHeading'))$('catHeading').textContent=meta.label;
-  if($('catSearch'))$('catSearch').value=restore?(S.catQ||''):'';
+  if($('catSearch')){$('catSearch').value=restore?(S.catQ||''):'';/* v7.7: placeholder reflects the tab you're searching within */$('catSearch').placeholder='Search '+(tab==='live'?'Live TV':tab==='vod'?'Movies':'Series')+'…';}
   ensureTypeLoaded(tab);
   renderCatPage();
   if($('home'))$('home').classList.add('hidden');
@@ -1115,21 +1115,17 @@ function renderCatPage(){
   const total=list().length;
   if($('catSub'))$('catSub').textContent=loading&&!total?('Loading '+meta.unit+'…'):(cats().length.toLocaleString()+' categories · '+total.toLocaleString()+' '+meta.unit);
   const q=(S.catQ||'').toLowerCase().trim();
-  /* v7.6: GLOBAL CONTENT SEARCH. When the user types, search the actual channels / movies / series
-     (not the category names) across ALL three types and group the results under Live TV / Movies /
-     Series headers. Tapping a result plays it (series opens its episodes). */
+  /* v7.7: SCOPED CONTENT SEARCH. Search the actual channels/movies/series of the CURRENT tab only —
+     on Live TV it suggests only live channels, on Movies only movies, on Series only series. Tapping
+     a result plays it (a series result opens its episodes). */
   if(q){
-    const TYPES=[['live','Live TV',S.live],['vod','Movies',S.vod],['series','Series',S.series]];
-    let sHtml='',total=0;const CAP=80;
-    for(const [type,label,arr] of TYPES){
-      const hits=[];for(const x of (arr||[])){if(nameOf(x).toLowerCase().includes(q)){hits.push(x);if(hits.length>=CAP)break;}}
-      if(!hits.length)continue;total+=hits.length;
-      sHtml+=`<div class="cp-section">${esc(label)} · ${hits.length}${hits.length>=CAP?'+':''}</div>`;
-      for(const x of hits){const logo=logoOf(x);sHtml+=`<button class="cp-cat sres" data-skey="${esc(keyOf(x))}"><span class="cp-cbadge sres-badge">${type==='live'?'▶':'★'}${logo?`<img class="sres-img" loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}</span><span class="cp-cn"><b>${esc(nameOf(x))}</b><small>${esc(label)}</small></span><span class="cp-chev">›</span></button>`;}
-    }
-    const anyLoading=S.loadingLive||S.loadingVod||S.loadingSeries;
-    if(!total)sHtml=`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">${anyLoading?'Searching all channels, movies & series…':'Nothing matches “'+esc(q)+'”'}</div>`;
-    if($('catSub'))$('catSub').textContent=total?(total.toLocaleString()+' result'+(total===1?'':'s')+(anyLoading?' so far…':'')):(anyLoading?'Searching…':'No results');
+    const cur=S.tab,arr=list();const label=meta.label;const isLive=cur==='live';
+    const hits=[];const CAP=300;
+    for(const x of (arr||[])){if(nameOf(x).toLowerCase().includes(q)){hits.push(x);if(hits.length>=CAP)break;}}
+    let sHtml='';
+    for(const x of hits){const logo=logoOf(x);sHtml+=`<button class="cp-cat sres" data-skey="${esc(keyOf(x))}"><span class="cp-cbadge sres-badge">${isLive?'▶':'★'}${logo?`<img class="sres-img" loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}</span><span class="cp-cn"><b>${esc(nameOf(x))}</b><small>${esc(label)}</small></span><span class="cp-chev">›</span></button>`;}
+    if(!hits.length)sHtml=`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">${loading?('Loading '+esc(meta.unit)+'…'):('No '+esc(meta.unit)+' match “'+esc(q)+'”')}</div>`;
+    if($('catSub'))$('catSub').textContent=hits.length?(hits.length.toLocaleString()+(hits.length>=CAP?'+':'')+' result'+(hits.length===1?'':'s')+' in '+label):(loading?'Loading…':'No results');
     list_.innerHTML=sHtml;
     return;
   }
@@ -1197,14 +1193,15 @@ async function loadType(type){
 function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='vod'?S.loadedVod:S.loadedSeries;const loading=type==='live'?S.loadingLive:type==='vod'?S.loadingVod:S.loadingSeries;if(!loaded&&!loading)return loadType(type);}
 async function refreshAll(){
   S.loadedLive=S.loadedVod=S.loadedSeries=false;
-  /* v83: show each stage on the loading screen, one after another (sequential = no concurrent
-     requests the panel might drop), then "Load completed" before entering the app. */
-  load(true,'Loading Live TV…');   await loadType('live');
-  load(true,'Loading Movies…');    await loadType('vod');
-  load(true,'Loading Series…');    await loadType('series');
-  load(true,'Load completed ✓');
-  await new Promise(r=>setTimeout(r,750));
+  /* v7.7: get the app USABLE fast. Load Live TV (the landing tab) first and enter immediately, then
+     preload Movies + Series in the BACKGROUND in parallel — so the whole catalog is in memory and
+     switching tabs / searching / opening a title is instant, WITHOUT making the user wait through
+     three sequential loads at startup. (loadType is resilient: a dropped request is retried by
+     ensureTypeLoaded when that tab is first opened.) */
+  load(true,'Loading your channels…');
+  await loadType('live');
   load(false);
+  Promise.all([loadType('vod'),loadType('series')]).catch(()=>{});
 }
 function renderAll(){renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
 function renderCats(){
@@ -2722,7 +2719,7 @@ if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(
     if(dx>58&&Math.abs(dy)<48&&dx>Math.abs(dy)*1.6&&dt<650)goBack();
   },{passive:true});
 })();
-if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;/* v7.6: searching looks across ALL content, so make sure every type is loaded */if((S.catQ||'').trim()){ensureTypeLoaded('live');ensureTypeLoaded('vod');ensureTypeLoaded('series');}renderCatPage()};
+if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;/* v7.7: search is scoped to the current tab */if((S.catQ||'').trim())ensureTypeLoaded(S.tab);renderCatPage()};
 if($('catList'))$('catList').addEventListener('click',e=>{
   const st=e.target.closest('[data-favcat]');
   if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCatPage();return}
