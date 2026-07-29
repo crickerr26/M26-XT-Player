@@ -334,6 +334,10 @@ body.light .home-head p{color:#5a6f90}
 .cp-tab{flex:1;min-width:0;height:40px;border:0;border-radius:10px;background:transparent;color:#9fb2d0;font-size:14px;font-weight:800;letter-spacing:.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;transition:background .16s ease,color .16s ease,box-shadow .16s ease}
 .cp-tab.active{background:linear-gradient(135deg,var(--cp-a),var(--cp-b));color:#fff;box-shadow:0 5px 14px rgba(var(--cp-rgb),.4)}
 .cp-tab:active{transform:scale(.96)}
+/* v7.6: global search results on the category page — type headers + poster thumbnails. */
+.cp-section{grid-column:1/-1;font-size:11.5px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#8fa5c6;padding:12px 8px 2px}
+.sres-badge{position:relative;overflow:hidden}
+.sres-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .cp-searchwrap{position:relative;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) .05s both}
 .cp-searchic{position:absolute;left:15px;top:50%;transform:translateY(-50%);width:17px;height:17px;color:#7f93b4;pointer-events:none}
 .cp-searchwrap input{width:100%;height:46px;padding:0 14px 0 40px;border-radius:14px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.1);color:#eaf1fb;font-size:16px;font-weight:600}
@@ -691,7 +695,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </div>
     <div class="cp-searchwrap">
       <svg class="cp-searchic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-      <input id="catSearch" placeholder="Search categories…" autocomplete="off">
+      <input id="catSearch" placeholder="Search channels, movies, series…" autocomplete="off">
     </div>
     <div class="cp-list" id="catList"></div>
   </div>
@@ -850,7 +854,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='7.5';
+const APP_VERSION='7.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1111,6 +1115,24 @@ function renderCatPage(){
   const total=list().length;
   if($('catSub'))$('catSub').textContent=loading&&!total?('Loading '+meta.unit+'…'):(cats().length.toLocaleString()+' categories · '+total.toLocaleString()+' '+meta.unit);
   const q=(S.catQ||'').toLowerCase().trim();
+  /* v7.6: GLOBAL CONTENT SEARCH. When the user types, search the actual channels / movies / series
+     (not the category names) across ALL three types and group the results under Live TV / Movies /
+     Series headers. Tapping a result plays it (series opens its episodes). */
+  if(q){
+    const TYPES=[['live','Live TV',S.live],['vod','Movies',S.vod],['series','Series',S.series]];
+    let sHtml='',total=0;const CAP=80;
+    for(const [type,label,arr] of TYPES){
+      const hits=[];for(const x of (arr||[])){if(nameOf(x).toLowerCase().includes(q)){hits.push(x);if(hits.length>=CAP)break;}}
+      if(!hits.length)continue;total+=hits.length;
+      sHtml+=`<div class="cp-section">${esc(label)} · ${hits.length}${hits.length>=CAP?'+':''}</div>`;
+      for(const x of hits){const logo=logoOf(x);sHtml+=`<button class="cp-cat sres" data-skey="${esc(keyOf(x))}"><span class="cp-cbadge sres-badge">${type==='live'?'▶':'★'}${logo?`<img class="sres-img" loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}</span><span class="cp-cn"><b>${esc(nameOf(x))}</b><small>${esc(label)}</small></span><span class="cp-chev">›</span></button>`;}
+    }
+    const anyLoading=S.loadingLive||S.loadingVod||S.loadingSeries;
+    if(!total)sHtml=`<div style="grid-column:1/-1;color:#8fa5c6;padding:26px;text-align:center;font-weight:700">${anyLoading?'Searching all channels, movies & series…':'Nothing matches “'+esc(q)+'”'}</div>`;
+    if($('catSub'))$('catSub').textContent=total?(total.toLocaleString()+' result'+(total===1?'':'s')+(anyLoading?' so far…':'')):(anyLoading?'Searching…':'No results');
+    list_.innerHTML=sHtml;
+    return;
+  }
   const favCount=list().filter(x=>S.favs.has(keyOf(x))).length;
   const recCount=list().filter(x=>S.recent.includes(keyOf(x))).length;
   const specials=[
@@ -2700,10 +2722,13 @@ if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(
     if(dx>58&&Math.abs(dy)<48&&dx>Math.abs(dy)*1.6&&dt<650)goBack();
   },{passive:true});
 })();
-if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;renderCatPage()};
+if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;/* v7.6: searching looks across ALL content, so make sure every type is loaded */if((S.catQ||'').trim()){ensureTypeLoaded('live');ensureTypeLoaded('vod');ensureTypeLoaded('series');}renderCatPage()};
 if($('catList'))$('catList').addEventListener('click',e=>{
   const st=e.target.closest('[data-favcat]');
   if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCatPage();return}
+  /* v7.6: a search result row plays the channel/movie (series opens its episodes) */
+  const sr=e.target.closest('.sres');
+  if(sr){const x=findByKey(sr.dataset.skey);if(x){if($('catpage'))$('catpage').classList.add('hidden');playItem(x);}return}
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
 });
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden')};
