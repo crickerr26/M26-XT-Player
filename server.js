@@ -5,13 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
-let sqlite3 = null;
-try {
-  sqlite3 = require('sqlite3').verbose();
-} catch (error) {
-  console.warn('sqlite3 is not installed; licensing API routes are disabled:', error.message);
-}
- 
+
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -27,35 +21,79 @@ const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 30 * 60 * 1000);
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN || '';
  
-// Secure master IPTV credentials and admin key.
-const MASTER_IPTV_URL = process.env.IPTV_URL || 'http://portal.example.com:8080';
-const MASTER_IPTV_USER = process.env.IPTV_USER || 'media26';
-const MASTER_IPTV_PASS = process.env.IPTV_PASS || 'media26';
+// Admin dashboard key (set ADMIN_KEY in the environment to something only you know).
 const ADMIN_API_KEY = process.env.ADMIN_KEY || 'super_secret_admin_key';
- 
-fs.mkdirSync(MEDIA_ROOT, { recursive: true });
+// How many devices a single activation code may run on before the code is blocked.
+const DEVICE_LIMIT = Number(process.env.DEVICE_LIMIT || 2);
+// WhatsApp alerts (CallMeBot). Set CALLMEBOT_KEY (from the one-time opt-in) and CALLMEBOT_PHONE
+// to be messaged when a code is used on a 3rd device. Optional — quietly skipped if unset.
+const CALLMEBOT_KEY = process.env.CALLMEBOT_KEY || '';
+const CALLMEBOT_PHONE = process.env.CALLMEBOT_PHONE || '14164744994';
 
-let db = {
-  get(_sql, _params, cb) { cb(new Error('Licensing database is disabled')); },
-  run(_sql, _params, cb) { if (typeof cb === 'function') cb.call({ changes: 0 }, new Error('Licensing database is disabled')); },
-  all(_sql, _params, cb) { cb(new Error('Licensing database is disabled')); }
-};
+/* ── Upstash Redis (REST) — the persistent store for activation codes. Uses plain HTTPS with a
+   bearer token, so it needs no npm package (keeps the transcoder's zero-dependency Dockerfile).
+   Licensing is only enabled when both env vars are present; otherwise the routes report that the
+   store is not configured and playback/transcoding is completely unaffected. */
+const UPSTASH_URL = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, '');
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
+const LICENSING_ENABLED = !!(UPSTASH_URL && UPSTASH_TOKEN);
 
-// Initialize Licensing Database when the optional sqlite3 package is available.
-if (sqlite3) {
-  db = new sqlite3.Database(path.join(__dirname, 'licenses.db'), (err) => {
-    if (err) console.error("DB Error:", err.message);
-    db.run(`CREATE TABLE IF NOT EXISTS customers (
-        code TEXT PRIMARY KEY,
-        status TEXT DEFAULT 'active',
-        device_id TEXT,
-        created_at INTEGER,
-        expires_at INTEGER,
-        last_login INTEGER
-    )`);
+function redis(cmd) {
+  // cmd is an array like ['SET','key','value'] — sent as a JSON body to the Upstash REST endpoint.
+  return new Promise((resolve, reject) => {
+    if (!LICENSING_ENABLED) return reject(new Error('Licensing store not configured'));
+    let target;
+    try { target = new URL(UPSTASH_URL); } catch (e) { return reject(new Error('Bad UPSTASH_REDIS_REST_URL')); }
+    const payload = Buffer.from(JSON.stringify(cmd));
+    const options = {
+      method: 'POST',
+      hostname: target.hostname,
+      port: target.port || 443,
+      path: target.pathname || '/',
+      headers: {
+        authorization: 'Bearer ' + UPSTASH_TOKEN,
+        'content-type': 'application/json',
+        'content-length': payload.length
+      }
+    };
+    const rq = https.request(options, up => {
+      let data = '';
+      up.on('data', c => { data += c.toString(); });
+      up.on('end', () => {
+        try {
+          const parsed = JSON.parse(data || '{}');
+          if (parsed && parsed.error) return reject(new Error(parsed.error));
+          resolve(parsed ? parsed.result : null);
+        } catch (e) { reject(new Error('Bad response from store')); }
+      });
+    });
+    rq.setTimeout(8000, () => rq.destroy(new Error('Store request timed out')));
+    rq.on('error', reject);
+    rq.end(payload);
   });
 }
- 
+
+async function licGet(code) {
+  const raw = await redis(['GET', 'lic:' + code]);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+async function licSet(code, obj) {
+  await redis(['SET', 'lic:' + code, JSON.stringify(obj)]);
+}
+
+/* Fire-and-forget WhatsApp alert to the admin via CallMeBot. Never throws into the request path. */
+function whatsappAlert(text) {
+  if (!CALLMEBOT_KEY) return;
+  try {
+    const url = 'https://api.callmebot.com/whatsapp.php?phone=' + encodeURIComponent(CALLMEBOT_PHONE) +
+      '&text=' + encodeURIComponent(text) + '&apikey=' + encodeURIComponent(CALLMEBOT_KEY);
+    https.get(url, r => { r.resume(); }).on('error', () => {});
+  } catch (e) {}
+}
+
+fs.mkdirSync(MEDIA_ROOT, { recursive: true });
+
 const sessions = new Map();
 const mime = {
   '.m3u8': 'application/vnd.apple.mpegurl',
@@ -410,79 +448,118 @@ const server = http.createServer(async (req, res) => {
     if (!['GET', 'HEAD', 'POST'].includes(req.method)) return send(res, 405, 'Method not allowed');
     const u = new URL(req.url, `http://${req.headers.host}`);
  
-    // --- LICENSING & ADMIN API ROUTES ---
+    // --- LICENSING & ADMIN API ROUTES (Upstash-backed activation codes) ---
     if (u.pathname.startsWith('/api/')) {
       if (req.method !== 'POST' && req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
-      
-      // CLIENT ACTIVATION (Called by index.html)
+      if (!LICENSING_ENABLED) return json(res, 503, { error: 'Activation is not set up on this server yet.' });
+
+      /* CUSTOMER: request a new activation code. The app generates an 8-digit code on the device
+         and registers it here as "pending", binding this first device. The admin then activates it. */
+      if (u.pathname === '/api/request') {
+        const body = await parseJsonBody(req);
+        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
+        const deviceId = String(body.deviceId || '').trim().slice(0, 80);
+        if (code.length !== 8 || !deviceId) return json(res, 400, { error: 'A valid 8-digit code and device are required.' });
+        let lic = await licGet(code);
+        if (!lic) {
+          lic = { code, status: 'pending', devices: [deviceId], createdAt: Date.now() };
+          await licSet(code, lic);
+        } else if (lic.status === 'pending' && lic.devices.indexOf(deviceId) < 0 && lic.devices.length < DEVICE_LIMIT) {
+          lic.devices.push(deviceId); await licSet(code, lic);
+        }
+        return json(res, 200, { ok: true, status: lic.status });
+      }
+
+      /* CUSTOMER: poll for activation / log in. Returns credentials only once the admin has
+         activated the code AND this device is within the allowed device count. The app uses the
+         returned credentials silently — it never shows them to the user. */
       if (u.pathname === '/api/activate') {
         const body = await parseJsonBody(req);
-        const code = String(body.code || '').trim().toUpperCase();
-        const deviceId = String(body.deviceId || '').trim();
-        if (!code || !deviceId) return json(res, 400, { error: 'Code and Device ID required' });
- 
-        return await new Promise((resolve) => {
-          db.get(`SELECT * FROM customers WHERE code = ?`, [code], (err, row) => {
-            if (err || !row) return resolve(json(res, 401, { error: 'Invalid activation code' }));
-            if (row.status !== 'active') return resolve(json(res, 403, { error: 'Subscription ' + row.status }));
-            if (row.expires_at > 0 && Date.now() > row.expires_at) {
-              db.run(`UPDATE customers SET status = 'expired' WHERE code = ?`, [code]);
-              return resolve(json(res, 403, { error: 'Subscription expired' }));
+        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
+        const deviceId = String(body.deviceId || '').trim().slice(0, 80);
+        if (code.length !== 8 || !deviceId) return json(res, 400, { error: 'A valid 8-digit code and device are required.' });
+        const lic = await licGet(code);
+        if (!lic) return json(res, 200, { status: 'invalid' });
+        if (lic.status === 'pending') return json(res, 200, { status: 'pending' });
+        if (lic.status === 'blocked') return json(res, 200, { status: 'blocked' });
+        if (lic.status === 'disabled') return json(res, 200, { status: 'disabled' });
+        if (lic.expiresAt && Date.now() > lic.expiresAt) { lic.status = 'expired'; await licSet(code, lic); return json(res, 200, { status: 'expired' }); }
+        if (lic.status === 'active') {
+          const devices = lic.devices || [];
+          const known = devices.indexOf(deviceId) >= 0;
+          if (!known) {
+            if (devices.length >= DEVICE_LIMIT) {
+              // A device beyond the allowed count → block the whole code and alert the admin.
+              lic.status = 'blocked'; lic.blockedAt = Date.now(); await licSet(code, lic);
+              whatsappAlert('⚠️ Media26: code ' + code + ' was used on a ' + (devices.length + 1) +
+                'rd/th device (limit ' + DEVICE_LIMIT + '). The code is now BLOCKED for all devices.');
+              return json(res, 200, { status: 'blocked' });
             }
-            if (row.device_id && row.device_id !== deviceId) {
-              return resolve(json(res, 403, { error: 'Code is bound to another device. Contact support to reset.' }));
-            }
-            db.run(`UPDATE customers SET device_id = ?, last_login = ? WHERE code = ?`, [deviceId, Date.now(), code]);
-            resolve(json(res, 200, {
-              token: crypto.randomBytes(16).toString('hex'),
-              portalUrl: MASTER_IPTV_URL,
-              username: MASTER_IPTV_USER,
-              password: MASTER_IPTV_PASS
-            }));
-          });
-        });
+            devices.push(deviceId); lic.devices = devices;
+          }
+          lic.lastLogin = Date.now(); await licSet(code, lic);
+          return json(res, 200, { status: 'active', portalUrl: lic.url, username: lic.user, password: lic.pass });
+        }
+        return json(res, 200, { status: lic.status || 'pending' });
       }
- 
-      // ADMIN DASHBOARD PROTECTION
-      const adminKey = req.headers['x-admin-key'];
+
+      // Everything below requires the admin key.
+      const adminKey = req.headers['x-admin-key'] || u.searchParams.get('key') || '';
       if (adminKey !== ADMIN_API_KEY) return json(res, 401, { error: 'Unauthorized' });
- 
-      // ADMIN: GENERATE SUBSCRIPTION CODE
-      if (u.pathname === '/api/admin/generate') {
+
+      // ADMIN: activate a code — bind the IPTV credentials you created to the customer's 8-digit code.
+      if (u.pathname === '/api/admin/activate') {
         const body = await parseJsonBody(req);
-        const days = Number(body.days || 0); // 0 = lifetime
-        const newCode = 'M26-' + crypto.randomBytes(3).toString('hex').toUpperCase();
-        const expiresAt = days > 0 ? Date.now() + (days * 24 * 60 * 60 * 1000) : 0;
-        return await new Promise((resolve) => {
-          db.run(`INSERT INTO customers (code, created_at, expires_at) VALUES (?, ?, ?)`, [newCode, Date.now(), expiresAt], (err) => {
-            if (err) return resolve(json(res, 500, { error: 'Database error' }));
-            resolve(json(res, 200, { success: true, code: newCode, expires_at: expiresAt }));
-          });
-        });
+        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
+        if (code.length !== 8) return json(res, 400, { error: 'Enter the customer’s 8-digit code.' });
+        const url = String(body.url || '').trim();
+        const user = String(body.user || '').trim();
+        const pass = String(body.pass != null ? body.pass : '').trim();
+        if (!url || !user) return json(res, 400, { error: 'Portal URL and username are required.' });
+        const days = Number(body.days || 0); // 0 = never expires
+        const existing = await licGet(code);
+        const lic = existing || { code, devices: [], createdAt: Date.now() };
+        lic.status = 'active'; lic.url = url; lic.user = user; lic.pass = pass;
+        lic.expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
+        lic.activatedAt = Date.now();
+        await licSet(code, lic);
+        return json(res, 200, { ok: true, code, status: 'active', devices: lic.devices.length, deviceLimit: DEVICE_LIMIT });
       }
- 
-      // ADMIN: RESET DEVICE (Allow user to switch TVs)
-      if (u.pathname === '/api/admin/reset-device') {
+
+      // ADMIN: block / unblock / reset devices / delete a code.
+      if (u.pathname === '/api/admin/update') {
         const body = await parseJsonBody(req);
-        const targetCode = String(body.code || '').trim().toUpperCase();
-        return await new Promise((resolve) => {
-          db.run(`UPDATE customers SET device_id = NULL WHERE code = ?`, [targetCode], function(err) {
-            if (this.changes === 0) return resolve(json(res, 404, { error: 'Code not found' }));
-            resolve(json(res, 200, { success: true, message: 'Device reset successfully' }));
-          });
-        });
+        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
+        const op = String(body.op || '').trim();
+        if (code.length !== 8) return json(res, 400, { error: 'Enter an 8-digit code.' });
+        if (op === 'delete') { await redis(['DEL', 'lic:' + code]); return json(res, 200, { ok: true, deleted: true }); }
+        const lic = await licGet(code);
+        if (!lic) return json(res, 404, { error: 'Code not found.' });
+        if (op === 'block') lic.status = 'blocked';
+        else if (op === 'unblock') lic.status = lic.url ? 'active' : 'pending';
+        else if (op === 'reset-devices') lic.devices = [];
+        else return json(res, 400, { error: 'Unknown operation.' });
+        await licSet(code, lic);
+        return json(res, 200, { ok: true, status: lic.status, devices: (lic.devices || []).length });
       }
- 
-      // ADMIN: LIST CUSTOMERS
-      if (u.pathname === '/api/admin/customers') {
-        return await new Promise((resolve) => {
-          db.all(`SELECT * FROM customers ORDER BY created_at DESC`, (err, rows) => {
-            if (err) return resolve(json(res, 500, { error: 'Database error' }));
-            resolve(json(res, 200, { total: rows.length, customers: rows }));
-          });
-        });
+
+      // ADMIN: list all codes (for the dashboard).
+      if (u.pathname === '/api/admin/list') {
+        let cursor = '0'; const keys = [];
+        do {
+          const r = await redis(['SCAN', cursor, 'MATCH', 'lic:*', 'COUNT', '500']);
+          cursor = (r && r[0]) || '0';
+          const batch = (r && r[1]) || [];
+          for (const k of batch) keys.push(k);
+        } while (cursor !== '0' && keys.length < 2000);
+        const items = [];
+        for (const k of keys) {
+          try { const v = await redis(['GET', k]); if (v) { const o = JSON.parse(v); o.devices = (o.devices || []).length; delete o.pass; items.push(o); } } catch (e) {}
+        }
+        items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        return json(res, 200, { total: items.length, deviceLimit: DEVICE_LIMIT, codes: items });
       }
- 
+
       return json(res, 404, { error: 'API endpoint not found' });
     }
     // --- END API ROUTES ---
@@ -490,7 +567,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/health') {
       /* Report capabilities so the app can tell a CURRENT server (fast copy-mode MKV) from an old
          one. 'fastvod' is the quick copy-video profile; its presence here means MKV plays fast. */
-      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, profiles: ['fastvod', 'vod', 'remux', 'copy', 'audio'] });
+      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, profiles: ['fastvod', 'vod', 'remux', 'copy', 'audio'], activation: LICENSING_ENABLED });
     }
 
     // Same-origin CORS relay: /proxy?url=<encoded target>. index.html tries this
