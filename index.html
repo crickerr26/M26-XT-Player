@@ -559,6 +559,11 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 /* live scrubber tint: a solid live-red bar rather than a progress fill */
 .player.liveMode #seekFill{width:100%!important}
 /* ── QR scanner overlay (Load from another device → Scan) ───────────────────── */
+/* login: "Ask the admin" request link */
+.askAdmin{margin-top:14px;text-align:center;font-size:12.5px;color:#8497b5;line-height:1.5}
+.askAdmin span{color:#8497b5;font-weight:600}
+.askAdmin a{color:#12b6c9;font-weight:800;text-decoration:none;border-bottom:1px solid rgba(18,182,201,.4)}
+.askAdmin a:active{opacity:.7}
 #qrScan{position:fixed;inset:0;z-index:400;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center}
 #qrScan.show{display:flex}
 #qrScan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
@@ -748,6 +753,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     <div class="field"><label>Password</label><div class="pwWrap"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="pwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
     <button class="pillbtn primary" id="loginBtn">Connect and load playlist</button>
     <button class="pillbtn" id="loginPairBtn" style="width:100%;margin-top:8px">Load from another device</button><div class="err" id="err"></div>
+    <div class="askAdmin"><span>Don’t have login details?</span> <a href="#" id="askAdminLink">Ask the admin to get you the login details</a></div>
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
@@ -912,7 +918,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='7.9';
+const APP_VERSION='8.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2813,6 +2819,25 @@ if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove(
 if($('shareCancel'))$('shareCancel').onclick=()=>$('shareSheet').classList.remove('show');
 if($('shareCopy'))$('shareCopy').onclick=()=>{const v=$('shareCodeBox')&&$('shareCodeBox').value;if(!v)return;try{navigator.clipboard.writeText(v);toast('Share code copied')}catch(e){toast('Copy failed — long-press the code to select')}};
 if($('loginPairBtn'))$('loginPairBtn').onclick=()=>openPairSheet('');
+/* "Ask the admin" — opens WhatsApp to the admin with a UNIQUE, stable reference for this device.
+   The same device always shows the same code, so the admin can tie one login to one requester. */
+const ADMIN_WA='14164744994';
+function deviceReqId(){
+  let id;try{id=localStorage.getItem('m26_reqid');}catch(e){}
+  if(!id){
+    let r='';try{const a=new Uint8Array(6);crypto.getRandomValues(a);r=Array.from(a).map(x=>('0'+x.toString(36)).slice(-2)).join('').toUpperCase();}catch(e){r=(Date.now().toString(36)+Math.random().toString(36).slice(2)).toUpperCase();}
+    r=r.replace(/[^A-Z0-9]/g,'').slice(0,8);id='M26-'+r.slice(0,4)+'-'+r.slice(4,8);
+    try{localStorage.setItem('m26_reqid',id);}catch(e){}
+  }
+  return id;
+}
+if($('askAdminLink'))$('askAdminLink').onclick=e=>{
+  e.preventDefault();
+  const id=deviceReqId();
+  const msg='Hi Inzi, I would like login details for the Media26 XT Player.\nMy request ID: '+id;
+  const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
+  try{window.open(url,'_blank');}catch(err){location.href=url;}
+};
 if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairScan'))$('pairScan').onclick=()=>{startQrScan();};
