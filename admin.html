@@ -41,9 +41,12 @@
   <p class="sub">Activate customers by binding the login you created to their 8-digit code.</p>
 
   <div class="card">
-    <h2>Admin key</h2>
+    <h2>Server &amp; key</h2>
+    <label>Transcoder URL</label>
+    <input id="base" placeholder="https://your-transcoder.onrender.com" autocomplete="off">
+    <label>Admin key</label>
     <input id="key" type="password" placeholder="Your ADMIN_KEY" autocomplete="off">
-    <p class="muted" style="margin-top:8px">Stored only in this browser. Must match <code>ADMIN_KEY</code> set on the server.</p>
+    <p class="muted" style="margin-top:8px">Both are stored only in this browser. The key must match <code>ADMIN_KEY</code> set on the server. <span id="conn" class="muted"></span></p>
   </div>
 
   <div class="card">
@@ -69,12 +72,24 @@
 </div>
 <script>
   var $=function(id){return document.getElementById(id)};
+  var DEFAULT_BASE='https://media26-transcoder-xutt.onrender.com';
   try{ $('key').value = localStorage.getItem('m26_admin_key')||''; }catch(e){}
+  try{ $('base').value = localStorage.getItem('m26_admin_base')||DEFAULT_BASE; }catch(e){ $('base').value=DEFAULT_BASE; }
   $('key').addEventListener('input',function(){ try{localStorage.setItem('m26_admin_key',$('key').value)}catch(e){} });
+  $('base').addEventListener('input',function(){ try{localStorage.setItem('m26_admin_base',$('base').value)}catch(e){} checkConn(); });
+  function base(){ return String($('base').value||DEFAULT_BASE).trim().replace(/\/+$/,''); }
+
+  function checkConn(){
+    var c=$('conn'); c.textContent='';
+    fetch(base()+'/health').then(function(r){return r.json()}).then(function(j){
+      if(j&&j.ok){ c.textContent = j.activation ? '• Connected, activation ON.' : '• Connected, but activation is OFF (set the Upstash keys on the server).'; c.style.color = j.activation?'#4fe0a5':'#ffd25a'; }
+      else { c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; }
+    }).catch(function(){ c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; });
+  }
 
   function api(path, body){
     var key = $('key').value.trim();
-    return fetch(path, {
+    return fetch(base()+path, {
       method:'POST',
       headers:{'content-type':'application/json','x-admin-key':key},
       body:JSON.stringify(body||{})
@@ -103,7 +118,7 @@
   function loadList(){
     var key=$('key').value.trim();
     var box=$('list'); box.innerHTML='<p class="muted">Loading…</p>';
-    fetch('/api/admin/list?key='+encodeURIComponent(key)).then(function(r){return r.json()}).then(function(j){
+    fetch(base()+'/api/admin/list?key='+encodeURIComponent(key)).then(function(r){return r.json()}).then(function(j){
       if(!j||j.error){ box.innerHTML='<p class="muted">'+esc((j&&j.error)||'Failed to load')+'</p>'; return; }
       if(!j.codes||!j.codes.length){ box.innerHTML='<p class="muted">No codes yet.</p>'; return; }
       var rows=j.codes.map(function(c){
@@ -125,6 +140,7 @@
     }).catch(function(e){ box.innerHTML='<p class="muted">'+esc(e.message)+'</p>'; });
   }
   $('refresh').onclick=loadList;
+  checkConn();
 </script>
 </body>
 </html>
