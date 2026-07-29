@@ -558,6 +558,22 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .player.liveMode #seekRow,.player.vodMode #seekRow{display:flex!important}
 /* live scrubber tint: a solid live-red bar rather than a progress fill */
 .player.liveMode #seekFill{width:100%!important}
+/* ── QR scanner overlay (Load from another device → Scan) ───────────────────── */
+#qrScan{position:fixed;inset:0;z-index:400;background:#000;display:none;flex-direction:column;align-items:center;justify-content:center}
+#qrScan.show{display:flex}
+#qrScan video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000}
+.qrScanMask{position:absolute;inset:0;background:radial-gradient(circle at center,rgba(0,0,0,0) 120px,rgba(0,0,0,.55) 240px)}
+.qrScanFrame{position:relative;width:min(72vw,300px);aspect-ratio:1/1;border-radius:22px;box-shadow:0 0 0 2000px rgba(0,0,0,.5)}
+.qrScanFrame::before,.qrScanFrame::after,.qrScanFrame>i::before,.qrScanFrame>i::after{content:"";position:absolute;width:34px;height:34px;border:3px solid #fff;border-radius:4px}
+.qrScanFrame::before{top:-2px;left:-2px;border-right:0;border-bottom:0}
+.qrScanFrame::after{top:-2px;right:-2px;border-left:0;border-bottom:0}
+.qrScanFrame>i::before{bottom:-2px;left:-2px;border-right:0;border-top:0}
+.qrScanFrame>i::after{bottom:-2px;right:-2px;border-left:0;border-top:0}
+.qrScanTop{position:absolute;top:0;left:0;right:0;padding:16px 18px calc(16px + env(safe-area-inset-top,0)) 18px;display:flex;align-items:center;justify-content:space-between;z-index:2}
+.qrScanTop h3{margin:0;color:#fff;font-size:16px;font-weight:700}
+.qrScanClose{width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:22px;line-height:1;cursor:pointer}
+.qrScanHint{position:absolute;left:0;right:0;bottom:calc(38px + env(safe-area-inset-bottom,0));text-align:center;color:#fff;font-size:14px;padding:0 24px;z-index:2;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+.qrScanActions{position:absolute;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom,0));display:flex;justify-content:center;gap:12px;z-index:2}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -832,11 +848,20 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 </div></div>
 <div class="episodeSheet" id="pairSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Load from another device</h3><button class="iconbtn" id="pairClose">×</button></div>
-  <p class="nativeText">Paste the share code from your other phone (or scan its QR with your camera to open it automatically). Your playlist will load here.</p>
-  <div class="field nativeField"><label>Share code</label><input id="pairCodeBox" placeholder="M26…" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
+  <p class="nativeText">Scan the QR code shown on your other phone (Settings → Share playlist) with your camera, and your playlist loads here automatically. No camera? Paste the share code instead.</p>
+  <div class="nativeActions" style="margin:2px 0 10px"><button class="pillbtn primary" id="pairScan" type="button"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><path d="M7 12h10"/></svg>Scan QR code</button></div>
+  <div class="field nativeField"><label>Or paste the share code</label><input id="pairCodeBox" placeholder="M26…" autocomplete="off" spellcheck="false" autocapitalize="off"></div>
   <div class="err" id="pairErr" style="min-height:0"></div>
   <div class="nativeActions"><button class="pillbtn primary" id="pairLoad">Load playlist</button><button class="pillbtn" id="pairCancel">Cancel</button></div>
 </div></div>
+<div id="qrScan" aria-hidden="true">
+  <div class="qrScanTop"><h3>Scan the QR code</h3><button class="qrScanClose" id="qrScanClose" type="button">×</button></div>
+  <video id="qrScanVid" playsinline muted></video>
+  <div class="qrScanMask"></div>
+  <div class="qrScanFrame"><i></i></div>
+  <div class="qrScanActions"></div>
+  <div class="qrScanHint" id="qrScanHint">Point your camera at the QR code on the other device.</div>
+</div>
 <div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Settings</h3><button class="iconbtn" id="homeSetClose">×</button></div>
   <div class="settings-list">
@@ -887,7 +912,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='7.8';
+const APP_VERSION='7.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1074,6 +1099,84 @@ function loadQrLib(){
     let i=0;const tryNext=()=>{if(i>=urls.length){res(false);return}const sc=document.createElement('script');sc.src=urls[i++];sc.onload=()=>res(!!window.QRCode);sc.onerror=tryNext;document.head.appendChild(sc);};tryNext();
   });
   return _qrLibLoading;
+}
+/* jsQR — pure-JS QR decoder for browsers without the native BarcodeDetector (iOS Safari).
+   Loaded on demand from a CDN, same pattern as the QR generator, so the app stays a single file. */
+let _jsqrLoading=null;
+function loadJsQR(){
+  if(window.jsQR)return Promise.resolve(true);
+  if(_jsqrLoading)return _jsqrLoading;
+  _jsqrLoading=new Promise(res=>{
+    const urls=['https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js','https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'];
+    let i=0;const tryNext=()=>{if(i>=urls.length){res(false);return}const sc=document.createElement('script');sc.src=urls[i++];sc.onload=()=>res(!!window.jsQR);sc.onerror=tryNext;document.head.appendChild(sc);};tryNext();
+  });
+  return _jsqrLoading;
+}
+let _qrStream=null,_qrRaf=0,_qrDetector=null,_qrCanvas=null,_qrScanning=false;
+function stopQrScan(){
+  _qrScanning=false;
+  if(_qrRaf){cancelAnimationFrame(_qrRaf);_qrRaf=0;}
+  try{const v=$('qrScanVid');if(v){v.pause();v.srcObject=null;}}catch(e){}
+  if(_qrStream){try{_qrStream.getTracks().forEach(t=>t.stop());}catch(e){}_qrStream=null;}
+  const o=$('qrScan');if(o)o.classList.remove('show');
+}
+async function onQrDecoded(text){
+  if(!_qrScanning)return;                 /* ignore late frames after we already got one */
+  _qrScanning=false;
+  try{navigator.vibrate&&navigator.vibrate(40);}catch(e){}
+  stopQrScan();
+  const hint=$('qrScanHint');
+  try{
+    await importFromCode(text);            /* imports creds, closes sheets, logs in */
+  }catch(err){
+    /* bad/foreign QR — reopen the paste sheet with the error so the user can retry */
+    openPairSheet('');
+    if($('pairErr'))$('pairErr').textContent=(err&&err.message)||'That QR code is not a Media26 share code.';
+  }
+}
+async function startQrScan(){
+  const o=$('qrScan'),v=$('qrScanVid'),hint=$('qrScanHint');if(!o||!v)return;
+  if($('pairSheet'))$('pairSheet').classList.remove('show');
+  o.classList.add('show');
+  if(hint)hint.textContent='Starting camera…';
+  if(!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)){
+    stopQrScan();openPairSheet('');if($('pairErr'))$('pairErr').textContent='This device/browser can’t open the camera. Paste the share code instead.';return;
+  }
+  let stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});}
+  catch(e){
+    try{stream=await navigator.mediaDevices.getUserMedia({video:true,audio:false});}
+    catch(e2){stopQrScan();openPairSheet('');if($('pairErr'))$('pairErr').textContent='Camera access was blocked. Allow camera or paste the code instead.';return;}
+  }
+  _qrStream=stream;v.srcObject=stream;v.setAttribute('playsinline','');
+  try{await v.play();}catch(e){}
+  /* Prefer the native detector where it exists (Android Chrome); else fall back to jsQR. */
+  _qrDetector=null;
+  try{if('BarcodeDetector'in window){const fmts=await window.BarcodeDetector.getSupportedFormats();if(fmts.indexOf('qr_code')>=0)_qrDetector=new window.BarcodeDetector({formats:['qr_code']});}}catch(e){}
+  if(!_qrDetector){const ok=await loadJsQR();if(!ok){stopQrScan();openPairSheet('');if($('pairErr'))$('pairErr').textContent='No internet to start the scanner. Paste the share code instead.';return;}}
+  if(hint)hint.textContent='Point your camera at the QR code on the other device.';
+  _qrCanvas=_qrCanvas||document.createElement('canvas');
+  const cv=_qrCanvas,ctx=cv.getContext('2d',{willReadFrequently:true});
+  _qrScanning=true;
+  const tick=async()=>{
+    if(!_qrScanning)return;
+    try{
+      if(v.readyState>=2&&v.videoWidth){
+        if(_qrDetector){
+          const codes=await _qrDetector.detect(v);
+          if(codes&&codes.length&&codes[0].rawValue){return onQrDecoded(codes[0].rawValue);}
+        }else{
+          const w=v.videoWidth,h=v.videoHeight;cv.width=w;cv.height=h;
+          ctx.drawImage(v,0,0,w,h);
+          const img=ctx.getImageData(0,0,w,h);
+          const r=window.jsQR(img.data,w,h,{inversionAttempts:'attemptBoth'});
+          if(r&&r.data){return onQrDecoded(r.data);}
+        }
+      }
+    }catch(e){}
+    _qrRaf=requestAnimationFrame(tick);
+  };
+  _qrRaf=requestAnimationFrame(tick);
 }
 async function openShare(){
   let code;try{code=makeShareCode()}catch(e){toast(e.message);return}
@@ -2712,6 +2815,8 @@ if($('shareCopy'))$('shareCopy').onclick=()=>{const v=$('shareCodeBox')&&$('shar
 if($('loginPairBtn'))$('loginPairBtn').onclick=()=>openPairSheet('');
 if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
+if($('pairScan'))$('pairScan').onclick=()=>{startQrScan();};
+if($('qrScanClose'))$('qrScanClose').onclick=()=>{stopQrScan();openPairSheet($('pairCodeBox')&&$('pairCodeBox').value||'');};
 if($('pairLoad'))$('pairLoad').onclick=async()=>{const code=$('pairCodeBox')&&$('pairCodeBox').value;if($('pairErr'))$('pairErr').textContent='';try{await importFromCode(code)}catch(e){if($('pairErr'))$('pairErr').textContent=e.message||'Could not load that code.'}};
 ['shareSheet','pairSheet'].forEach(id=>{const s=$(id);if(s)s.onclick=e=>{if(e.target.id===id)s.classList.remove('show')}});
 /* v7.8: Settings sheet (opened by the gear on the home hub) — Share QR / Receive / Stream Tools / Log out. */
