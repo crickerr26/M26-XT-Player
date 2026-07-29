@@ -298,6 +298,26 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .hc-shine{position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.3),transparent);transform:skewX(-18deg);animation:hcShine 5s ease-in-out infinite;pointer-events:none}
 .home-card:nth-child(2) .hc-shine{animation-delay:-1.6s}.home-card:nth-child(3) .hc-shine{animation-delay:-3.2s}
 .home-exit{margin-top:4px;height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800;animation:homeRise .7s ease .3s both}
+/* v7.8: settings gear on the home hub + settings sheet rows */
+.home-settings{position:absolute;top:calc(16px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));z-index:6;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#dce8fb;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .15s ease,background .15s ease;animation:homeRise .7s ease .1s both}
+.home-settings svg{width:22px;height:22px}
+.home-settings:active{transform:scale(.9) rotate(35deg)}
+@media(hover:hover){.home-settings:hover{background:rgba(255,255,255,.16)}}
+.settings-list{display:flex;flex-direction:column;gap:9px}
+.settings-row{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:15px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);color:#eaf1fb;text-align:left;transition:transform .15s ease,background .15s ease}
+.settings-row:active{transform:scale(.985)}
+@media(hover:hover){.settings-row:hover{background:rgba(255,255,255,.09)}}
+.sr-ic{flex-shrink:0;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:#fff;box-shadow:0 4px 12px rgba(0,0,0,.28)}
+.sr-ic svg{width:21px;height:21px}
+.sr-share{background:linear-gradient(135deg,#38bdf8,#2563eb)}
+.sr-recv{background:linear-gradient(135deg,#2dd4bf,#0f766e)}
+.sr-tools{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
+.sr-out{background:linear-gradient(135deg,#fb7185,#be123c)}
+.sr-tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sr-tx b{font-size:14.5px;font-weight:800}
+.sr-tx small{font-size:11.5px;color:#93a0b3;font-weight:600}
+.settings-row.danger .sr-tx b{color:#fecdd3}
+.sr-ch{color:#6a7488;font-size:18px;font-weight:800;flex-shrink:0}
 @keyframes homeRise{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
 @keyframes hcIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes hcShine{0%,100%{left:-60%}46%,54%{left:118%}}
@@ -647,6 +667,9 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 </div>
 <div class="home hidden" id="home">
   <div class="home-bg"><span></span><span></span><span></span><span></span></div>
+  <button class="home-settings" id="homeSettings" type="button" aria-label="Settings" title="Settings">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.4 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.15 1.7 1.7 0 0 0-.34-1.87l-.06-.06A2 2 0 1 1 6.07 2.9l.06.06a1.7 1.7 0 0 0 1.87.34H8a1.7 1.7 0 0 0 1-1.55V2a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V8a1.7 1.7 0 0 0 1.55 1H22a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
+  </button>
   <div class="home-inner">
     <div class="home-head">
       <div class="home-brand"><img src="image_482ee8.png" alt="Media26"></div>
@@ -814,6 +837,16 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="err" id="pairErr" style="min-height:0"></div>
   <div class="nativeActions"><button class="pillbtn primary" id="pairLoad">Load playlist</button><button class="pillbtn" id="pairCancel">Cancel</button></div>
 </div></div>
+<div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Settings</h3><button class="iconbtn" id="homeSetClose">×</button></div>
+  <div class="settings-list">
+    <button class="settings-row" id="setShare" type="button"><span class="sr-ic sr-share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><path d="M14 14h3v3M20.5 14v3.5M14 20.5h3.5M20.5 20.5v.01"/></svg></span><span class="sr-tx"><b>Share playlist</b><small>Show a QR code to add one more device</small></span><span class="sr-ch">›</span></button>
+    <button class="settings-row" id="setReceive" type="button"><span class="sr-ic sr-recv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span><span class="sr-tx"><b>Load from another device</b><small>Scan or paste a share code</small></span><span class="sr-ch">›</span></button>
+    <button class="settings-row" id="setStream" type="button"><span class="sr-ic sr-tools"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.3 5.3l-6.1 6.1a1.5 1.5 0 0 0 2.1 2.1l6.1-6.1a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.3-.2-.2-2.3z"/></svg></span><span class="sr-tx"><b>Stream Tools</b><small>Transcoder & player settings</small></span><span class="sr-ch">›</span></button>
+    <button class="settings-row danger" id="setLogout" type="button"><span class="sr-ic sr-out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span><span class="sr-tx"><b>Log out</b><small>Sign out on this device</small></span><span class="sr-ch">›</span></button>
+  </div>
+  <p class="nativeText" style="margin-top:12px;opacity:.7">Media26 XT Player · v<span id="setVer"></span></p>
+</div></div>
 <div class="toast" id="toast"></div>
 <script>
 /* v34: relay endpoints are now overridable. When the page is served over HTTPS but the
@@ -854,7 +887,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='7.7';
+const APP_VERSION='7.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2681,6 +2714,14 @@ if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('sh
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairLoad'))$('pairLoad').onclick=async()=>{const code=$('pairCodeBox')&&$('pairCodeBox').value;if($('pairErr'))$('pairErr').textContent='';try{await importFromCode(code)}catch(e){if($('pairErr'))$('pairErr').textContent=e.message||'Could not load that code.'}};
 ['shareSheet','pairSheet'].forEach(id=>{const s=$(id);if(s)s.onclick=e=>{if(e.target.id===id)s.classList.remove('show')}});
+/* v7.8: Settings sheet (opened by the gear on the home hub) — Share QR / Receive / Stream Tools / Log out. */
+if($('homeSettings'))$('homeSettings').onclick=e=>{e.stopPropagation();if($('setVer'))$('setVer').textContent=APP_VERSION;$('homeSetSheet').classList.add('show')};
+if($('homeSetClose'))$('homeSetClose').onclick=()=>$('homeSetSheet').classList.remove('show');
+if($('setShare'))$('setShare').onclick=()=>{$('homeSetSheet').classList.remove('show');openShare()};
+if($('setReceive'))$('setReceive').onclick=()=>{$('homeSetSheet').classList.remove('show');openPairSheet('')};
+if($('setStream'))$('setStream').onclick=()=>{$('homeSetSheet').classList.remove('show');openNativePlayer()};
+if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden')};
+if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetSheet')$('homeSetSheet').classList.remove('show')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
 /* v90: categories page interactions */
