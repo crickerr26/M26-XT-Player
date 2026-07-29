@@ -559,6 +559,15 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 /* live scrubber tint: a solid live-red bar rather than a progress fill */
 .player.liveMode #seekFill{width:100%!important}
 /* ── QR scanner overlay (Load from another device → Scan) ───────────────────── */
+/* activation sheet */
+.actCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:800;letter-spacing:10px;text-align:center;color:#12d0e6;background:#0c1626;border:1px solid #1c3450;border-radius:16px;padding:18px 6px;margin:6px 0 4px;text-indent:10px}
+.actStatus{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:12px;font-size:13px;color:#9fb3d2}
+.actStatus.ok{color:#4fe0a5}.actStatus.bad{color:#ff8a8a}
+.actDot{width:9px;height:9px;border-radius:50%;background:#ffd25a;box-shadow:0 0 0 0 rgba(255,210,90,.5);animation:actpulse 1.4s infinite}
+.actStatus.ok .actDot{background:#4fe0a5;animation:none}.actStatus.bad .actDot{background:#ff8a8a;animation:none}
+@keyframes actpulse{0%{box-shadow:0 0 0 0 rgba(255,210,90,.45)}70%{box-shadow:0 0 0 8px rgba(255,210,90,0)}100%{box-shadow:0 0 0 0 rgba(255,210,90,0)}}
+.actHave{margin-top:16px;text-align:center;font-size:12.5px;color:#8497b5}
+.actHave a{color:#12b6c9;font-weight:800;text-decoration:none;border-bottom:1px solid rgba(18,182,201,.4)}
 /* login: "Ask the admin" request link */
 .askAdmin{margin-top:14px;text-align:center;font-size:12.5px;color:#8497b5;line-height:1.5}
 .askAdmin span{color:#8497b5;font-weight:600}
@@ -753,7 +762,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     <div class="field"><label>Password</label><div class="pwWrap"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="pwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
     <button class="pillbtn primary" id="loginBtn">Connect and load playlist</button>
     <button class="pillbtn" id="loginPairBtn" style="width:100%;margin-top:8px">Load from another device</button><div class="err" id="err"></div>
-    <div class="askAdmin"><span>Don’t have login details?</span> <a href="#" id="askAdminLink">Ask the admin to get you the login details</a></div>
+    <div class="askAdmin"><span>Don’t have login details?</span> <a href="#" id="askAdminLink">Get an activation code from the admin</a></div>
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
@@ -868,6 +877,16 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="qrScanActions"></div>
   <div class="qrScanHint" id="qrScanHint">Point your camera at the QR code on the other device.</div>
 </div>
+<div class="episodeSheet" id="actSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Get activated</h3><button class="iconbtn" id="actClose">×</button></div>
+  <p class="nativeText">Send this code to the admin on WhatsApp. Once the admin activates it, your playlist loads here automatically — you don’t need a username or password.</p>
+  <div class="actCode" id="actCode">— — — —</div>
+  <div class="nativeActions" style="margin-top:2px"><button class="pillbtn primary" id="actSend"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>Send code to admin on WhatsApp</button></div>
+  <div class="actStatus" id="actStatus"><span class="actDot"></span><span id="actStatusTx">Waiting for the admin to activate…</span></div>
+  <div class="actHave"><span>Already have a code from the admin?</span> <a href="#" id="actHaveLink">Enter it</a></div>
+  <div class="field nativeField" id="actEnterWrap" style="display:none"><label>Activation code</label><input id="actEnterBox" inputmode="numeric" maxlength="8" placeholder="8-digit code" autocomplete="off"><div class="nativeActions" style="margin-top:10px"><button class="pillbtn primary" id="actEnterGo">Use this code</button></div></div>
+  <div class="err" id="actErr" style="min-height:0"></div>
+</div></div>
 <div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Settings</h3><button class="iconbtn" id="homeSetClose">×</button></div>
   <div class="settings-list">
@@ -918,7 +937,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.0';
+const APP_VERSION='8.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1204,9 +1223,14 @@ async function importFromCode(raw){
   await login();
 }
 function openPairSheet(prefill){if($('pairErr'))$('pairErr').textContent='';if($('pairCodeBox'))$('pairCodeBox').value=prefill||'';$('pairSheet').classList.add('show');setTimeout(()=>{try{$('pairCodeBox').focus()}catch(e){}},60);}
-async function login(){
+async function login(opts){
   $('err').textContent='';
-  try{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const info=await fetchJsonChain(accountUrl());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');
+  try{
+  /* Activation logs in with credentials passed directly (opts.creds) so they're never shown in the
+     visible fields — the customer only ever sees their 8-digit code, not the username/password. */
+  if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
+  else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
+  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const info=await fetchJsonChain(accountUrl());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');
   /* v46: surface account problems AT LOGIN instead of leaving the user staring at an
      endless "Loading video". Expired subscription and an already-busy connection slot are
      the two account states where NOTHING can play anywhere (built-in or VLC) — say so. */
@@ -2819,25 +2843,92 @@ if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove(
 if($('shareCancel'))$('shareCancel').onclick=()=>$('shareSheet').classList.remove('show');
 if($('shareCopy'))$('shareCopy').onclick=()=>{const v=$('shareCodeBox')&&$('shareCodeBox').value;if(!v)return;try{navigator.clipboard.writeText(v);toast('Share code copied')}catch(e){toast('Copy failed — long-press the code to select')}};
 if($('loginPairBtn'))$('loginPairBtn').onclick=()=>openPairSheet('');
-/* "Ask the admin" — opens WhatsApp to the admin with a UNIQUE, stable reference for this device.
-   The same device always shows the same code, so the admin can tie one login to one requester. */
+/* ── Activation flow ──────────────────────────────────────────────────────────
+   The customer gets an 8-digit code, sends it to the admin on WhatsApp, and the admin binds the
+   real IPTV login to that code on the server. The app then polls and logs in silently — the
+   customer never sees the username/password. Same code works on up to the server's device limit. */
 const ADMIN_WA='14164744994';
-function deviceReqId(){
-  let id;try{id=localStorage.getItem('m26_reqid');}catch(e){}
+function licenseBase(){try{const b=(typeof transcoderBase==='function'&&transcoderBase())||DEFAULT_TRANSCODER;return String(b||'').replace(/\/+$/,'');}catch(e){return DEFAULT_TRANSCODER;}}
+function deviceUid(){
+  let id;try{id=localStorage.getItem('m26_did');}catch(e){}
   if(!id){
-    let r='';try{const a=new Uint8Array(6);crypto.getRandomValues(a);r=Array.from(a).map(x=>('0'+x.toString(36)).slice(-2)).join('').toUpperCase();}catch(e){r=(Date.now().toString(36)+Math.random().toString(36).slice(2)).toUpperCase();}
-    r=r.replace(/[^A-Z0-9]/g,'').slice(0,8);id='M26-'+r.slice(0,4)+'-'+r.slice(4,8);
-    try{localStorage.setItem('m26_reqid',id);}catch(e){}
+    try{const a=new Uint8Array(12);crypto.getRandomValues(a);id=Array.from(a).map(x=>('0'+x.toString(16)).slice(-2)).join('');}catch(e){id=(Date.now().toString(36)+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2));}
+    try{localStorage.setItem('m26_did',id);}catch(e){}
   }
   return id;
 }
-if($('askAdminLink'))$('askAdminLink').onclick=e=>{
-  e.preventDefault();
-  const id=deviceReqId();
-  const msg='Hi Inzi, I would like login details for the Media26 XT Player.\nMy request ID: '+id;
+function actCodeGet(create){
+  let c;try{c=localStorage.getItem('m26_actcode');}catch(e){}
+  if((!c||!/^\d{8}$/.test(c))&&create){
+    let n='';try{const a=new Uint32Array(1);crypto.getRandomValues(a);n=String(10000000+(a[0]%90000000));}catch(e){n=String(10000000+Math.floor(Math.random()*90000000));}
+    c=n;try{localStorage.setItem('m26_actcode',c);}catch(e){}
+  }
+  return c||'';
+}
+function setActCode(c){try{localStorage.setItem('m26_actcode',c);}catch(e){}}
+async function actApi(path,body){
+  const r=await fetch(licenseBase()+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body||{})});
+  let j={};try{j=await r.json();}catch(e){}
+  return {status:r.status,j:j};
+}
+let _actPoll=0,_actBusy=false;
+function stopActPoll(){if(_actPoll){clearInterval(_actPoll);_actPoll=0;}}
+function actSetStatus(kind,text){const s=$('actStatus');if(s)s.className='actStatus'+(kind?(' '+kind):'');if($('actStatusTx'))$('actStatusTx').textContent=text;}
+async function pollActivationOnce(){
+  if(_actBusy)return;const code=actCodeGet(false);const dev=deviceUid();if(!/^\d{8}$/.test(code))return;
+  _actBusy=true;
+  try{
+    const {j}=await actApi('/api/activate',{code:code,deviceId:dev});
+    const st=(j&&j.status)||'';
+    if(st==='active'&&j.portalUrl&&j.username){
+      stopActPoll();actSetStatus('ok','Activated! Loading your playlist…');
+      if($('actSheet'))$('actSheet').classList.remove('show');
+      try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}catch(e){}
+    }else if(st==='blocked'){
+      stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact the admin.');
+    }else if(st==='expired'||st==='disabled'){
+      stopActPoll();actSetStatus('bad','This code is '+st+'. Contact the admin.');
+    }else if(st==='invalid'){
+      actSetStatus('','Waiting for the admin to activate…');   /* not registered yet — keep waiting */
+    }else{
+      actSetStatus('','Waiting for the admin to activate…');
+    }
+  }catch(e){actSetStatus('','Waiting for the admin to activate…');}
+  finally{_actBusy=false;}
+}
+function startActPoll(){stopActPoll();pollActivationOnce();_actPoll=setInterval(pollActivationOnce,4000);}
+async function openActSheet(){
+  if($('actErr'))$('actErr').textContent='';
+  if($('actEnterWrap'))$('actEnterWrap').style.display='none';
+  const code=actCodeGet(true);
+  if($('actCode'))$('actCode').textContent=code.replace(/(\d{4})(\d{4})/,'$1 $2');
+  actSetStatus('','Waiting for the admin to activate…');
+  $('actSheet').classList.add('show');
+  try{await actApi('/api/request',{code:code,deviceId:deviceUid()});}catch(e){}
+  startActPoll();
+}
+function sendActToWhatsApp(){
+  const code=actCodeGet(true);
+  const msg='Hi Inzi, please activate my Media26 XT Player.\nMy activation code: '+code;
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
+}
+if($('askAdminLink'))$('askAdminLink').onclick=e=>{e.preventDefault();openActSheet();};
+if($('actClose'))$('actClose').onclick=()=>{stopActPoll();$('actSheet').classList.remove('show');};
+if($('actSend'))$('actSend').onclick=sendActToWhatsApp;
+if($('actHaveLink'))$('actHaveLink').onclick=e=>{e.preventDefault();const w=$('actEnterWrap');if(w){w.style.display=w.style.display==='none'?'block':'none';if(w.style.display!=='none'){try{$('actEnterBox').focus();}catch(_){}}}};
+if($('actEnterGo'))$('actEnterGo').onclick=async()=>{
+  const v=($('actEnterBox')&&$('actEnterBox').value||'').replace(/\D/g,'').slice(0,8);
+  if(!/^\d{8}$/.test(v)){if($('actErr'))$('actErr').textContent='Enter the 8-digit code from the admin.';return;}
+  if($('actErr'))$('actErr').textContent='';
+  setActCode(v);
+  if($('actCode'))$('actCode').textContent=v.replace(/(\d{4})(\d{4})/,'$1 $2');
+  if($('actEnterWrap'))$('actEnterWrap').style.display='none';
+  actSetStatus('','Checking your code…');
+  try{await actApi('/api/request',{code:v,deviceId:deviceUid()});}catch(e){}
+  startActPoll();
 };
+if($('actSheet'))$('actSheet').onclick=e=>{if(e.target.id==='actSheet'){stopActPoll();$('actSheet').classList.remove('show');}};
 if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairScan'))$('pairScan').onclick=()=>{startQrScan();};
@@ -3321,7 +3412,10 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
   const hasDeepLink=/[#?&]p=/.test(String(location.hash||'')+String(location.search||''));
   if(hasDeepLink)return;
   const c=JSON.parse(store.getItem(KEY)||'null');
-  if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();}
+  if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();return;}
+  /* Not logged in yet, but a pending activation code exists → quietly poll in the background so
+     the moment the admin activates it, this device logs in on its own (no user action needed). */
+  try{if(typeof actCodeGet==='function'&&/^\d{8}$/.test(actCodeGet(false))&&typeof startActPoll==='function')startActPoll();}catch(e){}
 }catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and

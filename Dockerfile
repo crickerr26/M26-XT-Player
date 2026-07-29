@@ -12,7 +12,10 @@ WORKDIR /app
 # on it was both unnecessary and the step that failed the Render build (exit 254). So we copy
 # only server.js and run it directly — nothing to install. (sqlite3 for the optional licensing
 # routes is not required; the server disables those routes gracefully when it's absent.)
+# admin.html is the activation dashboard, served by the transcoder itself (same origin as the
+# /api routes) so the admin key never leaves your browser cross-origin. server.js is the app.
 COPY server.js ./
+COPY admin.html ./
 
 ENV NODE_ENV=production
 ENV PORT=8080
