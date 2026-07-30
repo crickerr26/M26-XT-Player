@@ -117,6 +117,11 @@ a.pillbtn{display:inline-flex;align-items:center;justify-content:center}
 .shareQr{width:212px;height:212px;padding:12px;border-radius:16px;background:#fff;display:grid;place-items:center;box-shadow:0 12px 30px rgba(0,0,0,.35)}
 .shareQr img,.shareQr canvas{width:100%!important;height:100%!important;display:block;image-rendering:pixelated}
 .shareQr .shareQrFallback{color:#0b1b33;font-size:12px;font-weight:800;text-align:center;padding:8px}
+.shareQr.disabled{position:relative;filter:grayscale(1);opacity:.4}
+.shareQr.disabled::after{content:"No shares left";position:absolute;inset:0;display:grid;place-items:center;color:#0b1b33;font-size:14px;font-weight:900;background:rgba(255,255,255,.35);border-radius:16px}
+.shareCount{text-align:center;font-size:13px;font-weight:800;margin:0 0 12px;color:#4fe0a5}
+.shareCount.none{color:#ff8a8a}
+.shareCount.muted{color:#8ea3c4;font-weight:600}
 #shareCodeBox,#pairCodeBox{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;letter-spacing:.3px;word-break:break-all}
 .cats::-webkit-scrollbar,.grid::-webkit-scrollbar,.details::-webkit-scrollbar,.episodeList::-webkit-scrollbar{width:7px}
 .cats::-webkit-scrollbar-thumb,.grid::-webkit-scrollbar-thumb,.details::-webkit-scrollbar-thumb,.episodeList::-webkit-scrollbar-thumb{background:rgba(148,180,215,.35);border-radius:8px}
@@ -559,6 +564,24 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 /* live scrubber tint: a solid live-red bar rather than a progress fill */
 .player.liveMode #seekFill{width:100%!important}
 /* ── QR scanner overlay (Load from another device → Scan) ───────────────────── */
+/* redesigned login actions */
+.loginLead{margin:14px 0 4px!important;font-size:13.5px;line-height:1.55;color:#8ea3c4}
+.loginActions{display:flex;flex-direction:column;gap:11px;margin-top:14px}
+.loginAction{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:15px 15px;border-radius:16px;border:1px solid #223047;background:linear-gradient(145deg,#131b2b,#0c1220);color:#e9eef7;cursor:pointer}
+.loginAction:active{transform:scale(.985)}
+.loginAction.primary{border-color:transparent;background:linear-gradient(135deg,#19c8dd,#12a5b8);color:#04141a}
+.loginAction .la-ic{flex:none;width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08)}
+.loginAction.primary .la-ic{background:rgba(4,20,26,.18)}
+.loginAction .la-ic svg{width:22px;height:22px}
+.loginAction .la-tx{flex:1;display:flex;flex-direction:column;gap:2px;min-width:0}
+.loginAction .la-tx b{font-size:15px;font-weight:800}
+.loginAction .la-tx small{font-size:11.5px;opacity:.8;font-weight:600}
+.loginAction.primary .la-tx small{opacity:.75}
+.loginAction .la-ch{flex:none;font-size:22px;opacity:.6;font-weight:700}
+.advBox{margin-top:16px;border-top:1px solid #1b2740;padding-top:10px}
+.advBox summary{cursor:pointer;font-size:12px;color:#7288a8;font-weight:700;list-style:none;text-align:center;padding:4px}
+.advBox summary::-webkit-details-marker{display:none}
+.advBox[open] summary{margin-bottom:10px;color:#9fb3d2}
 /* activation sheet */
 .actCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:800;letter-spacing:10px;text-align:center;color:#12d0e6;background:#0c1626;border:1px solid #1c3450;border-radius:16px;padding:18px 6px;margin:6px 0 4px;text-indent:10px}
 .actStatus{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:12px;font-size:13px;color:#9fb3d2}
@@ -756,13 +779,27 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 <div class="login" id="login">
   <span class="versionBadge login-version">vv1</span>
   <div class="login-card">
-    <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version vv1</p><p>Enter your Xtream portal details. They stay only in this browser.</p>
-    <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
-    <div class="field"><label>Username</label><input id="user" autocomplete="username"></div>
-    <div class="field"><label>Password</label><div class="pwWrap"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="pwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
-    <button class="pillbtn primary" id="loginBtn">Connect and load playlist</button>
-    <button class="pillbtn" id="loginPairBtn" style="width:100%;margin-top:8px">Load from another device</button><div class="err" id="err"></div>
-    <div class="askAdmin"><span>Don’t have login details?</span> <a href="#" id="askAdminLink">Get an activation code from the admin</a></div>
+    <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version vv1</p>
+    <p class="loginLead">No username or password needed. Get an activation code from the admin, or bring your playlist from another device.</p>
+    <div class="loginActions">
+      <button class="loginAction primary" id="getActBtn" type="button">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4z"/><path d="M9 12l2 2 4-4"/></svg></span>
+        <span class="la-tx"><b>Get an activation code</b><small>The admin activates you — no login to type</small></span>
+        <span class="la-ch">›</span>
+      </button>
+      <button class="loginAction" id="loginPairBtn" type="button">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/><path d="M9 11l2.2 2.2L15 9.5"/></svg></span>
+        <span class="la-tx"><b>Load from another device</b><small>Scan a QR code or paste a share code</small></span>
+        <span class="la-ch">›</span>
+      </button>
+    </div>
+    <div class="err" id="err"></div>
+    <details class="advBox"><summary>Set up manually (advanced)</summary>
+      <div class="field"><label>Portal URL</label><input id="url" placeholder="http://yourserver.com:8080" autocomplete="url"></div>
+      <div class="field"><label>Username</label><input id="user" autocomplete="username"></div>
+      <div class="field"><label>Password</label><div class="pwWrap"><input id="pass" type="password" autocomplete="current-password"><button type="button" class="pwToggle" id="pwToggle" aria-label="Show or hide password" tabindex="-1"></button></div></div>
+      <button class="pillbtn primary" id="loginBtn" style="width:100%">Connect and load playlist</button>
+    </details>
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
@@ -855,9 +892,10 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   </div>
 </div></div>
 <div class="episodeSheet" id="shareSheet"><div class="episodePanel nativePanel">
-  <div class="episodeHead"><h3>Share to another device</h3><button class="iconbtn" id="shareClose">×</button></div>
-  <p class="nativeText">On the other phone, open Media26 and tap <b>“Load from another device”</b>, then scan this code with its camera or type the code below. Share it with one device you trust — anyone with the code can load this playlist.</p>
+  <div class="episodeHead"><h3>Share with another device</h3><button class="iconbtn" id="shareClose">×</button></div>
+  <p class="nativeText">On the other phone, open Media26 and tap <b>“Load from another device”</b>, then scan this QR with its camera. Your playlist loads there automatically.</p>
   <div class="shareQrWrap"><div id="shareQr" class="shareQr"></div></div>
+  <div class="shareCount" id="shareCount"></div>
   <div class="field nativeField"><label>Share code</label><input id="shareCodeBox" readonly autocomplete="off" spellcheck="false"></div>
   <div class="nativeActions"><button class="pillbtn primary" id="shareCopy">Copy code</button><button class="pillbtn" id="shareCancel">Done</button></div>
 </div></div>
@@ -937,7 +975,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.2';
+const APP_VERSION='8.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1203,15 +1241,43 @@ async function startQrScan(){
   };
   _qrRaf=requestAnimationFrame(tick);
 }
+function renderShareQr(link,fallbackMsg){
+  const box=$('shareQr');if(!box)return Promise.resolve();
+  box.innerHTML='<div class="shareQrFallback">Loading QR…</div>';
+  return loadQrLib().then(ok=>{
+    if(ok&&window.QRCode){box.innerHTML='';try{new QRCode(box,{text:link,width:188,height:188,correctLevel:QRCode.CorrectLevel.M});}catch(e){box.innerHTML='<div class="shareQrFallback">'+fallbackMsg+'</div>';}}
+    else{box.innerHTML='<div class="shareQrFallback">No internet for the QR — type the code below.</div>';}
+  });
+}
 async function openShare(){
+  const box=$('shareQr');const cnt=$('shareCount');
+  $('shareSheet').classList.add('show');
+  if(box)box.classList.remove('disabled');
+  const actCode=(typeof actCodeGet==='function')?actCodeGet(false):'';
+  /* Preferred path: this device was activated with an 8-digit code — share THAT code so the other
+     device joins the same account through the server (which enforces the device limit). */
+  if(/^\d{8}$/.test(actCode)){
+    if($('shareCodeBox'))$('shareCodeBox').value=actCode.replace(/(\d{4})(\d{4})/,'$1 $2');
+    if(cnt){cnt.className='shareCount muted';cnt.textContent='Checking available shares…';}
+    if(box){box.innerHTML='<div class="shareQrFallback">Checking…</div>';}
+    let devices=1,limit=2,ok=true;
+    try{const {j}=await actApi('/api/activate',{code:actCode,deviceId:deviceUid()});if(j&&j.status==='active'){devices=j.devices||1;limit=j.deviceLimit||2;}else if(j&&(j.status==='blocked'||j.status==='expired'||j.status==='disabled')){ok=false;}}catch(e){}
+    const remaining=Math.max(0,limit-devices);
+    if(!ok){if(cnt){cnt.className='shareCount none';cnt.textContent='This code is no longer active.';}if(box){box.classList.add('disabled');box.innerHTML='';}return;}
+    if(remaining<=0){
+      if(cnt){cnt.className='shareCount none';cnt.textContent='No available shares — the limit of '+limit+' devices is reached.';}
+      if(box){box.classList.add('disabled');box.innerHTML='';}
+      return;
+    }
+    if(cnt){cnt.className='shareCount';cnt.textContent=remaining+' of '+limit+' device'+(limit>1?'s':'')+' free to share';}
+    await renderShareQr(location.origin+'/#a='+actCode,'Type the code above on the other device.');
+    return;
+  }
+  /* Fallback: a manually-logged-in device (no activation code) shares its raw credentials as before. */
   let code;try{code=makeShareCode()}catch(e){toast(e.message);return}
   if($('shareCodeBox'))$('shareCodeBox').value=code;
-  $('shareSheet').classList.add('show');
-  const box=$('shareQr');if(!box)return;box.innerHTML='<div class="shareQrFallback">Loading QR…</div>';
-  const link=location.origin+'/#p='+encodeURIComponent(code);
-  const ok=await loadQrLib();
-  if(ok&&window.QRCode){box.innerHTML='';try{new QRCode(box,{text:link,width:188,height:188,correctLevel:QRCode.CorrectLevel.M});}catch(e){box.innerHTML='<div class="shareQrFallback">Type the code below on the other device.</div>';}}
-  else{box.innerHTML='<div class="shareQrFallback">No internet for the QR — type the code below on the other device.</div>';}
+  if(cnt){cnt.className='shareCount muted';cnt.textContent='';}
+  await renderShareQr(location.origin+'/#p='+encodeURIComponent(code),'Type the code below on the other device.');
 }
 async function importFromCode(raw){
   const o=parseShareCode(raw);   /* throws with a friendly message on bad input */
@@ -2897,23 +2963,33 @@ async function pollActivationOnce(){
   finally{_actBusy=false;}
 }
 function startActPoll(){stopActPoll();pollActivationOnce();_actPoll=setInterval(pollActivationOnce,4000);}
+/* Get this device's code: reuse the stored one, else ask the server for a GUARANTEED-UNIQUE code
+   (so two customers can never share the same code). Falls back to a local code if offline. */
+async function allocActCode(){
+  let c=actCodeGet(false);
+  if(/^\d{8}$/.test(c))return c;
+  try{const {j}=await actApi('/api/newcode',{deviceId:deviceUid()});if(j&&j.code&&/^\d{8}$/.test(j.code)){setActCode(j.code);return j.code;}}catch(e){}
+  return actCodeGet(true); /* offline fallback */
+}
 async function openActSheet(){
   if($('actErr'))$('actErr').textContent='';
   if($('actEnterWrap'))$('actEnterWrap').style.display='none';
-  const code=actCodeGet(true);
+  actSetStatus('','Getting your code…');
+  if($('actCode'))$('actCode').textContent='— — — —';
+  $('actSheet').classList.add('show');
+  const code=await allocActCode();
   if($('actCode'))$('actCode').textContent=code.replace(/(\d{4})(\d{4})/,'$1 $2');
   actSetStatus('','Waiting for the admin to activate…');
-  $('actSheet').classList.add('show');
   try{await actApi('/api/request',{code:code,deviceId:deviceUid()});}catch(e){}
   startActPoll();
 }
-function sendActToWhatsApp(){
-  const code=actCodeGet(true);
+async function sendActToWhatsApp(){
+  let code=actCodeGet(false);if(!/^\d{8}$/.test(code))code=await allocActCode();
   const msg='Hi Inzi, please activate my Media26 XT Player.\nMy activation code: '+code;
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
-if($('askAdminLink'))$('askAdminLink').onclick=e=>{e.preventDefault();openActSheet();};
+if($('getActBtn'))$('getActBtn').onclick=()=>openActSheet();
 if($('actClose'))$('actClose').onclick=()=>{stopActPoll();$('actSheet').classList.remove('show');};
 if($('actSend'))$('actSend').onclick=sendActToWhatsApp;
 if($('actHaveLink'))$('actHaveLink').onclick=e=>{e.preventDefault();const w=$('actEnterWrap');if(w){w.style.display=w.style.display==='none'?'block':'none';if(w.style.display!=='none'){try{$('actEnterBox').focus();}catch(_){}}}};
@@ -3405,11 +3481,14 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
 /* v4.1: if the app was opened from a shared QR / deep link (origin/#p=CODE), auto-load that
    playlist — the receiving device pairs with one tap, no typing. */
 (function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]p=([^&\s]+)/);if(m&&m[1]){const code=decodeURIComponent(m[1]);setTimeout(()=>{importFromCode(code).catch(err=>{if($('login'))$('login').classList.remove('hidden');openPairSheet(code);if($('pairErr'))$('pairErr').textContent=(err&&err.message)||'Could not load that code.';});},200);}}catch(e){}})();
+/* Shared via an activation-code QR (origin/#a=12345678): the receiving device adopts that code and
+   activates through the server (counts as another device on the same account, within the limit). */
+(function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]a=(\d{8})/);if(m&&m[1]){const code=m[1];try{if(typeof setActCode==='function')setActCode(code);}catch(e){}try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}setTimeout(()=>{try{openActSheet();}catch(e){}},250);}}catch(e){}})();
 /* v6.4: STAY LOGGED IN. If credentials are already saved, connect automatically on launch so the
    login screen only appears for a brand-new user or after an explicit Exit/logout (which clears the
    saved credentials). Skips when a deep-link pairing code is present — that flow loads its own list. */
 (function(){try{
-  const hasDeepLink=/[#?&]p=/.test(String(location.hash||'')+String(location.search||''));
+  const hasDeepLink=/[#?&][pa]=/.test(String(location.hash||'')+String(location.search||''));
   if(hasDeepLink)return;
   const c=JSON.parse(store.getItem(KEY)||'null');
   if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();return;}
