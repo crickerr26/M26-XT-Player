@@ -1007,7 +1007,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.8';
+const APP_VERSION='8.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1335,8 +1335,13 @@ async function login(opts){
   const ui=info.user_info||{};
   if(ui.exp_date&&Number(ui.exp_date)*1000<Date.now())throw Error('Subscription EXPIRED on '+new Date(Number(ui.exp_date)*1000).toLocaleDateString()+' — contact your provider. Streams will not play.');
   if(ui.status&&!/^active$/i.test(String(ui.status)))toast('Account status: '+ui.status);
-  const _act=parseInt(ui.active_cons||'0',10),_max=parseInt(ui.max_connections||'1',10)||1;
-  if(_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
+  const _act=parseInt(ui.active_cons||'0',10);
+  /* v8.9: remember the account's REAL connection limit. Some panels don't report it — when
+     unknown, assume it's generous (99) rather than 1, so a legitimate 2nd device is never
+     falsely blocked. Only a true 1-connection line gets the "in use elsewhere" behaviour. */
+  const _rawMax=parseInt(ui.max_connections,10);const _max=(isFinite(_rawMax)&&_rawMax>0)?_rawMax:99;S.maxConns=_max;
+  /* On a multi-connection account, 2+ devices streaming at once is ALLOWED — never nag or block. */
+  if(_max<=1&&_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
   saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();await refreshAll();updateHomeCounts();toast('Playlist loaded')}
   catch(e){$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
@@ -1894,8 +1899,8 @@ async function streamDoctor(){
   const ui=(info&&info.user_info)||{};
   lines.push('2. Account status: '+esc(String(ui.status||'unknown')));
   if(ui.exp_date){const exp=Number(ui.exp_date)*1000;lines.push('3. Expires: '+new Date(exp).toLocaleDateString()+(exp<Date.now()?' — <b>EXPIRED, streams will not play</b>':''))}
-  const act=parseInt(ui.active_cons||'0',10),max=parseInt(ui.max_connections||'1',10)||1;
-  lines.push('4. Connections busy right now: '+act+' of '+max+(act>0&&act>=max?' — <b>PROBLEM: another device/app is using the account this moment. Nothing can start here until it stops.</b>':' — slot free, streams can start'));
+  const act=parseInt(ui.active_cons||'0',10),_rm=parseInt(ui.max_connections,10),max=(isFinite(_rm)&&_rm>0)?_rm:99;
+  lines.push('4. Connections: '+act+' of '+(max>=99?'unlimited':max)+' in use'+(max>1?' — <b>'+max+' devices can watch at once</b>':(act>0&&act>=max?' — <b>single-connection account: only ONE device can stream at a time</b>':' — slot free')));
   put();
   if(S.live.length){
     lines.push('5. Live stream (HLS): testing...');put();
@@ -2657,9 +2662,10 @@ async function tryPlans(plans,i){
       let mediaRecovered=false,netRetries=0;
       S.hls.on(Hls.Events.ERROR,(e,d)=>{
         if(token!==S.seq||!d||!d.fatal)return;
-        /* 401/403 on a segment mid-play = the single connection was taken by
-           another device (provider-confirmed). Say so instead of dying quietly. */
-        if(E.started&&d.response&&(d.response.code===401||d.response.code===403)){showAccountConflict();return}
+        /* 401/403 on a segment mid-play: only on a genuine 1-connection line does this mean
+           "another device took the single slot". On a multi-connection account it's a transient
+           error, so fall through to normal reconnect/next instead of falsely blaming another device. */
+        if(singleConnLine()&&E.started&&d.response&&(d.response.code===401||d.response.code===403)){showAccountConflict();return}
         if(!E.started){nextPlan();return}
         try{
           if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&netRetries<4){netRetries++;S.hls.startLoad(-1)}
@@ -2784,13 +2790,17 @@ function showAccountConflict(msg){
 /* only reliable AFTER our own connection is released — a live 401/403 mid-play, or an
    exhausted-plans failure once we've torn down. On a max_connections:1 line, a slot that is
    still occupied when WE are no longer streaming means another device took it. */
+/* Only a genuine 1-connection account has the "someone took my only slot" problem. On a 2+
+   connection account, multiple devices at once is normal and must never be treated as a conflict. */
+function singleConnLine(){return (S.maxConns||99)<=1;}
 async function checkAccountConflict(){
+  if(!singleConnLine())return false;                 /* multi-connection account → never a conflict */
   try{
     const info=await fetchJsonChain(accountUrl());
     const ui=info&&info.user_info;if(!ui)return false;
     const active=parseInt(ui.active_cons||'0',10);
-    const max=parseInt(ui.max_connections||'1',10)||1;
-    return active>0 && active>=max;
+    const rawMax=parseInt(ui.max_connections,10);const max=(isFinite(rawMax)&&rawMax>0)?rawMax:99;
+    return max<=1 && active>0 && active>=max;
   }catch(e){return false}
 }
 function fail(msg){
