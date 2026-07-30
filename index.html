@@ -1007,7 +1007,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.7';
+const APP_VERSION='8.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2060,12 +2060,15 @@ async function playItemBasic(x){
       addv('native',lcu);
       if(canTrans)addv('hls',transUrl);
     }else{
-      /* browser-friendly container: exact file, then .mp4, then the panel HLS, then mpegts. */
+      /* browser-friendly container: exact file, then .mp4 (both natively SEEKABLE via byte-range),
+         then the panel HLS (also seekable), then the transcoder VOD (now a seekable VOD playlist).
+         mpegts is LAST for movies/series: it cannot reliably seek a VOD, which is what made a
+         forward/back jump restart the title from 0:00. Live still leads with mpegts elsewhere. */
       if(cont!=='mp4')addv('native',lcu);
       addv('native',mp4u);
-      if(isApple){if(hlsUsable)addv('hls',m3u);if(tsOk)addv('mpegts',tsu);}
-      else{if(tsOk)addv('mpegts',tsu);if(hlsUsable)addv('hls',m3u);}
+      if(hlsUsable)addv('hls',m3u);
       if(canTrans)addv('hls',transUrl);
+      if(tsOk)addv('mpegts',tsu);
     }
     if(!plans.length)addv('native',lcu);
   }
