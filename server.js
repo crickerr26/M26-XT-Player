@@ -453,6 +453,27 @@ const server = http.createServer(async (req, res) => {
       if (req.method !== 'POST' && req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
       if (!LICENSING_ENABLED) return json(res, 503, { error: 'Activation is not set up on this server yet.' });
 
+      /* CUSTOMER: ask the server for a brand-new, GUARANTEED-UNIQUE 8-digit code. The server keeps
+         generating until it finds one no other customer holds, registers it as pending bound to this
+         device, and returns it. This removes any chance of two customers getting the same code. */
+      if (u.pathname === '/api/newcode') {
+        const body = await parseJsonBody(req);
+        const deviceId = String(body.deviceId || '').trim().slice(0, 80);
+        if (!deviceId) return json(res, 400, { error: 'Device is required.' });
+        let code = '', tries = 0;
+        do {
+          const n = crypto.randomInt(10000000, 100000000); // 8 digits, no leading zero
+          code = String(n);
+          tries++;
+          const existing = await licGet(code);
+          if (!existing) break;
+          if (tries >= 12) { code = ''; break; }
+        } while (true);
+        if (!code) return json(res, 500, { error: 'Could not allocate a code, try again.' });
+        await licSet(code, { code, status: 'pending', devices: [deviceId], createdAt: Date.now() });
+        return json(res, 200, { ok: true, code });
+      }
+
       /* CUSTOMER: request a new activation code. The app generates an 8-digit code on the device
          and registers it here as "pending", binding this first device. The admin then activates it. */
       if (u.pathname === '/api/request') {
@@ -498,7 +519,7 @@ const server = http.createServer(async (req, res) => {
             devices.push(deviceId); lic.devices = devices;
           }
           lic.lastLogin = Date.now(); await licSet(code, lic);
-          return json(res, 200, { status: 'active', portalUrl: lic.url, username: lic.user, password: lic.pass });
+          return json(res, 200, { status: 'active', portalUrl: lic.url, username: lic.user, password: lic.pass, devices: (lic.devices || []).length, deviceLimit: DEVICE_LIMIT });
         }
         return json(res, 200, { status: lic.status || 'pending' });
       }
