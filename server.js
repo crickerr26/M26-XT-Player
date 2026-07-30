@@ -238,6 +238,9 @@ function hlsArgs(profile, dir, playlist) {
     '-f', 'hls',
     '-hls_time', seg,
     '-hls_list_size', live ? '15' : '0',
+    /* VOD (movies/series): mark the playlist as a seekable VOD so the player enables full-timeline
+       seeking and NEVER restarts from 0 on a forward/back jump. Live keeps the rolling window. */
+    ...(live ? [] : ['-hls_playlist_type', 'vod']),
     '-hls_delete_threshold', live ? '4' : '1',
     '-hls_flags', live
       ? 'delete_segments+append_list+omit_endlist+independent_segments+temp_file'
