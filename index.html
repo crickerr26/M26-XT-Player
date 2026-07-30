@@ -119,6 +119,12 @@ a.pillbtn{display:inline-flex;align-items:center;justify-content:center}
 .shareQr .shareQrFallback{color:#0b1b33;font-size:12px;font-weight:800;text-align:center;padding:8px}
 .shareQr.disabled{position:relative;filter:grayscale(1);opacity:.4}
 .shareQr.disabled::after{content:"No shares left";position:absolute;inset:0;display:grid;place-items:center;color:#0b1b33;font-size:14px;font-weight:900;background:rgba(255,255,255,.35);border-radius:16px}
+/* episode-view header (single series' episodes under the player) */
+.epBar{display:flex;align-items:center;gap:10px;padding:2px 2px 10px;position:sticky;top:0;z-index:2}
+.epBack{display:inline-flex;align-items:center;gap:5px;padding:8px 13px 8px 9px;border-radius:11px;border:1px solid rgba(148,180,215,.28);background:rgba(148,180,215,.12);color:#dce8fb;font-size:13px;font-weight:800;cursor:pointer}
+.epBack svg{width:16px;height:16px}
+.epBack:active{transform:scale(.96)}
+.epBarName{flex:1;min-width:0;font-size:14px;font-weight:800;color:#eaf1fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
 .shareCount{text-align:center;font-size:13px;font-weight:800;margin:0 0 12px;color:#4fe0a5}
 .shareCount.none{color:#ff8a8a}
 .shareCount.muted{color:#8ea3c4;font-weight:600}
@@ -1001,7 +1007,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.6';
+const APP_VERSION='8.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1418,7 +1424,7 @@ function renderCatPage(){
 function goCategoryDirect(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}}
 function goCategory(tab){showCategories(tab);}
 /* pick a category from the category page → drop into its channel grid */
-function openCategory(cat){if($('catList')){S.catScroll=$('catList').scrollTop;S.catScrollTab=S.tab;}S.cat=cat;S.q='';if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
+function openCategory(cat){if($('catList')){S.catScroll=$('catList').scrollTop;S.catScrollTab=S.tab;}S.cat=cat;S.q='';S.episodeView=null;if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
 /* return to the category list, restoring scroll (used by menu button + edge-swipe) */
 function backToCategories(){showCategories(S.tab,true);}
 /* v75: load ONE catalog type at a time. Firing all of Live+Movies+Series at once made the
@@ -1485,7 +1491,19 @@ function yearOf(x){const src=String(x.year||x.releaseDate||x.releasedate||x.rele
 function gridMeta(x){return yearOf(x)||typeOf(x).toUpperCase()}
 function updateViewToggle(){const b=$('viewToggle');if(!b)return;const mode=(S.viewModes&&S.viewModes[S.tab])||'list';b.innerHTML=mode==='grid'?ICONS.listView:ICONS.gridView;b.title=mode==='grid'?'Switch to list view':'Switch to grid view';}
 function toggleViewMode(){const cur=(S.viewModes&&S.viewModes[S.tab])||'list';S.viewModes[S.tab]=cur==='grid'?'list':'grid';try{store.setItem(VIEWMODE_KEY,JSON.stringify(S.viewModes))}catch(e){}renderGrid();if($('grid'))$('grid').scrollTop=0;}
+/* v8.7: when a series is opened, the list under the player shows THAT series' episodes only
+   (not every series). Set by openEpisodePicker; cleared when you navigate away. */
+function renderEpisodeGrid(){
+  const ev=S.episodeView,g=$('grid');if(!g||!ev)return;
+  $('sectionSub').textContent=ev.eps.length.toLocaleString()+' episodes';
+  g.classList.remove('gridview');
+  let html='<div class="epBar"><button class="epBack" type="button" data-epback="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>All series</button><span class="epBarName">'+esc(ev.name)+'</span></div>';
+  html+=ev.eps.map((ep,i)=>{const active=S.current&&keyOf(S.current)===keyOf(ep);const logo=logoOf(ep)||ev.logo;return `<div class="card ${active?'active':''}" data-ep="${i}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(ep.name)}</div><div class="cmeta">${esc((ep.container_extension||'mp4').toUpperCase())}</div></div><div class="rowActions"><button class="qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button></div></div>`}).join('');
+  g.innerHTML=html;
+  updateViewToggle();
+}
 function renderGrid(){
+  if(S.tab==='series'&&S.episodeView&&S.episodeView.eps&&S.episodeView.eps.length)return renderEpisodeGrid();
   const arr=filtered();
   $('sectionSub').textContent=arr.length.toLocaleString()+' items';
   const mode=(S.viewModes&&S.viewModes[S.tab])||'list';
@@ -1522,6 +1540,8 @@ async function openEpisodePicker(x){load(true,'Loading episodes...');try{const d
    start), plus a VLC button to open that episode in VLC. */
 $('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div><button class="epvlc qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button></div>`).join('');
 $('episodeSheet').classList.add('show');
+/* remember this series' episodes so the list under the player shows ONLY this series */
+S.episodeView={name:nameOf(x),key:keyOf(x),logo:logoOf(x),eps};renderGrid();
 $('episodeList').onclick=e=>{const vb=e.target.closest('[data-vlcep]');if(vb){e.stopPropagation();const ep=eps[Number(vb.dataset.vlcep)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,'vlc',true);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
 /* v3.5: Movie/Series details popup — opens when the poster is tapped. Pulls the rich metadata
    (director, cast, release date, rating, genre, plot) from the Xtream get_vod_info /
@@ -3130,7 +3150,12 @@ $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.c
 $('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;S.episodeView=null;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;S.episodeView=null;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{
+  /* episode-view (a single series' episodes shown under the player) */
+  const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
+  const ve=e.target.closest('[data-vlcep]');if(ve){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(ve.dataset.vlcep)];if(ep)playItemExternal(ep,'vlc',true);return}
+  const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
+  const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
