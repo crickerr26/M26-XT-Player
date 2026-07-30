@@ -341,7 +341,10 @@ body.light .home-head p{color:#5a6f90}
 .catpage.hidden{display:none}
 .catpage::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 12% 8%,rgba(var(--cp-rgb),.12),transparent 46%),radial-gradient(circle at 88% 96%,rgba(var(--cp-rgb),.09),transparent 48%)}
 .catpage .home-bg span{filter:grayscale(1) blur(46px);opacity:.14}
-.catpage.theme-live,.catpage.theme-vod,.catpage.theme-series{--cp-a:#aeb6c4;--cp-b:#5c6472;--cp-rgb:160,168,182}
+/* v8.4: colourful Apple-style themes — each tab paints the page with its own vibrant accent. */
+.catpage.theme-live{--cp-a:#0A84FF;--cp-b:#32D0FF;--cp-rgb:10,132,255}      /* Live TV — Apple blue → cyan */
+.catpage.theme-vod{--cp-a:#FF375F;--cp-b:#FF9F0A;--cp-rgb:255,55,95}        /* Movies — Apple pink → orange */
+.catpage.theme-series{--cp-a:#BF5AF2;--cp-b:#7A5CFF;--cp-rgb:191,90,242}    /* Series — Apple purple → indigo */
 .cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
 .cp-head{display:flex;align-items:center;gap:12px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) both}
 .cp-back{flex-shrink:0;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
@@ -355,10 +358,15 @@ body.light .home-head p{color:#5a6f90}
 .cp-tt h1{font-size:clamp(21px,5vw,28px);font-weight:900;letter-spacing:-.5px;line-height:1.05;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cp-tt p{margin-top:2px;color:#8fa5c6;font-size:12.5px;font-weight:700}
 /* v7.3: Live TV / Movies / Series switcher on the category page (segmented control). */
-.cp-tabs{display:flex;gap:5px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:5px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) .04s both}
-.cp-tab{flex:1;min-width:0;height:40px;border:0;border-radius:10px;background:transparent;color:#9fb2d0;font-size:14px;font-weight:800;letter-spacing:.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;transition:background .16s ease,color .16s ease,box-shadow .16s ease}
-.cp-tab.active{background:linear-gradient(135deg,var(--cp-a),var(--cp-b));color:#fff;box-shadow:0 5px 14px rgba(var(--cp-rgb),.4)}
-.cp-tab:active{transform:scale(.96)}
+.cp-tabs{display:flex;gap:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:15px;padding:5px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) .04s both}
+.cp-tab{flex:1;min-width:0;height:42px;border:0;border-radius:11px;font-size:14px;font-weight:800;letter-spacing:.2px;display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;transition:transform .16s ease,box-shadow .16s ease,background .2s ease,color .2s ease;
+  /* each tab carries its OWN Apple colour, so the row is colourful even at rest */
+  color:rgb(var(--t-rgb));background:rgba(var(--t-rgb),.13);box-shadow:inset 0 0 0 1px rgba(var(--t-rgb),.22)}
+.cp-tab[data-cattab="live"]{--t-a:#0A84FF;--t-b:#32D0FF;--t-rgb:10,132,255}
+.cp-tab[data-cattab="vod"]{--t-a:#FF375F;--t-b:#FF9F0A;--t-rgb:255,55,95}
+.cp-tab[data-cattab="series"]{--t-a:#BF5AF2;--t-b:#7A5CFF;--t-rgb:191,90,242}
+.cp-tab.active{background:linear-gradient(135deg,var(--t-a),var(--t-b));color:#fff;box-shadow:0 6px 18px rgba(var(--t-rgb),.5),inset 0 1px 0 rgba(255,255,255,.25)}
+.cp-tab:active{transform:scale(.95)}
 /* v7.6: global search results on the category page — type headers + poster thumbnails. */
 .cp-section{grid-column:1/-1;font-size:11.5px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#8fa5c6;padding:12px 8px 2px}
 .sres-badge{position:relative;overflow:hidden}
@@ -380,7 +388,9 @@ body.light .home-head p{color:#5a6f90}
 .cp-cbadge{flex-shrink:0;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:15px;letter-spacing:.3px;color:#f4f6fa;background:linear-gradient(140deg,var(--cp-a),var(--cp-b));box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 5px rgba(0,0,0,.22);text-shadow:0 1px 2px rgba(0,0,0,.28)}
 .cp-cbadge svg{width:21px;height:21px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.28))}
 .cp-cn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.cp-cn b{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#eef1f6}
+.cp-cn b{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.22;color:#eef1f6;
+  /* v8.4: show the FULL category name on any device — wrap to up to 2 lines instead of clipping */
+  white-space:normal;overflow-wrap:anywhere;word-break:break-word;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .cp-cn small{font-size:11px;font-weight:700;letter-spacing:.2px;color:#93a0b3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cp-count{flex-shrink:0;min-width:38px;height:26px;padding:0 10px;border-radius:999px;display:grid;place-items:center;font-size:12px;font-weight:900;color:#eef1f8;background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
 .cp-star{flex-shrink:0;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:17px;line-height:1;color:#6a7488;background:transparent;transition:transform .14s ease,color .14s ease}
@@ -975,7 +985,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.3';
+const APP_VERSION='8.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
