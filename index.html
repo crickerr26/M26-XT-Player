@@ -572,13 +572,10 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
    timeline to jump within — play/pause still works to pause & rejoin live). Movies/Series get
    the full seekable scrubber. Both keep the bar permanently visible (no fade-out). */
 .player.liveMode #backBtn,.player.liveMode #forwardBtn{display:none!important}
-.player.liveMode #seekRow .seekTrack{pointer-events:none;cursor:default}
-/* v79: controls are NOT permanently visible any more — they fade in on tap and fade out again
-   (handled by the `showbar` class + auto-hide timer), so the video isn't cluttered. The seek
-   row is still laid out (part of the bar) — its visibility rides the bar's opacity. */
-.player.liveMode #seekRow,.player.vodMode #seekRow{display:flex!important}
-/* live scrubber tint: a solid live-red bar rather than a progress fill */
-.player.liveMode #seekFill{width:100%!important}
+/* v9.0: a LIVE feed has no timeline to scrub, so hide the scrubber row entirely on live
+   (owner request). Movies/Series keep the full seekable scrubber. */
+.player.liveMode #seekRow{display:none!important}
+.player.vodMode #seekRow{display:flex!important}
 /* ── QR scanner overlay (Load from another device → Scan) ───────────────────── */
 /* redesigned login actions */
 .loginLead{margin:14px 0 4px!important;font-size:13.5px;line-height:1.55;color:#66758c}
@@ -1007,7 +1004,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.9';
+const APP_VERSION='9.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1925,7 +1922,7 @@ function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pau
   ['backBtn','forwardBtn'].forEach(id=>{const b=$(id);if(b){b.style.display=isLive?'none':'';b.disabled=!!isLive;}});
   /* download is for Movies/Series only — a live channel is an endless stream, nothing to save */
   const dbn=$('downloadBtn');if(dbn)dbn.style.display=isLive?'none':'';
-  const sr=$('seekRow');if(sr)sr.classList.remove('hidden');
+  const sr=$('seekRow');if(sr)sr.classList.toggle('hidden',!!isLive);   /* live has no scrubber */
   const lb=$('liveBadge');if(lb)lb.classList.toggle('hidden',!isLive);
   const pb=$('playerBox');
   if(pb){pb.classList.toggle('liveMode',!!isLive);
