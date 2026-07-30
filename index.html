@@ -352,7 +352,7 @@ body.light .home-head p{color:#5a6f90}
 .cp-back:active{transform:scale(.92)}
 @media(hover:hover){.cp-back:hover{background:rgba(255,255,255,.12)}}
 .cp-titlewrap{display:flex;align-items:center;gap:13px;min-width:0}
-.cp-ic{flex-shrink:0;width:48px;height:48px;border-radius:15px;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,var(--cp-b),var(--cp-a));box-shadow:0 8px 22px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.22)}
+.cp-ic{flex-shrink:0;width:48px;height:48px;border-radius:15px;display:grid;place-items:center;color:#eef3fa;background:linear-gradient(135deg,rgba(var(--cp-rgb),.5),rgba(var(--cp-rgb),.26));border:1px solid rgba(var(--cp-rgb),.3);box-shadow:0 6px 16px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.12)}
 .cp-ic svg{width:27px;height:27px}
 .cp-tt{min-width:0}
 .cp-tt h1{font-size:clamp(21px,5vw,28px);font-weight:900;letter-spacing:-.5px;line-height:1.05;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -365,7 +365,7 @@ body.light .home-head p{color:#5a6f90}
 .cp-tab[data-cattab="live"]{--t-a:#0A84FF;--t-b:#32D0FF;--t-rgb:10,132,255}
 .cp-tab[data-cattab="vod"]{--t-a:#FF375F;--t-b:#FF9F0A;--t-rgb:255,55,95}
 .cp-tab[data-cattab="series"]{--t-a:#BF5AF2;--t-b:#7A5CFF;--t-rgb:191,90,242}
-.cp-tab.active{background:linear-gradient(135deg,var(--t-a),var(--t-b));color:#fff;box-shadow:0 6px 18px rgba(var(--t-rgb),.5),inset 0 1px 0 rgba(255,255,255,.25)}
+.cp-tab.active{background:linear-gradient(135deg,var(--t-a),var(--t-b));color:#fff;box-shadow:0 4px 12px rgba(var(--t-rgb),.3),inset 0 1px 0 rgba(255,255,255,.2)}
 .cp-tab:active{transform:scale(.95)}
 /* v7.6: global search results on the category page — type headers + poster thumbnails. */
 .cp-section{grid-column:1/-1;font-size:11.5px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;color:#8fa5c6;padding:12px 8px 2px}
@@ -381,11 +381,11 @@ body.light .home-head p{color:#5a6f90}
    card into a scroll container whose intrinsic height ignores its flex children,
    collapsing every row on top of the next in the auto-sized grid (the iOS bug). */
 .cp-cat{position:relative;overflow:hidden;min-height:58px;box-sizing:border-box;display:flex;align-items:center;gap:12px;padding:8px 14px 8px 18px;border-radius:15px;background:linear-gradient(145deg,#131722 0%,#000000 100%);border:1px solid rgba(255,255,255,.1);box-shadow:0 6px 20px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.06);color:#eaeef5;text-align:left;animation:cpIn .45s cubic-bezier(.2,.8,.2,1) both;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,background .16s ease}
-.cp-cat::before{content:"";position:absolute;left:7px;top:12px;bottom:12px;width:3px;border-radius:3px;background:linear-gradient(180deg,var(--cp-a),var(--cp-b));box-shadow:0 0 10px rgba(var(--cp-rgb),.45)}
+.cp-cat::before{content:"";position:absolute;left:8px;top:14px;bottom:14px;width:2px;border-radius:2px;background:linear-gradient(180deg,var(--cp-a),var(--cp-b));opacity:.85;box-shadow:0 0 6px rgba(var(--cp-rgb),.3)}
 .cp-cat:active{transform:scale(.985)}
 @media(hover:hover){.cp-cat:hover{background:linear-gradient(145deg,#1a2032 0%,#05070c 100%);border-color:rgba(var(--cp-rgb),.42);box-shadow:0 12px 30px rgba(0,0,0,.55),0 0 0 1px rgba(var(--cp-rgb),.16),inset 0 1px 0 rgba(255,255,255,.07);transform:translateY(-1px)}}
 .cp-cat.active{border-color:rgba(var(--cp-rgb),.6);background:linear-gradient(145deg,#1d2740 0%,#070a12 100%);box-shadow:0 10px 28px rgba(0,0,0,.55),0 0 0 1px rgba(var(--cp-rgb),.42),inset 0 1px 0 rgba(255,255,255,.08)}
-.cp-cbadge{flex-shrink:0;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:15px;letter-spacing:.3px;color:#f4f6fa;background:linear-gradient(140deg,var(--cp-a),var(--cp-b));box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.3),inset 0 -2px 5px rgba(0,0,0,.22);text-shadow:0 1px 2px rgba(0,0,0,.28)}
+.cp-cbadge{flex-shrink:0;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-weight:900;font-size:15px;letter-spacing:.3px;color:#e9eff7;background:linear-gradient(140deg,rgba(var(--cp-rgb),.42),rgba(var(--cp-rgb),.2));border:1px solid rgba(var(--cp-rgb),.28);box-shadow:0 3px 10px rgba(0,0,0,.26),inset 0 1px 0 rgba(255,255,255,.1);text-shadow:0 1px 2px rgba(0,0,0,.3)}
 .cp-cbadge svg{width:21px;height:21px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.28))}
 .cp-cn{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .cp-cn b{font-size:14.5px;font-weight:800;letter-spacing:-.2px;line-height:1.22;color:#eef1f6;
@@ -1001,7 +1001,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='8.5';
+const APP_VERSION='8.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1390,14 +1390,14 @@ function renderCatPage(){
   const favCount=list().filter(x=>S.favs.has(keyOf(x))).length;
   const recCount=list().filter(x=>S.recent.includes(keyOf(x))).length;
   const specials=[
-    {id:'',name:'All '+meta.label,sub:'Everything in one place',count:total,badge:CP_GRID},
-    {id:'__fav',name:'Favorites',sub:'Your starred '+meta.unit,count:favCount,badge:CP_STAR},
-    {id:'__recent',name:'Recently Played',sub:'Jump back in',count:recCount,badge:CP_CLOCK}
+    {id:'',name:'All '+meta.label,sub:total.toLocaleString()+' '+meta.unit,count:total,badge:CP_GRID},
+    {id:'__fav',name:'Favorites',sub:favCount.toLocaleString()+' starred '+meta.unit,count:favCount,badge:CP_STAR},
+    {id:'__recent',name:'Recently Played',sub:recCount?recCount.toLocaleString()+' '+meta.unit:'Jump back in',count:recCount,badge:CP_CLOCK}
   ];
   let html='';
   for(const sp of specials){
     if(q&&!sp.name.toLowerCase().includes(q))continue;
-    html+=`<button class="cp-cat ${String(S.cat)===String(sp.id)?'active':''}" data-cat="${esc(sp.id)}"><span class="cp-cbadge">${sp.badge}</span><span class="cp-cn"><b>${esc(sp.name)}</b><small>${esc(sp.sub)}</small></span><span class="cp-count">${sp.count.toLocaleString()}</span><span class="cp-chev">›</span></button>`;
+    html+=`<button class="cp-cat ${String(S.cat)===String(sp.id)?'active':''}" data-cat="${esc(sp.id)}"><span class="cp-cbadge">${sp.badge}</span><span class="cp-cn"><b>${esc(sp.name)}</b><small>${esc(sp.sub)}</small></span><span class="cp-chev">›</span></button>`;
   }
   const cs=cats().slice().sort((a,b)=>(S.favCats.has(catFavKey(a))?0:1)-(S.favCats.has(catFavKey(b))?0:1));
   let shown=0;
@@ -1407,7 +1407,7 @@ function renderCatPage(){
     const isF=S.favCats.has(catFavKey(c));
     const cnt=countCat(c.category_id);
     const initial=esc((name.trim()[0]||'#').toUpperCase());
-    html+=`<button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-count">${cnt.toLocaleString()}</span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button>`;
+    html+=`<button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button>`;
     shown++;
   }
   if(!html){
