@@ -1015,7 +1015,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='10.2';
+const APP_VERSION='10.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1168,7 +1168,10 @@ function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
 function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
 function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
 function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,user:S.user,pass:S.pass}))}
-function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v9.6: migrate ALL old/outdated saved transcoders to the app's same-origin Worker relay. */if(/(smarter-iptv-transcoder(-[a-z0-9]+)?|media26-transcoder-[a-z0-9]+)\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
+function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
+   media26-transcoder-*.onrender.com — including services that are alive and current — so a URL
+   typed into Stream Tools by hand was silently erased on the next load and there was no way to
+   point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
@@ -1659,8 +1662,14 @@ async function testTranscoder(){
          Say so plainly so the user redeploys the current server instead of staring at "Loading". */
       const fast=!!(data&&Array.isArray(data.profiles)&&data.profiles.indexOf('fastvod')>=0);
       S.transFast=fast;
-      if(fast)setTStatus('online','Online — MKV will play');
-      else setTStatus('outdated','Online but OUTDATED — redeploy so MKV plays fast');
+      /* v10.3: report the SERVER's build too. 'fastvod' alone is not enough — a pre-10.2 server
+         has it but copies HEVC into MPEG-TS, which iPhone refuses, so MKV dies on iOS while the
+         light sits green. A server that reports no build is older than 10.2 and must be
+         redeployed for HEVC MKV to play on iPhone. */
+      const sb=(data&&data.build)||'';
+      if(!fast)setTStatus('outdated','Online but OUTDATED — redeploy so MKV plays fast');
+      else if(!sb)setTStatus('outdated','Online, OLD build — redeploy for HEVC MKV on iPhone');
+      else setTStatus('online','Online v'+sb+' — MKV will play');
     }
     else setTStatus('offline','Reachable but error '+r.status);
   }catch(e){clearTimeout(to);setTStatus('offline',(e&&e.name==='AbortError')?'No response — server asleep or down':'Offline / unreachable');}

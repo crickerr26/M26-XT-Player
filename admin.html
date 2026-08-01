@@ -92,7 +92,7 @@
   var $=function(id){return document.getElementById(id)};
   /* Bumped on every deploy alongside APP_VERSION in index.html, so it is obvious at a glance
      whether this page is the current build or a stale cached/preview copy. */
-  var ADMIN_VERSION='10.2';
+  var ADMIN_VERSION='10.3';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   var DEFAULT_BASE='https://media26-transcoder-mlxq.onrender.com';
   try{ $('key').value = localStorage.getItem('m26_admin_key')||''; }catch(e){}
