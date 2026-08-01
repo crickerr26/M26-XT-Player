@@ -92,7 +92,7 @@
   var $=function(id){return document.getElementById(id)};
   /* Bumped on every deploy alongside APP_VERSION in index.html, so it is obvious at a glance
      whether this page is the current build or a stale cached/preview copy. */
-  var ADMIN_VERSION='10.1';
+  var ADMIN_VERSION='10.2';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   var DEFAULT_BASE='https://media26-transcoder-mlxq.onrender.com';
   try{ $('key').value = localStorage.getItem('m26_admin_key')||''; }catch(e){}
@@ -104,7 +104,7 @@
   function checkConn(){
     var c=$('conn'); c.textContent='';
     fetch(base()+'/health').then(function(r){return r.json()}).then(function(j){
-      if(j&&j.ok){ c.textContent = j.activation ? '• Connected, activation ON.' : '• Connected, but activation is OFF (set the Upstash keys on the server).'; c.style.color = j.activation?'#4fe0a5':'#ffd25a'; }
+      if(j&&j.ok){ var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]'; c.textContent = (j.activation ? '• Connected, activation ON.' : '• Connected, but activation is OFF (set the Upstash keys on the server).')+b; c.style.color = j.activation?'#4fe0a5':'#ffd25a'; }
       else { c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; }
     }).catch(function(){ c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; });
   }

@@ -6,10 +6,17 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 
+/* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
+   whether Render is actually running the current build or still serving an older deploy. Bump
+   this alongside APP_VERSION in index.html. */
+const SERVER_BUILD = '10.2';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
+const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe';
+/* How long the copy-mode codec probe may take before we give up and use the old TS path. */
+const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 12000);
 /* Media26 watermark burned into transcoded video. PiP (and Chromecast/AirPlay) show only the
    decoded picture, so the only way to make the logo appear there is to bake it into the stream.
    Any re-encoding profile picks it up automatically when this file is present. */
@@ -160,15 +167,18 @@ function safePath(id, file = '') {
   return { dir, target };
 }
  
-function profileArgs(profile, wm) {
+function profileArgs(profile, wm, vtag) {
   if (profile === 'audio') return ['-vn', '-c:a', 'aac', '-b:a', '96k'];
   if (profile === 'copy') return ['-c', 'copy'];
   if (profile === 'remux') return ['-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '128k', '-ac', '2'];
   /* fastvod: the "second player" for movies/series. COPY the video (no slow re-encode — near
      instant, low CPU) and only re-wrap the container + transcode the audio to AAC, so a title the
      browser can't open (MKV/AVI, AC3/DTS audio, HEVC on Apple) plays in the built-in <video>.
-     Unlike 'remux' this is treated as VOD below (full, seekable HLS playlist). */
-  if (profile === 'fastvod') return ['-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '160k', '-ac', '2'];
+     Unlike 'remux' this is treated as VOD below (full, seekable HLS playlist).
+     vtag ('hvc1') is set when the copied video is HEVC: ffmpeg would otherwise tag it 'hev1',
+     which Apple players refuse even inside a correct fMP4 segment. */
+  if (profile === 'fastvod') return ['-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy',
+    ...(vtag ? ['-tag:v', vtag] : []), '-c:a', 'aac', '-b:a', '160k', '-ac', '2'];
   const videoBitrate = profile === 'vod' ? '1200k' : '750k';
   const maxrate = profile === 'vod' ? '1500k' : '900k';
   const bufsize = profile === 'vod' ? '3000k' : '1800k';
@@ -229,14 +239,20 @@ function inputArgs(profile, url) {
   ];
 }
  
-function hlsArgs(profile, dir, playlist) {
+function hlsArgs(profile, dir, playlist, segType) {
   const live = profile === 'live' || profile === 'remux';
   /* fastvod keeps a full seekable playlist (not live) but uses SHORT 2s segments so the very first
      one is ready — and playback can begin — in ~2s of copied content instead of a 6s segment. */
   const seg = (live || profile === 'fastvod') ? '2' : '6';
+  /* Apple only decodes HEVC inside FRAGMENTED MP4 segments — HEVC in MPEG-TS is rejected outright
+     by iPhone/iPad, which is why copying an x265 MKV into .ts segments played on desktop but died
+     on iOS. When the probe finds HEVC we emit fMP4 (init.mp4 + .m4s) instead, which both Safari's
+     native HLS and hls.js accept. H.264 keeps the proven TS path. */
+  const fmp4 = segType === 'fmp4';
   return [
     '-f', 'hls',
     '-hls_time', seg,
+    ...(fmp4 ? ['-hls_segment_type', 'fmp4', '-hls_fmp4_init_filename', 'init.mp4'] : []),
     '-hls_list_size', live ? '15' : '0',
     /* VOD (movies/series): mark the playlist as a seekable VOD so the player enables full-timeline
        seeking and NEVER restarts from 0 on a forward/back jump. Live keeps the rolling window. */
@@ -246,9 +262,40 @@ function hlsArgs(profile, dir, playlist) {
       ? 'delete_segments+append_list+omit_endlist+independent_segments+temp_file'
       : 'independent_segments+temp_file',
     '-hls_allow_cache', live ? '0' : '1',
-    '-hls_segment_filename', path.join(dir, 'seg_%05d.ts'),
+    '-hls_segment_filename', path.join(dir, fmp4 ? 'seg_%05d.m4s' : 'seg_%05d.ts'),
     playlist
   ];
+}
+
+/* Ask ffprobe what the source's video codec is, so copy-mode can pick a container the target
+   device will actually decode. Strictly best-effort and time-boxed: any failure resolves to ''
+   and the caller keeps the previous MPEG-TS behaviour, so a probe problem can never block
+   playback that used to work. */
+function probeVideoCodec(url) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = v => { if (!settled) { settled = true; resolve(v); } };
+    let child;
+    try {
+      child = spawn(FFPROBE, [
+        '-v', 'error',
+        '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        '-rw_timeout', '8000000',
+        '-analyzeduration', '2000000',
+        '-probesize', '2000000',
+        '-select_streams', 'v:0',
+        '-show_entries', 'stream=codec_name',
+        '-of', 'default=nw=1:nk=1',
+        url
+      ], { stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (e) { return finish(''); }
+    let out = '';
+    child.stdout.on('data', c => { out += c.toString(); });
+    child.on('error', () => finish(''));
+    child.on('exit', () => finish(String(out || '').trim().split(/\r?\n/)[0].trim().toLowerCase()));
+    const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} finish(''); }, PROBE_TIMEOUT_MS);
+    if (killer.unref) killer.unref();
+  });
 }
  
 function spawnFfmpeg(session, args) {
@@ -294,23 +341,45 @@ function reviveSession(session) {
   spawnFfmpeg(session, session.spawnArgs);
 }
  
+/* Sessions being built right now. start() awaits a codec probe for copy-mode, and without this
+   two near-simultaneous requests for the same title would both get past the "already running?"
+   check and spawn a second ffmpeg over the first one's output directory. */
+const starting = new Map();
+
 function start(url, profile = 'mobile') {
   const id = sessionId(url, profile);
   const existing = sessions.get(id);
   if (existing && !existing.exited) {
     existing.lastAccess = Date.now();
-    return existing;
+    return Promise.resolve(existing);
   }
   if (existing && existing.exited && isLiveProfile(existing.profile) && existing.spawnArgs) {
     existing.lastAccess = Date.now();
     reviveSession(existing);
-    return existing;
+    return Promise.resolve(existing);
   }
- 
+  const inFlight = starting.get(id);
+  if (inFlight) return inFlight;
+  const pending = buildSession(id, url, profile).finally(() => starting.delete(id));
+  starting.set(id, pending);
+  return pending;
+}
+
+async function buildSession(id, url, profile) {
+  /* Copy-mode can only produce a playable stream if the container we wrap into suits the codec.
+     Probe once, up front: HEVC must go into fMP4 (and be tagged hvc1) or Apple devices refuse it;
+     H.264 keeps the proven MPEG-TS path. An unknown/failed probe also keeps the old path. */
+  let segType = '', vtag = '';
+  if (profile === 'fastvod') {
+    const vcodec = await probeVideoCodec(url);
+    if (vcodec === 'hevc' || vcodec === 'h265') { segType = 'fmp4'; vtag = 'hvc1'; }
+    console.log(`[probe] id=${id} video=${vcodec || 'unknown'} -> ${segType === 'fmp4' ? 'fMP4/hvc1 (iOS-safe)' : 'mpegts'}`);
+  }
+
   const { dir } = safePath(id);
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(dir, { recursive: true });
- 
+
   const playlist = path.join(dir, 'index.m3u8');
   /* Burn the Media26 logo in only for profiles that actually re-encode video (copy/remux/audio
      can't be overlaid). The logo is added as a second ffmpeg input, consumed by profileArgs. */
@@ -318,14 +387,14 @@ function start(url, profile = 'mobile') {
   const args = [
     ...inputArgs(profile, url),
     ...(wm ? ['-i', WATERMARK] : []),
-    ...profileArgs(profile, wm),
+    ...profileArgs(profile, wm, vtag),
     '-avoid_negative_ts', 'make_zero',
     '-muxdelay', '0',
     '-muxpreload', '0',
     '-max_muxing_queue_size', '4096',
-    ...hlsArgs(profile, dir, playlist)
+    ...hlsArgs(profile, dir, playlist, segType)
   ];
- 
+
   const session = { id, url, profile, child: null, playlist, dir, created: Date.now(), lastAccess: Date.now(), exited: false, log: '', spawnArgs: args };
   spawnFfmpeg(session, args);
   sessions.set(id, session);
@@ -631,7 +700,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/health') {
       /* Report capabilities so the app can tell a CURRENT server (fast copy-mode MKV) from an old
          one. 'fastvod' is the quick copy-video profile; its presence here means MKV plays fast. */
-      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, profiles: ['fastvod', 'vod', 'remux', 'copy', 'audio'], activation: LICENSING_ENABLED });
+      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'vod', 'remux', 'copy', 'audio'], activation: LICENSING_ENABLED });
     }
 
     // Same-origin CORS relay: /proxy?url=<encoded target>. index.html tries this
@@ -652,7 +721,7 @@ const server = http.createServer(async (req, res) => {
       const profile = u.searchParams.get('profile') || 'mobile';
       console.log(`[hls] request profile=${profile} url=${String(source || '').slice(0, 160)}`);
       if (!source || !/^https?:\/\//i.test(source)) return json(res, 400, { error: 'Missing url' });
-      const session = start(source, profile);
+      const session = await start(source, profile);
       /* Give a cold/slow free server more room to emit the first segment before declaring failure
          (copy-mode VOD is quick once ffmpeg can read the source; a re-encode needs longer). If the
          source can't be read, waitForPlaylist returns early with the ffmpeg error in session.log. */
