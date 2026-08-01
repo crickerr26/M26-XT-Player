@@ -254,19 +254,28 @@ function hlsArgs(profile, dir, playlist) {
 function spawnFfmpeg(session, args) {
   session.exited = false;
   session.exitCode = null;
+  console.log(`[ffmpeg] spawn profile=${session.profile} id=${session.id} src=${String(session.url || '').slice(0, 140)}`);
   const child = spawn(FFMPEG, args, { stdio: ['ignore', 'ignore', 'pipe'] });
   session.child = child;
   child.on('error', error => {
     session.exited = true;
     session.exitCode = -1;
     session.log = (`FFmpeg failed to start: ${error.message}\n` + session.log).slice(-4000);
+    console.log(`[ffmpeg] FAILED TO START id=${session.id}: ${error.message}`);
   });
   child.stderr.on('data', chunk => {
-    session.log = (session.log + chunk.toString()).slice(-4000);
+    const s = chunk.toString();
+    session.log = (session.log + s).slice(-4000);
+    /* surface only the meaningful lines (errors / HTTP status / connection issues) to the Render
+       log, so the live tail shows WHY a transcode fails without drowning in ffmpeg progress spam. */
+    if (/error|denied|forbidden|403|404|401|5\d\d|timed out|refused|not found|invalid|no such|unable|failed|moov/i.test(s)) {
+      console.log(`[ffmpeg ${session.id}] ${s.trim().split(/\r?\n/).slice(-1)[0].slice(0, 200)}`);
+    }
   });
   child.on('exit', code => {
     session.exited = true;
     session.exitCode = code;
+    console.log(`[ffmpeg] exit code=${code} id=${session.id}` + (code ? ` — last: ${String(session.log || '').trim().split(/\r?\n/).slice(-1)[0].slice(0, 200)}` : ''));
   });
 }
  
@@ -610,6 +619,7 @@ const server = http.createServer(async (req, res) => {
       if (!authorized(u)) return json(res, 401, { error: 'Unauthorized' });
       const source = u.searchParams.get('url');
       const profile = u.searchParams.get('profile') || 'mobile';
+      console.log(`[hls] request profile=${profile} url=${String(source || '').slice(0, 160)}`);
       if (!source || !/^https?:\/\//i.test(source)) return json(res, 400, { error: 'Missing url' });
       const session = start(source, profile);
       /* Give a cold/slow free server more room to emit the first segment before declaring failure
@@ -617,7 +627,8 @@ const server = http.createServer(async (req, res) => {
          source can't be read, waitForPlaylist returns early with the ffmpeg error in session.log. */
       const waitMs = isLiveProfile(profile) ? 30000 : (profile === 'vod' ? 75000 : 55000);
       const ok = await waitForPlaylist(session, waitMs);
-      if (!ok) return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) });
+      if (!ok) { console.log(`[hls] 504 profile=${profile} id=${session.id} — no playlist in ${waitMs}ms`); return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) }); }
+      console.log(`[hls] 302 OK profile=${profile} id=${session.id}`);
       const location = `${requestBaseUrl(req)}/sessions/${session.id}/index.m3u8`;
       res.writeHead(302, {
         location,
