@@ -36,14 +36,16 @@
   code.copyable{cursor:pointer}
   code.copyable:hover{color:#4fe0a5}
   .secondary{background:#22314a;color:#cfe0f7;width:100%;margin-top:9px}
+  .verbadge{display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 9px;border-radius:999px;background:rgba(56,189,248,.16);border:1px solid rgba(56,189,248,.42);color:#7fd4ea;font-size:11px;font-weight:900}
+  .warn{margin-top:12px;padding:12px 13px;border-radius:12px;background:rgba(255,180,60,.1);border:1px solid rgba(255,190,80,.42);color:#ffd694;font-size:12.5px;line-height:1.5}
   .newcode{margin-top:14px;padding:14px;border-radius:14px;background:#0b1d18;border:1px solid #1e4a3a}
   .bigcode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:34px;font-weight:800;letter-spacing:9px;text-align:center;color:#4fe0a5;text-indent:9px;padding:8px 0}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Media26 — Admin</h1>
-  <p class="sub">Activate customers by binding the login you created to their 8-digit code.</p>
+  <h1>Media26 — Admin <span class="verbadge" id="adminVer"></span></h1>
+  <p class="sub">Create a code to hand to a customer, or activate a code a customer already gave you.</p>
 
   <div class="card">
     <h2>Server &amp; key</h2>
@@ -70,6 +72,7 @@
     <button class="primary" id="a_new">✨ Create a new activated code</button>
     <button class="secondary" id="a_go">Activate a code the customer gave me</button>
     <div class="msg" id="a_msg"></div>
+    <div class="warn" id="a_warn" style="display:none"></div>
     <div class="newcode" id="a_newbox" style="display:none">
       <p class="muted" style="margin:0">Give this code to the customer — it is already active. They open the app, type it, and the channels load.</p>
       <div class="bigcode" id="a_newcode">— — — —</div>
@@ -87,6 +90,10 @@
 </div>
 <script>
   var $=function(id){return document.getElementById(id)};
+  /* Bumped on every deploy alongside APP_VERSION in index.html, so it is obvious at a glance
+     whether this page is the current build or a stale cached/preview copy. */
+  var ADMIN_VERSION='10.1';
+  $('adminVer').textContent='v'+ADMIN_VERSION;
   var DEFAULT_BASE='https://media26-transcoder-mlxq.onrender.com';
   try{ $('key').value = localStorage.getItem('m26_admin_key')||''; }catch(e){}
   try{ $('base').value = localStorage.getItem('m26_admin_base')||DEFAULT_BASE; }catch(e){ $('base').value=DEFAULT_BASE; }
@@ -111,14 +118,40 @@
     }).then(function(r){ return r.json().then(function(j){ return {status:r.status, j:j}; }); });
   }
 
+  /* Show the finished code big, with Copy / WhatsApp, after EITHER path — creating a new code or
+     activating one a customer supplied. The admin's job always ends the same way: hand over a code. */
+  function showShareCode(code){
+    $('a_code').value=code;
+    $('a_newcode').textContent=String(code).replace(/(\d{4})(\d{4})/,'$1 $2');
+    $('a_newbox').style.display='block';
+  }
+  function serverErr(r){
+    /* A 404 here means this transcoder is still running an older build of server.js. */
+    if(r&&r.status===404) return 'This transcoder is running an older build and does not have this feature yet. Redeploy the service on Render, then try again.';
+    return (r&&r.j&&r.j.error)||'Failed';
+  }
+
   $('a_go').onclick=function(){
     var m=$('a_msg'); m.className='msg'; m.textContent='Activating…';
+    $('a_warn').style.display='none'; $('a_newbox').style.display='none';
     api('/api/admin/activate',{
       code:$('a_code').value, url:$('a_url').value, user:$('a_user').value,
       pass:$('a_pass').value, days:Number($('a_days').value||0)
     }).then(function(r){
-      if(r.j&&r.j.ok){ m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices). The customer’s app will log in automatically.'; loadList(); }
-      else { m.className='msg bad'; m.textContent='✗ '+((r.j&&r.j.error)||'Failed'); }
+      if(r.j&&r.j.ok){
+        m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).';
+        showShareCode(r.j.code);
+        /* No customer had ever registered this code, so nobody is waiting on it. Almost always a
+           mistyped digit: the customer's real code is still sitting pending in the table below. */
+        if(r.j.created){
+          $('a_warn').innerHTML='⚠️ <b>No customer was waiting on '+r.j.code+'.</b> This code did not exist, so a brand-new one was created and nobody\'s app is signed in by it.<br><br>'+
+            'If you meant to activate a code a customer sent you, <b>check the digits</b> — their real code is still showing as <b>pending</b> in the table below. '+
+            'Either re-activate using the exact pending code, or just send the customer the code shown above.';
+          $('a_warn').style.display='block';
+        }
+        loadList();
+      }
+      else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
     }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
   };
 
@@ -127,18 +160,16 @@
      for, so the server allocates a unique one and binds this login to it. */
   $('a_new').onclick=function(){
     var m=$('a_msg'); m.className='msg'; m.textContent='Creating…';
-    $('a_newbox').style.display='none';
+    $('a_newbox').style.display='none'; $('a_warn').style.display='none';
     api('/api/admin/create',{
       url:$('a_url').value, user:$('a_user').value,
       pass:$('a_pass').value, days:Number($('a_days').value||0)
     }).then(function(r){
       if(r.j&&r.j.ok){
         m.className='msg ok'; m.textContent='✓ New code created and already active.';
-        $('a_code').value=r.j.code;
-        $('a_newcode').textContent=String(r.j.code).replace(/(\d{4})(\d{4})/,'$1 $2');
-        $('a_newbox').style.display='block';
+        showShareCode(r.j.code);
         loadList();
-      } else { m.className='msg bad'; m.textContent='✗ '+((r.j&&r.j.error)||'Failed'); }
+      } else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
     }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
   };
   function flashCopy(btn, text, done){

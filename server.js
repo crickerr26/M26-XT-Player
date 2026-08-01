@@ -556,7 +556,11 @@ const server = http.createServer(async (req, res) => {
         lic.expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
         lic.activatedAt = Date.now();
         await licSet(code, lic);
-        return json(res, 200, { ok: true, code, status: 'active', devices: lic.devices.length, deviceLimit: DEVICE_LIMIT });
+        /* `created` tells the dashboard that NO customer had ever registered this code, so what just
+           happened was "a brand-new code was invented", not "the customer waiting on their screen was
+           let in". A single mistyped digit produces exactly that: a phantom active code with 0 devices
+           while the customer's real code sits pending forever. The UI warns loudly on this flag. */
+        return json(res, 200, { ok: true, code, status: 'active', created: !existing, devices: lic.devices.length, deviceLimit: DEVICE_LIMIT });
       }
 
       /* ADMIN: mint a BRAND-NEW code that is already active. This is the "sell a subscription"
