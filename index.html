@@ -1004,7 +1004,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='9.0';
+const APP_VERSION='9.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2014,7 +2014,12 @@ async function playItemBasic(x){
        movies/series). Now, if a transcoder is configured, add it as the LAST live route: it re-wraps
        the channel into browser-playable rolling HLS ('remux' = copy video + AAC audio, low CPU), so
        a channel that can't play natively still comes up in the inbuilt player. */
-    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(externalStreamUrl(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.push({kind:'hls',url:tlu});}}catch(e){}
+    /* v9.1: the transcoder is reliably connected now, so make its clean rolling-HLS remux the
+       SECOND live route (right after the instant mpegts start) instead of the last resort. A
+       channel that mpegts can't hold (drops/combs/HEVC) flips to the steady transcoder feed fast,
+       so live "just works" in the built-in player. Same channel + multiple viewers share ONE
+       ffmpeg session on the server = ONE provider connection, which also helps multi-device. */
+    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(externalStreamUrl(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.splice(1,0,{kind:'hls',url:tlu});}}catch(e){}
   }else{
     /* v3.2 SmartPlay for Movies/Series — the goal is that ANY title plays in the built-in player
        on ANY device by exhausting every route the device can actually DECODE, in the right order.
@@ -2056,11 +2061,16 @@ async function playItemBasic(x){
     const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
     if(direct){const du=wrap(direct);addv(du.includes('.m3u8')?'hls':'native',du);}
     if(UNPLAYABLE.test(cont)){
-      /* hard container. Try ONE native shot (the exact URL the download's "View" plays — some are
-         mislabeled and play). If it can't decode, don't wander through routes that won't help: go to
-         the transcoder if we have a confirmed one, otherwise straight to the "This file is MKV" note. */
+      /* hard container (MKV/AVI/…). One native shot for mislabeled-but-playable files, then the
+         transcoder. v9.1: TWO transcoder routes so MKV plays in the built-in player on ANY device:
+           1) fastvod — copies the video (near-instant, low CPU); plays H.264/AAC MKV everywhere.
+           2) vod — full re-encode to H.264/AAC as a fallback, so HEVC/H.265 or odd-codec MKV that
+              copy-mode can't make browser-decodable still comes up (universal, just slower). */
       addv('native',lcu);
-      if(canTrans)addv('hls',transUrl);
+      if(canTrans){
+        addv('hls',transUrl);
+        try{const tv=transcodeUrl(externalStreamUrl(x),'vod');if(tv)addv('hls',tv);}catch(e){}
+      }
     }else{
       /* browser-friendly container: exact file, then .mp4 (both natively SEEKABLE via byte-range),
          then the panel HLS (also seekable), then the transcoder VOD (now a seekable VOD playlist).
@@ -2149,7 +2159,10 @@ async function playItemBasic(x){
        switch to the NEXT path (e.g. the fast mpegts -> steady native HLS) instead of endlessly
        reconnecting the same one. This is what lets us lead with the fast engine safely. */
     rcTimes=rcTimes.filter(t=>now-t<60000);rcTimes.push(now);
-    if(rcTimes.length>=3&&idx+1<plans.length){rcTimes=[];reconnects=0;lastRc=now;lastProg=now;dropEngines();idx++;$('netStatus').textContent='Switching to a steadier stream';attach(plans[idx]);return}
+    /* v9.1: on LIVE, switch to the next (steadier — usually the transcoder) route after just 2
+       drops instead of 3, so a flaky channel reaches the reliable transcoder feed faster. */
+    const dropSwitch=live?2:3;
+    if(rcTimes.length>=dropSwitch&&idx+1<plans.length){rcTimes=[];reconnects=0;lastRc=now;lastProg=now;dropEngines();idx++;$('netStatus').textContent='Switching to a steadier stream';attach(plans[idx]);return}
     if(reconnects>=40){stopMsg('Stream lost. Tap the channel to reconnect.');return}
     lastRc=now;reconnects++;lastProg=now;lastT=v.currentTime||0;
     $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
