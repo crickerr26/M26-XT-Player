@@ -1015,7 +1015,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='10.4';
+const APP_VERSION='10.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3674,6 +3674,21 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
       await activateWithCode(code,{silent:true});
     }catch(e){}
   })();
+}catch(e){}})();
+/* v10.5: pick up the admin's activation the moment the user returns to the app. If it's still on
+   the login screen with a pending code, re-check on focus / visibility / reconnect so it signs in
+   within a second of coming back, instead of only on a full reload or the 4s poll tick. */
+(function(){try{
+  const recheck=()=>{try{
+    if(typeof S!=='undefined'&&S.current)return;
+    if($('login')&&$('login').classList.contains('hidden'))return;   /* already signed in */
+    const code=(typeof actCodeGet==='function')?actCodeGet(false):'';
+    if(!/^\d{8}$/.test(code)||typeof activateWithCode!=='function')return;
+    activateWithCode(code,{silent:true}).catch(()=>{});
+  }catch(e){}};
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')recheck();});
+  window.addEventListener('focus',recheck);
+  window.addEventListener('online',recheck);
 }catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
