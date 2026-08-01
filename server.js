@@ -559,6 +559,33 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, code, status: 'active', devices: lic.devices.length, deviceLimit: DEVICE_LIMIT });
       }
 
+      /* ADMIN: mint a BRAND-NEW code that is already active. This is the "sell a subscription"
+         path: the customer has not opened the app yet, so there is no code to ask them for. The
+         server allocates a guaranteed-unique 8-digit code, binds the IPTV login to it and marks it
+         active immediately, so the customer types that one code and the channels load. */
+      if (u.pathname === '/api/admin/create') {
+        const body = await parseJsonBody(req);
+        const url = String(body.url || '').trim();
+        const user = String(body.user || '').trim();
+        const pass = String(body.pass != null ? body.pass : '').trim();
+        if (!url || !user) return json(res, 400, { error: 'Portal URL and username are required.' });
+        const days = Number(body.days || 0); // 0 = never expires
+        let code = '';
+        for (let tries = 0; tries < 20 && !code; tries++) {
+          const candidate = String(crypto.randomInt(10000000, 100000000)); // 8 digits, no leading zero
+          const clash = await licGet(candidate);
+          if (!clash) code = candidate;
+        }
+        if (!code) return json(res, 500, { error: 'Could not allocate a free code. Try again.' });
+        const lic = {
+          code, status: 'active', url, user, pass,
+          devices: [], createdAt: Date.now(), activatedAt: Date.now(),
+          expiresAt: days > 0 ? Date.now() + days * 86400000 : 0
+        };
+        await licSet(code, lic);
+        return json(res, 200, { ok: true, code, status: 'active', devices: 0, deviceLimit: DEVICE_LIMIT });
+      }
+
       // ADMIN: block / unblock / reset devices / delete a code.
       if (u.pathname === '/api/admin/update') {
         const body = await parseJsonBody(req);

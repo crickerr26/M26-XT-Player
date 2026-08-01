@@ -33,6 +33,11 @@
   .mini.danger{background:#3a2030;color:#ff9d9d}
   .muted{color:#7288a8;font-size:11.5px}
   code{background:#0c1220;padding:1px 6px;border-radius:6px;color:#9fe3ee;font-size:13px}
+  code.copyable{cursor:pointer}
+  code.copyable:hover{color:#4fe0a5}
+  .secondary{background:#22314a;color:#cfe0f7;width:100%;margin-top:9px}
+  .newcode{margin-top:14px;padding:14px;border-radius:14px;background:#0b1d18;border:1px solid #1e4a3a}
+  .bigcode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:34px;font-weight:800;letter-spacing:9px;text-align:center;color:#4fe0a5;text-indent:9px;padding:8px 0}
 </style>
 </head>
 <body>
@@ -50,8 +55,9 @@
   </div>
 
   <div class="card">
-    <h2>Activate a customer code</h2>
-    <label>Customer's 8-digit code</label>
+    <h2>Create / activate a code</h2>
+    <p class="muted" style="margin:0 0 10px">Fill in the IPTV login below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate a code a customer already gave you</b>.</p>
+    <label>Customer's 8-digit code <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate this code"</span></label>
     <input id="a_code" inputmode="numeric" maxlength="8" placeholder="e.g. 48207391">
     <label>Portal URL</label>
     <input id="a_url" placeholder="http://yourserver.com:8080" autocomplete="off">
@@ -61,8 +67,17 @@
     </div>
     <label>Valid for (days) — leave 0 for no expiry</label>
     <input id="a_days" inputmode="numeric" placeholder="0" value="0">
-    <button class="primary" id="a_go">Activate this code</button>
+    <button class="primary" id="a_new">✨ Create a new activated code</button>
+    <button class="secondary" id="a_go">Activate a code the customer gave me</button>
     <div class="msg" id="a_msg"></div>
+    <div class="newcode" id="a_newbox" style="display:none">
+      <p class="muted" style="margin:0">Give this code to the customer — it is already active. They open the app, type it, and the channels load.</p>
+      <div class="bigcode" id="a_newcode">— — — —</div>
+      <div style="display:flex;gap:8px">
+        <button class="mini" id="a_copy">Copy code</button>
+        <button class="mini" id="a_wa">Send on WhatsApp</button>
+      </div>
+    </div>
   </div>
 
   <div class="card">
@@ -107,6 +122,39 @@
     }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
   };
 
+  /* Mint a brand-new code that is active the moment it is created. Use this when selling a
+     subscription to someone who has not opened the app yet — there is no customer code to ask
+     for, so the server allocates a unique one and binds this login to it. */
+  $('a_new').onclick=function(){
+    var m=$('a_msg'); m.className='msg'; m.textContent='Creating…';
+    $('a_newbox').style.display='none';
+    api('/api/admin/create',{
+      url:$('a_url').value, user:$('a_user').value,
+      pass:$('a_pass').value, days:Number($('a_days').value||0)
+    }).then(function(r){
+      if(r.j&&r.j.ok){
+        m.className='msg ok'; m.textContent='✓ New code created and already active.';
+        $('a_code').value=r.j.code;
+        $('a_newcode').textContent=String(r.j.code).replace(/(\d{4})(\d{4})/,'$1 $2');
+        $('a_newbox').style.display='block';
+        loadList();
+      } else { m.className='msg bad'; m.textContent='✗ '+((r.j&&r.j.error)||'Failed'); }
+    }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
+  };
+  function flashCopy(btn, text, done){
+    try{ navigator.clipboard.writeText(text); }
+    catch(e){ try{ var t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }catch(_){} }
+    var old=btn.textContent; btn.textContent=done; setTimeout(function(){ btn.textContent=old; },1000);
+  }
+  $('a_copy').onclick=function(){ flashCopy(this, String($('a_code').value||'').replace(/\D/g,''), 'Copied!'); };
+  $('a_wa').onclick=function(){
+    var c=String($('a_code').value||'').replace(/\D/g,'');
+    var t='Your Media26 activation code: '+c+'\n\nOpen the Media26 app, type this code in "Have an activation code?" and tap Go — your channels will load automatically.';
+    window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
+  };
+  function copyCode(el, code){ flashCopy(el, code, 'Copied!'); }
+  window.copyCode=copyCode;
+
   function act(code, op){
     if(op==='delete' && !confirm('Delete code '+code+'? This cannot be undone.')) return;
     api('/api/admin/update',{code:code, op:op}).then(function(){ loadList(); });
@@ -125,10 +173,10 @@
         var st=c.status||'pending';
         var when=c.createdAt?new Date(c.createdAt).toLocaleDateString():'';
         return '<tr>'+
-          '<td><code>'+esc(c.code)+'</code></td>'+
+          '<td><code class="copyable" title="Click to copy" onclick="copyCode(this,\''+c.code+'\')">'+esc(c.code)+'</code></td>'+
           '<td><span class="pill s-'+esc(st)+'">'+esc(st)+'</span></td>'+
           '<td>'+(c.devices||0)+'/'+j.deviceLimit+'</td>'+
-          '<td class="muted">'+esc(c.user||'—')+'</td>'+
+          '<td class="muted" title="'+esc(c.url||'')+'">'+esc(c.user||'—')+'</td>'+
           '<td class="muted">'+esc(when)+'</td>'+
           '<td style="white-space:nowrap">'+
             (st==='blocked'?'<button class="mini" onclick="act(\''+c.code+'\',\'unblock\')">Unblock</button>':'<button class="mini" onclick="act(\''+c.code+'\',\'block\')">Block</button>')+
