@@ -3082,7 +3082,7 @@ async function sendActToWhatsApp(){
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
-if($('loginActCodeGo'))$('loginActCodeGo').onclick=async()=>{const v=($('loginActCodeBox')&&$('loginActCodeBox').value||'').replace(/\D/g,'').slice(0,8);if(!/^\d{8}$/.test(v)){if($('loginActCodeErr'))$('loginActCodeErr').textContent='Enter an 8-digit code.';return;}if($('loginActCodeErr'))$('loginActCodeErr').textContent='';setActCode(v);actSetStatus('','Checking your code…');if($('activationCodeEntry'))$('activationCodeEntry').style.opacity='0.6';try{await actApi('/api/request',{code:v,deviceId:deviceUid()});}catch(e){}startActPoll();};
+if($('loginActCodeGo'))$('loginActCodeGo').onclick=async()=>{const v=($('loginActCodeBox')&&$('loginActCodeBox').value||'').replace(/\D/g,'').slice(0,8);if(!/^\d{8}$/.test(v)){if($('loginActCodeErr'))$('loginActCodeErr').textContent='Enter an 8-digit code.';return;}if($('loginActCodeErr'))$('loginActCodeErr').textContent='';setActCode(v);if($('loginActCodeBox'))$('loginActCodeBox').value='';if($('actSheet'))$('actSheet').classList.add('show');if($('actCode'))$('actCode').textContent=v.replace(/(\d{4})(\d{4})/,'$1 $2');if($('actEnterWrap'))$('actEnterWrap').style.display='none';if($('actErr'))$('actErr').textContent='';actSetStatus('','Checking your code…');try{await actApi('/api/request',{code:v,deviceId:deviceUid()});}catch(e){}startActPoll();};
 if($('getActBtn'))$('getActBtn').onclick=()=>openActSheet();
 /* Share from the login screen: works if this device already has an activation code or saved
    playlist; otherwise it tells the user to get activated first (nothing to share yet). */
@@ -3601,9 +3601,9 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
   if(hasDeepLink)return;
   const c=JSON.parse(store.getItem(KEY)||'null');
   if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();return;}
-  /* Not logged in yet, but a pending activation code exists → quietly poll in the background so
-     the moment the admin activates it, this device logs in on its own (no user action needed). */
-  try{if(typeof actCodeGet==='function'&&/^\d{8}$/.test(actCodeGet(false))&&typeof startActPoll==='function')startActPoll();}catch(e){}
+  /* Not logged in yet, but an activation code exists → check if already activated. If yes, auto-login.
+     If pending, show the activation sheet and poll so the moment the admin activates it, user logs in. */
+  (async function(){try{if(typeof actCodeGet!=='function')return;const code=actCodeGet(false);if(!/^\d{8}$/.test(code))return;const {j}=await actApi('/api/activate',{code:code,deviceId:deviceUid()});if(j&&j.status==='active'&&j.portalUrl&&j.username){try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}catch(e){}}else if(j&&(j.status==='pending'||j.status==='blocked'||j.status==='expired'||j.status==='disabled')){if($('actSheet'))$('actSheet').classList.add('show');if($('actCode'))$('actCode').textContent=code.replace(/(\d{4})(\d{4})/,'$1 $2');actSetStatus('',j.status==='pending'?'Waiting for the admin to activate…':'Code '+j.status);startActPoll();}}catch(e){}}})();
 }catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
