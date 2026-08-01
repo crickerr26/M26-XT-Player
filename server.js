@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '10.5';
+const SERVER_BUILD = '10.6';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -212,28 +212,35 @@ function profileArgs(profile, wm, vtag) {
 }
  
 function inputArgs(profile, url) {
+  const isLive = (profile === 'live' || profile === 'remux');
   /* fastvod is the "quick play" repackage path — copy the video, don't re-encode. Keep the input
      probe SMALL so FFmpeg emits the first segment almost immediately instead of analysing seconds of
-     the file first. */
+     the file first. +ignidx makes it ignore the Matroska/MP4 index so it never seeks to the END of
+     the file to read it (a huge, slow range request over the proxy — the "loads forever" cause). */
   const liveTuning = (profile === 'fastvod') ? [
-    '-fflags', '+genpts+discardcorrupt+nobuffer',
-    '-analyzeduration', '1000000',
-    '-probesize', '1500000'
-  ] : (profile === 'live' || profile === 'remux') ? [
+    '-fflags', '+genpts+discardcorrupt+nobuffer+ignidx',
+    '-analyzeduration', '3000000',
+    '-probesize', '6000000'
+  ] : isLive ? [
     '-fflags', '+genpts+discardcorrupt',
     '-analyzeduration', '2500000',
     '-probesize', '5000000'
-  ] : ['-fflags', '+genpts+discardcorrupt'];
+  ] : ['-fflags', '+genpts+discardcorrupt+ignidx'];
   return [
     '-hide_banner',
     '-loglevel', 'warning',
     '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     '-err_detect', 'ignore_err',
+    /* VOD (movies/series): force the HTTP input to be treated as NON-seekable so FFmpeg reads it
+       start-to-end and never issues the expensive "seek to end of a 2GB file" range request to find
+       the container index before playback can begin. This is what makes a big MKV start quickly
+       through the proxy. Live is already a linear stream, so leave it untouched. */
+    ...(isLive ? [] : ['-seekable', '0']),
     '-reconnect', '1',
     '-reconnect_streamed', '1',
     '-reconnect_at_eof', '1',
     '-reconnect_delay_max', '4',
-    '-rw_timeout', '15000000',
+    '-rw_timeout', '30000000',
     ...liveTuning,
     '-i', url
   ];
