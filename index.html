@@ -1004,7 +1004,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='9.2';
+const APP_VERSION='9.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1595,6 +1595,11 @@ function proxiedMediaUrl(u){return proxyUrl(u)}
 function transcoderBase(){try{return normalize($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
 function transcoderToken(){try{return ($('transcoderToken')?.value||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
 function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)return'';const token=transcoderToken();return `${base}/hls?profile=${encodeURIComponent(profile)}${token?'&token='+encodeURIComponent(token):''}&url=${encodeURIComponent(u)}`}
+/* v9.3: some providers 403-block datacenter IPs (Render), so the transcoder can't fetch the stream
+   directly — but our Cloudflare proxy's IP IS allowed (direct movies play through it). So feed the
+   transcoder the stream THROUGH that proxy: Render fetches Cloudflare, Cloudflare fetches the
+   provider. This is what makes MKV/HEVC (and IP-blocked live) actually transcode. */
+function transcoderInput(x){try{const u=externalStreamUrl(x);return (typeof PROXY==='string'&&/^https?:\/\//i.test(PROXY))?PROXY+encodeURIComponent(u):u;}catch(e){return externalStreamUrl(x);}}
 /* v55: warm up the transcoder. It runs on a free host that goes to sleep after inactivity and
    takes 30-60s to cold-start on the next request — that cold start was the big "movies/series
    take too long to open" delay, because MKV/HEVC titles (which browsers can't decode) MUST go
@@ -2019,7 +2024,7 @@ async function playItemBasic(x){
        channel that mpegts can't hold (drops/combs/HEVC) flips to the steady transcoder feed fast,
        so live "just works" in the built-in player. Same channel + multiple viewers share ONE
        ffmpeg session on the server = ONE provider connection, which also helps multi-device. */
-    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(externalStreamUrl(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.splice(1,0,{kind:'hls',url:tlu});}}catch(e){}
+    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(transcoderInput(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.splice(1,0,{kind:'hls',url:tlu});}}catch(e){}
   }else{
     /* v3.2 SmartPlay for Movies/Series — the goal is that ANY title plays in the built-in player
        on ANY device by exhausting every route the device can actually DECODE, in the right order.
@@ -2039,7 +2044,7 @@ async function playItemBasic(x){
        can't decode, we fall to the external-app option quickly instead of converting. */
     const mp4u=wrap(directUrl(x,'mp4')),m3u=wrap(directUrl(x,'m3u8')),tsu=wrap(directUrl(x,'ts')),lcu=wrap(directUrl(x,cont));
     /* the transcoder repackage URL (fastvod = copy video, no slow re-encode) if a transcoder is set */
-    let transUrl='';try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function')transUrl=transcodeUrl(externalStreamUrl(x),'fastvod')||'';}catch(e){}
+    let transUrl='';try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function')transUrl=transcodeUrl(transcoderInput(x),'fastvod')||'';}catch(e){}
     /* v5.0: NATIVE FIRST for everything. Proof: these "mkv" titles play the instant they're
        downloaded and viewed — so the device CAN decode them (panels mislabel playable H.264/AAC
        files as .mkv). Combined with the permissive video/mp4 Content-Type from the proxy, the built-in
@@ -2069,7 +2074,7 @@ async function playItemBasic(x){
       addv('native',lcu);
       if(canTrans){
         addv('hls',transUrl);
-        try{const tv=transcodeUrl(externalStreamUrl(x),'vod');if(tv)addv('hls',tv);}catch(e){}
+        try{const tv=transcodeUrl(transcoderInput(x),'vod');if(tv)addv('hls',tv);}catch(e){}
       }
     }else{
       /* browser-friendly container: exact file, then .mp4 (both natively SEEKABLE via byte-range),
