@@ -612,8 +612,12 @@ const server = http.createServer(async (req, res) => {
       const profile = u.searchParams.get('profile') || 'mobile';
       if (!source || !/^https?:\/\//i.test(source)) return json(res, 400, { error: 'Missing url' });
       const session = start(source, profile);
-      const ok = await waitForPlaylist(session);
-      if (!ok) return json(res, 504, { error: 'Transcoder did not produce HLS yet', log: session.log });
+      /* Give a cold/slow free server more room to emit the first segment before declaring failure
+         (copy-mode VOD is quick once ffmpeg can read the source; a re-encode needs longer). If the
+         source can't be read, waitForPlaylist returns early with the ffmpeg error in session.log. */
+      const waitMs = isLiveProfile(profile) ? 30000 : (profile === 'vod' ? 75000 : 55000);
+      const ok = await waitForPlaylist(session, waitMs);
+      if (!ok) return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) });
       const location = `${requestBaseUrl(req)}/sessions/${session.id}/index.m3u8`;
       res.writeHead(302, {
         location,
