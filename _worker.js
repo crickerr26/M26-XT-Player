@@ -1,4 +1,8 @@
-const TRANSCODER_ORIGIN = 'https://smarter-iptv-transcoder.onrender.com';
+/* The transcoder that also holds the Upstash activation store. This MUST match the
+   "Transcoder URL" set in admin.html — the admin writes activation codes to that
+   server's Upstash, and the app reads them back through this relay. When the two
+   pointed at different Render services, every customer code came back unknown. */
+const TRANSCODER_ORIGIN = 'https://media26-transcoder-mlxq.onrender.com';
 
 function withCors(headers) {
   const out = new Headers(headers);

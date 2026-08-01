@@ -1015,7 +1015,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='9.8';
+const APP_VERSION='9.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3016,15 +3016,20 @@ function deviceUid(){
   }
   return id;
 }
+/* v9.9: hold the code in memory as well as localStorage. Some in-app webviews and private
+   modes throw on localStorage, which used to drop the code silently — the activation poll
+   then had nothing to look up and waited forever without ever saying why. */
+var _actCodeMem='';
 function actCodeGet(create){
   let c;try{c=localStorage.getItem('m26_actcode');}catch(e){}
+  if(!c||!/^\d{8}$/.test(c))c=_actCodeMem;
   if((!c||!/^\d{8}$/.test(c))&&create){
     let n='';try{const a=new Uint32Array(1);crypto.getRandomValues(a);n=String(10000000+(a[0]%90000000));}catch(e){n=String(10000000+Math.floor(Math.random()*90000000));}
-    c=n;try{localStorage.setItem('m26_actcode',c);}catch(e){}
+    c=n;_actCodeMem=c;try{localStorage.setItem('m26_actcode',c);}catch(e){}
   }
   return c||'';
 }
-function setActCode(c){try{localStorage.setItem('m26_actcode',c);}catch(e){}}
+function setActCode(c){_actCodeMem=c;try{localStorage.setItem('m26_actcode',c);}catch(e){}}
 async function actApi(path,body){
   const r=await fetch(licenseBase()+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body||{})});
   let j={};try{j=await r.json();}catch(e){}
@@ -3032,7 +3037,7 @@ async function actApi(path,body){
 }
 let _actPoll=0,_actBusy=false;
 function stopActPoll(){if(_actPoll){clearInterval(_actPoll);_actPoll=0;}}
-function actSetStatus(kind,text){const s=$('actStatus');if(s)s.className='actStatus'+(kind?(' '+kind):'');if($('actStatusTx'))$('actStatusTx').textContent=text;}
+function actSetStatus(kind,text){const s=$('actStatus');if(s)s.className='actStatus'+(kind?(' '+kind):'');if($('actStatusTx'))$('actStatusTx').textContent=text;/* v9.9: mirror onto the login card, so the code box shows live status while the sheet is closed */try{loginActMsg(kind,text);}catch(e){}}
 async function pollActivationOnce(){
   if(_actBusy)return;const code=actCodeGet(false);const dev=deviceUid();if(!/^\d{8}$/.test(code))return;
   _actBusy=true;
@@ -3082,7 +3087,55 @@ async function sendActToWhatsApp(){
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
-if($('loginActCodeGo'))$('loginActCodeGo').onclick=async()=>{const v=($('loginActCodeBox')&&$('loginActCodeBox').value||'').replace(/\D/g,'').slice(0,8);if(!/^\d{8}$/.test(v)){if($('loginActCodeErr'))$('loginActCodeErr').textContent='Enter an 8-digit code.';return;}if($('loginActCodeErr'))$('loginActCodeErr').textContent='';setActCode(v);if($('loginActCodeBox'))$('loginActCodeBox').value='';if($('actSheet'))$('actSheet').classList.add('show');if($('actCode'))$('actCode').textContent=v.replace(/(\d{4})(\d{4})/,'$1 $2');if($('actEnterWrap'))$('actEnterWrap').style.display='none';if($('actErr'))$('actErr').textContent='';actSetStatus('','Checking your code…');try{await actApi('/api/request',{code:v,deviceId:deviceUid()});}catch(e){}startActPoll();};
+/* ── v9.9 · ONE-STEP ACTIVATION-CODE LOGIN ──────────────────────────────────────
+   The customer types ONLY their 8-digit code: this resolves it straight to the
+   credentials the admin bound to it and signs in. /api/activate is used on purpose
+   instead of /api/request — /api/request REGISTERS an unknown code as a brand-new
+   pending licence, so a single typo would litter the admin list with junk codes.
+   This call never creates anything; it only reads. Every branch reports on screen,
+   because a silently-swallowed failure is what made this look "dead" before. */
+function loginActMsg(kind,text){
+  const el=$('loginActCodeErr');
+  if(!el)return;
+  el.textContent=text||'';
+  el.style.color=kind==='ok'?'#0f9d6b':kind==='bad'?'#c0392b':'#66758c';
+}
+async function activateWithCode(code,opts){
+  const silent=!!(opts&&opts.silent);
+  if(!silent)loginActMsg('','Checking your code…');
+  let j=null;
+  try{ j=(await actApi('/api/activate',{code:code,deviceId:deviceUid()})).j; }
+  catch(e){ if(!silent)loginActMsg('bad','Could not reach the activation server. Check your connection and try again.'); return 'error'; }
+  const st=(j&&j.status)||'';
+  if(st==='active'&&j.portalUrl&&j.username){
+    setActCode(code);
+    stopActPoll();
+    if($('actSheet'))$('actSheet').classList.remove('show');
+    loginActMsg('ok','Activated — loading your playlist…');
+    try{ await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}}); }
+    catch(e){ loginActMsg('bad',(e&&e.message)||'Activated, but the playlist could not load.'); }
+    return 'active';
+  }
+  if(st==='pending'){
+    setActCode(code);
+    loginActMsg('','Not activated yet — waiting for the admin. Keep this page open and it will sign in on its own.');
+    startActPoll();
+    return 'pending';
+  }
+  if(st==='blocked'){ if(!silent)loginActMsg('bad','This code is blocked — it was used on too many devices. Contact the admin.'); return st; }
+  if(st==='expired'||st==='disabled'){ if(!silent)loginActMsg('bad','This code is '+st+'. Contact the admin.'); return st; }
+  if(st==='invalid'){ if(!silent)loginActMsg('bad','That code is not recognised. Check it with the admin.'); return st; }
+  if(!silent)loginActMsg('bad',(j&&j.error)||'Activation is unavailable right now. Try again in a moment.');
+  return st||'error';
+}
+function submitLoginActCode(){
+  const box=$('loginActCodeBox');
+  const v=String((box&&box.value)||'').replace(/\D/g,'').slice(0,8);
+  if(!/^\d{8}$/.test(v)){ loginActMsg('bad','Enter the 8-digit code from the admin.'); return; }
+  activateWithCode(v);
+}
+if($('loginActCodeGo'))$('loginActCodeGo').onclick=submitLoginActCode;
+if($('loginActCodeBox'))$('loginActCodeBox').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitLoginActCode();}});
 if($('getActBtn'))$('getActBtn').onclick=()=>openActSheet();
 /* Share from the login screen: works if this device already has an activation code or saved
    playlist; otherwise it tells the user to get activated first (nothing to share yet). */
@@ -3601,9 +3654,17 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
   if(hasDeepLink)return;
   const c=JSON.parse(store.getItem(KEY)||'null');
   if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();return;}
-  /* Not logged in yet, but an activation code exists → check if already activated. If yes, auto-login.
-     If pending, show the activation sheet and poll so the moment the admin activates it, user logs in. */
-  (async function(){try{if(typeof actCodeGet!=='function')return;const code=actCodeGet(false);if(!/^\d{8}$/.test(code))return;const {j}=await actApi('/api/activate',{code:code,deviceId:deviceUid()});if(j&&j.status==='active'&&j.portalUrl&&j.username){try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}catch(e){}}else if(j&&(j.status==='pending'||j.status==='blocked'||j.status==='expired'||j.status==='disabled')){if($('actSheet'))$('actSheet').classList.add('show');if($('actCode'))$('actCode').textContent=code.replace(/(\d{4})(\d{4})/,'$1 $2');actSetStatus('',j.status==='pending'?'Waiting for the admin to activate…':'Code '+j.status);startActPoll();}}catch(e){}}})();
+  /* v9.9: no saved playlist yet, but this device already holds an 8-digit code → resolve it
+     silently on launch. If the admin has already activated it we sign straight in and the login
+     screen is never shown; if it is still pending we keep polling, so the moment the admin
+     activates the code this device logs itself in with no user action. */
+  (async function(){
+    try{
+      const code=(typeof actCodeGet==='function')?actCodeGet(false):'';
+      if(!/^\d{8}$/.test(code))return;
+      await activateWithCode(code,{silent:true});
+    }catch(e){}
+  })();
 }catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
