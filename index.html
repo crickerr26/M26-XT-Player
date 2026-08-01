@@ -803,6 +803,14 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
       </button>
     </div>
     <p class="loginLead">No username or password needed. Get an activation code from the admin, share your playlist, or bring it from another device.</p>
+    <div class="activationCodeEntry" id="activationCodeEntry">
+      <label style="display:block;font-size:12px;font-weight:800;letter-spacing:.3px;color:#7288a8;margin:16px 0 8px;text-transform:uppercase">Have an activation code?</label>
+      <div style="display:flex;gap:8px;margin-bottom:14px">
+        <input id="loginActCodeBox" inputmode="numeric" maxlength="8" placeholder="8-digit code" autocomplete="off" style="flex:1;background:#eef2f8;border:1px solid rgba(20,50,90,.12);color:#1b2740;border-radius:11px;padding:12px;font-size:15px;font-weight:600">
+        <button id="loginActCodeGo" type="button" style="cursor:pointer;border:0;border-radius:11px;font-weight:800;font-size:14px;padding:12px 18px;background:linear-gradient(135deg,#8fd6df,#5fc0cf);color:#0a2b33">Go</button>
+      </div>
+      <div class="err" id="loginActCodeErr" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+    </div>
     <div class="loginActions">
       <button class="loginAction primary" id="getActBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4z"/><path d="M9 12l2 2 4-4"/></svg></span>
@@ -3074,6 +3082,7 @@ async function sendActToWhatsApp(){
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
+if($('loginActCodeGo'))$('loginActCodeGo').onclick=async()=>{const v=($('loginActCodeBox')&&$('loginActCodeBox').value||'').replace(/\D/g,'').slice(0,8);if(!/^\d{8}$/.test(v)){if($('loginActCodeErr'))$('loginActCodeErr').textContent='Enter an 8-digit code.';return;}if($('loginActCodeErr'))$('loginActCodeErr').textContent='';setActCode(v);actSetStatus('','Checking your code…');if($('activationCodeEntry'))$('activationCodeEntry').style.opacity='0.6';try{await actApi('/api/request',{code:v,deviceId:deviceUid()});}catch(e){}startActPoll();};
 if($('getActBtn'))$('getActBtn').onclick=()=>openActSheet();
 /* Share from the login screen: works if this device already has an activation code or saved
    playlist; otherwise it tells the user to get activated first (nothing to share yet). */
