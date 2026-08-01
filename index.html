@@ -988,7 +988,10 @@ const ORDER='smarter-fresh-order-v1';
 const RECENT='smarter-fresh-recent-v1';
 const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
-const DEFAULT_TRANSCODER='https://media26-transcoder-mlxq.onrender.com';
+/* Prefer the app's own Worker relay for transcoding. The Worker owns the real
+   Render/VPS transcoder URL, so playback stays same-origin and old saved hosts
+   can be repaired without asking users to paste a new server URL. */
+const DEFAULT_TRANSCODER=location.protocol==='https:'?location.origin+'/transcoder':'https://smarteriptv.gz-inzi84.workers.dev/transcoder';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v50: remembered "Always" choice from the Android-style player chooser. Empty = ask every
@@ -1004,7 +1007,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='9.5';
+const APP_VERSION='9.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1157,7 +1160,7 @@ function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
 function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
 function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
 function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,user:S.user,pass:S.pass}))}
-function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v9.4: migrate ALL old/outdated transcoder hosts (smarter-iptv-transcoder-*, media26-transcoder-xutt) to the current one so MKV/live keep working without the user re-pasting a URL */if(/(smarter-iptv-transcoder(-[a-z0-9]+)?|media26-transcoder-xutt)\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
+function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v9.6: migrate ALL old/outdated saved transcoders to the app's same-origin Worker relay. */if(/(smarter-iptv-transcoder(-[a-z0-9]+)?|media26-transcoder-[a-z0-9]+)\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
@@ -1330,7 +1333,8 @@ async function login(opts){
      endless "Loading video". Expired subscription and an already-busy connection slot are
      the two account states where NOTHING can play anywhere (built-in or VLC) — say so. */
   const ui=info.user_info||{};
-  if(ui.exp_date&&Number(ui.exp_date)*1000<Date.now())throw Error('Subscription EXPIRED on '+new Date(Number(ui.exp_date)*1000).toLocaleDateString()+' — contact your provider. Streams will not play.');
+  const expiredText=(ui.exp_date&&Number(ui.exp_date)*1000<Date.now())?('Subscription EXPIRED on '+new Date(Number(ui.exp_date)*1000).toLocaleDateString()+' — contact your provider. Streams may not play.'):'';
+  if(expiredText){$('err').textContent=expiredText;toast(expiredText);}
   if(ui.status&&!/^active$/i.test(String(ui.status)))toast('Account status: '+ui.status);
   const _act=parseInt(ui.active_cons||'0',10);
   /* v8.9: remember the account's REAL connection limit. Some panels don't report it — when
@@ -1339,7 +1343,7 @@ async function login(opts){
   const _rawMax=parseInt(ui.max_connections,10);const _max=(isFinite(_rawMax)&&_rawMax>0)?_rawMax:99;S.maxConns=_max;
   /* On a multi-connection account, 2+ devices streaming at once is ALLOWED — never nag or block. */
   if(_max<=1&&_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
-  saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();await refreshAll();updateHomeCounts();toast('Playlist loaded')}
+  saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
   catch(e){$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
@@ -2321,7 +2325,7 @@ function plan(x){
   /* v20: dedupe by kind+url (was url only, which silently dropped legitimate fallbacks that
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
-  const addTrans=(label,url,front=false)=>{const t=transcodeUrl(url,type==='live'?'live':'vod');if(t)add('hls',label+' Transcoded',t,front)};
+  const addTrans=(label,url,front=false)=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(url,profile);if(t)add('hls',label+' Transcoded',t,front)};
   if(type==='live'){
     const m3u8=directUrl(x,'m3u8'),ts=directUrl(x,'ts'),ext=orig&&orig!=='m3u8'?directUrl(x,orig):'';
     /* FIX (root cause, provider-confirmed): this account's own Xtream API reports
@@ -3030,7 +3034,7 @@ async function pollActivationOnce(){
     if(st==='active'&&j.portalUrl&&j.username){
       stopActPoll();actSetStatus('ok','Activated! Loading your playlist…');
       if($('actSheet'))$('actSheet').classList.remove('show');
-      try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}catch(e){}
+      try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}catch(e){actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
     }else if(st==='blocked'){
       stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact the admin.');
     }else if(st==='expired'||st==='disabled'){
