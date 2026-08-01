@@ -1,8 +1,17 @@
-/* The transcoder that also holds the Upstash activation store. This MUST match the
-   "Transcoder URL" set in admin.html — the admin writes activation codes to that
-   server's Upstash, and the app reads them back through this relay. When the two
-   pointed at different Render services, every customer code came back unknown. */
-const TRANSCODER_ORIGIN = 'https://media26-transcoder-mlxq.onrender.com';
+/* The ONE Render service behind /transcoder: it both transcodes and holds the Upstash
+   activation store. It must be the same service the admin dashboard writes codes to, and the
+   same one that auto-deploys from this repo — when those drifted apart, customer codes came
+   back unknown and MKV kept hitting a server that never received the HEVC fix.
+   Override without a code change by setting a TRANSCODER_ORIGIN variable on the Worker/Pages
+   project, so moving to a new Render service is a dashboard edit, not a redeploy of this file. */
+const DEFAULT_TRANSCODER_ORIGIN = 'https://media26-transcoder-xutt.onrender.com';
+function transcoderOrigin(env) {
+  try {
+    const v = String((env && env.TRANSCODER_ORIGIN) || '').trim().replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(v)) return v;
+  } catch (e) {}
+  return DEFAULT_TRANSCODER_ORIGIN;
+}
 
 function withCors(headers) {
   const out = new Headers(headers);
@@ -138,12 +147,12 @@ async function handleProxy(request) {
   });
 }
 
-function rewriteLocation(location, requestUrl) {
+function rewriteLocation(location, requestUrl, origin) {
   if (!location) return '';
   const current = new URL(requestUrl);
   try {
-    const upstream = new URL(location, TRANSCODER_ORIGIN);
-    if (upstream.origin === TRANSCODER_ORIGIN) {
+    const upstream = new URL(location, origin);
+    if (upstream.origin === origin) {
       return `${current.origin}/transcoder${upstream.pathname}${upstream.search}`;
     }
   } catch {}
@@ -165,8 +174,9 @@ export default {
       return new Response(null, { status: 204, headers: withCors(new Headers()) });
     }
 
+    const origin = transcoderOrigin(env);
     const upstreamPath = url.pathname.replace(/^\/transcoder/, '') || '/';
-    const upstreamUrl = new URL(upstreamPath + url.search, TRANSCODER_ORIGIN);
+    const upstreamUrl = new URL(upstreamPath + url.search, origin);
     const headers = new Headers(request.headers);
     headers.delete('host');
 
@@ -178,7 +188,7 @@ export default {
     });
 
     const responseHeaders = withCors(upstreamResponse.headers);
-    const location = rewriteLocation(responseHeaders.get('location'), request.url);
+    const location = rewriteLocation(responseHeaders.get('location'), request.url, origin);
     if (location) responseHeaders.set('location', location);
 
     return new Response(upstreamResponse.body, {
