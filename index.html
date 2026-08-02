@@ -10,6 +10,7 @@
 <!-- FIX: load engines locally if present, else fall back to CDN so playback never dies when the local .min.js files are missing -->
 <script src="hls.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js';document.head.appendChild(s);"></script>
 <script src="mkv.js"></script>
+<script src="portal.js"></script>
 <script src="mpegts.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';s.onerror=function(){var u=document.createElement('script');u.src='https://unpkg.com/mpegts.js@1.8.0/dist/mpegts.js';document.head.appendChild(u);};document.head.appendChild(s);"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
@@ -1089,7 +1090,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},transFast:false,quality:'auto'};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},transFast:false,quality:'auto',source:'xtream',m3u:null};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
@@ -1357,7 +1358,13 @@ async function login(opts){
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
   if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
   else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
-  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');const info=await fetchJsonChain(accountUrl());if(info.user_info&&info.user_info.auth===0)throw Error('Login rejected by provider');
+  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');S.source='xtream';S.m3u=null;/* v12.4: not every service speaks Xtream. Try player_api.php first, and when it is absent or
+     rejects us, fall back to the M3U playlist the same panel almost always exposes. The playlist
+     is normalised into the same shape, so nothing downstream needs to know which was used. */
+  let info=null;
+  try{ info=await fetchJsonChain(accountUrl()); if(info&&info.user_info&&info.user_info.auth===0) info=null; }catch(e){ info=null; }
+  if(!info){ const pl=await loadPlaylistSource(); if(!pl) throw Error('Could not sign in. Check the URL, username and password — or paste the M3U link your provider gave you.'); info={user_info:{}}; }
+
   /* v46: surface account problems AT LOGIN instead of leaving the user staring at an
      endless "Loading video". Expired subscription and an already-busy connection slot are
      the two account states where NOTHING can play anywhere (built-in or VLC) — say so. */
@@ -1468,6 +1475,15 @@ function backToCategories(){showCategories(S.tab,true);}
    when the user opens that tab — so a tab always fills, even if the background pass missed it. */
 const TYPE_API={live:['get_live_categories','get_live_streams','liveCount'],vod:['get_vod_categories','get_vod_streams','vodCount'],series:['get_series_categories','get_series','seriesCount']};
 async function loadType(type){
+  /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it. */
+  if(S.source==='m3u'&&S.m3u){
+    const p=S.m3u;
+    if(type==='live'){S.liveCats=p.liveCats;S.live=p.live;S.loadedLive=true;S.loadingLive=false;}
+    else if(type==='vod'){S.vodCats=p.vodCats;S.vod=p.vod;S.loadedVod=true;S.loadingVod=false;}
+    else{S.seriesCats=p.seriesCats;S.series=p.series;S.loadedSeries=true;S.loadingSeries=false;}
+    renderAll();updateHomeCounts&&updateHomeCounts();
+    return;
+  }
   const [catA,strmA,countId]=TYPE_API[type];
   if(type==='live')S.loadingLive=true;else if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
   renderAll();
@@ -1490,6 +1506,25 @@ async function loadType(type){
   }
 }
 function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='vod'?S.loadedVod:S.loadedSeries;const loading=type==='live'?S.loadingLive:type==='vod'?S.loadingVod:S.loadingSeries;if(!loaded&&!loading)return loadType(type);}
+/* v12.4: fetch and adopt an M3U playlist. Tries the usual playlist endpoints for a panel that
+   gave us a username and password, and accepts a direct .m3u link pasted as the portal URL.
+   Everything is normalised into the same arrays the Xtream path fills, so categories, search,
+   favourites and the player are all unchanged. */
+async function loadPlaylistSource(){
+  if(typeof Media26Portal==='undefined')return false;
+  const tries=Media26Portal.m3uCandidates(S.url,S.user,S.pass);
+  for(const u of tries){
+    let text='';
+    try{ text=await fetchTextChain(u); }catch(e){ text=''; }
+    if(!text||!Media26Portal.looksLikeM3U(text))continue;
+    let parsed=null;
+    try{ parsed=Media26Portal.parseM3U(text); }catch(e){ parsed=null; }
+    if(!parsed||!parsed.total)continue;
+    S.source='m3u'; S.m3u=parsed; S.playlistUrl=u;
+    return true;
+  }
+  return false;
+}
 async function refreshAll(){
   S.loadedLive=S.loadedVod=S.loadedSeries=false;
   /* v7.7: get the app USABLE fast. Load Live TV (the landing tab) first and enter immediately, then
@@ -1573,7 +1608,9 @@ function rowPlayerButtons(key,type){
 }
 function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
-async function openEpisodePicker(x){load(true,'Loading episodes...');try{const d=await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
+async function openEpisodePicker(x){load(true,'Loading episodes...');try{/* v12.4: a playlist has no per-series endpoint — its episodes were collected at parse time
+     and travel with the show, so the picker opens instantly and without a request. */
+  const d=(S.source==='m3u'&&x&&x._m3uEpisodes)?{episodes:x._m3uEpisodes}:await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
 /* v7.4: each episode row = tap the row to play in the Media26 built-in player (fast, optimistic
    start), plus a VLC button to open that episode in VLC. */
 $('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div><button class="epvlc qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button><button class="epvlc qp qp-km" type="button" data-kmep="${i}" title="Open in KMPlayer" aria-label="Open in KMPlayer">${playerLogo('km')}</button></div>`).join('');
