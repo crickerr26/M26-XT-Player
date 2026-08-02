@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='14.3';
+const APP_VERSION='14.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1407,7 +1407,11 @@ async function login(opts){
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
   if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
   else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
-  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');S.source='xtream';S.m3u=null;resetFullCatalog();
+  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');
+  /* Do not touch a portal that has just told us it is throttling — a further attempt only
+     restarts its timer. Count down instead, so waiting is visible rather than guesswork. */
+  {const w=rateLimitLeft();if(w)throw Error('This portal is still rate-limiting this connection. Wait '+w+' more second'+(w===1?'':'s')+' before signing in again — trying now only restarts its timer.');}
+  load(true,'Connecting...');S.source='xtream';S.m3u=null;resetFullCatalog();
   /* v13.2: THE PLAYLIST LEADS. Until now login opened with player_api.php and only fell back to
      the M3U playlist once that failed — but fetchJsonChain sweeps five relay candidates across
      three rounds at ~20s each, so on a panel that throttles or simply doesn't answer player_api
@@ -1467,7 +1471,7 @@ async function login(opts){
   /* On a multi-connection account, 2+ devices streaming at once is ALLOWED — never nag or block. */
   if(_max<=1&&_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
   saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
-  catch(e){$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
+  catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
 /* v13.9: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
@@ -3719,6 +3723,17 @@ function stalkerMac(){
 const MAC_SRC_KEY='m26_stkmac_src';
 function macIsAuto(){try{return localStorage.getItem(MAC_SRC_KEY)!=='user';}catch(e){return true}}
 function macFmt(m){return String(m||'').toUpperCase();}
+/* v14.4: A RATE-LIMIT COOLDOWN, because the app was the thing keeping itself locked out.
+   One tap of Login fires up to five playlist endpoints, a diagnostic probe, and then four
+   Stalker handshake endpoints — ten upstream requests. On a portal that throttles, tapping
+   Login again (which is exactly what "wait a minute, then sign in again" invites) lands another
+   ten on top and refreshes the ban, so the user can never get out of the 429 no matter how
+   correct their details are. Once the portal says it is throttling, refuse to contact it again
+   until the window has passed and show the countdown instead of a dead-end message. */
+let _rlUntil=0;
+function rateLimitLeft(){const ms=_rlUntil-Date.now();return ms>0?Math.ceil(ms/1000):0;}
+function markRateLimited(sec){_rlUntil=Date.now()+((sec||70)*1000);}
+function isRateLimitError(e){return /rate-limit|rate limit|\b429\b/i.test((e&&e.message)||'');}
 /* v14.1: SAY WHAT THE PORTAL ACTUALLY SAID. Every failure of the MAC handshake used to collapse
    into one sentence — "your seller has not activated this device yet" — because the caught error
    object was dropped on the floor. A portal that was down, rate-limiting, sitting behind a

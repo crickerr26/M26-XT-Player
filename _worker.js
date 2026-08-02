@@ -329,14 +329,21 @@ async function handlePlaylist(request) {
   let sawStalker = false, rejected = 0, limited = 0;
 
   const label = (target, useMac) =>
-    target.pathname + (target.search ? '?…' : '') + (useMac ? ' +mac' : '');
+    target.pathname + (target.search ? '?…' : '') + (useMac ? ' +stb' : (mac ? ' +mac' : ''));
 
   /* One candidate, one pass. Returns a Response on success, null to keep going. */
   const attempt = async (candidate, useMac) => {
     let target;
     try { target = new URL(candidate); } catch { return null; }
     if (PRIVATE_HOST.test(target.hostname)) return null;   /* a redirect target could differ from base */
-    if (useMac) target.searchParams.set('mac', mac);
+    /* v14.4: the MAC rides along on the FIRST pass too. A panel that does not bind lines to a
+       MAC simply ignores an unknown query parameter, so this costs nothing there — while a panel
+       that checks `mac=` on the query string now authorises on request number one instead of
+       request number six. That matters more than tidiness here: these portals rate-limit hard,
+       and every wasted request is what pushes a legitimate sign-in into a 429 it cannot escape.
+       The second pass is now only about the OTHER way panels check — the MAG cookie and set-top
+       User-Agent — rather than about the MAC being present at all. */
+    if (mac) target.searchParams.set('mac', mac);
     const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
     if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
     let upstream;
