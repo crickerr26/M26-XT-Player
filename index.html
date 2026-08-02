@@ -1047,7 +1047,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='12.8';
+const APP_VERSION='12.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3359,10 +3359,20 @@ function macSetStatus(kind,text){const s=$('macStatus');if(s)s.className='actSta
 function stalkerProxyUrl(url,mac,token){
   return PROXY+encodeURIComponent(url)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):'');
 }
+/* Strip tags/whitespace from an error body so a Cloudflare/WAF challenge page or an HTML error
+   page renders as a short readable snippet instead of a wall of markup — this is often the only
+   way to tell "the portal itself rejected this" apart from "an edge/anti-bot layer in front of
+   the portal blocked the request before it ever reached portal.php". */
+function _snippet(text){return String(text||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180)}
 async function stalkerJson(endpoint,mac,token,params){
   const u=endpoint+(endpoint.indexOf('?')>=0?'&':'?')+Media26Portal.stalkerQuery(params);
   const r=await fetch(stalkerProxyUrl(u,mac,token),{headers:{'Accept':'application/json'}});
-  if(!r.ok){const err=new Error('Portal returned HTTP '+r.status);err.status=r.status;throw err;}
+  if(!r.ok){
+    const body=await r.text().catch(()=>'');
+    const err=new Error('Portal returned HTTP '+r.status);
+    err.status=r.status;err.detail=_snippet(body);
+    throw err;
+  }
   return r.json().catch(()=>null);
 }
 async function stalkerHandshake(base,mac){
@@ -3378,13 +3388,17 @@ async function stalkerHandshake(base,mac){
       return {endpoint:ep,token};
     }catch(e){
       lastErr=e;
-      /* A 429/403 means the portal is actively throttling or blocking this MAC/IP — trying the
-         next 3 candidate endpoint paths right away only piles on more requests against the same
-         limit and makes it worse. Stop immediately and surface a clear, actionable message. */
+      /* A 429/403 means the portal (or an edge/WAF layer in front of it) is actively throttling
+         or blocking this request — trying the next 3 candidate endpoint paths right away only
+         piles on more requests against the same limit and makes it worse. Stop immediately and
+         surface a clear, actionable message, including a snippet of the raw response: that's what
+         tells apart a real API rate-limit from a Cloudflare/anti-bot challenge page blocking the
+         request before it ever reaches the portal's own code. */
       if(e&&(e.status===429||e.status===403)){
-        e.message=e.status===429
+        const detail=e.detail?(' Portal said: "'+e.detail+'"'):'';
+        e.message=(e.status===429
           ?'This portal is rate-limiting connection attempts. Wait a minute, then try Connect again.'
-          :'This portal refused the connection (403) — the MAC may not be bound to your subscription yet, or the portal is blocking this request.';
+          :'This portal refused the connection (403) — the MAC may not be bound to your subscription yet, or the portal is blocking this request.')+detail;
         throw e;
       }
     }
@@ -3444,7 +3458,8 @@ async function connectStalker(){
     renderAll();updateHomeCounts();
     toast('Connected — '+res.live.length+' channels loaded');
   }catch(e){
-    macSetStatus('bad',(e&&e.message)||'Could not connect to that portal.');
+    const detail=(e&&e.detail&&(e.message||'').indexOf(e.detail)<0)?(' Portal said: "'+e.detail+'"'):'';
+    macSetStatus('bad',((e&&e.message)||'Could not connect to that portal.')+detail);
   }finally{
     if(btn)btn.disabled=false;
   }
