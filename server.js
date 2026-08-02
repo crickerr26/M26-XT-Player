@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '11.4';
+const SERVER_BUILD = '11.6';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -744,10 +744,19 @@ const server = http.createServer(async (req, res) => {
       /* Give a cold/slow free server more room to emit the first segment before declaring failure
          (copy-mode VOD is quick once ffmpeg can read the source; a re-encode needs longer). If the
          source can't be read, waitForPlaylist returns early with the ffmpeg error in session.log. */
-      const waitMs = isLiveProfile(profile) ? 30000 : (reencodesVideo(profile) ? 60000 : 40000);
-      const ok = await waitForPlaylist(session, waitMs);
-      if (!ok) { console.log(`[hls] 504 profile=${profile} id=${session.id} — no playlist in ${waitMs}ms`); return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) }); }
-      console.log(`[hls] 302 OK profile=${profile} id=${session.id}`);
+      /* Hold this request only briefly. Blocking here for the WHOLE startup — up to a minute for a
+         re-encode, on top of a free instance's cold start — routinely outlived the CDN's ~100s edge
+         timeout, which then answered the browser with its own HTML 504. That is what "server
+         returned 504" with no ffmpeg log was: the transcoder was often still working correctly and
+         nobody was listening. Redirect as soon as there is something, or promptly regardless, and
+         let the client poll the manifest on short requests that can never hit that ceiling. */
+      const FIRST_WAIT_MS = Number(process.env.FIRST_WAIT_MS || 12000);
+      const ok = await waitForPlaylist(session, FIRST_WAIT_MS);
+      if (!ok && session.exited) {
+        console.log(`[hls] 504 profile=${profile} id=${session.id} — ffmpeg exited before any playlist`);
+        return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) });
+      }
+      console.log(`[hls] 302 ${ok ? 'READY' : 'STARTING'} profile=${profile} id=${session.id}`);
       const location = `${requestBaseUrl(req)}/sessions/${session.id}/index.m3u8`;
       res.writeHead(302, {
         location,
@@ -773,8 +782,18 @@ const server = http.createServer(async (req, res) => {
       if (session.exited && isLiveProfile(session.profile)) reviveSession(session);
       const { target } = safePath(id, file);
       const ext = path.extname(target);
-      const ready = await waitForFile(target, ext === '.m3u8' ? 5000 : 10000);
-      if (!ready) return json(res, 404, { error: 'Not ready' });
+      const ready = await waitForFile(target, ext === '.m3u8' ? 8000 : 10000);
+      if (!ready) {
+        /* A manifest that is not there YET is not a missing manifest. 404 reads as fatal and made
+           the app abandon a transcode that was still starting; 503 + Retry-After says "keep asking",
+           which is what lets the client wait out a cold start over short requests. ffmpeg having
+           exited is the one genuinely fatal case, and reports its log. */
+        if (ext === '.m3u8' && !session.exited) {
+          return json(res, 503, { status: 'starting', retryAfter: 2 });
+        }
+        if (ext === '.m3u8') return json(res, 502, { error: 'Transcoder stopped', log: (session.log || '').slice(-600) });
+        return json(res, 404, { error: 'Not ready' });
+      }
       const stat = fs.statSync(target);
       const baseHeaders = {
         'access-control-allow-origin': CORS_ORIGIN,

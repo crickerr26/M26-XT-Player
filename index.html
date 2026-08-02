@@ -1023,7 +1023,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='11.5';
+const APP_VERSION='11.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2272,14 +2272,40 @@ async function playItemBasic(x){
            MKV dead-ended on "This file is MKV" even with a green transcoder. Resolve the URL with our
            OWN fetch first (bounded by the 50s transcoder budget, no player timeout), then re-attach
            with the READY playlist URL so the player loads something that responds instantly. */
-        fetch(p.url,{cache:'no-store'}).then(async r=>{if(token!==S.seq)return;if(!r||!r.ok){
-          /* v9.2: surface the transcoder's REAL reason (the ffmpeg log tail) so we can tell a cold
-             server (504, retry) from a source the server can't fetch (403/blocked IP) or a codec it
-             can't handle — instead of a generic "server returned 504". */
-          let why=r?('server returned '+r.status):'no response';
-          try{const j=await r.clone().json();const raw=String((j&&(j.log||j.error))||'');const tail=raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).slice(-2).join(' · ');if(tail)why+=' — '+tail.slice(-180);}catch(e){}
-          transErr=why;next();return;}
-          attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(e=>{if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';next();});
+        /* v11.6: POLL, never hold one long request. The old code kept a single fetch open for the
+           transcoder's entire startup; behind a CDN that request outlived the ~100s edge timeout on
+           a cold free instance and came back as an HTML 504 with no ffmpeg log — which is exactly
+           the "server returned 504" dead end. The server now redirects quickly and answers 503
+           while it is still starting, so we ask repeatedly on short requests instead. Our own
+           deadline decides how long to be patient, not the CDN's. */
+        (async()=>{
+          const readErr=async r=>{let why='server returned '+r.status;
+            try{const j=await r.clone().json();const raw=String((j&&(j.log||j.error))||'');const tail=raw.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).slice(-2).join(' · ');if(tail)why+=' — '+tail.slice(-180);}catch(e){}
+            return why;};
+          let manifest='';
+          try{
+            const r=await fetch(p.url,{cache:'no-store'});
+            if(token!==S.seq)return;
+            manifest=r.url||p.url;
+            /* 503 = still starting, keep polling. Anything else bad is fatal for this route. */
+            if(!r.ok&&r.status!==503){transErr=await readErr(r);next();return;}
+          }catch(e){if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';next();return;}
+          const deadline=Date.now()+120000;
+          for(;;){
+            if(token!==S.seq)return;
+            try{
+              const m=await fetch(manifest,{cache:'no-store'});
+              if(token!==S.seq)return;
+              if(m.ok){
+                const t=await m.text();
+                if(token!==S.seq)return;
+                if(/#EXTINF/.test(t)){attach({kind:'hls',url:manifest,label:p.label,_resolved:true});return;}
+              }else if(m.status!==503&&m.status!==404){transErr=await readErr(m);next();return;}
+            }catch(e){}
+            if(Date.now()>deadline){transErr='the server didn’t produce video in time (it may be waking up — try again in ~30s)';next();return;}
+            await new Promise(r=>setTimeout(r,2000));
+          }
+        })();
         return;
       }
       if(p.kind==='mkv'){
