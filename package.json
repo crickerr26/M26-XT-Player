@@ -5,7 +5,7 @@
   "description": "Multi-platform native installable app engine for Media26 IPTV",
   "main": "main.js",
   "scripts": {
-    "app:build": "npm run clean && mkdir dist && cp index.html hls.min.js mpegts.min.js Logo.png dist/",
+    "app:build": "npm run clean && mkdir dist && cp index.html mkv.js mpegts.min.js sw.js manifest.json image_482ee8.png dist/",
     "clean": "rimraf dist android ios",
     "desktop:start": "electron .",
     "desktop:build:win": "electron-builder --win",
@@ -39,11 +39,11 @@
     ],
     "win": {
       "target": ["nsis", "portable"],
-      "icon": "Logo.png"
+      "icon": "image_482ee8.png"
     },
     "mac": {
       "target": ["dmg"],
-      "icon": "Logo.png"
+      "icon": "image_482ee8.png"
     }
   }
 }

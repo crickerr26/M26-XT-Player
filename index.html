@@ -1023,7 +1023,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='11.4';
+const APP_VERSION='11.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1095,7 +1095,17 @@ function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function normalize(raw){let u=String(raw||'').trim();if(!u)return'';if(!/^https?:\/\//i.test(u))u='http://'+u;const x=new URL(u);x.hash='';x.search='';return x.href.replace(/\/+$/,'')}
 function mobile(){return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent||'')||innerWidth<800||('ontouchstart'in window&&innerWidth<980)}
-function blocked(u){try{const x=new URL(u);return location.protocol==='https:'&&x.protocol==='http:'&&!/localhost|127\.0\.0\.1/i.test(x.hostname)}catch{return false}}
+/* v11.5: are we the packaged app rather than the website? capacitor.config.json enables cleartext
+   and allowMixedContent, so a native WebView may fetch an http:// panel DIRECTLY — the CORS proxy
+   exists only to satisfy the browser's mixed-content rule on an https page. Detect it once. */
+const IS_NATIVE=(function(){try{
+  const C=window.Capacitor;
+  if(C&&(typeof C.isNativePlatform==='function'?C.isNativePlatform():C.isNative))return true;
+  return /^(capacitor|ionic|file):$/i.test(location.protocol);
+}catch(e){return false}})();
+/* In the app the proxy is pure overhead: it would put a relay in front of every byte of video for
+   a request the WebView is allowed to make itself. On the website it stays mandatory. */
+function blocked(u){try{if(IS_NATIVE)return false;const x=new URL(u);return location.protocol==='https:'&&x.protocol==='http:'&&!/localhost|127\.0\.0\.1/i.test(x.hostname)}catch{return false}}
 function proxyUrl(u){return PROXY+encodeURIComponent(u)}
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
