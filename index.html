@@ -1062,7 +1062,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.5';
+const APP_VERSION='13.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1421,10 +1421,26 @@ async function login(opts){
        panel never sees a second request. Account metadata simply isn't available here. */
     info={user_info:{}};
   }else{
+    /* The URL turned out to be a MAG/Stalker portal. Don't stop at explaining it — that product
+       DOES have a working login, it just keys on the device MAC instead of the username, so
+       complete it here. If the MAC this device holds is already bound to the subscription the
+       user lands straight in live TV and never sees an error at all. If it isn't bound yet the
+       message names the exact MAC to hand to the provider, which is the one thing they need. */
+    if(plErr&&plErr.stalker){
+      try{
+        const mac=stalkerMac();
+        const res=await stalkerLogin(S.url,mac);
+        adoptStalkerSession(res);
+        toast('Connected — '+res.live.length+' channels loaded');
+        return;
+      }catch(se){
+        const why=(se&&se.message)?(' '+se.message):'';
+        throw Error('This is a MAG / Stalker portal — it signs devices in by MAC address, not by username and password. Give this MAC to your provider and ask them to bind it: '+macFmt(stalkerMac())+'.'+why);
+      }
+    }
     /* A definite rejection (rate-limit / bad credentials) is the panel's final answer; asking
-       player_api the same question would only burn another request against the same limit.
-       A Stalker portal is equally definite: it has no player_api.php to ask. */
-    if(plErr&&(plErr.stalker||/rate-limit|rejected/i.test(plErr.message||'')))throw plErr;
+       player_api the same question would only burn another request against the same limit. */
+    if(plErr&&/rate-limit|rejected/i.test(plErr.message||''))throw plErr;
     try{ info=await fetchJsonChain(accountUrl()); if(info&&info.user_info&&info.user_info.auth===0) info=null; }
     catch(e){
       if(e&&/rate-limit/i.test(e.message||''))throw e;
@@ -3581,6 +3597,20 @@ async function stalkerResolve(x){
   }catch(e){return '';}
 }
 function macInputValue(){return $('macCodeBox')?$('macCodeBox').value:'';}
+/* One place that turns a successful Stalker handshake into a live session. Three callers reach
+   this — the MAC sheet's Connect, the silent re-connect on relaunch, and the automatic handover
+   when a username login turns out to be pointed at a MAG portal — and they must not drift apart. */
+function adoptStalkerSession(res){
+  S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
+  S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
+  S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
+  S.vod=[];S.vodCats=[];S.loadedVod=true;S.loadingVod=false;
+  S.series=[];S.seriesCats=[];S.loadedSeries=true;S.loadingSeries=false;
+  try{localStorage.setItem('m26_stk',JSON.stringify({url:res.base,mac:res.mac}));}catch(e){}
+  if($('login'))$('login').classList.add('hidden');
+  showHome();keepTranscoderWarm();
+  renderAll();updateHomeCounts();
+}
 async function connectStalker(){
   const input=$('macPortalUrl');
   const base=normalize((input&&input.value)||'');
@@ -3597,15 +3627,9 @@ async function connectStalker(){
   const btn=$('macCheckBtn');if(btn)btn.disabled=true;
   try{
     const res=await stalkerLogin(base,mac);
-    S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
-    S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
-    S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
-    S.vod=[];S.vodCats=[];S.loadedVod=true;S.series=[];S.seriesCats=[];S.loadedSeries=true;
-    try{localStorage.setItem('m26_stk',JSON.stringify({url:res.base,mac:res.mac}));}catch(e){}
+    adoptStalkerSession(res);
     macSetStatus('ok','Connected! Loading channels…');
     if($('macSheet'))$('macSheet').classList.remove('show');
-    $('login').classList.add('hidden');showHome();keepTranscoderWarm();
-    renderAll();updateHomeCounts();
     toast('Connected — '+res.live.length+' channels loaded');
   }catch(e){
     const detail=(e&&e.detail&&(e.message||'').indexOf(e.detail)<0)?(' Portal said: "'+e.detail+'"'):'';
@@ -3664,11 +3688,10 @@ async function submitXtreamLogin(){
       if(/MAG \/ Stalker portal/i.test(msg)){
         setTimeout(()=>{
           $('xtreamSheet').classList.remove('show');
-          if($('macPortalUrl'))$('macPortalUrl').value=url;
           openMacSheet();
           if($('macPortalUrl'))$('macPortalUrl').value=url;
-          macSetStatus('','This provider signs in by MAC address. Give the MAC above to them, then tap Connect.');
-        },2200);
+          macSetStatus('bad','This provider signs in by MAC address. If they already gave you one, paste it above and tap Connect — otherwise send them the MAC shown and ask them to bind it.');
+        },2600);
       }
     }
   }finally{
