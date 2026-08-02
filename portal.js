@@ -182,6 +182,30 @@
     ];
   }
 
+  /* Playlist URLs for a portal that identifies the customer by MAC ADDRESS instead of by a
+     username. This is the flow the app is built around: the app shows a MAC, the reseller binds a
+     line to it, and from then on the portal will hand that MAC its own M3U. Panels differ in where
+     they expose it and in whether they want the MAC with or without colons, so both shapes are
+     tried, most common first. */
+  function macM3uCandidates(base, mac) {
+    const b = String(base || '').replace(/\/+$/, '');
+    const m = normaliseMac(mac);
+    if (!b || !m) return [];
+    const enc = encodeURIComponent(m);           // 00%3A1A%3A79%3A45%3AFD%3AAD
+    const flat = m.replace(/:/g, '');            // 001A7945FDAD
+    return [
+      b + '/get.php?mac=' + enc + '&type=m3u_plus&output=ts',
+      b + '/get.php?mac=' + enc + '&type=m3u_plus',
+      b + '/get.php?username=' + enc + '&password=' + enc + '&type=m3u_plus&output=ts',
+      b + '/get.php?mac=' + enc + '&type=m3u',
+      b + '/playlist/' + enc + '/m3u_plus',
+      b + '/play/get.php?mac=' + enc + '&type=m3u_plus',
+      b + '/get.php?mac=' + flat + '&type=m3u_plus',
+      b + '/get.php?username=' + flat + '&password=' + flat + '&type=m3u_plus',
+      b + '/get.php?mac=' + enc
+    ];
+  }
+
   /* ── Stalker / Ministra (MAG portal) ──────────────────────────────────────────────────────── */
 
   /* MAG boxes are identified by a MAC in Infomir's range. A portal ties the subscription to that
@@ -239,6 +263,7 @@
     parseM3U: parseM3U,
     looksLikeM3U: looksLikeM3U,
     m3uCandidates: m3uCandidates,
+    macM3uCandidates: macM3uCandidates,
     classify: classify,
     seriesTitle: seriesTitle,
     randomMac: randomMac,

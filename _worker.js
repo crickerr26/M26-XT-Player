@@ -241,13 +241,35 @@ async function readCapped(response, max) {
   return { text: out, truncated };
 }
 
-function playlistCandidates(base, user, pass, variant) {
+/* v15.0: PLAYLIST BY MAC ADDRESS. This is the flow the app is built around — the app shows a MAC,
+   the reseller binds a line to it, and from then on the portal hands that MAC its own M3U, with no
+   username or password anywhere in the picture. Panels differ in where they expose it and in
+   whether they want the MAC with or without colons, so both shapes are tried, most common first. */
+function macPlaylistCandidates(base, mac) {
+  const b = String(base || '').trim().replace(/\/+$/, '');
+  if (!b || !mac) return [];
+  const enc = encodeURIComponent(mac);         // 00%3A1A%3A79%3A45%3AFD%3AAD
+  const flat = mac.replace(/:/g, '');          // 001A7945FDAD
+  return [
+    b + '/get.php?mac=' + enc + '&type=m3u_plus&output=ts',
+    b + '/get.php?mac=' + enc + '&type=m3u_plus',
+    b + '/get.php?username=' + enc + '&password=' + enc + '&type=m3u_plus&output=ts',
+    b + '/get.php?mac=' + enc + '&type=m3u',
+    b + '/playlist/' + enc + '/m3u_plus',
+    b + '/play/get.php?mac=' + enc + '&type=m3u_plus',
+    b + '/get.php?mac=' + flat + '&type=m3u_plus',
+    b + '/get.php?username=' + flat + '&password=' + flat + '&type=m3u_plus',
+    b + '/get.php?mac=' + enc
+  ];
+}
+function playlistCandidates(base, user, pass, variant, mac) {
   const b = String(base || '').trim().replace(/\/+$/, '');
   if (!b) return [];
   const u = encodeURIComponent(user || ''), p = encodeURIComponent(pass || '');
   /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
   if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
-  if (!user) return [b];
+  /* No username at all: the MAC IS the identity. */
+  if (!user) return mac ? macPlaylistCandidates(b, mac) : [b];
   /* v13.9: the FULL-CATALOGUE variant, asked for separately and only once the user is already
      signed in and watching. Login still leads with the compact live-oriented document (below) —
      that ordering is what made logins reliable and must not change. But when that document turns
@@ -285,7 +307,7 @@ function playlistCandidates(base, user, pass, variant) {
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
     b + '/playlist/' + u + '/' + p + '/m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p
-  ];
+  ].concat(macPlaylistCandidates(b, mac));
 }
 
 function looksLikePlaylist(text) {
@@ -314,6 +336,9 @@ async function handlePlaylist(request) {
   let body = {};
   try { body = await request.json(); } catch { return corsJson(400, { error: 'Invalid JSON body' }); }
 
+  const macHex = String(body.mac || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+  const mac = macHex.length === 12 ? macHex.match(/../g).join(':') : '';
+
   const rawBase = String(body.url || '').trim();
   if (!rawBase) return corsJson(400, { error: 'Missing portal url' });
   /* Accept a bare host ("tv.example.com") the same way the app's own normalise() does. */
@@ -330,11 +355,8 @@ async function handlePlaylist(request) {
      so the one flow the app is built around could not complete. Panels implement the check two
      ways, so both are sent together on the MAC pass: `&mac=` on the query string, and the MAG
      `mac=` cookie with a set-top-box User-Agent. Strictly validated, never forwarded verbatim. */
-  const macHex = String(body.mac || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
-  const mac = macHex.length === 12 ? macHex.match(/../g).join(':') : '';
-
   const variant = String(body.variant || '').trim().toLowerCase();
-  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant);
+  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant, mac);
   const attempts = [];
   let sawStalker = false, rejected = 0, limited = 0;
 
