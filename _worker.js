@@ -166,6 +166,114 @@ async function handleProxy(request) {
   });
 }
 
+/* ── /api/playlist ─────────────────────────────────────────────────────────────────────────
+   Server-side playlist login. The browser cannot fetch an http:// panel from an https:// page
+   (mixed content), and even through the generic /proxy relay the client had to try each
+   candidate playlist endpoint itself — five sequential cross-origin round-trips, each bounded
+   by a short browser timeout, with every failure reason swallowed. A full IPTV M3U is routinely
+   tens of megabytes, so those short client-side timeouts were the practical failure: the panel
+   was answering, just not within the window.
+
+   This endpoint moves the whole handshake server-side. One request from the browser; the worker
+   walks the candidate endpoints itself with a player User-Agent (many panels reject generic
+   browser UAs), follows redirects, verifies the payload really is an M3U, and returns it with
+   CORS headers — or a JSON error naming exactly what each candidate did, so a failure is
+   diagnosable instead of a blank "could not sign in".
+
+   Credentials arrive in a POST body, never in the query string, so they stay out of URLs,
+   referrers and edge logs. */
+const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
+const MAX_PLAYLIST_BYTES = 40 * 1024 * 1024;
+
+function playlistCandidates(base, user, pass) {
+  const b = String(base || '').trim().replace(/\/+$/, '');
+  if (!b) return [];
+  const u = encodeURIComponent(user || ''), p = encodeURIComponent(pass || '');
+  /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
+  if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
+  if (!user) return [b];
+  return [
+    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
+    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
+    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
+    b + '/playlist/' + u + '/' + p + '/m3u_plus',
+    b + '/get.php?username=' + u + '&password=' + p,
+    b
+  ];
+}
+
+function looksLikePlaylist(text) {
+  const head = String(text || '').slice(0, 4096);
+  return /^\s*#EXTM3U/i.test(head) || /#EXTINF/i.test(head);
+}
+
+async function handlePlaylist(request) {
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: withCors(new Headers()) });
+  }
+  if (request.method !== 'POST') {
+    return corsJson(405, { error: 'Use POST with {url, username, password}' });
+  }
+  let body = {};
+  try { body = await request.json(); } catch { return corsJson(400, { error: 'Invalid JSON body' }); }
+
+  const rawBase = String(body.url || '').trim();
+  if (!rawBase) return corsJson(400, { error: 'Missing portal url' });
+  /* Accept a bare host ("tv.example.com") the same way the app's own normalise() does. */
+  const withScheme = /^https?:\/\//i.test(rawBase) ? rawBase : 'http://' + rawBase;
+  let baseUrl;
+  try { baseUrl = new URL(withScheme); } catch { return corsJson(400, { error: 'Invalid portal url' }); }
+  if (!/^https?:$/.test(baseUrl.protocol)) return corsJson(400, { error: 'Portal url must be http or https' });
+  if (PRIVATE_HOST.test(baseUrl.hostname)) return corsJson(403, { error: 'Target host not allowed' });
+
+  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password);
+  const attempts = [];
+
+  for (const candidate of candidates) {
+    let target;
+    try { target = new URL(candidate); } catch { continue; }
+    if (PRIVATE_HOST.test(target.hostname)) continue;   /* a redirect target could differ from base */
+    let upstream;
+    try {
+      upstream = await fetch(target.href, {
+        method: 'GET',
+        headers: { 'user-agent': PLAYER_UA, 'accept': '*/*' },
+        redirect: 'follow'
+      });
+    } catch (e) {
+      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), error: String((e && e.message) || e).slice(0, 120) });
+      continue;
+    }
+    if (!upstream.ok) {
+      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), status: upstream.status });
+      /* A rate-limit or auth rejection is the panel's final answer — walking the remaining
+         candidates just spends more requests against the same limit. */
+      if (upstream.status === 429 || upstream.status === 401 || upstream.status === 403) {
+        return corsJson(200, { ok: false, status: upstream.status, attempts, reason: upstream.status === 429 ? 'rate-limited' : 'rejected' });
+      }
+      continue;
+    }
+    const text = await upstream.text();
+    if (text.length > MAX_PLAYLIST_BYTES) {
+      attempts.push({ endpoint: target.pathname, error: 'playlist too large' });
+      continue;
+    }
+    if (!looksLikePlaylist(text)) {
+      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), status: upstream.status, error: 'not an M3U playlist' });
+      continue;
+    }
+    const headers = withCors(new Headers({
+      'content-type': 'audio/x-mpegurl; charset=utf-8',
+      'cache-control': 'no-store',
+      'x-m26-source': target.origin + target.pathname
+    }));
+    headers.set('access-control-expose-headers', 'x-m26-source');
+    return new Response(text, { status: 200, headers });
+  }
+
+  return corsJson(200, { ok: false, reason: 'no-playlist', attempts });
+}
+
 function rewriteLocation(location, requestUrl, origin) {
   if (!location) return '';
   const current = new URL(requestUrl);
@@ -184,6 +292,9 @@ export default {
     const url = new URL(request.url);
     if (url.pathname === '/proxy') {
       return handleProxy(request);
+    }
+    if (url.pathname === '/api/playlist') {
+      return handlePlaylist(request);
     }
     if (!url.pathname.startsWith('/transcoder/')) {
       return env.ASSETS.fetch(request);
