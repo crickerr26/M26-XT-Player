@@ -1016,7 +1016,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='10.9';
+const APP_VERSION='11.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1736,10 +1736,18 @@ function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url|
 async function fetchTextChain(u){const tries=blocked(u)?[proxyUrl(u)]:[u,proxyUrl(u)];for(const t of tries){try{const r=await fetchWithTimeout(t,8000);if(r.ok)return await r.text()}catch(e){}}return''}
 function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
 function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
-/* KMPlayer opens a stream via its scheme-prefixed URL (kmplayer://<http url>). On iOS KMPlayer's
-   URL handoff is less reliable than VLC's callback API, so VLC stays the recommended MKV target. */
-function iosKmUrl(u){return'kmplayer://'+u}
-function vlcDesktopUrl(u){return 'vlc://'+u}
+/* KMPlayer takes the stream URL with its scheme REPLACED, the same convention as vlc:// —
+   kmplayer://host/path. The old form PREFIXED the whole URL (kmplayer://http://host/path), which
+   is why the app opened but never played: iOS launches on the registered scheme regardless, then
+   KMPlayer parses host="http" with the real address stuck in the path and has nothing to fetch.
+   Launch detection cannot catch this — the app genuinely did open — so this one URL has to be
+   right; there is no second attempt. External handoff always passes the provider's own http URL,
+   which KMPlayer rebuilds from the remainder. VLC keeps its callback API and stays the more
+   reliable MKV target. */
+function iosKmUrl(u){return'kmplayer://'+String(u||'').replace(/^https?:\/\//i,'')}
+/* Same scheme-substitution rule as KMPlayer: desktop VLC expects vlc://host/path, not the whole
+   http:// URL glued behind the scheme. */
+function vlcDesktopUrl(u){return 'vlc://'+String(u||'').replace(/^https?:\/\//i,'')}
 function downloadM3u(u,title){try{const blob=new Blob(['#EXTM3U\n#EXTINF:-1,'+String(title||'Media26 stream').replace(/[\r\n]+/g,' ')+'\n'+u+'\n'],{type:'audio/x-mpegurl'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='media26-play.m3u';document.body.appendChild(a);a.click();setTimeout(()=>{try{URL.revokeObjectURL(a.href);a.remove()}catch{}},4000);return true}catch{return false}}
 function launchAppChain(urls,onGone,onFail){
   /* v21: launch-success detection hardened. visibilitychange alone missed real launches on
