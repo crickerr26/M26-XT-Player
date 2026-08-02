@@ -228,13 +228,18 @@ function playlistCandidates(base, user, pass) {
      these panels serve dependably, so it leads again. Movies and Series no longer depend on this
      choice at all: when the playlist has none, the app asks the panel's own VOD/series endpoints
      for those tabs (see loadTypeFromApi), which is the more reliable source anyway. */
+  /* NOTE: the bare base URL is deliberately NOT a candidate once we hold credentials. A bare GET
+     on / can only ever return the panel's landing page — on a Stalker/Ministra host that is the
+     portal's HTML, which is exactly the confusing "the panel answered / with HTTP 200 —
+     stalker_portal…" result. With a username in hand, only real playlist endpoints are worth
+     asking. The bare URL stays a candidate in the no-credentials case above, where it is a
+     directly-pasted playlist link. */
   return [
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
     b + '/playlist/' + u + '/' + p + '/m3u_plus',
-    b + '/get.php?username=' + u + '&password=' + p,
-    b
+    b + '/get.php?username=' + u + '&password=' + p
   ];
 }
 
@@ -333,6 +338,32 @@ async function handlePlaylist(request) {
     }));
     headers.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
     return new Response(text, { status: 200, headers });
+  }
+
+  /* No playlist endpoint answered. Before giving up, make ONE deliberate probe of the base URL to
+     identify what kind of server this actually is. This is a diagnostic, not another playlist
+     guess — which is why the bare URL is no longer in the candidate list: fetching it as if it
+     might be a playlist is what produced the baffling "the panel answered / with HTTP 200 —
+     stalker_portal…". Asked on purpose and read for what it is, the very same response instead
+     tells us this is a MAG portal and the app can switch to the MAC handshake. */
+  try {
+    const probe = await fetch(baseUrl.origin + '/', {
+      method: 'GET',
+      headers: { 'user-agent': PLAYER_UA, 'accept': 'text/html,*/*' },
+      redirect: 'follow'
+    });
+    const body = (await readCapped(probe, 256 * 1024)).text;
+    if (looksLikeStalkerPortal(body)) {
+      return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
+    }
+    if (/^\s*(<!doctype\s+html|<html\b)/i.test(body)) {
+      attempts.push({
+        endpoint: '/ (probe)', status: probe.status, error: 'served a web page, not a playlist',
+        got: body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
+      });
+    }
+  } catch (e) {
+    attempts.push({ endpoint: '/ (probe)', error: String((e && e.message) || e).slice(0, 120) });
   }
 
   return corsJson(200, { ok: false, reason: 'no-playlist', attempts });
