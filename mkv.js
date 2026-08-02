@@ -239,6 +239,7 @@
     this.clusterTime = 0;
     this.ready = false;
     this.seq = 1;
+    this.firstEmitted = false;
     this.pending = new Map();  // trackId -> samples awaiting a known duration
     this.onInit = null;
     this.onFragment = null;
@@ -414,7 +415,10 @@
       list.push({ pts: pts + i * step, data: new Uint8Array(f), key: key, duration: track.defaultDuration });
     });
     // Emit once we hold a comfortable run; keep the last sample so its real duration is known.
-    if (list.length > 48) this._flush(track);
+    // The FIRST fragment goes out far earlier so the picture appears while the rest is still
+    // downloading — on a 4K file, waiting for a full 48-sample run before the first append is
+    // most of the perceived "taking too long to load".
+    if (list.length > (this.firstEmitted ? 48 : 12)) this._flush(track);
   };
 
   MkvRemuxer.prototype._flush = function (track, all) {
@@ -426,6 +430,7 @@
       const next = (i + 1 < out.length) ? out[i + 1].pts : (list.length ? list[0].pts : out[i].pts + track.defaultDuration);
       out[i].duration = Math.max(1, next - out[i].pts);
     }
+    this.firstEmitted = true;
     if (this.onFragment) this.onFragment(fragment(track, out, this.seq++), track);
   };
 
@@ -459,10 +464,33 @@
         try { if (controller) controller.abort(); } catch (_) {}
         reject(e instanceof Error ? e : new Error(String(e)));
       }
+      // Drop what has already been watched so a long or high-bitrate title can keep appending.
+      function evict(sb) {
+        try {
+          const ct = video.currentTime || 0;
+          if (sb.buffered.length && sb.buffered.start(0) < ct - 10) {
+            sb.remove(sb.buffered.start(0), ct - 10);
+            return true;
+          }
+        } catch (_) {}
+        return false;
+      }
       function pump(trackId) {
         const sb = sourceBuffers.get(trackId), q = queues.get(trackId);
         if (!sb || !q || !q.length || sb.updating) return;
-        try { sb.appendBuffer(q.shift()); } catch (e) { if (e && e.name === 'QuotaExceededError') q.length = 0; else fail(e); }
+        try {
+          sb.appendBuffer(q[0]);
+          q.shift();
+        } catch (e) {
+          if (e && e.name === 'QuotaExceededError') {
+            /* The buffer is full — a 4K stream fills it in seconds. Free the already-played part
+               and retry the SAME fragment; the old code emptied the queue instead, throwing away
+               video mid-file and leaving playback to stall on the resulting gap. */
+            if (!evict(sb)) setTimeout(function () { pump(trackId); }, 250);
+            return;
+          }
+          fail(e);
+        }
       }
 
       rx.onInit = function (init, tracks, unsupportedAudio) {
@@ -501,7 +529,24 @@
           if (!res.ok) return fail(new Error('Source returned HTTP ' + res.status));
           if (!res.body) return fail(new Error('This browser cannot stream the source'));
           const reader = res.body.getReader();
+          /* Backpressure. Without it the reader pulls the whole file as fast as the network allows
+             and every fragment piles into the SourceBuffer — which on a 4K title means gigabytes
+             of memory and constant quota errors. Once ~30s is buffered ahead of the playhead we
+             stop pulling until it drains, so bandwidth goes to the part being watched. */
+          const roomToRead = async function () {
+            for (;;) {
+              if (done) return false;
+              let ahead = 0;
+              try {
+                const b = video.buffered;
+                if (b.length) ahead = b.end(b.length - 1) - (video.currentTime || 0);
+              } catch (_) {}
+              if (ahead < 30) return true;
+              await new Promise(function (r) { setTimeout(r, 250); });
+            }
+          };
           for (;;) {
+            if (!(await roomToRead())) return;
             const { done: fin, value } = await reader.read();
             if (fin) break;
             if (done) return;
