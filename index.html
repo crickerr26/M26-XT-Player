@@ -1023,7 +1023,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='12.3';
+const APP_VERSION='12.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1907,7 +1907,15 @@ async function playItemExternal(x,mode,armed){
       :[iosVlcUrl(u)];
   }
   chain=chain.filter(Boolean);
-  $('stateText').textContent=(d==='android'&&mode!=='vlc')
+  /* v12.4: KMPlayer's iOS URL scheme is undocumented — the scheme-replace form above is the best
+     known launch URL, but it isn't guaranteed on every KMPlayer build. As a safety net (same
+     pattern already used for desktop VLC), copy the raw stream link to the clipboard on launch so
+     the user has a manual "paste it in" path if the app opens without the video. */
+  const kmIos=(mode==='km'&&d==='ios');
+  if(kmIos){try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(function(){})}catch(e){}}
+  $('stateText').textContent=kmIos
+    ?'Opening KMPlayer with "'+title+'". If it opens without the video: tap the menu/+ button → "Open URL" or "Network Stream" → paste — the link is already copied to your clipboard.'
+    :(d==='android'&&mode!=='vlc')
     ?'Android will ask which app should play "'+title+'" — choose VLC or Media26 Player and tap "Always" to remember your choice.'
     :'Launching '+label+' with "'+title+'". If no player app opens, use the buttons below.';
   /* v21: NO automatic browser-preview fallback after an external launch. This account allows
