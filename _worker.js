@@ -115,7 +115,17 @@ async function handleProxy(request) {
       return corsJson(400, { error: 'Invalid or missing mac for stb=1' });
     }
     const token = (qs.get('token') || '').trim();
-    headers.set('user-agent', 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3');
+    /* v14.8: the MAG User-Agent is itself a bot signature. When a portal sits behind Cloudflare
+       with bot protection on, that string is one of the things that trips it — the request is
+       answered with "Attention Required!" and never reaches portal.php at all. `ua=browser` keeps
+       the MAC cookie and the MAG model header (which is what the PORTAL checks) while presenting
+       an ordinary browser User-Agent (which is what the EDGE checks), so the app can try both. */
+    if (uaMode !== 'browser') {
+      headers.set('user-agent', 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3');
+    } else {
+      headers.set('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15');
+      headers.set('accept-language', 'en-US,en;q=0.9');
+    }
     headers.set('x-user-agent', 'Model: MAG250; Link: WiFi');
     headers.set('cookie', 'mac=' + mac.toUpperCase() + '; stb_lang=en; timezone=UTC');
     if (token && /^[\w.\-]{1,256}$/.test(token)) headers.set('authorization', 'Bearer ' + token);

@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='14.7';
+const APP_VERSION='14.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3781,6 +3781,13 @@ function stalkerFailMessage(e){
      user has no other way to know the phone invented a different one from the desktop. */
   const hint=macIsAuto()?(' Note: this device generated the MAC '+mac+' itself. If your seller activated a DIFFERENT MAC, tap the MAC box above, type theirs, and sign in again.'):'';
   const tail=s=>s+hint;
+  /* v14.8: an "Attention Required! | Cloudflare" body is not the portal answering at all — it is
+     the provider's CDN blocking our server before the request reaches portal.php. Saying "the
+     portal refused this MAC" there is simply false, and it sends the user back to their provider
+     with the wrong question for the third time. Name what is really happening, and what actually
+     resolves it. */
+  if(/attention required|cf-browser-verification|__cf_chl|cloudflare|ray id/i.test((e&&e.detail)||''))
+    return 'Your provider’s Cloudflare protection is blocking this app, before the request ever reaches their portal. Nothing is wrong with your MAC ('+mac+'), your password or your subscription — the block is on our server, not your account. Ask your provider for a portal address that is NOT behind Cloudflare (they usually have one on a direct port such as :8080 or :25461), or ask them to allow this app through their firewall.';
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
     return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
   if(st===429||/rate-limit/i.test(raw))
@@ -3811,6 +3818,11 @@ function _snippet(text){return String(text||'').replace(/<[^>]*>/g,' ').replace(
    fix. */
 function stalkerRelays(u,mac,token){
   const out=[stalkerProxyUrl(u,mac,token)];
+  /* v14.8: the same relay again, but presenting an ordinary browser User-Agent. A portal sitting
+     behind Cloudflare with bot protection on answers the MAG "stbapp" string with an "Attention
+     Required!" page that never reaches portal.php — the MAC cookie and MAG model header still go,
+     so the portal itself sees what it needs while the edge sees a browser. */
+  out.push(stalkerProxyUrl(u,mac,token)+'&ua=browser');
   try{
     const tb=(typeof transcoderBase==='function')&&transcoderBase();
     if(tb)out.push(tb+'/proxy?url='+encodeURIComponent(u)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):''));
