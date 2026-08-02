@@ -1062,7 +1062,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.4';
+const APP_VERSION='13.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1422,8 +1422,9 @@ async function login(opts){
     info={user_info:{}};
   }else{
     /* A definite rejection (rate-limit / bad credentials) is the panel's final answer; asking
-       player_api the same question would only burn another request against the same limit. */
-    if(plErr&&/rate-limit|rejected/i.test(plErr.message||''))throw plErr;
+       player_api the same question would only burn another request against the same limit.
+       A Stalker portal is equally definite: it has no player_api.php to ask. */
+    if(plErr&&(plErr.stalker||/rate-limit|rejected/i.test(plErr.message||'')))throw plErr;
     try{ info=await fetchJsonChain(accountUrl()); if(info&&info.user_info&&info.user_info.auth===0) info=null; }
     catch(e){
       if(e&&/rate-limit/i.test(e.message||''))throw e;
@@ -1647,8 +1648,10 @@ async function fetchPlaylistViaFunction(base,user,pass){
     const err=new Error(
       (j&&j.reason==='rate-limited')?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
       :(j&&j.reason==='rejected')?'The portal rejected these details — check the username and password.'
+      :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal. It signs devices in by MAC address, not by username and password — there is no username login to use here. Opening "Connect via MAC Address" for you…'
       :'The portal did not return a playlist for these details. Check the URL, username and password.'+detail);
     err.attempts=attempts;
+    if(j&&j.reason==='stalker-portal')err.stalker=true;
     throw err;
   }
   const text=await r.text();
@@ -3653,7 +3656,20 @@ async function submitXtreamLogin(){
       if($('xtreamErr'))$('xtreamErr').textContent='';
       $('xtreamSheet').classList.remove('show');
     }else{
-      if($('xtreamErr'))$('xtreamErr').textContent=($('err')&&$('err').textContent)||'Could not connect. Check your details and try again.';
+      const msg=($('err')&&$('err').textContent)||'Could not connect. Check your details and try again.';
+      if($('xtreamErr'))$('xtreamErr').textContent=msg;
+      /* This portal turned out to be a MAG/Stalker one, which has no username login at all.
+         Rather than leaving the user to work that out, hand them straight to the MAC flow with
+         the URL they already typed carried across. */
+      if(/MAG \/ Stalker portal/i.test(msg)){
+        setTimeout(()=>{
+          $('xtreamSheet').classList.remove('show');
+          if($('macPortalUrl'))$('macPortalUrl').value=url;
+          openMacSheet();
+          if($('macPortalUrl'))$('macPortalUrl').value=url;
+          macSetStatus('','This provider signs in by MAC address. Give the MAC above to them, then tap Connect.');
+        },2200);
+      }
     }
   }finally{
     if(btn)btn.disabled=false;

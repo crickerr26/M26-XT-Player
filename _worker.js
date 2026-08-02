@@ -243,6 +243,17 @@ function looksLikePlaylist(text) {
   return /^\s*#EXTM3U/i.test(head) || /#EXTINF/i.test(head);
 }
 
+/* A Stalker/Ministra (MAG) portal is a completely different product from an Xtream panel: it has
+   no get.php and no player_api.php, and it authenticates by MAC ADDRESS rather than by username
+   and password. Asking one for a playlist therefore cannot ever succeed, and the failure is
+   indistinguishable from bad credentials unless we recognise it. Its landing page is unmistakable
+   — it ships the portal bootstrap JavaScript. Spotting it lets the app say "use the MAC option"
+   instead of telling someone to re-check a password that was never going to work. */
+function looksLikeStalkerPortal(text) {
+  const head = String(text || '').slice(0, 20000);
+  return /stalker_portal|\bvar\s+gmode\b|\bresolution_prefix\b|\/c\/version\.js|ministra/i.test(head);
+}
+
 async function handlePlaylist(request) {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: withCors(new Headers()) });
@@ -298,6 +309,12 @@ async function handlePlaylist(request) {
       continue;
     }
     if (!looksLikePlaylist(text)) {
+      /* A Stalker portal is a definite, recognisable answer — stop and say so, rather than
+         spending the remaining candidates (and the panel's rate limit) on endpoints that this
+         product does not implement. */
+      if (looksLikeStalkerPortal(text)) {
+        return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
+      }
       /* Report WHAT came back instead of just "not a playlist" — an HTML challenge page, a login
          form or a panel error message are all diagnosable, and all look identical without this. */
       attempts.push({
