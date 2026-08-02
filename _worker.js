@@ -84,7 +84,7 @@ async function handleProxy(request) {
     return corsJson(403, { error: 'Target host not allowed' });
   }
   const headers = new Headers();
-  /* v13.8: ask the panel as a PLAYER, not as a browser. Xtream panels routinely refuse a generic
+  /* v13.9: ask the panel as a PLAYER, not as a browser. Xtream panels routinely refuse a generic
      browser User-Agent on their stream endpoints — they answer 403, or an HTML error page that the
      media engines report as a plain network failure — which is precisely why /api/playlist has
      always sent a player UA. The relay, however, was still forwarding the browser's own UA, so a
@@ -234,7 +234,7 @@ function playlistCandidates(base, user, pass, variant) {
   /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
   if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
   if (!user) return [b];
-  /* v13.8: the FULL-CATALOGUE variant, asked for separately and only once the user is already
+  /* v13.9: the FULL-CATALOGUE variant, asked for separately and only once the user is already
      signed in and watching. Login still leads with the compact live-oriented document (below) —
      that ordering is what made logins reliable and must not change. But when that document turns
      out to hold no films or shows, Movies and Series were left permanently empty on any panel

@@ -9,8 +9,8 @@ fail silently when it is missed.
 
 | What | Where | How to bump |
 |---|---|---|
-| App version | `index.html` — `const APP_VERSION='13.8';` | +0.1 (`13.8` → `13.9` → `14.0`) |
-| Service-worker cache | `sw.js` — `const CACHE = 'media26-shell-v76';` | +1 (`v76` → `v77`) |
+| App version | `index.html` — `const APP_VERSION='13.9';` | +0.1 (`13.8` → `13.9` → `14.0`) |
+| Service-worker cache | `sw.js` — `const CACHE = 'media26-shell-v77';` | +1 (`v76` → `v77`) |
 
 **Why each one matters**
 
@@ -24,7 +24,7 @@ fail silently when it is missed.
   makes `activate` delete the previous bucket. Leave it alone and the old shell
   can be served from cache offline/first-paint.
 
-`APP_VERSION` is also printed in player error messages (`(v13.8)`), which is how
+`APP_VERSION` is also printed in player error messages (`(v13.9)`), which is how
 a user's screenshot tells you which build they are actually running — another
 reason it must be truthful.
 
@@ -34,7 +34,7 @@ cycle. Only touch `SERVER_BUILD` when `server.js` behaviour changes.
 
 **Commit message** starts with the new version and a plain-language summary of
 what the user gets, e.g.
-`v13.8: fill Movies/Series on a live-only playlist, and make playlist channels play in the built-in player`.
+`v13.9: fill Movies/Series on a live-only playlist, and make playlist channels play in the built-in player`.
 
 ## Layout
 

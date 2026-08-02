@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.8';
+const APP_VERSION='13.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1470,7 +1470,7 @@ async function login(opts){
   catch(e){$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
-/* v13.8: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
+/* v13.9: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
    the app is mid-fetch reads as "this account has no movies", which is the wrong answer and the
    one thing the user cannot tell apart from a real failure. */
 function updateHomeCounts(){const n=(v,busy)=>(busy&&!v)?'…':(v||0).toLocaleString();if($('homeLiveCount'))$('homeLiveCount').textContent=n(S.live.length,S.loadingLive);if($('homeVodCount'))$('homeVodCount').textContent=n(S.vod.length,S.loadingVod);if($('homeSeriesCount'))$('homeSeriesCount').textContent=n(S.series.length,S.loadingSeries);}
@@ -1584,7 +1584,7 @@ async function loadTypeFromApi(type){
     const arr=s.map(x=>({...x,_type:type}));
     if(type==='vod'){S.vodCats=c||[];S.vod=arr;S.loadedVod=true;}
     else{S.seriesCats=c||[];S.series=arr;S.loadedSeries=true;}
-    /* v13.8: fold the result back into the parsed playlist. loadType() re-seeds each tab FROM
+    /* v13.9: fold the result back into the parsed playlist. loadType() re-seeds each tab FROM
        S.m3u every time it runs, so without this a second visit to Movies (or the "Load movies"
        button) wiped the titles we had just fetched and started the whole hunt again. */
     adoptIntoPlaylist(type,type==='vod'?S.vodCats:S.seriesCats,arr);
@@ -1592,7 +1592,7 @@ async function loadTypeFromApi(type){
     renderAll();updateHomeCounts&&updateHomeCounts();
   }catch(e){}
 }
-/* v13.8: THE SECOND SOURCE FOR MOVIES & SERIES. Login deliberately fetches the compact,
+/* v13.9: THE SECOND SOURCE FOR MOVIES & SERIES. Login deliberately fetches the compact,
    live-oriented playlist (get.php…&output=ts) because that is the document panels serve most
    dependably — but on plenty of panels it carries live channels only. loadTypeFromApi then asks
    player_api.php for the missing tabs, which works when the panel exposes that API; on a panel
@@ -1658,7 +1658,7 @@ async function loadType(type){
        endpoints for that ONE tab (we already hold the username and password). Live is never
        re-fetched this way: it came from the playlist and is authoritative. */
     if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass){
-      /* v13.8: mark the tab as LOADING while the fallbacks run. Without this the Home card read a
+      /* v13.9: mark the tab as LOADING while the fallbacks run. Without this the Home card read a
          flat "0 titles" and the category page offered a "Load movies" button the whole time the
          app was already busy fetching them — which is exactly what a working app looks like when
          it looks broken. */
@@ -2364,7 +2364,7 @@ async function playItemBasic(x){
     plans=isM3u8
       ?[{kind:'hls',url:durl}].concat(tsOk?[{kind:'mpegts',url:durl}]:[])
       :(tsOk?[{kind:'mpegts',url:durl},{kind:'hls',url:durl}]:[{kind:'hls',url:durl}]);
-    /* v13.8: THE FIX FOR "the playlist doesn't play in the built-in player". wrap() only sends a
+    /* v13.9: THE FIX FOR "the playlist doesn't play in the built-in player". wrap() only sends a
        link through our relay when the browser is FORBIDDEN to fetch it (http panel, https page).
        On an https panel — and on any panel that answers a browser User-Agent with a 403 — the
        browser was left to fetch the stream itself, and since mpegts.js and hls.js read it with
@@ -2444,7 +2444,7 @@ async function playItemBasic(x){
        slow "converting" step and, when it eventually gave up, dropped users onto the app-chooser — so
        normal titles that the browser CAN play were being sent the slow way round. If a title truly
        can't decode, we fall to the external-app option quickly instead of converting. */
-    /* v13.8: a title that came from an M3U playlist has no Xtream stream_id — its id is our own
+    /* v13.9: a title that came from an M3U playlist has no Xtream stream_id — its id is our own
        'm3u_<n>' — so every directUrl() below would build .../movie/user/pass/m3u_12.mp4, which the
        panel can only 404. Those dead routes were burning up to 12 seconds EACH before the one real
        route was reached, which is why a playlist film sat on "Loading" and then gave up. The
@@ -2841,7 +2841,7 @@ function plan(x){
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
     if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
     else{if(tsOk)add('mpegts','Direct TS',durl);add('hls','Direct HLS',durl);}
-    /* v13.8: the relay is a FALLBACK for a playlist link, not merely a mixed-content workaround.
+    /* v13.9: the relay is a FALLBACK for a playlist link, not merely a mixed-content workaround.
        blocked() only routes an http panel on an https page through it — so on an https panel the
        browser fetched the link itself, and because mpegts.js and hls.js read the stream with
        fetch/XHR, a panel that sends no CORS headers (which is nearly all of them) failed the read
