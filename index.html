@@ -1198,7 +1198,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='15.9';
+const APP_VERSION='16.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3606,12 +3606,27 @@ function stalkerFailMessage(e){
      portal refused this MAC" there is simply false, and it sends the user back to their provider
      with the wrong question for the third time. Name what is really happening, and what actually
      resolves it. */
-  if(/attention required|cf-browser-verification|__cf_chl|cloudflare|ray id/i.test((e&&e.detail)||''))
-    return 'Your provider’s firewall blocks our servers’ addresses before the request reaches their portal. Nothing is wrong with your MAC ('+mac+'), your password or your subscription. Opening the playlist below instead — that goes out over your phone’s own connection, which they do not block.';
+  /* v16.0: DO NOT STATE THIS AS A FACT. The old wording declared that the provider's firewall
+     blocks us — a permanent-sounding verdict the user cannot act on, and one the app has no way
+     to establish. What is actually known is narrower and more useful: a security layer in front
+     of the portal refused the request before portal.php saw it, and that is nearly always
+     temporary throttling that clears on its own once the app stops knocking (which v16.0's
+     request governor now enforces). Say that, give the wait, and let them retry — do not send
+     anyone off to copy a playlist by hand. */
+  if((e&&e.edge)||/attention required|cf-browser-verification|__cf_chl|cloudflare|ray id|just a moment/i.test((e&&e.detail)||'')){
+    const left=(typeof portalCooldownLeft==='function'&&portalCooldownLeft())||0;
+    return 'The security layer in front of your portal turned this request away before it reached the portal itself. '
+      +'Your MAC ('+mac+') and your subscription are not the problem — this is almost always short-lived throttling. '
+      +(left?('Tap Load playlist again in about '+left+' seconds.'):'Tap Load playlist again to retry.');
+  }
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
     return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
+  /* v16.0: the app's own cooldown is holding requests back — that is this app being careful, not
+     the provider refusing anything, and it needs to read that way. */
+  if(e&&e.cooling)
+    return 'Pausing for '+e.cooling+' more second'+(e.cooling===1?'':'s')+' before contacting your portal again. Its security layer pushed back a moment ago, and the fastest way through is to stop knocking and retry — nothing is wrong with your MAC ('+mac+') or your subscription.';
   if(st===429||/rate-limit/i.test(raw))
-    return tail('This portal (or the security layer in front of it) is refusing connections from our servers — HTTP 429.'+detail+' This is a block on where the request comes from, not on your account, so waiting does not clear it. Setting up a transcoder in Stream Tools gives the app a second route that usually gets through. (MAC on this device: '+mac+')');
+    return tail('Your portal is throttling connections right now — HTTP 429.'+detail+' That is a limit on how often it will answer, not a problem with your account. Wait about a minute and tap Load playlist again. (MAC on this device: '+mac+')');
   if(st===530||/\b5\d\d\b/.test(raw))
     return 'The portal’s own server is not responding'+(st?(' (HTTP '+st+')'):'')+' — that is the panel being down or misconfigured, not your details or your MAC. Check the portal address with your provider, or try again shortly.'+detail;
   if(/returned no channels/i.test(raw))
@@ -3688,22 +3703,65 @@ function stalkerPickUrl(res){
   };
   return walk(res);
 }
+/* ── v16.0: ONE GOVERNOR FOR EVERY REQUEST THIS APP MAKES TO A MAG PORTAL ────────────────────
+   v15.8 let a single tap on a movie fire up to THIRTY-SIX upstream requests: four command shapes,
+   two passes, three relays each, plus a twelve-request re-handshake. Against a portal sitting
+   behind an edge that counts requests — and tv.stream4k.cc resolves into Cloudflare's range, so
+   this one does — that is indistinguishable from an attack. The edge starts answering 403 with a
+   challenge page, and because it is the EDGE refusing rather than the portal, everything else the
+   app does next fails the same way: which is why signing in began reporting a firewall block on a
+   subscription that was working minutes earlier. The app was the thing tripping it.
+
+   Nothing may now contact the portal except through this gate. It enforces a minimum spacing
+   between upstream requests, and when the edge does push back it sets a cooldown and REFUSES to
+   send anything until that has passed — because continuing to knock is what keeps the door shut.
+   The relay that last worked is remembered and tried first, so the common case is one request. */
+const PORTAL_GAP_MS=250;
+let _portalNextAt=0,_portalCoolUntil=0,_portalRelay=0;
+function portalCooldownLeft(){const ms=_portalCoolUntil-Date.now();return ms>0?Math.ceil(ms/1000):0}
+function portalCooldown(sec){_portalCoolUntil=Math.max(_portalCoolUntil,Date.now()+((sec||45)*1000))}
+function portalClearCooldown(){_portalCoolUntil=0}
+async function portalGate(){
+  const now=Date.now(),wait=Math.max(0,_portalNextAt-now);
+  _portalNextAt=Math.max(now,_portalNextAt)+PORTAL_GAP_MS;
+  if(wait)await new Promise(r=>setTimeout(r,wait));
+}
+/* An edge refusal looks nothing like the portal's own answer: a challenge page, a Ray ID, or a
+   bare 403/429 arriving before portal.php was ever reached. Told apart because the remedy is
+   opposite — the portal's answer is final, the edge's clears itself if we simply stop knocking. */
+function isEdgeRefusal(status,body){
+  if(status===429)return true;
+  if(status!==403&&status<500)return false;
+  return /attention required|cf-browser-verification|__cf_chl|cloudflare|ray id|just a moment|access denied/i.test(String(body||''))||status===403;
+}
 async function stalkerJson(endpoint,mac,token,params){
+  const left=portalCooldownLeft();
+  if(left){
+    const e=new Error('The portal’s security layer is refusing this connection. Waiting '+left+'s before trying again — knocking during that window is what keeps it shut.');
+    e.status=429;e.cooling=left;throw e;
+  }
   const u=endpoint+(endpoint.indexOf('?')>=0?'&':'?')+Media26Portal.stalkerQuery(params);
   const relays=stalkerRelays(u,mac,token);
+  /* start with whichever relay last got through */
+  const order=[];for(let i=0;i<relays.length;i++)order.push((_portalRelay+i)%relays.length);
   let last=null;
-  for(let i=0;i<relays.length;i++){
+  for(let k=0;k<order.length;k++){
+    const i=order[k];
+    await portalGate();
     let r;
     try{ r=await fetch(relays[i],{headers:{'Accept':'application/json'}}); }
     catch(e){ last=Object.assign(new Error((e&&e.message)||'Could not reach the portal'),{status:0}); continue; }
-    if(r.ok)return stalkerParse(await r.text().catch(()=>''));
+    if(r.ok){_portalRelay=i;portalClearCooldown();return stalkerParse(await r.text().catch(()=>''))}
     const body=await r.text().catch(()=>'');
     last=new Error('Portal returned HTTP '+r.status);
     last.status=r.status;last.detail=_snippet(body);
+    last.edge=isEdgeRefusal(r.status,body);
     /* Only a where-you-came-from refusal is worth re-sending down the other route. Anything else
        is the portal's considered answer and will be identical from any IP. */
-    if(r.status!==403&&r.status!==429&&r.status<500)break;
+    if(!last.edge&&r.status<500)break;
   }
+  /* Every route was refused by an edge — stop contacting this portal for a while. */
+  if(last&&last.edge)portalCooldown(45);
   throw last||new Error('Could not reach the portal');
 }
 async function stalkerHandshake(base,mac){
@@ -3712,7 +3770,11 @@ async function stalkerHandshake(base,mac){
     try{
       const hs=await stalkerJson(ep,mac,'',{type:'stb',action:'handshake',token:'',JsHttpRequest:'1-xml'});
       const token=hs&&hs.js&&hs.js.token;
-      if(!token)continue;
+      /* v16.0: a 200 that carries no token is a real failure and used to vanish silently — an
+         anti-bot challenge page is served with a 200 and parses to nothing, so every endpoint
+         "failed" without ever recording why and the user got a message about the last unrelated
+         thing that went wrong. Name it. */
+      if(!token){lastErr=lastErr||new Error('This portal answered the handshake without issuing a token — the reply was not a portal response.');continue;}
       /* get_profile registers the device with the portal — most panels expect this before the
          token is treated as fully authorised, and it surfaces "MAC not found" quickly. */
       await stalkerJson(ep,mac,token,{type:'stb',action:'get_profile',hd:'1',stb_type:'MAG250',image_version:'218',JsHttpRequest:'1-xml'}).catch(()=>null);
@@ -3726,10 +3788,17 @@ async function stalkerHandshake(base,mac){
          tells apart a real API rate-limit from a Cloudflare/anti-bot challenge page blocking the
          request before it ever reaches the portal's own code. */
       if(e&&(e.status===429||e.status===403)){
-        const detail=e.detail?(' Portal said: "'+e.detail+'"'):'';
-        e.message=(e.status===429
-          ?'This portal is rate-limiting connection attempts. Wait a minute, then try Connect again.'
-          :'This portal refused the connection (403) — the MAC may not be bound to your subscription yet, or the portal is blocking this request.')+detail;
+        /* v16.0: leave the message alone when this app is the one holding back (e.cooling), and
+           do not blame the MAC when it was an EDGE that answered — portal.php never saw the
+           request, so it cannot have had an opinion about which MAC sent it. */
+        if(!e.cooling){
+          const detail=e.detail?(' Portal said: "'+e.detail+'"'):'';
+          e.message=e.edge
+            ?('A security layer in front of this portal turned the request away before the portal saw it.'+detail)
+            :(e.status===429
+              ?'This portal is rate-limiting connection attempts. Wait a minute, then try Connect again.'
+              :'This portal refused the connection (403) — the MAC may not be bound to your subscription yet.')+detail;
+        }
         throw e;
       }
     }
@@ -3887,30 +3956,47 @@ async function stalkerResolve(x){
     push('/media/'+x._stalkerId+'.mpg');
   }
   if(!cmds.length)return '';
-  let lastErr='';
-  for(let pass=0;pass<2;pass++){
-    for(const cmd of cmds){
-      const params={type:live?'itv':'vod',action:'create_link',cmd:cmd,JsHttpRequest:'1-xml'};
-      if(!live){
-        params.series=(x._stalkerEpisode!=null)?String(x._stalkerEpisode):'';
-        params.forced_storage='undefined';params.disable_ad='0';params.download='0';
+  /* v16.0: A HARD CEILING ON WHAT ONE TAP MAY COST. The alternative command shapes exist for
+     portals that are fussy about which string they will match, not to be fired at a portal that
+     is already saying no — v15.8 walked all of them twice and re-handshaked in between, which is
+     what tripped the provider's edge protection and made the app look blocked. Now: at most three
+     create_link attempts, an edge refusal aborts the whole thing on the spot (every further
+     request only extends the block), and the token is renewed once only when the portal's own
+     answer actually points at the token. */
+  const MAX_TRIES=3;
+  let lastErr='',tries=0,renewed=false;
+  for(let i=0;i<cmds.length&&tries<MAX_TRIES;i++){
+    const cmd=cmds[i];
+    const params={type:live?'itv':'vod',action:'create_link',cmd:cmd,JsHttpRequest:'1-xml'};
+    if(!live){
+      params.series=(x._stalkerEpisode!=null)?String(x._stalkerEpisode):'';
+      params.forced_storage='undefined';params.disable_ad='0';params.download='0';
+    }
+    let r=null;
+    tries++;
+    try{ r=await stalkerJson(st.endpoint,st.mac,st.token,params); }
+    catch(e){
+      lastErr=(e&&e.message)||'the portal could not be reached';
+      if(e&&e.detail&&!e.edge)lastErr+=' — “'+e.detail+'”';
+      /* The edge refused this, not the portal. Trying the next command shape sends another
+         request into the same closed door and lengthens the cooldown. Stop here. */
+      if(e&&(e.edge||e.cooling)){
+        if(e.edge)lastErr='a security layer in front of the portal turned the request away (HTTP '+(e.status||'?')+'). This is usually short-lived — wait a few seconds and tap again';
+        break;
       }
-      let r=null;
-      try{ r=await stalkerJson(st.endpoint,st.mac,st.token,params); }
-      catch(e){ lastErr=(e&&e.message)||'the portal could not be reached'; if(e&&e.detail)lastErr+=' — “'+e.detail+'”'; continue; }
-      const url=stalkerPickUrl(r);
-      if(url){x.direct_source=url;S.stalkerLastError='';return url}
-      if(!lastErr)lastErr='the portal accepted the request but returned no link';
+      /* An expired token is the portal's own answer and is worth exactly one renewal. */
+      if(!renewed&&(e.status===401||/token|authoriz|unauthor/i.test((e.detail||'')+' '+lastErr))){
+        renewed=true;
+        try{
+          const hs=await stalkerHandshake(S.url,st.mac);
+          if(hs&&hs.token){S.stalker.endpoint=st.endpoint=hs.endpoint||st.endpoint;S.stalker.token=st.token=hs.token;i--;continue}
+        }catch(he){ if(he&&(he.edge||he.cooling)){lastErr=(he&&he.message)||lastErr;break} }
+      }
+      continue;
     }
-    /* Every command shape was refused. If the token has simply aged out, one fresh handshake makes
-       all of them valid again — so renew once and repeat, then stop. */
-    if(pass===0){
-      try{
-        const hs=await stalkerHandshake(S.url,st.mac);
-        if(hs&&hs.token){S.stalker.endpoint=st.endpoint=hs.endpoint||st.endpoint;S.stalker.token=st.token=hs.token;lastErr='';continue}
-      }catch(e){ lastErr=(e&&e.message)||lastErr; }
-    }
-    break;
+    const url=stalkerPickUrl(r);
+    if(url){x.direct_source=url;S.stalkerLastError='';return url}
+    lastErr='the portal accepted the request but returned no link for this title';
   }
   S.stalkerLastError=lastErr;
   return '';
@@ -4134,12 +4220,13 @@ async function submitMacLogin(){
     }else{
       const msg=($('err')&&$('err').textContent)||'The portal did not return a playlist for this MAC.';
       if($('macSheetErr'))$('macSheetErr').textContent=msg;
-      /* v15.4: a firewall block is not something the user can act on by reading about it. Hand
-         them straight to the one route that provider cannot block — fetched by the phone, not by
-         us — with the playlist link already built from what they just typed. */
-      if(/firewall blocks our servers/i.test(msg)){
-        setTimeout(()=>{ $('macSheet').classList.remove('show'); openImportSheet(); },1800);
-      }
+      /* v16.0: the sheet STAYS PUT on a failure. v15.4 waited 1.8s and then threw the user into
+         the manual "open your playlist in a browser tab, copy it, paste it back" flow, which is a
+         chore, and it did it on the strength of a firewall diagnosis the app could not actually
+         make. Retrying is the right next action for a throttled request, and it is one tap away
+         because the portal URL and MAC they just typed are still on screen. The manual import is
+         still there for anyone who wants it — under Open or paste an M3U playlist — but the app
+         no longer decides on their behalf that it is the only way. */
     }
   }finally{ if(btn)btn.disabled=false; }
 }
