@@ -1061,7 +1061,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.0';
+const APP_VERSION='13.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1189,8 +1189,8 @@ async function fetchJsonChain(raw){
      Movies/Series/Live only partly loaded. We now sweep every path up to 3 rounds with a short
      backoff, so a transient hiccup self-heals instead of surfacing as a failure. A real auth
      error (401/403 = wrong credentials) stops immediately — retrying can't fix bad creds. */
-  const ROUNDS=3;let auth=false;
-  for(let round=0;round<ROUNDS&&!auth;round++){
+  const ROUNDS=3;let auth=false,limited=false;
+  for(let round=0;round<ROUNDS&&!auth&&!limited;round++){
     for(let i=0;i<tries.length;i++){
       const {u,trusted}=tries[i];
       try{
@@ -1203,13 +1203,20 @@ async function fetchJsonChain(raw){
         last=e.name==='TimeoutError'?'timed out':(e.message||'failed');
         if(trusted)lastTrusted=last;
         if(/HTTP 401|HTTP 403/.test(last)){auth=true;break;}
+        /* v13.1: a 429 means the portal (or a WAF/edge layer in front of it, e.g. Cloudflare's
+           own rate-limiter) is actively throttling this connection right now — retrying through
+           4 more relay candidates and 2 more full rounds just piles on more requests against the
+           same limit, and turns what should be an instant, clear error into a multi-minute hang
+           that looks like the app is frozen. Stop immediately, same as an auth failure. */
+        if(/HTTP 429/.test(last)){limited=true;break;}
         console.warn('[XT] fetch path '+(i+1)+'/'+tries.length+' (round '+(round+1)+') failed:',u.slice(0,80),'-',last);
       }
     }
-    if(round<ROUNDS-1&&!auth)await new Promise(r=>setTimeout(r,600*(round+1)));
+    if(round<ROUNDS-1&&!auth&&!limited)await new Promise(r=>setTimeout(r,600*(round+1)));
   }
   const main=lastTrusted||last;
   throw Error(/HTTP 401|HTTP 403/.test(lastTrusted)?'Login rejected — check username/password'
+    :limited?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
     :/timed out/.test(main)?'Portal is not responding — check the URL or try again'
     :/Unexpected|JSON/i.test(main)?'Portal replied but not with valid data — double-check the portal URL (it must be the Xtream panel base URL, e.g. http://host:8080)'
     :'Could not reach the portal ('+main+'). Check the URL and your connection.');
@@ -1399,7 +1406,15 @@ async function login(opts){
      rejects us, fall back to the M3U playlist the same panel almost always exposes. The playlist
      is normalised into the same shape, so nothing downstream needs to know which was used. */
   let info=null;
-  try{ info=await fetchJsonChain(accountUrl()); if(info&&info.user_info&&info.user_info.auth===0) info=null; }catch(e){ info=null; }
+  try{ info=await fetchJsonChain(accountUrl()); if(info&&info.user_info&&info.user_info.auth===0) info=null; }
+  catch(e){
+    /* v13.1: a rate-limit is a definitive, fast answer — falling through to the M3U fallback would
+       just hit the SAME limit again via a different URL and turn one clear error into another
+       multi-round timeout, so surface it immediately instead of masking it behind the generic
+       "Could not sign in" message. */
+    if(e&&/rate-limit/i.test(e.message||''))throw e;
+    info=null;
+  }
   if(!info){ const pl=await loadPlaylistSource(); if(!pl) throw Error('Could not sign in. Check the URL, username and password — or paste the M3U link your provider gave you.'); info={user_info:{}}; }
 
   /* v46: surface account problems AT LOGIN instead of leaving the user staring at an
