@@ -528,7 +528,10 @@
 
     const key = isSimple ? !!(flags & 0x80) : true;
     const lacing = (flags & 0x06) >> 1;
-    const pts = Math.round((this.clusterTime + rel) * this.timecodeScale / 1e6);
+    /* Relative timecodes are signed and legitimately go negative near a cluster boundary. The
+       decode time is written as an unsigned 64-bit value, so a negative result would be encoded
+       as garbage — clamp it. */
+    const pts = Math.max(0, Math.round((this.clusterTime + rel) * this.timecodeScale / 1e6));
 
     const frames = [];
     if (!lacing) {
@@ -638,6 +641,14 @@
     for (let i = 0; i < out.length; i++) need = Math.max(need, ordered[i] - out[i].pts);
     if (need > (this.ctsShift || 0)) this.ctsShift = need;
 
+    /* The boundary only closes the fragment correctly if it lies strictly after its last frame.
+       When a keyframe carries a timestamp at or before that (overlapping GOPs, a re-timed
+       cluster), the closing duration collapses toward zero and the next fragment then starts
+       INSIDE this one. Overlapping fragments are rejected, so fall back to a normal frame
+       duration in that case. */
+    const lastPts = ordered[ordered.length - 1];
+    if (nextDts != null && nextDts <= lastPts) nextDts = lastPts + (track.defaultDuration || 40);
+
     this.firstEmitted = true;
     if (this.onFragment) this.onFragment(fragment(track, out, this.seq++, nextDts, this.ctsShift || 0), track);
   };
@@ -734,7 +745,18 @@
             }
             const sb = ms.addSourceBuffer(mime);
             sb.mode = 'segments';
-            sb.addEventListener('updateend', function () { pump(t.id); });
+            sb.addEventListener('updateend', function () {
+              pump(t.id);
+              /* Delaying presentation to keep composition offsets non-negative means the buffer
+                 starts slightly after zero. currentTime sits at 0, so without a nudge the element
+                 waits for data that will never exist there. Step onto the first buffered frame. */
+              try {
+                if (t.type === 'video' && video.readyState < 3 && sb.buffered.length &&
+                    video.currentTime < sb.buffered.start(0)) {
+                  video.currentTime = sb.buffered.start(0);
+                }
+              } catch (_) {}
+            });
             /* A video-track failure is fatal; an audio one is not. Losing the soundtrack should
                never cost the film — before this, one rejected audio buffer failed the whole
                playback and sent a perfectly good file off to the transcoder. */
