@@ -190,7 +190,7 @@
     return cat([ftyp, moov]);
   }
 
-  function fragment(track, samples, seq) {
+  function fragment(track, samples, seq, nextDts) {
     /* Matroska stores blocks in DECODE order but stamps them with PRESENTATION times. Any file
        with B-frames — which is every real movie encode — therefore has non-monotonic timestamps,
        so treating the gaps between them as sample durations yields negative and nonsensical
@@ -206,7 +206,10 @@
     const trunEntries = new Uint8Array(n * 16);
     const dv = new DataView(trunEntries.buffer);
     for (let i = 0; i < n; i++) {
-      const dur = (i + 1 < n) ? (dts[i + 1] - dts[i]) : (track.defaultDuration || 40);
+      /* The final sample's duration comes from where the NEXT fragment begins, so consecutive
+         fragments meet exactly instead of leaving a gap the browser has to paper over. */
+      const dur = (i + 1 < n) ? (dts[i + 1] - dts[i])
+        : (nextDts != null ? Math.max(1, nextDts - dts[i]) : (track.defaultDuration || 40));
       dv.setUint32(i * 16, Math.max(1, dur));
       dv.setUint32(i * 16 + 4, samples[i].data.length);
       // Non-keyframes are marked non-sync and depend on other samples.
@@ -577,6 +580,21 @@
     if (this.initSent && this.tracks.indexOf(track) < 0) return;
 
     const list = this.pending.get(track.id);
+
+    if (track.type === 'video') {
+      /* A decoder cannot start on a P/B frame, so a fragment must never begin on one. Drop
+         anything before the first keyframe, and cut ONLY at keyframes thereafter.
+         Arbitrary cuts were the bug behind "Buffer error on avc1...": timestamps are sorted
+         within each fragment, so splitting mid-GOP made one fragment's decode range overlap the
+         previous fragment's, and the browser rejected the stream. Whole GOPs cannot overlap. */
+      if (!track._sawKey) {
+        if (!key) return;
+        track._sawKey = true;
+      } else if (this.initSent && key && list.length >= (this.firstEmitted ? 48 : 12)) {
+        this._flush(track, pts);
+      }
+    }
+
     const step = frames.length > 1 ? Math.max(1, Math.round(track.defaultDuration)) : 0;
     frames.forEach((f, i) => {
       list.push({ pts: pts + i * step, data: new Uint8Array(f), key: key, duration: track.defaultDuration });
@@ -585,20 +603,29 @@
     // The FIRST fragment goes out far earlier so the picture appears while the rest is still
     // downloading — on a 4K file, waiting for a full 48-sample run before the first append is
     // most of the perceived "taking too long to load".
-    if (this.initSent && list.length > (this.firstEmitted ? 48 : 12)) this._flush(track);
+    /* Audio only: every frame is a sync sample, so it can be cut anywhere. Video is flushed above
+       at keyframe boundaries. */
+    if (this.initSent && track.type !== 'video' && list.length > (this.firstEmitted ? 96 : 24)) this._flush(track);
   };
 
-  MkvRemuxer.prototype._flush = function (track, all) {
+  /* boundaryPts: cutting at a known keyframe, so the whole buffer goes and that keyframe's
+     timestamp closes the last sample exactly.
+     all: end of stream, emit whatever is left.
+     neither: hold the final sample back so its duration can be measured against the next one. */
+  MkvRemuxer.prototype._flush = function (track, boundaryPts, all) {
     const list = this.pending.get(track.id);
-    if (!list || list.length < 2) return;
-    const upto = all ? list.length : list.length - 1;
-    const out = list.splice(0, upto);
-    for (let i = 0; i < out.length; i++) {
-      const next = (i + 1 < out.length) ? out[i + 1].pts : (list.length ? list[0].pts : out[i].pts + track.defaultDuration);
-      out[i].duration = Math.max(1, next - out[i].pts);
+    if (!list || !list.length) return;
+    let out, nextDts;
+    if (boundaryPts != null) { out = list.splice(0, list.length); nextDts = boundaryPts; }
+    else if (all) { out = list.splice(0, list.length); nextDts = null; }
+    else {
+      if (list.length < 2) return;
+      out = list.splice(0, list.length - 1);
+      nextDts = list.length ? list[0].pts : null;
     }
+    if (!out.length) return;
     this.firstEmitted = true;
-    if (this.onFragment) this.onFragment(fragment(track, out, this.seq++), track);
+    if (this.onFragment) this.onFragment(fragment(track, out, this.seq++, nextDts), track);
   };
 
   MkvRemuxer.prototype.flushAll = function () {
@@ -606,7 +633,7 @@
     /* Release the init even if a Dolby track never produced a readable frame — otherwise a short
        or unusual file would end with everything still buffered and nothing ever played. */
     if (!this.initSent) { this._initForced = true; this._emitInit(); }
-    for (const t of this.tracks) this._flush(t, true);
+    for (const t of this.tracks) this._flush(t, null, true);
   };
 
   MkvRemuxer.prototype.mimeFor = function (track) {
