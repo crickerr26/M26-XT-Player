@@ -192,9 +192,14 @@ function playlistCandidates(base, user, pass) {
   /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
   if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
   if (!user) return [b];
+  /* Order matters for CONTENT, not just reachability: plain type=m3u_plus returns the panel's
+     full catalogue (live + movies + series), whereas the &output=ts variant is live-oriented and
+     on many panels omits VOD entirely — leading it was why Movies and Series came back empty
+     while Live TV filled up. Ask for everything first; the narrower variants remain as
+     fallbacks for panels that only answer those. */
   return [
-    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
+    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
     b + '/playlist/' + u + '/' + p + '/m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p,
