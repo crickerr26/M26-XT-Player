@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '10.6';
+const SERVER_BUILD = '11.4';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -179,10 +179,18 @@ function profileArgs(profile, wm, vtag) {
      which Apple players refuse even inside a correct fMP4 segment. */
   if (profile === 'fastvod') return ['-map', '0:v:0?', '-map', '0:a:0?', '-c:v', 'copy',
     ...(vtag ? ['-tag:v', vtag] : []), '-c:a', 'aac', '-b:a', '160k', '-ac', '2'];
-  const videoBitrate = profile === 'vod' ? '1200k' : '750k';
-  const maxrate = profile === 'vod' ? '1500k' : '900k';
-  const bufsize = profile === 'vod' ? '3000k' : '1800k';
-  const scale = 'scale=w=min(854\\,iw):h=-2';
+  /* Quality ladder. A 4K source is 20-80 Mbit/s — no phone connection streams that comfortably, so
+     these profiles decode it and re-encode smaller. The width is a CEILING (min(w,iw)), so a source
+     already below it is never upscaled and never inflated in bitrate. */
+  const LADDER = {
+    hd1080: { w: 1920, v: '4500k', max: '5400k', buf: '9000k', preset: 'veryfast' },
+    hd720:  { w: 1280, v: '2500k', max: '3000k', buf: '5000k', preset: 'veryfast' },
+    vod:    { w: 854,  v: '1200k', max: '1500k', buf: '3000k', preset: 'superfast' },
+    mobile: { w: 854,  v: '750k',  max: '900k',  buf: '1800k', preset: 'superfast' }
+  };
+  const q = LADDER[profile] || LADDER.mobile;
+  const videoBitrate = q.v, maxrate = q.max, bufsize = q.buf;
+  const scale = `scale=w=min(${q.w}\\,iw):h=-2`;
   /* With a watermark input present (added in start()), build a filter graph that scales the
      video, then overlays the logo bottom-left at ~14% width and low alpha, and map that output.
      Without it, keep the simple -vf scale path unchanged. */
@@ -194,10 +202,14 @@ function profileArgs(profile, wm, vtag) {
   return [
     ...videoIO,
     '-c:v', 'libx264',
-    '-preset', 'superfast',
-    '-tune', 'zerolatency',
-    '-profile:v', 'main',
-    '-level', '3.1',
+    '-preset', q.preset,
+    /* zerolatency is a LIVE tuning — it disables lookahead and B-frames, which costs real quality
+       at a given bitrate. A movie is not latency-sensitive, so the HD profiles leave it off and
+       spend that headroom on the picture instead. */
+    ...(profile === 'hd1080' || profile === 'hd720' ? [] : ['-tune', 'zerolatency']),
+    /* 1080p needs High profile at level 4.0; the small profiles stay Main/3.1 for old devices. */
+    '-profile:v', (profile === 'hd1080' || profile === 'hd720') ? 'high' : 'main',
+    '-level', profile === 'hd1080' ? '4.0' : profile === 'hd720' ? '3.2' : '3.1',
     '-pix_fmt', 'yuv420p',
     '-g', '50',
     '-keyint_min', '50',
@@ -707,7 +719,7 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/health') {
       /* Report capabilities so the app can tell a CURRENT server (fast copy-mode MKV) from an old
          one. 'fastvod' is the quick copy-video profile; its presence here means MKV plays fast. */
-      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'vod', 'remux', 'copy', 'audio'], activation: LICENSING_ENABLED });
+      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'hd1080', 'hd720', 'vod', 'remux', 'copy', 'audio'], activation: LICENSING_ENABLED });
     }
 
     // Same-origin CORS relay: /proxy?url=<encoded target>. index.html tries this
@@ -732,7 +744,7 @@ const server = http.createServer(async (req, res) => {
       /* Give a cold/slow free server more room to emit the first segment before declaring failure
          (copy-mode VOD is quick once ffmpeg can read the source; a re-encode needs longer). If the
          source can't be read, waitForPlaylist returns early with the ffmpeg error in session.log. */
-      const waitMs = isLiveProfile(profile) ? 30000 : (profile === 'vod' ? 75000 : 55000);
+      const waitMs = isLiveProfile(profile) ? 30000 : (reencodesVideo(profile) ? 60000 : 40000);
       const ok = await waitForPlaylist(session, waitMs);
       if (!ok) { console.log(`[hls] 504 profile=${profile} id=${session.id} — no playlist in ${waitMs}ms`); return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) }); }
       console.log(`[hls] 302 OK profile=${profile} id=${session.id}`);
