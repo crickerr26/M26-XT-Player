@@ -611,8 +611,17 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .actHave{margin-top:16px;text-align:center;font-size:12.5px;color:#8497b5}
 .actHave a{color:#12b6c9;font-weight:800;text-decoration:none;border-bottom:1px solid rgba(18,182,201,.4)}
 /* MAC-address device activation sheet — same box language as the numeric code, sized for 17 chars */
-.macCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:24px;font-weight:800;letter-spacing:3px;text-align:center;color:#12d0e6;background:#0c1626;border:1px solid #1c3450;border-radius:16px;padding:18px 6px;margin:6px 0 4px;width:100%;box-sizing:border-box;outline:none}
-.macCode:focus{border-color:#12d0e6}
+.macCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:800;letter-spacing:2.5px;text-align:center;color:#0a6b78;background:#e8f6f8;border:1.5px solid #9fd9e2;border-radius:14px;padding:15px 6px;margin:0;width:100%;box-sizing:border-box;outline:none}
+.macCode:focus{border-color:#12b6c9;background:#fff}
+/* v13.7: the MAC on the login screen — step one of the flow, so it reads as a card of its own
+   rather than another button competing with the sign-in options below it. */
+.macBlock{background:#f2f7fb;border:1px solid rgba(20,50,90,.1);border-radius:16px;padding:14px;margin:0 0 16px}
+.macBlock label{display:block;font-size:12px;font-weight:800;letter-spacing:.3px;color:#7288a8;margin:0 0 8px;text-transform:uppercase}
+.macBlock .macActions{display:flex;gap:8px;margin-top:8px}
+.macBlock .macActions .pillbtn{flex:1;height:38px;font-size:13px}
+.macHint{margin:9px 0 0;font-size:11.5px;line-height:1.45;color:#6b7f9c;font-weight:600}
+.macBlock.needsAction{border-color:#e0813a;background:#fdf4ec;box-shadow:0 0 0 3px rgba(224,129,58,.12)}
+@media(max-width:760px){.macCode{font-size:19px;letter-spacing:2px;padding:13px 4px}}
 .macActions{display:flex;gap:8px;margin-top:2px}
 .macActions .pillbtn{flex:1}
 /* login: "Ask the admin" request link */
@@ -811,7 +820,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
       </button>
     </div>
-    <p class="loginLead">No username or password needed. Get an activation code from the admin, share your playlist, or bring it from another device.</p>
+    <p class="loginLead">Send your MAC address below to your IPTV seller. Once they activate it, sign in with your username and password.</p>
     <div class="activationCodeEntry" id="activationCodeEntry">
       <label style="display:block;font-size:12px;font-weight:800;letter-spacing:.3px;color:#7288a8;margin:16px 0 8px;text-transform:uppercase">Have an activation code?</label>
       <div style="display:flex;gap:8px;margin-bottom:14px">
@@ -819,6 +828,19 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <button id="loginActCodeGo" type="button" style="cursor:pointer;border:0;border-radius:11px;font-weight:800;font-size:14px;padding:12px 18px;background:linear-gradient(135deg,#8fd6df,#5fc0cf);color:#0a2b33">Go</button>
       </div>
       <div class="err" id="loginActCodeErr" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
+    </div>
+    <!-- v13.7: the device MAC lives HERE, on the first screen, because it is step one of the
+         only flow that matters: read this MAC, give it to your seller, then sign in below.
+         It used to be buried behind a separate "Connect via MAC Address" card, which read like
+         a rival way to log in and left people choosing between two doors to the same room. -->
+    <div class="macBlock" id="macBlock">
+      <label>Your device MAC address</label>
+      <input class="macCode" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text">
+      <div class="macActions">
+        <button class="pillbtn" id="macCopy" type="button">Copy MAC</button>
+        <button class="pillbtn primary" id="macSend" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:5px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>Send</button>
+      </div>
+      <p class="macHint">Give this MAC to your IPTV seller so they can activate it. Already been given a MAC by them? Tap it and type theirs instead. Then sign in below.</p>
     </div>
     <div class="loginActions">
       <button class="loginAction primary" id="getActBtn" type="button">
@@ -834,11 +856,6 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
       <button class="loginAction" id="loginPairBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/><path d="M9 11l2.2 2.2L15 9.5"/></svg></span>
         <span class="la-tx"><b>Load from another device</b><small>Scan a QR code or paste a share code</small></span>
-        <span class="la-ch">›</span>
-      </button>
-      <button class="loginAction" id="macActBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 12h.01M12 12h.01M16 12h.01M8 15h.01M12 15h.01M16 15h.01"/></svg></span>
-        <span class="la-tx"><b>Connect via MAC Address</b><small>Give your device ID to the admin to activate</small></span>
         <span class="la-ch">›</span>
       </button>
       <button class="loginAction" id="xtreamActBtn" type="button">
@@ -981,19 +998,6 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="field nativeField" id="actEnterWrap" style="display:none"><label>Activation code</label><input id="actEnterBox" inputmode="numeric" maxlength="8" placeholder="8-digit code" autocomplete="off"><div class="nativeActions" style="margin-top:10px"><button class="pillbtn primary" id="actEnterGo">Use this code</button></div></div>
   <div class="err" id="actErr" style="min-height:0"></div>
 </div></div>
-<div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
-  <div class="episodeHead"><h3>Connect via MAC Address</h3><button class="iconbtn" id="macClose">×</button></div>
-  <p class="nativeText">This is your device's unique MAC address. Give it to your IPTV provider — they'll bind it to your subscription in their admin panel. If your provider already assigned you a MAC address, paste it here instead. Then enter your provider's portal URL below and tap Connect.</p>
-  <input class="macCode" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text">
-  <div class="macActions nativeActions" style="margin-top:2px">
-    <button class="pillbtn" id="macCopy" type="button">Copy MAC</button>
-    <button class="pillbtn primary" id="macSend" type="button"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>WhatsApp</button>
-  </div>
-  <div class="field nativeField" style="margin-top:12px"><label>Provider portal URL</label><input id="macPortalUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url"></div>
-  <div class="nativeActions" style="margin-top:8px"><button class="pillbtn primary" id="macCheckBtn" type="button" style="width:100%">Connect</button></div>
-  <div class="actStatus" id="macStatus"><span class="actDot"></span><span id="macStatusTx">Enter your portal URL and tap Connect</span></div>
-  <div class="err" id="macErr" style="min-height:0"></div>
-</div></div>
 <div class="episodeSheet" id="xtreamSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Login with Username &amp; Password</h3><button class="iconbtn" id="xtreamClose">×</button></div>
   <p class="nativeText">Enter the portal URL, username and password your provider gave you.</p>
@@ -1062,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.6';
+const APP_VERSION='13.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1434,8 +1438,7 @@ async function login(opts){
         toast('Connected — '+res.live.length+' channels loaded');
         return;
       }catch(se){
-        const why=(se&&se.message)?(' '+se.message):'';
-        throw Error('This is a MAG / Stalker portal — it signs devices in by MAC address, not by username and password. Give this MAC to your provider and ask them to bind it: '+macFmt(stalkerMac())+'.'+why);
+        throw Error('Your seller has not activated this device yet. Send them the MAC address shown on this screen — '+macFmt(stalkerMac())+' — and ask them to activate it. Then sign in again.');
       }
     }
     /* A definite rejection (rate-limit / bad credentials) is the panel's final answer; asking
@@ -3521,7 +3524,6 @@ function stalkerMac(){
   return m;
 }
 function macFmt(m){return String(m||'').toUpperCase();}
-function macSetStatus(kind,text){const s=$('macStatus');if(s)s.className='actStatus'+(kind?(' '+kind):'');if($('macStatusTx'))$('macStatusTx').textContent=text;}
 function stalkerProxyUrl(url,mac,token){
   return PROXY+encodeURIComponent(url)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):'');
 }
@@ -3611,42 +3613,20 @@ function adoptStalkerSession(res){
   showHome();keepTranscoderWarm();
   renderAll();updateHomeCounts();
 }
-async function connectStalker(){
-  const input=$('macPortalUrl');
-  const base=normalize((input&&input.value)||'');
-  if($('macErr'))$('macErr').textContent='';
-  if(!base){macSetStatus('bad','Enter your provider\'s portal URL.');return;}
+/* The MAC lives on the login screen now, so it just needs to be shown and kept in sync — there
+   is no separate connect step here any more. Whatever MAC ends up in the box (auto-generated, or
+   typed in because the seller already had one on file) becomes this device's MAC from then on,
+   so the sign-in below and the reconnect on relaunch both use that same one. */
+function paintLoginMac(){
+  const el=$('macCodeBox');if(!el)return;
+  el.value=macFmt(stalkerMac());
+}
+function commitLoginMac(){
   const mac=Media26Portal.normaliseMac(macInputValue());
-  if(!mac){macSetStatus('bad','Enter a valid MAC address, e.g. 00:1A:79:12:34:56.');return;}
-  /* Whatever MAC ends up in the box — auto-generated or pasted in because the provider already
-     had one on file for this subscription — becomes this device's MAC going forward, so the next
-     Connect/auto-resume uses the SAME one instead of silently reverting to a different one. */
+  if(!mac)return '';
   try{localStorage.setItem('m26_stkmac',mac);}catch(e){}
   if($('macCodeBox'))$('macCodeBox').value=mac;
-  macSetStatus('','Connecting…');
-  const btn=$('macCheckBtn');if(btn)btn.disabled=true;
-  try{
-    const res=await stalkerLogin(base,mac);
-    adoptStalkerSession(res);
-    macSetStatus('ok','Connected! Loading channels…');
-    if($('macSheet'))$('macSheet').classList.remove('show');
-    toast('Connected — '+res.live.length+' channels loaded');
-  }catch(e){
-    const detail=(e&&e.detail&&(e.message||'').indexOf(e.detail)<0)?(' Portal said: "'+e.detail+'"'):'';
-    macSetStatus('bad',((e&&e.message)||'Could not connect to that portal.')+detail);
-  }finally{
-    if(btn)btn.disabled=false;
-  }
-}
-function openMacSheet(){
-  if($('macErr'))$('macErr').textContent='';
-  const mac=stalkerMac();
-  if($('macCodeBox'))$('macCodeBox').value=macFmt(mac);
-  let saved=null;try{saved=JSON.parse(localStorage.getItem('m26_stk')||'null');}catch(e){}
-  if(saved&&saved.url&&$('macPortalUrl'))$('macPortalUrl').value=saved.url;
-  macSetStatus('','Enter your portal URL and tap Connect');
-  $('macSheet').classList.add('show');
-  try{$('macCodeBox').focus();$('macCodeBox').select();}catch(e){}
+  return mac;
 }
 function sendMacToWhatsApp(){
   const mac=Media26Portal.normaliseMac(macInputValue())||stalkerMac();
@@ -3682,15 +3662,15 @@ async function submitXtreamLogin(){
     }else{
       const msg=($('err')&&$('err').textContent)||'Could not connect. Check your details and try again.';
       if($('xtreamErr'))$('xtreamErr').textContent=msg;
-      /* This portal turned out to be a MAG/Stalker one, which has no username login at all.
-         Rather than leaving the user to work that out, hand them straight to the MAC flow with
-         the URL they already typed carried across. */
-      if(/MAG \/ Stalker portal/i.test(msg)){
+      /* The seller hasn't activated this device's MAC yet. Close the form and put the MAC —
+         which lives on the login screen — back in front of the user, since sending it to the
+         seller is the one action that unblocks them. */
+      if(/not activated this device yet/i.test(msg)){
         setTimeout(()=>{
           $('xtreamSheet').classList.remove('show');
-          openMacSheet();
-          if($('macPortalUrl'))$('macPortalUrl').value=url;
-          macSetStatus('bad','This provider signs in by MAC address. If they already gave you one, paste it above and tap Connect — otherwise send them the MAC shown and ask them to bind it.');
+          if($('err'))$('err').textContent=msg;
+          const b=$('macBlock');
+          if(b){b.classList.add('needsAction');try{b.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}}
         },2600);
       }
     }
@@ -3773,15 +3753,13 @@ if($('actEnterGo'))$('actEnterGo').onclick=async()=>{
   startActPoll();
 };
 if($('actSheet'))$('actSheet').onclick=e=>{if(e.target.id==='actSheet'){stopActPoll();$('actSheet').classList.remove('show');}};
-if($('macActBtn'))$('macActBtn').onclick=()=>openMacSheet();
-if($('macClose'))$('macClose').onclick=()=>{$('macSheet').classList.remove('show');};
 if($('macSend'))$('macSend').onclick=sendMacToWhatsApp;
 if($('macCopy'))$('macCopy').onclick=()=>{const m=Media26Portal.normaliseMac(macInputValue())||stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
 if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('macCodeBox');const pos=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=pos;}catch(e){}});
-if($('macCodeBox'))$('macCodeBox').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();connectStalker();}});
-if($('macCheckBtn'))$('macCheckBtn').onclick=()=>connectStalker();
-if($('macPortalUrl'))$('macPortalUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();connectStalker();}});
-if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet'){$('macSheet').classList.remove('show');}};
+/* Remember a hand-typed MAC as soon as the field loses focus, so a seller-issued MAC is already
+   in force by the time Login is tapped — no separate save step to forget. */
+if($('macCodeBox'))$('macCodeBox').addEventListener('blur',()=>{if(!commitLoginMac())paintLoginMac();});
+paintLoginMac();
 if($('xtreamActBtn'))$('xtreamActBtn').onclick=()=>openXtreamSheet();
 if($('xtreamClose'))$('xtreamClose').onclick=()=>$('xtreamSheet').classList.remove('show');
 if($('xtreamGo'))$('xtreamGo').onclick=submitXtreamLogin;
