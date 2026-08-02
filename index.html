@@ -840,6 +840,11 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <span class="la-tx"><b>Connect via MAC Address</b><small>Give your device ID to the admin to activate</small></span>
         <span class="la-ch">›</span>
       </button>
+      <button class="loginAction" id="xtreamActBtn" type="button">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg></span>
+        <span class="la-tx"><b>Login with Username &amp; Password</b><small>Already have a portal, username and password?</small></span>
+        <span class="la-ch">›</span>
+      </button>
     </div>
     <div class="err" id="err"></div>
     <!-- v8.5: manual portal/username/password are no longer shown; kept hidden so activation
@@ -988,6 +993,15 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="actStatus" id="macStatus"><span class="actDot"></span><span id="macStatusTx">Enter your portal URL and tap Connect</span></div>
   <div class="err" id="macErr" style="min-height:0"></div>
 </div></div>
+<div class="episodeSheet" id="xtreamSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Login with Username &amp; Password</h3><button class="iconbtn" id="xtreamClose">×</button></div>
+  <p class="nativeText">Enter the portal URL, username and password your provider gave you.</p>
+  <div class="field nativeField"><label>Portal URL</label><input id="xtreamUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>Username</label><input id="xtreamUser" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>Password</label><input id="xtreamPass" type="password" placeholder="Password" autocomplete="current-password"></div>
+  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Login</button></div>
+  <div class="err" id="xtreamErr" style="min-height:0"></div>
+</div></div>
 <div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Settings</h3><button class="iconbtn" id="homeSetClose">×</button></div>
   <div class="settings-list">
@@ -1047,7 +1061,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='12.9';
+const APP_VERSION='13.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3480,6 +3494,38 @@ function sendMacToWhatsApp(){
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
+/* ── MANUAL XTREAM LOGIN (portal URL + username + password) ─────────────────────────
+   For users who already have full Xtream credentials from their provider — a straight
+   shot at the existing login(), which already handles the Xtream/M3U handshake, saving
+   the session and routing into live TV. This sheet just collects the three fields (the
+   same ones login() reads from the hidden #url/#user/#pass inputs) and calls login()
+   with them directly via its {creds} form, then reflects success/failure locally instead
+   of relying on the background #err text, which can sit behind the open sheet. */
+function openXtreamSheet(){
+  if($('xtreamErr'))$('xtreamErr').textContent='';
+  $('xtreamSheet').classList.add('show');
+  try{$('xtreamUrl').focus();}catch(e){}
+}
+async function submitXtreamLogin(){
+  const url=(($('xtreamUrl')&&$('xtreamUrl').value)||'').trim();
+  const user=(($('xtreamUser')&&$('xtreamUser').value)||'').trim();
+  const pass=(($('xtreamPass')&&$('xtreamPass').value)||'');
+  if($('xtreamErr'))$('xtreamErr').textContent='';
+  if(!url||!user||!pass){if($('xtreamErr'))$('xtreamErr').textContent='Fill in the portal URL, username and password.';return;}
+  const btn=$('xtreamGo');if(btn)btn.disabled=true;
+  if($('xtreamErr'))$('xtreamErr').textContent='Connecting…';
+  try{
+    await login({creds:{portalUrl:url,username:user,password:pass}});
+    if($('login')&&$('login').classList.contains('hidden')){
+      if($('xtreamErr'))$('xtreamErr').textContent='';
+      $('xtreamSheet').classList.remove('show');
+    }else{
+      if($('xtreamErr'))$('xtreamErr').textContent=($('err')&&$('err').textContent)||'Could not connect. Check your details and try again.';
+    }
+  }finally{
+    if(btn)btn.disabled=false;
+  }
+}
 /* ── v9.9 · ONE-STEP ACTIVATION-CODE LOGIN ──────────────────────────────────────
    The customer types ONLY their 8-digit code: this resolves it straight to the
    credentials the admin bound to it and signs in. /api/activate is used on purpose
@@ -3564,6 +3610,11 @@ if($('macCodeBox'))$('macCodeBox').addEventListener('keydown',e=>{if(e.key==='En
 if($('macCheckBtn'))$('macCheckBtn').onclick=()=>connectStalker();
 if($('macPortalUrl'))$('macPortalUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();connectStalker();}});
 if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet'){$('macSheet').classList.remove('show');}};
+if($('xtreamActBtn'))$('xtreamActBtn').onclick=()=>openXtreamSheet();
+if($('xtreamClose'))$('xtreamClose').onclick=()=>$('xtreamSheet').classList.remove('show');
+if($('xtreamGo'))$('xtreamGo').onclick=submitXtreamLogin;
+if($('xtreamPass'))$('xtreamPass').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitXtreamLogin();}});
+if($('xtreamSheet'))$('xtreamSheet').onclick=e=>{if(e.target.id==='xtreamSheet'){$('xtreamSheet').classList.remove('show');}};
 if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairScan'))$('pairScan').onclick=()=>{startQrScan();};
