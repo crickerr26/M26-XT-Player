@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='14.2';
+const APP_VERSION='14.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1613,7 +1613,7 @@ function fullPlaylistCatalog(){
       const r=await fetch(location.origin+'/api/playlist',{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({url:S.url,username:S.user,password:S.pass,variant:'full'})
+        body:JSON.stringify({url:S.url,username:S.user,password:S.pass,variant:'full',mac:stalkerMac()})
       });
       if(!r.ok)return null;
       /* A JSON body is the function's "no playlist / rate-limited / stalker" answer. Nothing to
@@ -1727,7 +1727,11 @@ async function fetchPlaylistViaFunction(base,user,pass){
   const r=await fetch(location.origin+'/api/playlist',{
     method:'POST',
     headers:{'content-type':'application/json'},
-    body:JSON.stringify({url:base,username:user,password:pass})
+    /* v14.3: send the device MAC with the credentials. The reseller creates the line in their
+       panel bound to the MAC this app shows, so a MAC-locked line needs it present to authorise —
+       without it the correct username and password are refused. The worker only uses it if the
+       credentials-only attempt fails, so nothing changes for a panel that is not MAC-locked. */
+    body:JSON.stringify({url:base,username:user,password:pass,mac:stalkerMac()})
   });
   if(!r.ok)return null;                /* endpoint missing/older worker → fall back to the client walk */
   const ct=(r.headers.get('content-type')||'').toLowerCase();

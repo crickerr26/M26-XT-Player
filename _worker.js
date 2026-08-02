@@ -35,6 +35,10 @@ const PRIVATE_HOST = /^(localhost$|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[
    endpoints on seeing one — a browser UA gets a 403 or an HTML error page. Used by both the
    relay (/proxy) and the server-side playlist login (/api/playlist). */
 const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
+/* The set-top-box identity a MAC-locked line expects. Sent only on the MAC pass of the playlist
+   login, alongside the `mac=` cookie, because a panel that binds a line to a MAC generally wants
+   to see the request come from something that looks like a MAG box. */
+const MAG_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
 
 function corsJson(status, data) {
   return new Response(JSON.stringify(data), {
@@ -309,68 +313,100 @@ async function handlePlaylist(request) {
   if (!/^https?:$/.test(baseUrl.protocol)) return corsJson(400, { error: 'Portal url must be http or https' });
   if (PRIVATE_HOST.test(baseUrl.hostname)) return corsJson(403, { error: 'Target host not allowed' });
 
+  /* v14.3: THE DEVICE MAC, sent with the username and password.
+     The product flow is: the app shows a MAC, the reseller creates the line in their panel BOUND
+     to that MAC, and the customer then signs in with a username and password. A MAC-locked line
+     refuses a request that carries no MAC, and until now the playlist login sent none at all —
+     so the one flow the app is built around could not complete. Panels implement the check two
+     ways, so both are sent together on the MAC pass: `&mac=` on the query string, and the MAG
+     `mac=` cookie with a set-top-box User-Agent. Strictly validated, never forwarded verbatim. */
+  const macHex = String(body.mac || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+  const mac = macHex.length === 12 ? macHex.match(/../g).join(':') : '';
+
   const variant = String(body.variant || '').trim().toLowerCase();
   const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant);
   const attempts = [];
+  let sawStalker = false, rejected = 0, limited = 0;
 
-  for (const candidate of candidates) {
+  const label = (target, useMac) =>
+    target.pathname + (target.search ? '?…' : '') + (useMac ? ' +mac' : '');
+
+  /* One candidate, one pass. Returns a Response on success, null to keep going. */
+  const attempt = async (candidate, useMac) => {
     let target;
-    try { target = new URL(candidate); } catch { continue; }
-    if (PRIVATE_HOST.test(target.hostname)) continue;   /* a redirect target could differ from base */
+    try { target = new URL(candidate); } catch { return null; }
+    if (PRIVATE_HOST.test(target.hostname)) return null;   /* a redirect target could differ from base */
+    if (useMac) target.searchParams.set('mac', mac);
+    const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
+    if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
     let upstream;
     try {
-      upstream = await fetch(target.href, {
-        method: 'GET',
-        headers: { 'user-agent': PLAYER_UA, 'accept': '*/*' },
-        redirect: 'follow'
-      });
+      upstream = await fetch(target.href, { method: 'GET', headers, redirect: 'follow' });
     } catch (e) {
-      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), error: String((e && e.message) || e).slice(0, 120) });
-      continue;
+      attempts.push({ endpoint: label(target, useMac), error: String((e && e.message) || e).slice(0, 120) });
+      return null;
     }
     if (!upstream.ok) {
-      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), status: upstream.status });
-      /* A rate-limit or auth rejection is the panel's final answer — walking the remaining
-         candidates just spends more requests against the same limit. */
-      if (upstream.status === 429 || upstream.status === 401 || upstream.status === 403) {
-        return corsJson(200, { ok: false, status: upstream.status, attempts, reason: upstream.status === 429 ? 'rate-limited' : 'rejected' });
-      }
-      continue;
+      attempts.push({ endpoint: label(target, useMac), status: upstream.status });
+      /* 429 is the panel throttling: stop everything, more requests only make it worse.
+         401/403 is a rejection of THIS pass — on a MAC-locked line that is exactly what the
+         credentials-only pass is supposed to get, so it must not end the whole login any more. */
+      if (upstream.status === 429) limited = 429;
+      else if (upstream.status === 401 || upstream.status === 403) rejected = upstream.status;
+      return null;
     }
     let text = '', truncated = false;
     try {
       const read = await readCapped(upstream, MAX_PLAYLIST_BYTES);
       text = read.text; truncated = read.truncated;
     } catch (e) {
-      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), error: 'read failed: ' + String((e && e.message) || e).slice(0, 80) });
-      continue;
+      attempts.push({ endpoint: label(target, useMac), error: 'read failed: ' + String((e && e.message) || e).slice(0, 80) });
+      return null;
     }
     if (!looksLikePlaylist(text)) {
-      /* A Stalker portal is a definite, recognisable answer — stop and say so, rather than
-         spending the remaining candidates (and the panel's rate limit) on endpoints that this
-         product does not implement. */
-      if (looksLikeStalkerPortal(text)) {
-        return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
-      }
+      /* v14.3: a Stalker-looking answer is REMEMBERED, not acted on immediately. Plenty of hosts
+         run a Ministra portal on / AND serve get.php perfectly well; bailing out at the first
+         sight of portal markup meant the remaining playlist endpoints — and the whole MAC pass —
+         were never tried, and the user was pushed into a MAC handshake instead of simply being
+         logged in. It is only the answer if nothing else produces a playlist. */
+      if (looksLikeStalkerPortal(text)) { sawStalker = true; return null; }
       /* Report WHAT came back instead of just "not a playlist" — an HTML challenge page, a login
          form or a panel error message are all diagnosable, and all look identical without this. */
       attempts.push({
-        endpoint: target.pathname + (target.search ? '?…' : ''),
+        endpoint: label(target, useMac),
         status: upstream.status,
         error: 'not an M3U playlist',
         got: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
       });
-      continue;
+      return null;
     }
-    const headers = withCors(new Headers({
+    const headersOut = withCors(new Headers({
       'content-type': 'audio/x-mpegurl; charset=utf-8',
       'cache-control': 'no-store',
       'x-m26-source': target.origin + target.pathname,
       'x-m26-truncated': truncated ? '1' : '0'
     }));
-    headers.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
-    return new Response(text, { status: 200, headers });
+    headersOut.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
+    return new Response(text, { status: 200, headers: headersOut });
+  };
+
+  /* Pass 1: credentials only — identical to what has always worked, same endpoints, same order,
+     same request count for any panel that answers. */
+  for (const candidate of candidates) {
+    const ok = await attempt(candidate, false);
+    if (ok) return ok;
+    if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
   }
+  /* Pass 2: the same endpoints again, now carrying the device MAC. Only reached when pass 1
+     produced nothing, so a working login never spends these requests. */
+  if (mac) {
+    for (const candidate of candidates) {
+      const ok = await attempt(candidate, true);
+      if (ok) return ok;
+      if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
+    }
+  }
+  if (rejected) return corsJson(200, { ok: false, status: rejected, attempts, reason: 'rejected' });
 
   /* No playlist endpoint answered. Before giving up, make ONE deliberate probe of the base URL to
      identify what kind of server this actually is. This is a diagnostic, not another playlist
@@ -384,20 +420,19 @@ async function handlePlaylist(request) {
       headers: { 'user-agent': PLAYER_UA, 'accept': 'text/html,*/*' },
       redirect: 'follow'
     });
-    const body = (await readCapped(probe, 256 * 1024)).text;
-    if (looksLikeStalkerPortal(body)) {
-      return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
-    }
-    if (/^\s*(<!doctype\s+html|<html\b)/i.test(body)) {
+    const probeBody = (await readCapped(probe, 256 * 1024)).text;
+    if (looksLikeStalkerPortal(probeBody)) sawStalker = true;
+    else if (/^\s*(<!doctype\s+html|<html\b)/i.test(probeBody)) {
       attempts.push({
         endpoint: '/ (probe)', status: probe.status, error: 'served a web page, not a playlist',
-        got: body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
+        got: probeBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
       });
     }
   } catch (e) {
     attempts.push({ endpoint: '/ (probe)', error: String((e && e.message) || e).slice(0, 120) });
   }
 
+  if (sawStalker) return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
   return corsJson(200, { ok: false, reason: 'no-playlist', attempts });
 }
 

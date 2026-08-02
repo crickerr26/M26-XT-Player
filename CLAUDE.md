@@ -9,8 +9,8 @@ fail silently when it is missed.
 
 | What | Where | How to bump |
 |---|---|---|
-| App version | `index.html` — `const APP_VERSION='14.2';` | +0.1 (`14.1` → `14.2` → `14.3`) |
-| Service-worker cache | `sw.js` — `const CACHE = 'media26-shell-v80';` | +1 (`v79` → `v80`) |
+| App version | `index.html` — `const APP_VERSION='14.3';` | +0.1 (`14.2` → `14.3` → `14.4`) |
+| Service-worker cache | `sw.js` — `const CACHE = 'media26-shell-v81';` | +1 (`v80` → `v81`) |
 
 **Why each one matters**
 
@@ -24,7 +24,7 @@ fail silently when it is missed.
   makes `activate` delete the previous bucket. Leave it alone and the old shell
   can be served from cache offline/first-paint.
 
-`APP_VERSION` is also printed in player error messages (`(v14.2)`), which is how
+`APP_VERSION` is also printed in player error messages (`(v14.3)`), which is how
 a user's screenshot tells you which build they are actually running — another
 reason it must be truthful.
 
