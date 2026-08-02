@@ -27,7 +27,15 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
 .recActions .recBtn.primary{border:0;color:#04111e;background:linear-gradient(135deg,var(--blue),var(--green))}
 .recClose{position:absolute;top:50%;transform:translateY(-50%);right:6px;width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.08);color:var(--muted);font-size:14px;line-height:1;display:grid;place-items:center;border:0;cursor:pointer}
 .recClose:hover{background:rgba(255,255,255,.16);color:var(--ink)}
-@media(max-width:760px){.recBanner{padding:6px 30px 6px 8px;gap:7px}.recBanner .recIcon{width:22px;height:22px;font-size:11px}.recBanner h3{font-size:10.5px}.recBanner p{font-size:9.5px}.recActions .recBtn{height:24px;font-size:9.5px;padding:0 8px}}.hero h3{font-size:20px;margin-bottom:4px}.hero p{font-size:12px;color:var(--muted);line-height:1.4}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border-radius:14px;background:var(--panel2);border:1px solid var(--line);padding:10px;text-align:center}.stat strong{display:block;font-size:18px}.stat span{font-size:10px;color:var(--muted);font-weight:800}.details{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;color:var(--muted);font-size:13px;line-height:1.5;padding-right:4px}.login{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:18px;background:radial-gradient(circle at 15% 14%,rgba(56,189,248,.12),transparent 36%),radial-gradient(circle at 86% 18%,rgba(191,138,242,.10),transparent 32%),linear-gradient(160deg,#eef1f7,#e6ebf3)}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.recBanner{padding:6px 30px 6px 8px;gap:7px}.recBanner .recIcon{width:22px;height:22px;font-size:11px}.recBanner h3{font-size:10.5px}.recBanner p{font-size:9.5px}.recActions .recBtn{height:24px;font-size:9.5px;padding:0 8px}}.hero h3{font-size:20px;margin-bottom:4px}.hero p{font-size:12px;color:var(--muted);line-height:1.4}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border-radius:14px;background:var(--panel2);border:1px solid var(--line);padding:10px;text-align:center}.stat strong{display:block;font-size:18px}.stat span{font-size:10px;color:var(--muted);font-weight:800}.details{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;color:var(--muted);font-size:13px;line-height:1.5;padding-right:4px}/* v15.2: the sign-in overlay MUST be able to scroll. It was a fixed, centred grid with no
+   overflow, and the card inside it has grown to ~1400px — more than twice a phone screen. A
+   centred box taller than its container overflows equally off the top AND the bottom, so the
+   heading and the last options were simply unreachable: pinch-zooming out was the only way to
+   see them. Centring is kept for the desktop case via auto margins on the card, which absorb
+   free space when there is any and collapse to zero when there is not, so tall content starts
+   at the top and scrolls normally instead of being clipped. */
+.login{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:18px;padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom));background:radial-gradient(circle at 15% 14%,rgba(56,189,248,.12),transparent 36%),radial-gradient(circle at 86% 18%,rgba(191,138,242,.10),transparent 32%),linear-gradient(160deg,#eef1f7,#e6ebf3)}
+.login-card{margin-top:auto;margin-bottom:auto;flex-shrink:0}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1120px){.layout{grid-template-columns:290px 1fr}.info{display:none}.main{grid-template-rows:minmax(240px,44vh) auto auto minmax(0,1fr)}}
 @media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
@@ -342,6 +350,31 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .home-card{flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:210px;gap:16px}
   .hc-arrow{position:absolute;right:18px;top:18px}
 }
+/* v15.2: the home hub was the ONE screen with no phone breakpoint — every other view has had
+   one for years. Desktop proportions (106px cards, 64px icons, 22px titles, 26px gaps) left the
+   three cards filling an entire phone screen, so the heading and the Log out button were pushed
+   to the edges. These are the same proportions the rest of the app already uses on phones. */
+@media(max-width:760px){
+  .home-inner{gap:16px}
+  .home-brand{width:52px;height:52px;border-radius:16px;margin-bottom:10px}
+  .home-head h1{font-size:clamp(19px,5.4vw,24px)}
+  .home-head p{font-size:12px;margin-top:4px}
+  .home-cards{gap:10px}
+  .home-card{min-height:74px;padding:12px 13px;gap:12px;border-radius:16px;box-shadow:0 10px 24px rgba(0,0,0,.3)}
+  .hc-ic{width:44px;height:44px;border-radius:13px}
+  .hc-ic svg{width:25px;height:25px}
+  .hc-txt b{font-size:17px}
+  .hc-txt small{font-size:11.5px}
+  .hc-arrow{font-size:19px}
+  .home-exit{height:38px;padding:0 20px;font-size:13px}
+}
+@media(max-width:380px){
+  .home-card{min-height:66px;padding:10px 11px;gap:10px}
+  .hc-ic{width:38px;height:38px;border-radius:11px}
+  .hc-ic svg{width:22px;height:22px}
+  .hc-txt b{font-size:15.5px}
+  .hc-txt small{font-size:11px}
+}
 body.light .home{background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.2),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),linear-gradient(160deg,#eef5ff,#e4edfb)}
 body.light .home-head h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 body.light .home-head p{color:#5a6f90}
@@ -622,6 +655,37 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .macHint{margin:9px 0 0;font-size:11.5px;line-height:1.45;color:#6b7f9c;font-weight:600}
 .macBlock.needsAction{border-color:#e0813a;background:#fdf4ec;box-shadow:0 0 0 3px rgba(224,129,58,.12)}
 @media(max-width:760px){.macCode{font-size:19px;letter-spacing:2px;padding:13px 4px}}
+/* v15.2: phone sizing for the sign-in card. It now carries six routes plus the MAC block and the
+   code entry, and at desktop padding that came to roughly twice a phone screen. These must sit
+   AFTER the base .loginAction/.macBlock rules above — an equal-specificity rule declared earlier
+   loses regardless of the media query, which is why an identical block placed further up the
+   file had no effect at all. The two-line wrap on the longer labels is what drove the height, so
+   the type scale comes down with the padding. */
+@media(max-width:760px){
+  .login{padding:12px;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .login-card{padding:16px;border-radius:20px}
+  .login-card h2{font-size:19px}
+  .loginLead{margin:10px 0 2px!important;font-size:12.5px;line-height:1.45}
+  .loginActions{gap:8px;margin-top:12px}
+  .loginAction{padding:10px 12px;gap:11px;border-radius:14px}
+  .loginAction .la-ic{width:34px;height:34px;border-radius:10px}
+  .loginAction .la-ic svg{width:19px;height:19px}
+  .la-tx b{font-size:13.5px;line-height:1.25}
+  .la-tx small{font-size:10.5px;line-height:1.3}
+  .la-ch{font-size:15px}
+  .macBlock{padding:11px;border-radius:14px;margin:0 0 12px}
+  .macBlock label{font-size:11px;margin:0 0 6px}
+  .macBlock .macActions{gap:7px;margin-top:7px}
+  .macBlock .macActions .pillbtn{height:34px;font-size:12px}
+  .macHint{font-size:10.5px;margin-top:7px;line-height:1.4}
+}
+@media(max-width:380px){
+  .loginAction{padding:9px 10px;gap:9px}
+  .loginAction .la-ic{width:30px;height:30px}
+  .loginAction .la-ic svg{width:17px;height:17px}
+  .la-tx b{font-size:12.5px}
+  .la-tx small{font-size:10px}
+}
 .macActions{display:flex;gap:8px;margin-top:2px}
 .macActions .pillbtn{flex:1}
 /* login: "Ask the admin" request link */
@@ -1105,7 +1169,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='15.1';
+const APP_VERSION='15.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
