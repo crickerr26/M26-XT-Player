@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.7';
+const APP_VERSION='13.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1594,13 +1594,23 @@ async function loadType(type){
     if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass)await loadTypeFromApi(type);
     return;
   }
-  /* Stalker/MAG portals only expose live TV through this flow (no VOD/series in the current
-     scope) — the channel list was already fetched once at connect time via get_all_channels, so
-     every tab just reflects what's already in S.live/S.vod/S.series. */
+  /* Live came from get_all_channels at connect time. Movies and series live behind a separate
+     paged endpoint on a MAG portal, so they are fetched the first time their tab is asked for —
+     lazily, because that catalogue can be thousands of titles and these portals rate-limit. */
   if(S.source==='stalker'){
-    if(type==='live'){S.loadedLive=true;S.loadingLive=false;}
-    else if(type==='vod'){S.loadedVod=true;S.loadingVod=false;}
-    else{S.loadedSeries=true;S.loadingSeries=false;}
+    if(type==='live'){S.loadedLive=true;S.loadingLive=false;renderAll();updateHomeCounts&&updateHomeCounts();return;}
+    const already=type==='vod'?S.vod.length:S.series.length;
+    const busy=type==='vod'?S.loadingVod:S.loadingSeries;
+    if(!already&&!busy){
+      if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
+      renderAll();
+      try{ await (type==='vod'?stalkerLoadVod():stalkerLoadSeries()); }catch(e){}
+      if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
+    }
+    if(type==='vod')S.loadedVod=true;else S.loadedSeries=true;
+    const n=(type==='vod'?S.vod:S.series).length;
+    const cid=type==='vod'?'vodCount':'seriesCount';
+    if($(cid))$(cid).textContent=n.toLocaleString();
     renderAll();updateHomeCounts&&updateHomeCounts();
     return;
   }
@@ -1793,7 +1803,11 @@ function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)==
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
 async function openEpisodePicker(x){load(true,'Loading episodes...');try{/* v12.4: a playlist has no per-series endpoint — its episodes were collected at parse time
      and travel with the show, so the picker opens instantly and without a request. */
-  const d=(S.source==='m3u'&&x&&x._m3uEpisodes)?{episodes:x._m3uEpisodes}:await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
+  /* A Stalker season carries its episode numbers with it (see stalkerLoadSeries), so like the
+     playlist case the picker opens with no extra request. */
+  const d=(x&&x._stalkerEpisodes)?{episodes:x._stalkerEpisodes}
+    :(S.source==='m3u'&&x&&x._m3uEpisodes)?{episodes:x._m3uEpisodes}
+    :await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url||ep._stalkerCmd);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
 /* v7.4: each episode row = tap the row to play in the Media26 built-in player (fast, optimistic
    start), plus a VLC button to open that episode in VLC. */
 $('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div><button class="epvlc qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button><button class="epvlc qp qp-km" type="button" data-kmep="${i}" title="Open in KMPlayer" aria-label="Open in KMPlayer">${playerLogo('km')}</button></div>`).join('');
@@ -2291,6 +2305,13 @@ async function playItemBasic(x){
     }
     /* and the transcoder as the final safety net, exactly as the Xtream live path has */
     try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(transcoderInput(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.push({kind:'hls',url:tlu});}}catch(e){}
+  }else if(x._stalkerCmd&&x.direct_source){
+    /* A Stalker movie or episode: create_link just handed back the real file URL, and there is no
+       Xtream stream_id behind it, so the usual directUrl() cascade has nothing to build from and
+       would only burn attempts on dead URLs. Play the resolved link, then the transcoder. */
+    const raw=String(x.direct_source).trim(),durl=wrap(raw);
+    plans=[{kind:/\.m3u8(?:$|\?)/i.test(raw)?'hls':'native',url:durl}];
+    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(transcoderInput(x),'fastvod');if(tlu)plans.push({kind:'hls',url:tlu});}}catch(e){}
   }else if(live){
     const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
     /* v66: LIGHTNING-FAST live start. mpegts.js on the raw continuous .ts opens ONE connection
@@ -2735,6 +2756,14 @@ function plan(x){
       if(alt!==raw)add('hls','Panel HLS',blocked(alt)?proxyUrl(alt):alt);
     }
     addTrans('Live',raw);
+    return p;
+  }
+  /* Same for a Stalker movie/episode — the resolved link is all there is to play. */
+  if(type!=='live'&&x._stalkerCmd&&x.direct_source){
+    const raw=String(x.direct_source).trim();
+    const durl=blocked(raw)?proxyUrl(raw):raw;
+    add(/\.m3u8(?:$|\?)/i.test(raw)?'hls':'native','Direct',durl);
+    addTrans('Movie',raw);
     return p;
   }
   if(type==='live'){
@@ -3584,14 +3613,110 @@ async function stalkerLogin(base,mac){
   const norm=Media26Portal.stalkerChannelsToApp(chList,genres);
   return {base,mac,endpoint,token,live:norm.live,liveCats:norm.liveCats};
 }
-/* A Stalker channel's "cmd" is not a URL — it must be exchanged for a real stream link via
-   create_link, and that link is typically one-shot/short-lived, so this resolves it fresh right
-   before every play attempt (never cached beyond the current playback) instead of once at login. */
+/* ── STALKER VOD & SERIES ────────────────────────────────────────────────────────────
+   Live TV arrives in one get_all_channels call, but a MAG portal serves movies and series
+   through a different, PAGED endpoint (get_ordered_list) — which is why Live filled with
+   thousands of entries while Movies and Series sat at zero: nothing was ever asking for them.
+   Both are fetched lazily, only when their tab is first opened, and page by page with a hard
+   cap: a catalogue can run to thousands of titles, and these portals sit behind rate limiters
+   that punish a burst of requests. Each page is merged and rendered as it lands, so the tab
+   fills progressively instead of staying blank until the very last request returns. */
+const STALKER_MAX_PAGES=40;
+async function stalkerPaged(kind,params,onPage){
+  const st=S.stalker;if(!st)return [];
+  const out=[];
+  for(let p=1;p<=STALKER_MAX_PAGES;p++){
+    let r=null;
+    try{ r=await stalkerJson(st.endpoint,st.mac,st.token,Object.assign({type:kind,action:'get_ordered_list',p:String(p),JsHttpRequest:'1-xml'},params)); }
+    catch(e){ break; }
+    const js=r&&r.js;
+    const data=(js&&(js.data||js))||[];
+    if(!Array.isArray(data)||!data.length)break;
+    out.push(...data);
+    if(onPage)try{onPage(out);}catch(e){}
+    const total=Number(js&&js.total_items)||0;
+    const per=Number(js&&js.max_page_items)||data.length;
+    if(!total||!per||p*per>=total)break;
+  }
+  return out;
+}
+function stalkerCats(list,byId,prefix,fallback){
+  const cats=new Map();
+  list.forEach(it=>{
+    const cid=String(it.category_id||it.cat_genre_id_1||'0');
+    if(!cats.has(prefix+cid))cats.set(prefix+cid,{category_id:prefix+cid,category_name:byId.get(cid)||fallback});
+  });
+  return Array.from(cats.values());
+}
+async function stalkerLoadVod(){
+  const st=S.stalker;if(!st)return;
+  const catRes=await stalkerJson(st.endpoint,st.mac,st.token,{type:'vod',action:'get_categories',JsHttpRequest:'1-xml'}).catch(()=>null);
+  const byId=new Map();((catRes&&catRes.js)||[]).forEach(c=>byId.set(String(c.id),c.title||c.name||'Movies'));
+  const adopt=(list)=>{
+    S.vod=list.map((it,i)=>({
+      _type:'vod',
+      stream_id:'stv'+String(it.id||i),
+      name:it.name||it.o_name||it.title||'Untitled',
+      stream_icon:it.screenshot_uri||it.pic||'',
+      category_id:'stv'+String(it.category_id||'0'),
+      category_name:byId.get(String(it.category_id))||'Movies',
+      container_extension:'mp4',
+      plot:it.description||'',director:it.director||'',cast:it.actors||'',genre:it.genres_str||'',
+      _stalkerCmd:Media26Portal.stalkerStreamCmd(it)
+    }));
+    S.vodCats=stalkerCats(list,byId,'stv','Movies');
+    renderAll();updateHomeCounts&&updateHomeCounts();
+  };
+  const all=await stalkerPaged('vod',{category:'*',sortby:'added'},adopt);
+  if(all.length)adopt(all);
+}
+async function stalkerLoadSeries(){
+  const st=S.stalker;if(!st)return;
+  const catRes=await stalkerJson(st.endpoint,st.mac,st.token,{type:'series',action:'get_categories',JsHttpRequest:'1-xml'}).catch(()=>null);
+  const byId=new Map();((catRes&&catRes.js)||[]).forEach(c=>byId.set(String(c.id),c.title||c.name||'Series'));
+  const adopt=(list)=>{
+    S.series=list.map((it,i)=>{
+      const cmd=Media26Portal.stalkerStreamCmd(it);
+      /* A Stalker season carries its episode NUMBERS in `series`; each one is played by
+         replaying the season's cmd with that number, so the episode list needs no extra call. */
+      const nums=Array.isArray(it.series)?it.series:[];
+      const cover=it.screenshot_uri||it.pic||'';
+      return {
+        _type:'series',
+        series_id:'sts'+String(it.id||i),
+        name:it.name||it.o_name||it.title||'Untitled',
+        cover:cover,stream_icon:cover,
+        category_id:'sts'+String(it.category_id||'0'),
+        category_name:byId.get(String(it.category_id))||'Series',
+        plot:it.description||'',
+        _stalkerEpisodes:nums.map(n=>({
+          _type:'series',episode_id:'ste'+String(it.id||i)+'_'+n,
+          name:'Episode '+n,title:'Episode '+n,episode_num:n,
+          stream_icon:cover,container_extension:'mp4',
+          _stalkerCmd:cmd,_stalkerEpisode:n
+        }))
+      };
+    });
+    S.seriesCats=stalkerCats(list,byId,'sts','Series');
+    renderAll();updateHomeCounts&&updateHomeCounts();
+  };
+  const all=await stalkerPaged('series',{category:'*',sortby:'added'},adopt);
+  if(all.length)adopt(all);
+}
+/* A Stalker "cmd" is not a URL — it must be exchanged for a real stream link via create_link,
+   and that link is typically one-shot/short-lived, so this resolves it fresh right before every
+   play attempt (never cached beyond the current playback) instead of once at login. Live uses
+   type=itv; movies and series episodes use type=vod, with the episode number passed as `series`
+   so one season cmd can address every episode under it. */
 async function stalkerResolve(x){
   if(!S.stalker||!x||!x._stalkerCmd)return '';
   try{
     const st=S.stalker;
-    const r=await stalkerJson(st.endpoint,st.mac,st.token,{type:'itv',action:'create_link',cmd:x._stalkerCmd,JsHttpRequest:'1-xml'});
+    const live=typeOf(x)==='live';
+    const params={type:live?'itv':'vod',action:'create_link',cmd:x._stalkerCmd,JsHttpRequest:'1-xml'};
+    if(!live&&x._stalkerEpisode!=null)params.series=String(x._stalkerEpisode);
+    if(!live)params.forced_storage='undefined',params.disable_ad='0';
+    const r=await stalkerJson(st.endpoint,st.mac,st.token,params);
     const raw=r&&r.js&&(r.js.cmd||r.js.url)||'';
     const url=Media26Portal.stalkerStreamCmd({cmd:raw});
     if(url)x.direct_source=url;
@@ -3606,12 +3731,19 @@ function adoptStalkerSession(res){
   S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
   S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
   S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
-  S.vod=[];S.vodCats=[];S.loadedVod=true;S.loadingVod=false;
-  S.series=[];S.seriesCats=[];S.loadedSeries=true;S.loadingSeries=false;
+  /* Movies and series are NOT marked loaded here — they live behind a different, paged endpoint
+     and are fetched below. Claiming they were already loaded is what left both tabs reading
+     "0 titles" forever: loadType saw nothing left to do and never asked the portal for them. */
+  S.vod=[];S.vodCats=[];S.loadedVod=false;S.loadingVod=false;
+  S.series=[];S.seriesCats=[];S.loadedSeries=false;S.loadingSeries=false;
   try{localStorage.setItem('m26_stk',JSON.stringify({url:res.base,mac:res.mac}));}catch(e){}
   if($('login'))$('login').classList.add('hidden');
   showHome();keepTranscoderWarm();
   renderAll();updateHomeCounts();
+  /* Fetch them in the background so the home tiles show real counts without the user having to
+     open each tab first. Failure is silent — the tab is simply empty, as before. */
+  loadType('vod').catch(()=>{});
+  loadType('series').catch(()=>{});
 }
 /* The MAC lives on the login screen now, so it just needs to be shown and kept in sync — there
    is no separate connect step here any more. Whatever MAC ends up in the box (auto-generated, or
