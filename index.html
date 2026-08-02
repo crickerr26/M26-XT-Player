@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.7';
+const APP_VERSION='13.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1407,7 +1407,7 @@ async function login(opts){
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
   if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
   else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
-  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');S.source='xtream';S.m3u=null;
+  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');S.source='xtream';S.m3u=null;resetFullCatalog();
   /* v13.2: THE PLAYLIST LEADS. Until now login opened with player_api.php and only fell back to
      the M3U playlist once that failed — but fetchJsonChain sweeps five relay candidates across
      three rounds at ~20s each, so on a panel that throttles or simply doesn't answer player_api
@@ -1470,7 +1470,10 @@ async function login(opts){
   catch(e){$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
-function updateHomeCounts(){if($('homeLiveCount'))$('homeLiveCount').textContent=(S.live.length||0).toLocaleString();if($('homeVodCount'))$('homeVodCount').textContent=(S.vod.length||0).toLocaleString();if($('homeSeriesCount'))$('homeSeriesCount').textContent=(S.series.length||0).toLocaleString();}
+/* v13.8: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
+   the app is mid-fetch reads as "this account has no movies", which is the wrong answer and the
+   one thing the user cannot tell apart from a real failure. */
+function updateHomeCounts(){const n=(v,busy)=>(busy&&!v)?'…':(v||0).toLocaleString();if($('homeLiveCount'))$('homeLiveCount').textContent=n(S.live.length,S.loadingLive);if($('homeVodCount'))$('homeVodCount').textContent=n(S.vod.length,S.loadingVod);if($('homeSeriesCount'))$('homeSeriesCount').textContent=n(S.series.length,S.loadingSeries);}
 function showHome(){updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
    (All / Favorites / Recently Played + every category with its count + a favorite star).
@@ -1565,6 +1568,13 @@ const TYPE_API={live:['get_live_categories','get_live_streams','liveCount'],vod:
    when the M3U gave us live channels but no movies/series, which is how most panels behave.
    Failure is silent by design — the tab simply stays empty, exactly as it is today, and the
    already-loaded live channels are never disturbed. */
+/* Keep the parsed-playlist record in step with whatever a fallback source produced, so the tab
+   survives being re-opened (loadType re-seeds every tab from S.m3u on each call). */
+function adoptIntoPlaylist(type,cats,arr){
+  if(S.source!=='m3u'||!S.m3u)return;
+  if(type==='vod'){S.m3u.vod=arr;S.m3u.vodCats=cats||[];}
+  else if(type==='series'){S.m3u.series=arr;S.m3u.seriesCats=cats||[];}
+}
 async function loadTypeFromApi(type){
   const [catA,strmA,countId]=TYPE_API[type];
   try{
@@ -1574,9 +1584,65 @@ async function loadTypeFromApi(type){
     const arr=s.map(x=>({...x,_type:type}));
     if(type==='vod'){S.vodCats=c||[];S.vod=arr;S.loadedVod=true;}
     else{S.seriesCats=c||[];S.series=arr;S.loadedSeries=true;}
+    /* v13.8: fold the result back into the parsed playlist. loadType() re-seeds each tab FROM
+       S.m3u every time it runs, so without this a second visit to Movies (or the "Load movies"
+       button) wiped the titles we had just fetched and started the whole hunt again. */
+    adoptIntoPlaylist(type,type==='vod'?S.vodCats:S.seriesCats,arr);
     if($(countId))$(countId).textContent=arr.length.toLocaleString();
     renderAll();updateHomeCounts&&updateHomeCounts();
   }catch(e){}
+}
+/* v13.8: THE SECOND SOURCE FOR MOVIES & SERIES. Login deliberately fetches the compact,
+   live-oriented playlist (get.php…&output=ts) because that is the document panels serve most
+   dependably — but on plenty of panels it carries live channels only. loadTypeFromApi then asks
+   player_api.php for the missing tabs, which works when the panel exposes that API; on a panel
+   that has it disabled, throttled, or simply never answers it, Movies and Series stayed at zero
+   forever even though the very same get.php serves the whole catalogue under a different query.
+   So ask for it: one background request for the FULL playlist, parsed with the same parser, and
+   ONLY its vod/series buckets are adopted — the live list the session already holds is
+   authoritative and is never touched. The request is made at most once per session (both tabs
+   share this promise), and any failure is silent: the tabs are left exactly as they were. */
+let _fullCatalogPromise=null;
+function resetFullCatalog(){_fullCatalogPromise=null;}
+function fullPlaylistCatalog(){
+  if(_fullCatalogPromise)return _fullCatalogPromise;
+  _fullCatalogPromise=(async()=>{
+    if(typeof Media26Portal==='undefined')return null;
+    if(!SAME_ORIGIN_PROXY||!S.url||!S.user)return null;   /* needs our own function + credentials */
+    try{
+      const r=await fetch(location.origin+'/api/playlist',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({url:S.url,username:S.user,password:S.pass,variant:'full'})
+      });
+      if(!r.ok)return null;
+      /* A JSON body is the function's "no playlist / rate-limited / stalker" answer. Nothing to
+         adopt, and nothing to report — the user is already watching live TV. */
+      if(/json/.test((r.headers.get('content-type')||'').toLowerCase()))return null;
+      const text=await r.text();
+      if(!Media26Portal.looksLikeM3U(text))return null;
+      return Media26Portal.parseM3U(text);
+    }catch(e){return null}
+  })().then(p=>{
+    /* Only a SUCCESS is cached. A failed attempt must be retryable, because the empty-tab screen
+       offers a "Load movies" button and that button has to be able to actually try again. Two
+       tabs asking at the same moment still share one in-flight request — the reset happens after
+       it settles, not before. */
+    if(!p)_fullCatalogPromise=null;
+    return p;
+  });
+  return _fullCatalogPromise;
+}
+async function loadTypeFromFullPlaylist(type){
+  const p=await fullPlaylistCatalog();
+  if(!p)return;
+  const arr=type==='vod'?p.vod:p.series;
+  if(!arr||!arr.length)return;
+  if(type==='vod'){S.vodCats=p.vodCats;S.vod=arr;S.loadedVod=true;}
+  else{S.seriesCats=p.seriesCats;S.series=arr;S.loadedSeries=true;}
+  adoptIntoPlaylist(type,type==='vod'?p.vodCats:p.seriesCats,arr);
+  if($(type==='vod'?'vodCount':'seriesCount'))$(type==='vod'?'vodCount':'seriesCount').textContent=arr.length.toLocaleString();
+  renderAll();updateHomeCounts&&updateHomeCounts();
 }
 async function loadType(type){
   /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it. */
@@ -1591,7 +1657,24 @@ async function loadType(type){
        them. When a tab comes back empty from the playlist, ask the panel's own VOD/series
        endpoints for that ONE tab (we already hold the username and password). Live is never
        re-fetched this way: it came from the playlist and is authoritative. */
-    if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass)await loadTypeFromApi(type);
+    if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass){
+      /* v13.8: mark the tab as LOADING while the fallbacks run. Without this the Home card read a
+         flat "0 titles" and the category page offered a "Load movies" button the whole time the
+         app was already busy fetching them — which is exactly what a working app looks like when
+         it looks broken. */
+      if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
+      renderAll();updateHomeCounts&&updateHomeCounts();
+      try{
+        await loadTypeFromApi(type);
+        /* If the panel's own API had nothing to say either, ask its get.php for the full
+           catalogue. Between the two, a tab now only stays empty when the account genuinely has
+           no films or shows. */
+        if(!(type==='vod'?S.vod:S.series).length)await loadTypeFromFullPlaylist(type);
+      }finally{
+        if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
+        renderAll();updateHomeCounts&&updateHomeCounts();
+      }
+    }
     return;
   }
   /* Stalker/MAG portals only expose live TV through this flow (no VOD/series in the current
@@ -2281,13 +2364,30 @@ async function playItemBasic(x){
     plans=isM3u8
       ?[{kind:'hls',url:durl}].concat(tsOk?[{kind:'mpegts',url:durl}]:[])
       :(tsOk?[{kind:'mpegts',url:durl},{kind:'hls',url:durl}]:[{kind:'hls',url:durl}]);
+    /* v13.8: THE FIX FOR "the playlist doesn't play in the built-in player". wrap() only sends a
+       link through our relay when the browser is FORBIDDEN to fetch it (http panel, https page).
+       On an https panel — and on any panel that answers a browser User-Agent with a 403 — the
+       browser was left to fetch the stream itself, and since mpegts.js and hls.js read it with
+       fetch/XHR, a panel that returns no CORS headers (nearly all of them do not) failed the very
+       first read. The channel then looked dead, while VLC played the identical URL fine. Push the
+       same URL through our own relay as a fallback: it adds the CORS headers, sends the player
+       User-Agent the panel expects, and streams the body through untouched. */
+    const relay=proxyUrl(raw);
+    if(relay!==durl){
+      if(!isM3u8&&tsOk)plans.push({kind:'mpegts',url:relay});
+      plans.push({kind:'hls',url:relay});
+      if(isM3u8&&tsOk)plans.push({kind:'mpegts',url:relay});
+    }
     /* v13.3: a playlist channel is usually the extensionless Xtream form
        (http://host/user/pass/12345). The SAME stream is normally also served as HLS at
        .../live/user/pass/12345.m3u8, which is the route Safari can hardware-decode when
        mpegts.js can't handle the codec — so add it rather than dead-ending on one engine. */
     if(!isM3u8){
       const alt=raw.replace(/^(https?:\/\/[^/]+)\/(?!live\/)([^/]+\/[^/]+\/\d+)$/i,'$1/live/$2.m3u8');
-      if(alt!==raw){const au=wrap(alt);if(!plans.some(p=>p.url===au))plans.push({kind:'hls',url:au});}
+      if(alt!==raw){
+        const au=wrap(alt);if(!plans.some(p=>p.url===au))plans.push({kind:'hls',url:au});
+        const ar=proxyUrl(alt);if(!plans.some(p=>p.url===ar))plans.push({kind:'hls',url:ar});
+      }
     }
     /* and the transcoder as the final safety net, exactly as the Xtream live path has */
     try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(transcoderInput(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.push({kind:'hls',url:tlu});}}catch(e){}
@@ -2344,7 +2444,13 @@ async function playItemBasic(x){
        slow "converting" step and, when it eventually gave up, dropped users onto the app-chooser — so
        normal titles that the browser CAN play were being sent the slow way round. If a title truly
        can't decode, we fall to the external-app option quickly instead of converting. */
-    const mp4u=wrap(directUrl(x,'mp4')),m3u=wrap(directUrl(x,'m3u8')),tsu=wrap(directUrl(x,'ts')),lcu=wrap(directUrl(x,cont));
+    /* v13.8: a title that came from an M3U playlist has no Xtream stream_id — its id is our own
+       'm3u_<n>' — so every directUrl() below would build .../movie/user/pass/m3u_12.mp4, which the
+       panel can only 404. Those dead routes were burning up to 12 seconds EACH before the one real
+       route was reached, which is why a playlist film sat on "Loading" and then gave up. The
+       playlist link IS the file, so use it as the container route and drop the Xtream-only forms. */
+    const fromPlaylist=!!direct&&/^m3u_/.test(String(idOf(x)));
+    const mp4u=fromPlaylist?'':wrap(directUrl(x,'mp4')),m3u=fromPlaylist?'':wrap(directUrl(x,'m3u8')),tsu=fromPlaylist?'':wrap(directUrl(x,'ts')),lcu=fromPlaylist?wrap(direct):wrap(directUrl(x,cont));
     /* the transcoder repackage URL (fastvod = copy video, no slow re-encode) if a transcoder is set */
     let transUrl='';try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function')transUrl=transcodeUrl(transcoderInput(x),'fastvod')||'';}catch(e){}
     /* v5.0: NATIVE FIRST for everything. Proof: these "mkv" titles play the instant they're
@@ -2366,7 +2472,14 @@ async function playItemBasic(x){
     quickVerdict=UNPLAYABLE.test(cont)&&!hasTrans;   /* only decide fast when there is NO transcoder at all */
     plans=[];
     const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
-    if(direct){const du=wrap(direct);addv(du.includes('.m3u8')?'hls':'native',du);}
+    if(direct){
+      const du=wrap(direct),isH=/\.m3u8(?:$|\?)/i.test(direct);
+      addv(isH?'hls':'native',du);
+      /* Same relay fallback as live: an https panel is fetched by the browser itself, and one that
+         sends no CORS headers (or blocks a browser User-Agent) fails that read. The relay adds
+         both, and also stamps a playable Content-Type on files the panel labels octet-stream. */
+      const dr=proxyUrl(direct);if(dr!==du)addv(isH?'hls':'native',dr);
+    }
     if(UNPLAYABLE.test(cont)){
       /* hard container (MKV/AVI/…). One native shot for mislabeled-but-playable files, then the
          transcoder. v9.1: TWO transcoder routes so MKV plays in the built-in player on ANY device:
@@ -2728,11 +2841,19 @@ function plan(x){
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
     if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
     else{if(tsOk)add('mpegts','Direct TS',durl);add('hls','Direct HLS',durl);}
+    /* v13.8: the relay is a FALLBACK for a playlist link, not merely a mixed-content workaround.
+       blocked() only routes an http panel on an https page through it — so on an https panel the
+       browser fetched the link itself, and because mpegts.js and hls.js read the stream with
+       fetch/XHR, a panel that sends no CORS headers (which is nearly all of them) failed the read
+       outright. The same URL through our own relay comes back with CORS headers and a player
+       User-Agent, so add it whenever it isn't already the primary. */
+    const relay=proxyUrl(raw);
+    if(relay!==durl){if(tsOk)add('mpegts','TS Relay',relay);add('hls','HLS Relay',relay);}
     /* v13.3: same HLS sibling as playItemBasic — the extensionless playlist form of an Xtream
        channel is also served as .../live/user/pass/id.m3u8, which Safari can decode natively. */
     if(!isM3u8){
       const alt=raw.replace(/^(https?:\/\/[^/]+)\/(?!live\/)([^/]+\/[^/]+\/\d+)$/i,'$1/live/$2.m3u8');
-      if(alt!==raw)add('hls','Panel HLS',blocked(alt)?proxyUrl(alt):alt);
+      if(alt!==raw){add('hls','Panel HLS',blocked(alt)?proxyUrl(alt):alt);add('hls','Panel HLS Relay',proxyUrl(alt));}
     }
     addTrans('Live',raw);
     return p;

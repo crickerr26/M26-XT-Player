@@ -510,8 +510,16 @@ function relayFetch(target, req, res, hops) {
     return json(res, 403, { error: 'Target host not allowed' });
   }
   const mod = t.protocol === 'https:' ? https : http;
+  /* Match the Cloudflare relay (_worker.js): panels are built for set-top boxes and many of them
+     answer a browser User-Agent with a 403 or an HTML error page on their stream endpoints, which
+     the media engines can only report as a generic network failure. Ask as a player instead;
+     `&ua=browser` opts back in. */
+  let uaMode = '';
+  try { uaMode = new URL(req.url, 'http://x').searchParams.get('ua') || ''; } catch (e) {}
   const headers = {
-    'user-agent': req.headers['user-agent'] || 'Mozilla/5.0',
+    'user-agent': uaMode === 'browser'
+      ? (req.headers['user-agent'] || 'Mozilla/5.0')
+      : 'VLC/3.0.20 LibVLC/3.0.20',
     accept: req.headers.accept || '*/*'
   };
   if (req.headers.range) headers.range = req.headers.range;

@@ -30,6 +30,12 @@ function withCors(headers) {
    http(s) targets are allowed. */
 const PRIVATE_HOST = /^(localhost$|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1?\]|\[f[cd])/i;
 
+/* The User-Agent every upstream request to a panel carries. IPTV panels are built for set-top
+   boxes and media players, and a great many of them gate their playlist AND their stream
+   endpoints on seeing one — a browser UA gets a 403 or an HTML error page. Used by both the
+   relay (/proxy) and the server-side playlist login (/api/playlist). */
+const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
+
 function corsJson(status, data) {
   return new Response(JSON.stringify(data), {
     status,
@@ -78,7 +84,17 @@ async function handleProxy(request) {
     return corsJson(403, { error: 'Target host not allowed' });
   }
   const headers = new Headers();
-  headers.set('user-agent', request.headers.get('user-agent') || 'Mozilla/5.0');
+  /* v13.8: ask the panel as a PLAYER, not as a browser. Xtream panels routinely refuse a generic
+     browser User-Agent on their stream endpoints — they answer 403, or an HTML error page that the
+     media engines report as a plain network failure — which is precisely why /api/playlist has
+     always sent a player UA. The relay, however, was still forwarding the browser's own UA, so a
+     playlist that downloaded perfectly produced channels that would not open in the built-in
+     player. Send the same player UA here. `&ua=browser` opts back in when a target needs it. */
+  const qs = new URL(request.url).searchParams;
+  const uaMode = qs.get('ua') || '';
+  headers.set('user-agent', uaMode === 'browser'
+    ? (request.headers.get('user-agent') || 'Mozilla/5.0')
+    : PLAYER_UA);
   headers.set('accept', request.headers.get('accept') || '*/*');
   const range = request.headers.get('range');
   if (range) headers.set('range', range);
@@ -89,7 +105,6 @@ async function handleProxy(request) {
      instead passes the MAC/token as query params here, which this worker validates strictly
      (never forwarded verbatim — CRLF/header injection is not possible) and turns into the real
      MAG headers server-side before contacting the panel. */
-  const qs = new URL(request.url).searchParams;
   if (qs.get('stb') === '1') {
     const mac = qs.get('mac') || '';
     if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(mac)) {
@@ -182,7 +197,6 @@ async function handleProxy(request) {
 
    Credentials arrive in a POST body, never in the query string, so they stay out of URLs,
    referrers and edge logs. */
-const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
 const MAX_PLAYLIST_BYTES = 48 * 1024 * 1024;
 
 /* Read a response body up to a byte cap WITHOUT buffering the whole thing first. A full-catalogue
@@ -213,13 +227,28 @@ async function readCapped(response, max) {
   return { text: out, truncated };
 }
 
-function playlistCandidates(base, user, pass) {
+function playlistCandidates(base, user, pass, variant) {
   const b = String(base || '').trim().replace(/\/+$/, '');
   if (!b) return [];
   const u = encodeURIComponent(user || ''), p = encodeURIComponent(pass || '');
   /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
   if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
   if (!user) return [b];
+  /* v13.8: the FULL-CATALOGUE variant, asked for separately and only once the user is already
+     signed in and watching. Login still leads with the compact live-oriented document (below) —
+     that ordering is what made logins reliable and must not change. But when that document turns
+     out to hold no films or shows, Movies and Series were left permanently empty on any panel
+     whose player_api is closed or throttled, even though its own get.php serves the whole
+     catalogue. Asking for that document as a deliberate follow-up request costs the login
+     nothing: it happens in the background, and a failure just leaves the tabs as they were. */
+  if (variant === 'full') {
+    return [
+      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
+      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=m3u8',
+      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
+      b + '/playlist/' + u + '/' + p + '/m3u_plus'
+    ];
+  }
   /* Order by what RELIABLY ANSWERS, not by what carries the most content. v13.3 briefly led with
      plain type=m3u_plus to pick up movies/series in one document, and that broke logins that had
      been working: on a big panel that variant is the entire catalogue — often far larger than a
@@ -227,7 +256,9 @@ function playlistCandidates(base, user, pass) {
      against a panel that throttles. The &output=ts variant is the compact, live-oriented document
      these panels serve dependably, so it leads again. Movies and Series no longer depend on this
      choice at all: when the playlist has none, the app asks the panel's own VOD/series endpoints
-     for those tabs (see loadTypeFromApi), which is the more reliable source anyway. */
+     for those tabs (see loadTypeFromApi) and, failing that, re-requests this endpoint with
+     variant:'full' in the background (see fullPlaylistCatalog) — neither of which can delay or
+     break the login. */
   /* NOTE: the bare base URL is deliberately NOT a candidate once we hold credentials. A bare GET
      on / can only ever return the panel's landing page — on a Stalker/Ministra host that is the
      portal's HTML, which is exactly the confusing "the panel answered / with HTTP 200 —
@@ -278,7 +309,8 @@ async function handlePlaylist(request) {
   if (!/^https?:$/.test(baseUrl.protocol)) return corsJson(400, { error: 'Portal url must be http or https' });
   if (PRIVATE_HOST.test(baseUrl.hostname)) return corsJson(403, { error: 'Target host not allowed' });
 
-  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password);
+  const variant = String(body.variant || '').trim().toLowerCase();
+  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant);
   const attempts = [];
 
   for (const candidate of candidates) {
