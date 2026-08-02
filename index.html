@@ -264,6 +264,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .qp{height:34px;min-width:44px;padding:0 10px;border-radius:9px;font-size:11px;font-weight:900;color:#fff;border:0;display:inline-flex;align-items:center;justify-content:center;letter-spacing:.2px}
 .qp:active{transform:scale(.9)}
 .qpico{width:20px;height:20px;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
+.qp-here{background:linear-gradient(135deg,#12d0e6,#0ea5b7)}
 .qp-vlc{background:linear-gradient(135deg,#ff8f1c,#e85d04)}
 .qp-km{background:linear-gradient(135deg,#8b5cf6,#5b6cf0)}
 .qp-infuse{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
@@ -1061,7 +1062,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.2';
+const APP_VERSION='13.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1540,6 +1541,23 @@ function backToCategories(){showCategories(S.tab,true);}
    empty. Now each type is its own request set, loaded sequentially, and also loadable ON DEMAND
    when the user opens that tab — so a tab always fills, even if the background pass missed it. */
 const TYPE_API={live:['get_live_categories','get_live_streams','liveCount'],vod:['get_vod_categories','get_vod_streams','vodCount'],series:['get_series_categories','get_series','seriesCount']};
+/* v13.3: fetch ONE tab from the panel's API and merge it into a playlist-backed session. Used
+   when the M3U gave us live channels but no movies/series, which is how most panels behave.
+   Failure is silent by design — the tab simply stays empty, exactly as it is today, and the
+   already-loaded live channels are never disturbed. */
+async function loadTypeFromApi(type){
+  const [catA,strmA,countId]=TYPE_API[type];
+  try{
+    const c=await getJson(catA).catch(()=>null);
+    const s=await getJson(strmA).catch(()=>null);
+    if(!Array.isArray(s)||!s.length)return;
+    const arr=s.map(x=>({...x,_type:type}));
+    if(type==='vod'){S.vodCats=c||[];S.vod=arr;S.loadedVod=true;}
+    else{S.seriesCats=c||[];S.series=arr;S.loadedSeries=true;}
+    if($(countId))$(countId).textContent=arr.length.toLocaleString();
+    renderAll();updateHomeCounts&&updateHomeCounts();
+  }catch(e){}
+}
 async function loadType(type){
   /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it. */
   if(S.source==='m3u'&&S.m3u){
@@ -1548,6 +1566,12 @@ async function loadType(type){
     else if(type==='vod'){S.vodCats=p.vodCats;S.vod=p.vod;S.loadedVod=true;S.loadingVod=false;}
     else{S.seriesCats=p.seriesCats;S.series=p.series;S.loadedSeries=true;S.loadingSeries=false;}
     renderAll();updateHomeCounts&&updateHomeCounts();
+    /* v13.3: a lot of panels serve a LIVE-ONLY playlist from get.php — Live TV fills with
+       thousands of channels while Movies and Series stay empty, even though the account has
+       them. When a tab comes back empty from the playlist, ask the panel's own VOD/series
+       endpoints for that ONE tab (we already hold the username and password). Live is never
+       re-fetched this way: it came from the playlist and is authoritative. */
+    if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass)await loadTypeFromApi(type);
     return;
   }
   /* Stalker/MAG portals only expose live TV through this flow (no VOD/series in the current
@@ -1720,7 +1744,13 @@ function playerLogo(mode){
    episodes, not the series card. */
 function rowPlayerButtons(key,type){
   if(type==='series')return'';
-  return '<button class="qp qp-vlc" type="button" data-play="vlc" data-key="'+key+'" title="Open in VLC" aria-label="Open in VLC">'+playerLogo('vlc')+'</button>'+
+  /* v13.3: every row leads with PLAY HERE — the in-app player. Until now the only buttons on a
+     row were VLC and KMPlayer, so the quickest tap always left the app; the built-in player was
+     reachable only by tapping the title text, which is not discoverable. The external players
+     stay, one tap away, but they are no longer the only visible option. */
+  return '<button class="qp qp-here" type="button" data-play="basic" data-key="'+key+'" title="Play here in the app" aria-label="Play here in the app">'+
+         '<svg class="qpico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg></button>'+
+         '<button class="qp qp-vlc" type="button" data-play="vlc" data-key="'+key+'" title="Open in VLC" aria-label="Open in VLC">'+playerLogo('vlc')+'</button>'+
          '<button class="qp qp-km" type="button" data-play="km" data-key="'+key+'" title="Open in KMPlayer" aria-label="Open in KMPlayer">'+playerLogo('km')+'</button>';
 }
 function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
@@ -2215,6 +2245,16 @@ async function playItemBasic(x){
     plans=isM3u8
       ?[{kind:'hls',url:durl}].concat(tsOk?[{kind:'mpegts',url:durl}]:[])
       :(tsOk?[{kind:'mpegts',url:durl},{kind:'hls',url:durl}]:[{kind:'hls',url:durl}]);
+    /* v13.3: a playlist channel is usually the extensionless Xtream form
+       (http://host/user/pass/12345). The SAME stream is normally also served as HLS at
+       .../live/user/pass/12345.m3u8, which is the route Safari can hardware-decode when
+       mpegts.js can't handle the codec — so add it rather than dead-ending on one engine. */
+    if(!isM3u8){
+      const alt=raw.replace(/^(https?:\/\/[^/]+)\/(?!live\/)([^/]+\/[^/]+\/\d+)$/i,'$1/live/$2.m3u8');
+      if(alt!==raw){const au=wrap(alt);if(!plans.some(p=>p.url===au))plans.push({kind:'hls',url:au});}
+    }
+    /* and the transcoder as the final safety net, exactly as the Xtream live path has */
+    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(transcoderInput(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.push({kind:'hls',url:tlu});}}catch(e){}
   }else if(live){
     const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
     /* v66: LIGHTNING-FAST live start. mpegts.js on the raw continuous .ts opens ONE connection
@@ -2652,6 +2692,12 @@ function plan(x){
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
     if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
     else{if(tsOk)add('mpegts','Direct TS',durl);add('hls','Direct HLS',durl);}
+    /* v13.3: same HLS sibling as playItemBasic — the extensionless playlist form of an Xtream
+       channel is also served as .../live/user/pass/id.m3u8, which Safari can decode natively. */
+    if(!isM3u8){
+      const alt=raw.replace(/^(https?:\/\/[^/]+)\/(?!live\/)([^/]+\/[^/]+\/\d+)$/i,'$1/live/$2.m3u8');
+      if(alt!==raw)add('hls','Panel HLS',blocked(alt)?proxyUrl(alt):alt);
+    }
     addTrans('Live',raw);
     return p;
   }

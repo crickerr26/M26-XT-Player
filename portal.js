@@ -36,16 +36,26 @@
   /* Which tab a playlist entry belongs in. The URL path is decisive when a panel uses the usual
      /live/ /movie/ /series/ layout; otherwise fall back to what the group is called, and treat
      anything with a file extension that is not a live container as on-demand. */
-  function classify(url, group) {
+  /* SxxExx / 1x03 / "Season 2" in a TITLE means an episode even when the group says nothing —
+     plenty of playlists dump series into generic groups, and without this they all landed in
+     Live TV. Checked against the name only, never the URL (stream ids contain bare digits). */
+  const EPISODE_RE = /(^|[\s\-–_.\[(])(s\s?\d{1,2}\s?[ex]\s?\d{1,3}|\d{1,2}x\d{1,3}|season\s*\d+|episode\s*\d+)([\s\-–_.\])]|$)/i;
+
+  function classify(url, group, name) {
     const u = String(url || '').toLowerCase();
+    /* Path segment is the strongest signal: Xtream serves /live/, /movie/ and /series/. */
     if (/\/series\//.test(u)) return 'series';
-    if (/\/movies?\//.test(u)) return 'vod';
+    if (/\/(movies?|vod)\//.test(u)) return 'vod';
     if (/\/live\//.test(u)) return 'live';
     const g = String(group || '').toLowerCase();
-    if (/\bseries\b|\bshow(s)?\b|\btv[ -]?show/.test(g)) return 'series';
-    if (/\bvod\b|\bmovie(s)?\b|\bfilm(s)?\b|\bcinema\b/.test(g)) return 'vod';
+    const n = String(name || '');
+    if (/\bseries\b|\bshow(s)?\b|\btv[ -]?show|\bseason(s)?\b|\bepisode(s)?\b|\banime\b|\bdrama(s)?\b/.test(g)) return 'series';
+    if (/\bvod\b|\bmovie(s)?\b|\bfilm(s)?\b|\bcinema\b|\bpelicula|\bfilme(s)?\b/.test(g)) return 'vod';
+    /* A file extension that isn't a live container means on-demand. Do this BEFORE the episode
+       heuristic so a live channel merely named "Season Sports 1" is not mistaken for a show. */
     const e = extOf(u);
-    if (e && !/^(ts|m3u8|mpd)$/.test(e)) return 'vod';
+    if (e && !/^(ts|m3u8|mpd)$/.test(e)) return EPISODE_RE.test(n) ? 'series' : 'vod';
+    if (EPISODE_RE.test(n)) return 'series';
     return 'live';
   }
 
@@ -85,7 +95,7 @@
       if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(line)) { pending = null; continue; }
 
       const url = line;
-      const type = classify(url, pending.group);
+      const type = classify(url, pending.group, pending.name);
       const group = pending.group || (type === 'live' ? 'Live' : type === 'vod' ? 'Movies' : 'Series');
       const catId = 'g' + group.toLowerCase().replace(/[^a-z0-9]+/g, '_');
       if (!catMaps[type].has(catId)) catMaps[type].set(catId, { category_id: catId, category_name: group });
