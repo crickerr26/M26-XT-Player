@@ -82,6 +82,25 @@ async function handleProxy(request) {
   headers.set('accept', request.headers.get('accept') || '*/*');
   const range = request.headers.get('range');
   if (range) headers.set('range', range);
+  /* Stalker/Ministra (MAG portal) auth: portal.php only recognises a request as coming from the
+     set-top box when it carries a MAG user-agent, an X-User-Agent model string, and a `mac=`
+     cookie — none of which a browser fetch() can set cross-origin (Cookie is a forbidden header
+     name, and custom headers would need a CORS preflight the panel doesn't answer). The client
+     instead passes the MAC/token as query params here, which this worker validates strictly
+     (never forwarded verbatim — CRLF/header injection is not possible) and turns into the real
+     MAG headers server-side before contacting the panel. */
+  const qs = new URL(request.url).searchParams;
+  if (qs.get('stb') === '1') {
+    const mac = qs.get('mac') || '';
+    if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(mac)) {
+      return corsJson(400, { error: 'Invalid or missing mac for stb=1' });
+    }
+    const token = (qs.get('token') || '').trim();
+    headers.set('user-agent', 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3');
+    headers.set('x-user-agent', 'Model: MAG250; Link: WiFi');
+    headers.set('cookie', 'mac=' + mac.toUpperCase() + '; stb_lang=en; timezone=UTC');
+    if (token && /^[\w.\-]{1,256}$/.test(token)) headers.set('authorization', 'Bearer ' + token);
+  }
   let upstream;
   try {
     upstream = await fetch(target.href, { method: request.method, headers, redirect: 'follow' });

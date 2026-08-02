@@ -976,14 +976,15 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 </div></div>
 <div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Connect via MAC Address</h3><button class="iconbtn" id="macClose">×</button></div>
-  <p class="nativeText">This is your device's unique ID. Give it to your IPTV admin — they'll assign your username, password and server to it in their admin panel. Once they do, tap <b>Check Activation</b> (or just wait — it checks automatically).</p>
-  <div class="macCode" id="macCodeBox">— — — — — —</div>
+  <p class="nativeText">This is your device's unique MAC address. Give it to your IPTV provider — they'll bind it to your subscription in their admin panel. Then enter your provider's portal URL below and tap Connect.</p>
+  <div class="macCode" id="macCodeBox">00:1A:79:00:00:00</div>
   <div class="macActions nativeActions" style="margin-top:2px">
-    <button class="pillbtn" id="macCopy" type="button">Copy</button>
+    <button class="pillbtn" id="macCopy" type="button">Copy MAC</button>
     <button class="pillbtn primary" id="macSend" type="button"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>WhatsApp</button>
   </div>
-  <div class="nativeActions" style="margin-top:8px"><button class="pillbtn primary" id="macCheckBtn" type="button" style="width:100%">Check Activation</button></div>
-  <div class="actStatus" id="macStatus"><span class="actDot"></span><span id="macStatusTx">Waiting for the admin to activate…</span></div>
+  <div class="field nativeField" style="margin-top:12px"><label>Provider portal URL</label><input id="macPortalUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url"></div>
+  <div class="nativeActions" style="margin-top:8px"><button class="pillbtn primary" id="macCheckBtn" type="button" style="width:100%">Connect</button></div>
+  <div class="actStatus" id="macStatus"><span class="actDot"></span><span id="macStatusTx">Enter your portal URL and tap Connect</span></div>
   <div class="err" id="macErr" style="min-height:0"></div>
 </div></div>
 <div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
@@ -1045,7 +1046,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='12.6';
+const APP_VERSION='12.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1505,6 +1506,16 @@ async function loadType(type){
     renderAll();updateHomeCounts&&updateHomeCounts();
     return;
   }
+  /* Stalker/MAG portals only expose live TV through this flow (no VOD/series in the current
+     scope) — the channel list was already fetched once at connect time via get_all_channels, so
+     every tab just reflects what's already in S.live/S.vod/S.series. */
+  if(S.source==='stalker'){
+    if(type==='live'){S.loadedLive=true;S.loadingLive=false;}
+    else if(type==='vod'){S.loadedVod=true;S.loadingVod=false;}
+    else{S.loadedSeries=true;S.loadingSeries=false;}
+    renderAll();updateHomeCounts&&updateHomeCounts();
+    return;
+  }
   const [catA,strmA,countId]=TYPE_API[type];
   if(type==='live')S.loadingLive=true;else if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
   renderAll();
@@ -1877,6 +1888,7 @@ function gateExtButtons(ms,label){
   tick();
 }
 async function playItemExternal(x,mode,armed){
+  if(x&&x._stalkerCmd)await stalkerResolve(x);
   setCurrentItem(x);cleanup();
   /* v40: cleanup() just bumped S.seq — capture it as this launch's token. Any NEWER play
      request (another tap, "Play here instead", a different channel) bumps S.seq again, so
@@ -2066,6 +2078,7 @@ async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.ad
    (the VLC model) where MSE exists, else plain hls.js / native HLS on the .m3u8, with ONE
    fallback step before start. Select it per category in Stream Tools ("Basic player"). */
 async function playItemBasic(x){
+  if(x&&x._stalkerCmd)await stalkerResolve(x);
   setCurrentItem(x);cleanup();
   const token=S.seq,v=$('video'),live=typeOf(x)==='live';
   $('extActions').classList.add('hidden');
@@ -2106,7 +2119,15 @@ async function playItemBasic(x){
   const tsOk=!!(window.mpegts&&mpegts.isSupported());
   const isApple=/iphone|ipad|ipod/i.test(navigator.userAgent||''),is4k=/\b(4k|uhd)\b/i.test(nameOf(x));
   let plans;let quickVerdict=false;
-  if(live){
+  if(live&&x.direct_source){
+    /* Same direct-link case as plan() above: M3U entries and resolved Stalker channels carry a
+       real URL already, not an Xtream stream_id, so build the plan straight from it. */
+    const raw=String(x.direct_source).trim(),durl=wrap(raw);
+    const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
+    plans=isM3u8
+      ?[{kind:'hls',url:durl}].concat(tsOk?[{kind:'mpegts',url:durl}]:[])
+      :(tsOk?[{kind:'mpegts',url:durl},{kind:'hls',url:durl}]:[{kind:'hls',url:durl}]);
+  }else if(live){
     const ts=wrap(directUrl(x,'ts')),m3=wrap(directUrl(x,'m3u8'));
     /* v66: LIGHTNING-FAST live start. mpegts.js on the raw continuous .ts opens ONE connection
        and shows the first frame almost immediately — no playlist fetch, no per-segment
@@ -2532,6 +2553,20 @@ function plan(x){
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
   const addTrans=(label,url,front=false)=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(url,profile);if(t)add('hls',label+' Transcoded',t,front)};
+  /* A live item can already carry a resolved playable URL instead of an Xtream stream_id — M3U
+     playlist entries always do (parsed straight off the .m3u), and Stalker/MAG channels do once
+     stalkerResolve() has exchanged their one-shot "cmd" for a real link. Xtream's own directUrl()
+     cascade below does not apply to either, so use the direct link as-is. */
+  if(type==='live'&&x.direct_source){
+    const raw=String(x.direct_source).trim();
+    const durl=blocked(raw)?proxyUrl(raw):raw;
+    const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
+    const tsOk=!!(window.mpegts&&mpegts.isSupported());
+    if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
+    else{if(tsOk)add('mpegts','Direct TS',durl);add('hls','Direct HLS',durl);}
+    addTrans('Live',raw);
+    return p;
+  }
   if(type==='live'){
     const m3u8=directUrl(x,'m3u8'),ts=directUrl(x,'ts'),ext=orig&&orig!=='m3u8'?directUrl(x,orig):'';
     /* FIX (root cause, provider-confirmed): this account's own Xtream API reports
@@ -3209,7 +3244,7 @@ function downloadCurrent(){
   document.body.appendChild(a);a.click();a.remove();
   toast('Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden')};
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden')};
 /* v4.1: share-profile wiring */
 if($('shareOpenBtn'))$('shareOpenBtn').onclick=()=>openShare();
 if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove('show');
@@ -3301,78 +3336,111 @@ async function sendActToWhatsApp(){
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
-/* ── MAC-ADDRESS DEVICE ACTIVATION ───────────────────────────────────────────────────
-   Same idea as the 8-digit activation code, in the format IPTV/STB portals conventionally
-   use for device identification: this device generates a unique, PERSISTENT MAC-formatted
-   ID, the admin binds the real IPTV login to it on the admin dashboard, and this device polls
-   /api/activate (the SAME endpoint the numeric-code flow uses — the server accepts either
-   format transparently) until the admin has activated it, then signs in silently. Kept as a
-   fully separate storage key + poll timer from the numeric flow so the two can never collide
-   or interfere with each other, even if a device happens to hold both at once. */
-const MAC_RE=/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
-var _macMem='';
-function genLocalMac(){
-  /* Locally-administered, unicast MAC (IEEE 802: first octet bit0=0, bit1=1) — guaranteed to never
-     collide with a real vendor's hardware address, since this is a virtual device identifier. */
-  let bytes;try{bytes=new Uint8Array(6);crypto.getRandomValues(bytes);}catch(e){bytes=Array.from({length:6},()=>Math.floor(Math.random()*256));}
-  bytes[0]=(bytes[0]&0xfe)|0x02;
-  return Array.from(bytes).map(b=>('0'+b.toString(16)).slice(-2).toUpperCase()).join(':');
+/* ── STALKER / MINISTRA (MAG PORTAL) MAC AUTHENTICATION ──────────────────────────────
+   Real Smart-STB-style device auth, matching how Stalker/Ministra panels (Infomir MAG,
+   Smart STB, Eagle, Star, Smart4K) actually work: this device generates and displays a
+   persistent, MAG-format virtual MAC address; the user gives that MAC to their IPTV
+   provider, who binds it to a subscription on the PROVIDER'S OWN admin panel (nothing to
+   do with Media26's backend); the user then enters that provider's portal URL here and
+   taps Connect, which performs the real portal.php handshake for that MAC against that
+   URL and, on success, loads the live channel list straight into the app. Every request
+   is routed through the Cloudflare Worker's /proxy (stb=1&mac=&token=) so the MAG-specific
+   headers (User-Agent, X-User-Agent, Cookie, Authorization) can be set — a browser fetch()
+   cannot set a Cookie header cross-origin itself. */
+function stalkerMac(){
+  let m;try{m=localStorage.getItem('m26_stkmac');}catch(e){}
+  m=(typeof Media26Portal!=='undefined')?Media26Portal.normaliseMac(m):'';
+  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem('m26_stkmac',m);}catch(e){}}
+  return m;
 }
-function macCodeGet(create){
-  let c;try{c=localStorage.getItem('m26_devmac');}catch(e){}
-  if(!c||!MAC_RE.test(c))c=_macMem;
-  if((!c||!MAC_RE.test(c))&&create){c=genLocalMac();_macMem=c;try{localStorage.setItem('m26_devmac',c);}catch(e){}}
-  return c||'';
-}
-function setMacCode(m){_macMem=m;try{localStorage.setItem('m26_devmac',m);}catch(e){}}
 function macFmt(m){return String(m||'').toUpperCase();}
-let _macPoll=0,_macBusy=false;
-function stopMacPoll(){if(_macPoll){clearInterval(_macPoll);_macPoll=0;}}
 function macSetStatus(kind,text){const s=$('macStatus');if(s)s.className='actStatus'+(kind?(' '+kind):'');if($('macStatusTx'))$('macStatusTx').textContent=text;}
-async function pollMacOnce(){
-  if(_macBusy)return;const mac=macCodeGet(false);const dev=deviceUid();if(!MAC_RE.test(mac))return;
-  _macBusy=true;
+function stalkerProxyUrl(url,mac,token){
+  return PROXY+encodeURIComponent(url)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):'');
+}
+async function stalkerJson(endpoint,mac,token,params){
+  const u=endpoint+(endpoint.indexOf('?')>=0?'&':'?')+Media26Portal.stalkerQuery(params);
+  const r=await fetch(stalkerProxyUrl(u,mac,token),{headers:{'Accept':'application/json'}});
+  if(!r.ok)throw new Error('Portal returned HTTP '+r.status);
+  return r.json().catch(()=>null);
+}
+async function stalkerHandshake(base,mac){
+  let lastErr=null;
+  for(const ep of Media26Portal.stalkerEndpoints(base)){
+    try{
+      const hs=await stalkerJson(ep,mac,'',{type:'stb',action:'handshake',token:'',JsHttpRequest:'1-xml'});
+      const token=hs&&hs.js&&hs.js.token;
+      if(!token)continue;
+      /* get_profile registers the device with the portal — most panels expect this before the
+         token is treated as fully authorised, and it surfaces "MAC not found" quickly. */
+      await stalkerJson(ep,mac,token,{type:'stb',action:'get_profile',hd:'1',stb_type:'MAG250',image_version:'218',JsHttpRequest:'1-xml'}).catch(()=>null);
+      return {endpoint:ep,token};
+    }catch(e){lastErr=e;}
+  }
+  throw lastErr||new Error('Could not reach that portal');
+}
+async function stalkerLogin(base){
+  const mac=stalkerMac();
+  const {endpoint,token}=await stalkerHandshake(base,mac);
+  const genresRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_genres',JsHttpRequest:'1-xml'}).catch(()=>null);
+  const genres=(genresRes&&genresRes.js)||[];
+  const chRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_all_channels',JsHttpRequest:'1-xml'});
+  const chList=(chRes&&chRes.js&&(chRes.js.data||chRes.js))||[];
+  if(!Array.isArray(chList)||!chList.length)throw new Error('The portal accepted this MAC but returned no channels — ask your provider to confirm it is bound to an active subscription.');
+  const norm=Media26Portal.stalkerChannelsToApp(chList,genres);
+  return {base,mac,endpoint,token,live:norm.live,liveCats:norm.liveCats};
+}
+/* A Stalker channel's "cmd" is not a URL — it must be exchanged for a real stream link via
+   create_link, and that link is typically one-shot/short-lived, so this resolves it fresh right
+   before every play attempt (never cached beyond the current playback) instead of once at login. */
+async function stalkerResolve(x){
+  if(!S.stalker||!x||!x._stalkerCmd)return '';
   try{
-    const {j}=await actApi('/api/activate',{code:mac,deviceId:dev});
-    const st=(j&&j.status)||'';
-    if(st==='active'&&j.portalUrl&&j.username){
-      stopMacPoll();macSetStatus('ok','Activated! Loading your playlist…');
-      if($('macSheet'))$('macSheet').classList.remove('show');
-      try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}
-      catch(e){macSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
-    }else if(st==='blocked'){
-      stopMacPoll();macSetStatus('bad','This device ID is blocked — it was used on too many devices. Contact the admin.');
-    }else if(st==='expired'||st==='disabled'){
-      stopMacPoll();macSetStatus('bad','This device ID is '+st+'. Contact the admin.');
-    }else{
-      macSetStatus('','Waiting for the admin to activate…');
-    }
-  }catch(e){macSetStatus('','Waiting for the admin to activate…');}
-  finally{_macBusy=false;}
+    const st=S.stalker;
+    const r=await stalkerJson(st.endpoint,st.mac,st.token,{type:'itv',action:'create_link',cmd:x._stalkerCmd,JsHttpRequest:'1-xml'});
+    const raw=r&&r.js&&(r.js.cmd||r.js.url)||'';
+    const url=Media26Portal.stalkerStreamCmd({cmd:raw});
+    if(url)x.direct_source=url;
+    return url;
+  }catch(e){return '';}
 }
-function startMacPoll(){stopMacPoll();pollMacOnce();_macPoll=setInterval(pollMacOnce,4000);}
-/* Get this device's MAC: reuse the stored one, else ask the server for a GUARANTEED-UNIQUE one
-   (so two devices can never collide), falling back to a local generator if offline. */
-async function allocMac(){
-  let m=macCodeGet(false);
-  if(MAC_RE.test(m))return m;
-  try{const {j}=await actApi('/api/newmac',{deviceId:deviceUid()});if(j&&j.code&&MAC_RE.test(j.code)){setMacCode(j.code);return j.code;}}catch(e){}
-  return macCodeGet(true);
-}
-async function openMacSheet(){
+async function connectStalker(){
+  const input=$('macPortalUrl');
+  const base=normalize((input&&input.value)||'');
   if($('macErr'))$('macErr').textContent='';
-  macSetStatus('','Getting your device ID…');
-  if($('macCodeBox'))$('macCodeBox').textContent='— — — — — —';
-  $('macSheet').classList.add('show');
-  const mac=await allocMac();
-  if($('macCodeBox'))$('macCodeBox').textContent=macFmt(mac);
-  macSetStatus('','Waiting for the admin to activate…');
-  try{await actApi('/api/request',{code:mac,deviceId:deviceUid()});}catch(e){}
-  startMacPoll();
+  if(!base){macSetStatus('bad','Enter your provider\'s portal URL.');return;}
+  macSetStatus('','Connecting…');
+  const btn=$('macCheckBtn');if(btn)btn.disabled=true;
+  try{
+    const res=await stalkerLogin(base);
+    S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
+    S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
+    S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
+    S.vod=[];S.vodCats=[];S.loadedVod=true;S.series=[];S.seriesCats=[];S.loadedSeries=true;
+    try{localStorage.setItem('m26_stk',JSON.stringify({url:res.base,mac:res.mac}));}catch(e){}
+    macSetStatus('ok','Connected! Loading channels…');
+    if($('macSheet'))$('macSheet').classList.remove('show');
+    $('login').classList.add('hidden');showHome();keepTranscoderWarm();
+    renderAll();updateHomeCounts();
+    toast('Connected — '+res.live.length+' channels loaded');
+  }catch(e){
+    macSetStatus('bad',(e&&e.message)||'Could not connect to that portal.');
+  }finally{
+    if(btn)btn.disabled=false;
+  }
 }
-async function sendMacToWhatsApp(){
-  let mac=macCodeGet(false);if(!MAC_RE.test(mac))mac=await allocMac();
-  const msg='Hi Inzi, please activate my Media26 XT Player.\nMy device ID (MAC): '+macFmt(mac);
+function openMacSheet(){
+  if($('macErr'))$('macErr').textContent='';
+  const mac=stalkerMac();
+  if($('macCodeBox'))$('macCodeBox').textContent=macFmt(mac);
+  let saved=null;try{saved=JSON.parse(localStorage.getItem('m26_stk')||'null');}catch(e){}
+  if(saved&&saved.url&&$('macPortalUrl'))$('macPortalUrl').value=saved.url;
+  macSetStatus('','Enter your portal URL and tap Connect');
+  $('macSheet').classList.add('show');
+}
+function sendMacToWhatsApp(){
+  const mac=stalkerMac();
+  const msg='Hi, please bind my device to my IPTV subscription.\nMy device MAC address: '+macFmt(mac);
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
@@ -3452,11 +3520,12 @@ if($('actEnterGo'))$('actEnterGo').onclick=async()=>{
 };
 if($('actSheet'))$('actSheet').onclick=e=>{if(e.target.id==='actSheet'){stopActPoll();$('actSheet').classList.remove('show');}};
 if($('macActBtn'))$('macActBtn').onclick=()=>openMacSheet();
-if($('macClose'))$('macClose').onclick=()=>{stopMacPoll();$('macSheet').classList.remove('show');};
+if($('macClose'))$('macClose').onclick=()=>{$('macSheet').classList.remove('show');};
 if($('macSend'))$('macSend').onclick=sendMacToWhatsApp;
-if($('macCopy'))$('macCopy').onclick=()=>{const m=macCodeGet(false);if(!m)return;try{navigator.clipboard.writeText(macFmt(m));toast('Device ID copied');}catch(e){toast(macFmt(m));}};
-if($('macCheckBtn'))$('macCheckBtn').onclick=()=>{macSetStatus('','Checking…');pollMacOnce();};
-if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet'){stopMacPoll();$('macSheet').classList.remove('show');}};
+if($('macCopy'))$('macCopy').onclick=()=>{const m=stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
+if($('macCheckBtn'))$('macCheckBtn').onclick=()=>connectStalker();
+if($('macPortalUrl'))$('macPortalUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();connectStalker();}});
+if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet'){$('macSheet').classList.remove('show');}};
 if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairScan'))$('pairScan').onclick=()=>{startQrScan();};
@@ -3469,7 +3538,7 @@ if($('homeSetClose'))$('homeSetClose').onclick=()=>$('homeSetSheet').classList.r
 if($('setShare'))$('setShare').onclick=()=>{$('homeSetSheet').classList.remove('show');openShare()};
 if($('setReceive'))$('setReceive').onclick=()=>{$('homeSetSheet').classList.remove('show');openPairSheet('')};
 if($('setStream'))$('setStream').onclick=()=>{$('homeSetSheet').classList.remove('show');openNativePlayer()};
-if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden')};
+if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden')};
 if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetSheet')$('homeSetSheet').classList.remove('show')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
@@ -3962,16 +4031,27 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
     }catch(e){}
   })();
 }catch(e){}})();
-/* Same auto-resume as above, for a device holding a MAC-address ID instead of a numeric code.
-   Fully independent of the numeric flow (own storage key, own poll timer) so the two can never
-   interfere with each other even if a device happens to hold both. */
+/* Auto-resume for a device that already connected via a Stalker/MAG portal: re-run the same
+   handshake silently on launch (session tokens are short-lived, so this re-authenticates rather
+   than trusting a cached one) using the same persistent MAC, and sign straight into the last
+   portal URL used. Independent of the numeric-code / saved-Xtream-creds flows above. */
 (function(){try{
   const hasDeepLink=/[#?&][pa]=/.test(String(location.hash||'')+String(location.search||''));
   if(hasDeepLink)return;
-  if($('login')&&$('login').classList.contains('hidden'))return;   /* saved creds already signed in above */
-  const mac=(typeof macCodeGet==='function')?macCodeGet(false):'';
-  if(!MAC_RE.test(mac))return;
-  try{startMacPoll();}catch(e){}
+  if($('login')&&$('login').classList.contains('hidden'))return;   /* already signed in above */
+  let saved=null;try{saved=JSON.parse(localStorage.getItem('m26_stk')||'null');}catch(e){}
+  if(!saved||!saved.url)return;
+  (async function(){
+    try{
+      const res=await stalkerLogin(saved.url);
+      S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
+      S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
+      S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
+      S.vod=[];S.vodCats=[];S.loadedVod=true;S.series=[];S.seriesCats=[];S.loadedSeries=true;
+      $('login').classList.add('hidden');showHome();keepTranscoderWarm();
+      renderAll();updateHomeCounts();
+    }catch(e){}
+  })();
 }catch(e){}})();
 /* v10.5: pick up the admin's activation the moment the user returns to the app. If it's still on
    the login screen with a pending code, re-check on focus / visibility / reconnect so it signs in
@@ -3984,17 +4064,9 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
     if(!/^\d{8}$/.test(code)||typeof activateWithCode!=='function')return;
     activateWithCode(code,{silent:true}).catch(()=>{});
   }catch(e){}};
-  const recheckMac=()=>{try{
-    if(typeof S!=='undefined'&&S.current)return;
-    if($('login')&&$('login').classList.contains('hidden'))return;
-    const mac=(typeof macCodeGet==='function')?macCodeGet(false):'';
-    if(!MAC_RE.test(mac)||typeof pollMacOnce!=='function')return;
-    pollMacOnce();
-    if(!_macPoll)try{startMacPoll();}catch(e){}
-  }catch(e){}};
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){recheck();recheckMac();}});
-  window.addEventListener('focus',()=>{recheck();recheckMac();});
-  window.addEventListener('online',()=>{recheck();recheckMac();});
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){recheck();}});
+  window.addEventListener('focus',()=>{recheck();});
+  window.addEventListener('online',()=>{recheck();});
 }catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and
