@@ -27,7 +27,15 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
 .recActions .recBtn.primary{border:0;color:#04111e;background:linear-gradient(135deg,var(--blue),var(--green))}
 .recClose{position:absolute;top:50%;transform:translateY(-50%);right:6px;width:22px;height:22px;border-radius:7px;background:rgba(255,255,255,.08);color:var(--muted);font-size:14px;line-height:1;display:grid;place-items:center;border:0;cursor:pointer}
 .recClose:hover{background:rgba(255,255,255,.16);color:var(--ink)}
-@media(max-width:760px){.recBanner{padding:6px 30px 6px 8px;gap:7px}.recBanner .recIcon{width:22px;height:22px;font-size:11px}.recBanner h3{font-size:10.5px}.recBanner p{font-size:9.5px}.recActions .recBtn{height:24px;font-size:9.5px;padding:0 8px}}.hero h3{font-size:20px;margin-bottom:4px}.hero p{font-size:12px;color:var(--muted);line-height:1.4}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border-radius:14px;background:var(--panel2);border:1px solid var(--line);padding:10px;text-align:center}.stat strong{display:block;font-size:18px}.stat span{font-size:10px;color:var(--muted);font-weight:800}.details{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;color:var(--muted);font-size:13px;line-height:1.5;padding-right:4px}.login{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:18px;background:radial-gradient(circle at 15% 14%,rgba(56,189,248,.12),transparent 36%),radial-gradient(circle at 86% 18%,rgba(191,138,242,.10),transparent 32%),linear-gradient(160deg,#eef1f7,#e6ebf3)}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.recBanner{padding:6px 30px 6px 8px;gap:7px}.recBanner .recIcon{width:22px;height:22px;font-size:11px}.recBanner h3{font-size:10.5px}.recBanner p{font-size:9.5px}.recActions .recBtn{height:24px;font-size:9.5px;padding:0 8px}}.hero h3{font-size:20px;margin-bottom:4px}.hero p{font-size:12px;color:var(--muted);line-height:1.4}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.stat{border-radius:14px;background:var(--panel2);border:1px solid var(--line);padding:10px;text-align:center}.stat strong{display:block;font-size:18px}.stat span{font-size:10px;color:var(--muted);font-weight:800}.details{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;color:var(--muted);font-size:13px;line-height:1.5;padding-right:4px}/* v15.2: the sign-in overlay MUST be able to scroll. It was a fixed, centred grid with no
+   overflow, and the card inside it has grown to ~1400px — more than twice a phone screen. A
+   centred box taller than its container overflows equally off the top AND the bottom, so the
+   heading and the last options were simply unreachable: pinch-zooming out was the only way to
+   see them. Centring is kept for the desktop case via auto margins on the card, which absorb
+   free space when there is any and collapse to zero when there is not, so tall content starts
+   at the top and scrolls normally instead of being clipped. */
+.login{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:18px;padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom));background:radial-gradient(circle at 15% 14%,rgba(56,189,248,.12),transparent 36%),radial-gradient(circle at 86% 18%,rgba(191,138,242,.10),transparent 32%),linear-gradient(160deg,#eef1f7,#e6ebf3)}
+.login-card{margin-top:auto;margin-bottom:auto;flex-shrink:0}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1120px){.layout{grid-template-columns:290px 1fr}.info{display:none}.main{grid-template-rows:minmax(240px,44vh) auto auto minmax(0,1fr)}}
 @media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
@@ -342,6 +350,31 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
   .home-card{flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:210px;gap:16px}
   .hc-arrow{position:absolute;right:18px;top:18px}
 }
+/* v15.2: the home hub was the ONE screen with no phone breakpoint — every other view has had
+   one for years. Desktop proportions (106px cards, 64px icons, 22px titles, 26px gaps) left the
+   three cards filling an entire phone screen, so the heading and the Log out button were pushed
+   to the edges. These are the same proportions the rest of the app already uses on phones. */
+@media(max-width:760px){
+  .home-inner{gap:16px}
+  .home-brand{width:52px;height:52px;border-radius:16px;margin-bottom:10px}
+  .home-head h1{font-size:clamp(19px,5.4vw,24px)}
+  .home-head p{font-size:12px;margin-top:4px}
+  .home-cards{gap:10px}
+  .home-card{min-height:74px;padding:12px 13px;gap:12px;border-radius:16px;box-shadow:0 10px 24px rgba(0,0,0,.3)}
+  .hc-ic{width:44px;height:44px;border-radius:13px}
+  .hc-ic svg{width:25px;height:25px}
+  .hc-txt b{font-size:17px}
+  .hc-txt small{font-size:11.5px}
+  .hc-arrow{font-size:19px}
+  .home-exit{height:38px;padding:0 20px;font-size:13px}
+}
+@media(max-width:380px){
+  .home-card{min-height:66px;padding:10px 11px;gap:10px}
+  .hc-ic{width:38px;height:38px;border-radius:11px}
+  .hc-ic svg{width:22px;height:22px}
+  .hc-txt b{font-size:15.5px}
+  .hc-txt small{font-size:11px}
+}
 body.light .home{background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.2),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),linear-gradient(160deg,#eef5ff,#e4edfb)}
 body.light .home-head h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 body.light .home-head p{color:#5a6f90}
@@ -617,11 +650,44 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
    rather than another button competing with the sign-in options below it. */
 .macBlock{background:#f2f7fb;border:1px solid rgba(20,50,90,.1);border-radius:16px;padding:14px;margin:0 0 16px}
 .macBlock label{display:block;font-size:12px;font-weight:800;letter-spacing:.3px;color:#7288a8;margin:0 0 8px;text-transform:uppercase}
-.macBlock .macActions{display:flex;gap:8px;margin-top:8px}
-.macBlock .macActions .pillbtn{flex:1;height:38px;font-size:13px}
+.macBlock .macActions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+/* v15.5: three buttons share this row now (Copy / Renew / Send). They sit side by side when
+   there is room and wrap to a second line on a narrow phone rather than squeezing the labels. */
+.macBlock .macActions .pillbtn{flex:1 1 30%;min-width:96px;height:38px;font-size:13px}
 .macHint{margin:9px 0 0;font-size:11.5px;line-height:1.45;color:#6b7f9c;font-weight:600}
 .macBlock.needsAction{border-color:#e0813a;background:#fdf4ec;box-shadow:0 0 0 3px rgba(224,129,58,.12)}
 @media(max-width:760px){.macCode{font-size:19px;letter-spacing:2px;padding:13px 4px}}
+/* v15.2: phone sizing for the sign-in card. It now carries six routes plus the MAC block and the
+   code entry, and at desktop padding that came to roughly twice a phone screen. These must sit
+   AFTER the base .loginAction/.macBlock rules above — an equal-specificity rule declared earlier
+   loses regardless of the media query, which is why an identical block placed further up the
+   file had no effect at all. The two-line wrap on the longer labels is what drove the height, so
+   the type scale comes down with the padding. */
+@media(max-width:760px){
+  .login{padding:12px;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
+  .login-card{padding:16px;border-radius:20px}
+  .login-card h2{font-size:19px}
+  .loginLead{margin:10px 0 2px!important;font-size:12.5px;line-height:1.45}
+  .loginActions{gap:8px;margin-top:12px}
+  .loginAction{padding:10px 12px;gap:11px;border-radius:14px}
+  .loginAction .la-ic{width:34px;height:34px;border-radius:10px}
+  .loginAction .la-ic svg{width:19px;height:19px}
+  .la-tx b{font-size:13.5px;line-height:1.25}
+  .la-tx small{font-size:10.5px;line-height:1.3}
+  .la-ch{font-size:15px}
+  .macBlock{padding:11px;border-radius:14px;margin:0 0 12px}
+  .macBlock label{font-size:11px;margin:0 0 6px}
+  .macBlock .macActions{gap:7px;margin-top:7px}
+  .macBlock .macActions .pillbtn{height:34px;font-size:12px}
+  .macHint{font-size:10.5px;margin-top:7px;line-height:1.4}
+}
+@media(max-width:380px){
+  .loginAction{padding:9px 10px;gap:9px}
+  .loginAction .la-ic{width:30px;height:30px}
+  .loginAction .la-ic svg{width:17px;height:17px}
+  .la-tx b{font-size:12.5px}
+  .la-tx small{font-size:10px}
+}
 .macActions{display:flex;gap:8px;margin-top:2px}
 .macActions .pillbtn{flex:1}
 /* login: "Ask the admin" request link */
@@ -1041,8 +1107,15 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 </div></div>
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
-  <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider that blocks our servers cannot block this. Open your playlist link in Safari, then either save the file and pick it below, or select all the text and paste it in.</p>
-  <div class="field nativeField"><label>Pick a saved .m3u file</label><input id="importFile" type="file" accept=".m3u,.m3u8,text/plain,audio/x-mpegurl,application/x-mpegurl"></div>
+  <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider that blocks our servers cannot block this. Your phone's own connection is never blocked.</p>
+  <div class="field nativeField"><label>Step 1 — open your playlist</label>
+    <div class="nativeActions" style="grid-template-columns:1fr"><button class="pillbtn primary" id="importOpenLink" type="button" style="width:100%">Open my playlist in a new tab</button></div>
+    <p class="macHint" id="importOpenHint" style="margin-top:7px">Built from the portal and MAC you already entered. It opens on your phone's own connection, which your provider cannot block. When it appears, select all the text and copy it — or save it as a file.</p>
+  </div>
+  <div class="field nativeField" style="margin-top:10px"><label>Step 2 — bring it back</label>
+    <div class="nativeActions" style="grid-template-columns:1fr"><button class="pillbtn" id="importPaste" type="button" style="width:100%">Paste playlist from clipboard</button></div>
+  </div>
+  <div class="field nativeField" style="margin-top:10px"><label>…or pick a saved .m3u file</label><input id="importFile" type="file" accept=".m3u,.m3u8,text/plain,audio/x-mpegurl,application/x-mpegurl"></div>
   <div class="field nativeField" style="margin-top:10px"><label>…or paste the playlist text</label><textarea id="importText" rows="5" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;…&quot;,Channel name&#10;http://…" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:14px;font-family:ui-monospace,Menlo,monospace"></textarea></div>
   <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="importGo" type="button" style="width:100%">Load this playlist</button></div>
   <div class="err" id="importErr" style="min-height:0"></div>
@@ -1106,7 +1179,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='15.2';
+const APP_VERSION='15.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3834,7 +3907,7 @@ function stalkerFailMessage(e){
      with the wrong question for the third time. Name what is really happening, and what actually
      resolves it. */
   if(/attention required|cf-browser-verification|__cf_chl|cloudflare|ray id/i.test((e&&e.detail)||''))
-    return 'Your provider’s Cloudflare protection is blocking this app, before the request ever reaches their portal. Nothing is wrong with your MAC ('+mac+'), your password or your subscription — the block is on our server, not your account. Ask your provider for a portal address that is NOT behind Cloudflare (they usually have one on a direct port such as :8080 or :25461), or ask them to allow this app through their firewall. Meanwhile there IS a way in that they cannot block: open your playlist link in Safari (your phone’s own connection is not blocked), then use “Open or paste an M3U playlist” on the sign-in screen.';
+    return 'Your provider’s firewall blocks our servers’ addresses before the request reaches their portal. Nothing is wrong with your MAC ('+mac+'), your password or your subscription. Opening the playlist below instead — that goes out over your phone’s own connection, which they do not block.';
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
     return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
   if(st===429||/rate-limit/i.test(raw))
@@ -4262,7 +4335,14 @@ async function submitMacLogin(){
       if($('macSheetErr'))$('macSheetErr').textContent='';
       $('macSheet').classList.remove('show');
     }else{
-      if($('macSheetErr'))$('macSheetErr').textContent=($('err')&&$('err').textContent)||'The portal did not return a playlist for this MAC.';
+      const msg=($('err')&&$('err').textContent)||'The portal did not return a playlist for this MAC.';
+      if($('macSheetErr'))$('macSheetErr').textContent=msg;
+      /* v15.4: a firewall block is not something the user can act on by reading about it. Hand
+         them straight to the one route that provider cannot block — fetched by the phone, not by
+         us — with the playlist link already built from what they just typed. */
+      if(/firewall blocks our servers/i.test(msg)){
+        setTimeout(()=>{ $('macSheet').classList.remove('show'); openImportSheet(); },1800);
+      }
     }
   }finally{ if(btn)btn.disabled=false; }
 }
@@ -4281,7 +4361,39 @@ async function adoptPlaylistText(text,label){
   $('login').classList.add('hidden');showHome();keepTranscoderWarm();updateHomeCounts();
   toast('Playlist loaded — '+parsed.total.toLocaleString()+' items');
 }
-function openImportSheet(){if($('importErr'))$('importErr').textContent='';$('importSheet').classList.add('show');}
+/* v15.4: the device-side route is the only one a provider's firewall cannot touch — their edge
+   blocks our servers' addresses, not the customer's phone. It was already here, but it asked the
+   user to know their own playlist URL, find it, open it, and come back, which is why it read as a
+   last resort rather than a fix. The app already knows how to build that URL (the same candidate
+   list /api/playlist walks), so it builds it for them and opens it on the phone's own connection.
+   Returning with the text is one tap too. Nothing here touches a server we control. */
+function devicePlaylistUrl(){
+  const base=normalize(
+    (($('macPortalUrl')&&$('macPortalUrl').value)||'')
+    ||(($('xtreamUrl')&&$('xtreamUrl').value)||'')
+    ||S.url||'');
+  if(!base)return '';
+  const mac=Media26Portal.normaliseMac(
+    (($('macSheetMac')&&$('macSheetMac').value)||'')||macInputValue())||'';
+  const u=(($('xtreamUser')&&$('xtreamUser').value)||S.user||'').trim();
+  const p=(($('xtreamPass')&&$('xtreamPass').value)||S.pass||'');
+  /* A direct .m3u link pasted as the portal URL is already the playlist. */
+  if(/\.m3u8?(\?|$)/i.test(base))return base;
+  let q='';
+  if(u)q='username='+encodeURIComponent(u)+'&password='+encodeURIComponent(p)+'&type=m3u_plus&output=ts';
+  else if(mac)q='mac='+encodeURIComponent(mac)+'&type=m3u_plus&output=ts';
+  else return '';
+  if(mac&&u)q+='&mac='+encodeURIComponent(mac);
+  return base.replace(/\/+$/,'')+'/get.php?'+q;
+}
+function openImportSheet(){
+  if($('importErr'))$('importErr').textContent='';
+  const url=devicePlaylistUrl();
+  const btn=$('importOpenLink'),hint=$('importOpenHint');
+  if(btn)btn.disabled=!url;
+  if(hint&&!url)hint.textContent='Enter your portal URL (and MAC or username) on the sign-in screen first, and this will build the link for you. Otherwise paste the playlist text below.';
+  $('importSheet').classList.add('show');
+}
 async function submitImport(){
   const err=m=>{if($('importErr'))$('importErr').textContent=m;};
   err('');
@@ -4304,6 +4416,25 @@ if($('importClose'))$('importClose').onclick=()=>$('importSheet').classList.remo
 if($('importGo'))$('importGo').onclick=submitImport;
 if($('importSheet'))$('importSheet').onclick=e=>{if(e.target.id==='importSheet')$('importSheet').classList.remove('show');};
 if($('importFile'))$('importFile').onchange=()=>{if($('importErr'))$('importErr').textContent=$('importFile').files&&$('importFile').files[0]?('Ready: '+$('importFile').files[0].name):'';};
+if($('importOpenLink'))$('importOpenLink').onclick=()=>{
+  const url=devicePlaylistUrl();
+  if(!url){if($('importErr'))$('importErr').textContent='Enter your portal URL and MAC (or username) on the sign-in screen first.';return;}
+  if($('importErr'))$('importErr').textContent='Opening on your phone’s own connection. Copy the text you see, then come back and tap Paste.';
+  /* Opened, never fetched — a navigation carries no CORS or mixed-content restriction, and it
+     leaves from the phone rather than from our servers, which is the whole point. */
+  try{window.open(url,'_blank');}catch(e){location.href=url;}
+};
+if($('importPaste'))$('importPaste').onclick=async()=>{
+  const err=m=>{if($('importErr'))$('importErr').textContent=m;};
+  try{
+    const txt=await navigator.clipboard.readText();
+    if(!txt||!txt.trim()){err('Clipboard is empty — copy the playlist text first.');return;}
+    if($('importText'))$('importText').value=txt;
+    err('Pasted '+txt.length.toLocaleString()+' characters. Tap "Load this playlist".');
+  }catch(e){
+    err('This browser would not hand over the clipboard. Long-press the box below and choose Paste instead.');
+  }
+};
 if($('macLoginBtn'))$('macLoginBtn').onclick=()=>openMacSheet();
 if($('macSheetClose'))$('macSheetClose').onclick=()=>$('macSheet').classList.remove('show');
 if($('macSheetGo'))$('macSheetGo').onclick=submitMacLogin;
