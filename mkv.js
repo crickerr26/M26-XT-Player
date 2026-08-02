@@ -183,22 +183,35 @@
   }
 
   function fragment(track, samples, seq) {
-    let dataLen = 0;
-    for (const s of samples) dataLen += s.data.length;
+    /* Matroska stores blocks in DECODE order but stamps them with PRESENTATION times. Any file
+       with B-frames — which is every real movie encode — therefore has non-monotonic timestamps,
+       so treating the gaps between them as sample durations yields negative and nonsensical
+       values and the browser rejects the stream. Synthetic clips with no B-frames hide this
+       completely.
+       Rebuild a proper decode timeline: the i-th decode slot takes the i-th smallest presentation
+       time, which is monotonic by construction, and the difference between a sample's real
+       presentation time and its decode time is carried as a composition offset. That is precisely
+       what fragmented MP4 expects, and it is what makes B-frames display in the right order. */
+    const n = samples.length;
+    const dts = samples.map(s => s.pts).sort((a, b) => a - b);
 
-    const trunEntries = new Uint8Array(samples.length * 12);
+    const trunEntries = new Uint8Array(n * 16);
     const dv = new DataView(trunEntries.buffer);
-    samples.forEach((s, i) => {
-      dv.setUint32(i * 12, s.duration);
-      dv.setUint32(i * 12 + 4, s.data.length);
+    for (let i = 0; i < n; i++) {
+      const dur = (i + 1 < n) ? (dts[i + 1] - dts[i]) : (track.defaultDuration || 40);
+      dv.setUint32(i * 16, Math.max(1, dur));
+      dv.setUint32(i * 16 + 4, samples[i].data.length);
       // Non-keyframes are marked non-sync and depend on other samples.
-      dv.setUint32(i * 12 + 8, s.key ? 0x02000000 : 0x01010000);
-    });
+      dv.setUint32(i * 16 + 8, samples[i].key ? 0x02000000 : 0x01010000);
+      // Signed composition offset (trun version 1) = presentation time - decode time.
+      dv.setInt32(i * 16 + 12, samples[i].pts - dts[i]);
+    }
 
-    const tfhd = box('tfhd', u32(0x020000), u32(track.id));          // default-base-is-moof
-    const tfdt = box('tfdt', u32(0x01000000), u64(samples[0].pts));  // version 1, 64-bit
-    // flags: data-offset + sample-duration + sample-size + sample-flags
-    const trunHeader = cat([u32(0x00000f01), u32(samples.length)]);
+    const tfhd = box('tfhd', u32(0x020000), u32(track.id));   // default-base-is-moof
+    const tfdt = box('tfdt', u32(0x01000000), u64(dts[0]));   // version 1, 64-bit DECODE time
+    /* version 1 (signed composition offsets) + data-offset, sample-duration, sample-size,
+       sample-flags and sample-composition-time-offset all present. */
+    const trunHeader = cat([u32(0x01001701), u32(n)]);
     const trafLen = 8 + tfhd.length + tfdt.length + (8 + trunHeader.length + 4 + trunEntries.length);
     const moofLen = 8 + (8 + 8) + trafLen;
     const dataOffset = moofLen + 8;
@@ -550,8 +563,14 @@
             queues.set(t.id, []);
           }
           if (!sourceBuffers.size) return fail(new Error('No playable track in this file'));
-          // The init segment covers every track, so hand it to each buffer.
-          for (const id of sourceBuffers.keys()) { queues.get(id).push(init); pump(id); }
+          /* Each SourceBuffer must receive an init describing ONLY its own track. Handing a
+             video buffer a moov that also declares an audio trak makes Safari reject the whole
+             init, so both tracks died even though each was individually fine. */
+          for (const t of tracks) {
+            if (!sourceBuffers.has(t.id)) continue;
+            queues.get(t.id).push(initSegment([t], rx.durationMs));
+            pump(t.id);
+          }
           if (opts.onInfo) opts.onInfo({ tracks: tracks, unsupportedAudio: unsupportedAudio });
         } catch (e) { fail(e); }
       };
