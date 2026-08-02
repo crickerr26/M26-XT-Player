@@ -131,10 +131,24 @@
       new Uint8Array(32), u16(0x0018), u16(0xffff), cfg);
   }
   function esdsBox(asc) {
-    // Minimal ES_Descriptor wrapping the AudioSpecificConfig from CodecPrivate.
+    /* ES_Descriptor wrapping the AudioSpecificConfig from CodecPrivate.
+       DecoderConfigDescriptor's body is exactly 13 bytes before the DecoderSpecificInfo:
+         objectTypeIndication(1) streamType/upStream/reserved(1) bufferSizeDB(3)
+         maxBitrate(4) avgBitrate(4)
+       Writing 12 and declaring 13 makes every demuxer read the AudioSpecificConfig one byte
+       early, which Safari reports as a buffer error on the audio track and which silently cost
+       the whole file — the video was fine. Counted out explicitly here so it cannot drift. */
     const dec = cat([new Uint8Array([0x05, asc.length]), asc]);
-    const cfg = cat([new Uint8Array([0x04, 13 + dec.length, 0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]), dec]);
-    const es = cat([new Uint8Array([0x03, 3 + cfg.length + 3, 0, 0, 0]), cfg, new Uint8Array([0x06, 1, 0x02])]);
+    const dcdBody = new Uint8Array([
+      0x40,                    // objectTypeIndication: MPEG-4 audio
+      0x15,                    // streamType 5 (audio) << 2 | upStream 0 | reserved 1
+      0x00, 0x00, 0x00,        // bufferSizeDB
+      0x00, 0x00, 0x00, 0x00,  // maxBitrate
+      0x00, 0x00, 0x00, 0x00   // avgBitrate
+    ]);
+    const cfg = cat([new Uint8Array([0x04, dcdBody.length + dec.length]), dcdBody, dec]);
+    const sl = new Uint8Array([0x06, 1, 0x02]);
+    const es = cat([new Uint8Array([0x03, 3 + cfg.length + sl.length, 0, 0, 0]), cfg, sl]);
     return box('esds', u32(0), es);
   }
   function mp4a(t) {
@@ -524,7 +538,14 @@
             const sb = ms.addSourceBuffer(mime);
             sb.mode = 'segments';
             sb.addEventListener('updateend', function () { pump(t.id); });
-            sb.addEventListener('error', function () { fail(new Error('Buffer error on ' + t.codec)); });
+            /* A video-track failure is fatal; an audio one is not. Losing the soundtrack should
+               never cost the film — before this, one rejected audio buffer failed the whole
+               playback and sent a perfectly good file off to the transcoder. */
+            sb.addEventListener('error', function () {
+              if (t.type === 'video') return fail(new Error('Buffer error on ' + t.codec));
+              try { sourceBuffers.delete(t.id); queues.delete(t.id); } catch (_) {}
+              if (opts.onInfo) { try { opts.onInfo({ tracks: rx.tracks, audioDropped: t.codec }); } catch (_) {} }
+            });
             sourceBuffers.set(t.id, sb);
             queues.set(t.id, []);
           }

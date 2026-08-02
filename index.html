@@ -1023,7 +1023,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='11.7';
+const APP_VERSION='11.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2329,7 +2329,8 @@ async function playItemBasic(x){
             toast('4K title — switching to HD so it loads faster.');
             next();return;
           }
-          if(info&&info.unsupportedAudio)toast('Playing video — this file’s '+String(info.unsupportedAudio).replace(/^A_/,'')+' audio can’t be decoded in-app.');
+          if(info&&info.audioDropped)toast('Playing video — this file’s audio track was rejected by the device.');
+          else if(info&&info.unsupportedAudio)toast('Playing video — this file’s '+String(info.unsupportedAudio).replace(/^A_/,'')+' audio can’t be decoded in-app.');
         }}).then(()=>{if(token!==S.seq)return;}).catch(e=>{
           if(token!==S.seq)return;
           mkvErr=(e&&e.message)||'unknown';
