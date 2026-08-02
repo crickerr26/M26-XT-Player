@@ -1179,7 +1179,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='15.5';
+const APP_VERSION='15.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1262,7 +1262,12 @@ const IS_NATIVE=(function(){try{
 /* In the app the proxy is pure overhead: it would put a relay in front of every byte of video for
    a request the WebView is allowed to make itself. On the website it stays mandatory. */
 function blocked(u){try{if(IS_NATIVE)return false;const x=new URL(u);return location.protocol==='https:'&&x.protocol==='http:'&&!/localhost|127\.0\.0\.1/i.test(x.hostname)}catch{return false}}
-function proxyUrl(u){return PROXY+encodeURIComponent(u)}
+/* v15.6: an EMPTY input must produce an empty output, never "…/proxy?url=". directUrl() now
+   returns '' when the session has no Xtream username/password (MAG/Stalker and playlist logins
+   have none), and every wrapper below is fed straight from it — without this guard a missing
+   stream URL came back out of the wrapper as a real-looking relay URL that can only 404, and
+   those dead routes were tried ahead of the one link that works. */
+function proxyUrl(u){return u?PROXY+encodeURIComponent(u):''}
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
 /* v24: multi-proxy fallback chain. The old code depended on ONE worker proxy —
@@ -2079,7 +2084,16 @@ function renderInfo(x,info,type){
   const plot=_pick(info,['plot','description','overview','storyline']);
   $('infoPlot').textContent=plot||'No description available for this title.';
 }
-function directUrl(x,ext){const type=typeOf(x), sid=idOf(x);let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
+/* v15.6: an Xtream stream URL can only be built when the session actually HAS an Xtream username
+   and password. A MAG/Stalker session (adoptStalkerSession) and a playlist session
+   (adoptPlaylistText) both set S.user='' and S.pass='' — there is no such identity — yet this
+   function still produced `http://host/movie///stv42.mp4`, a URL with two empty path segments
+   that no panel can serve. That fabricated link was then handed to VLC (the app opened and sat on
+   a blank screen, which is exactly the reported "VLC opens but the video never loads") and used
+   as the built-in player's whole fallback cascade for Movies and Series. Return '' instead: every
+   caller already skips an empty URL, so the app now tries only the routes that can exist and says
+   so plainly when there are none. */
+function directUrl(x,ext){if(!S.url||!S.user||!S.pass)return '';const type=typeOf(x), sid=idOf(x);if(!sid)return '';let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
 /* v14.0: THE CANONICAL XTREAM FORMS OF A PLAYLIST LINK.
    An M3U hands us whatever URL form the panel chose to print, and by far the most common is the
    legacy extensionless one: http://host:8080/user/pass/421107. That form is a redirect shim, not
@@ -2091,22 +2105,43 @@ function directUrl(x,ext){const type=typeOf(x), sid=idOf(x);let e=String(ext||x.
    actually carries live TV here — mpegts.js — never once received a URL the panel would serve.
    Returns null for anything that isn't shaped like an Xtream stream link, so a real .ts/CDN URL
    in a playlist is left completely alone. */
+/* v15.6: ALSO recognise a link that ALREADY names its section — .../live/user/pass/123.ts,
+   .../movie/user/pass/456.mkv, .../series/user/pass/789.mp4. The old pattern deliberately
+   EXCLUDED those three prefixes, so for every playlist and every MAG/Stalker channel — whose
+   resolved links are overwhelmingly in exactly that form — it returned null and no sibling form
+   was ever derived. That is why Live TV played in VLC but not in the preview player: an iPhone
+   has no MSE, so mpegts.js (the raw-.ts engine) is unavailable there and the ONLY thing the
+   browser can decode is the panel's .m3u8 sibling — which nothing was building. The section is
+   preserved now (a movie is never rewritten to /live/), and `file(ext)` gives the same stream
+   under any other container so Movies/Series get their HLS remux too. Still returns null for a
+   plain CDN link, which is left completely alone. */
 function xtreamForms(raw){
-  const m=/^(https?:\/\/[^/]+)\/(?!live\/|movie\/|series\/)([^/?#]+)\/([^/?#]+)\/(\d+)(?:\.([a-z0-9]{2,4}))?(?:$|\?)/i.exec(String(raw||''));
-  if(!m)return null;
-  const base=m[1]+'/live/'+m[2]+'/'+m[3]+'/'+m[4];
-  return {ts:base+'.ts',m3u8:base+'.m3u8'};
+  const s=String(raw||'');
+  let m=/^(https?:\/\/[^/]+)\/(live|movie|series)\/([^/?#]+)\/([^/?#]+)\/(\d+)(?:\.([a-z0-9]{2,4}))?(?:$|\?)/i.exec(s);
+  let host,section,user,pass,id,ext;
+  if(m){host=m[1];section=m[2].toLowerCase();user=m[3];pass=m[4];id=m[5];ext=(m[6]||'').toLowerCase();}
+  else{
+    m=/^(https?:\/\/[^/]+)\/(?!live\/|movie\/|series\/)([^/?#]+)\/([^/?#]+)\/(\d+)(?:\.([a-z0-9]{2,4}))?(?:$|\?)/i.exec(s);
+    if(!m)return null;
+    host=m[1];section='live';user=m[2];pass=m[3];id=m[4];ext=(m[5]||'').toLowerCase();
+  }
+  const base=host+'/'+section+'/'+user+'/'+pass+'/'+id;
+  return {section:section,ext:ext,base:base,ts:base+'.ts',m3u8:base+'.m3u8',
+    file:function(e){return base+'.'+String(e||'mp4').replace(/^\./,'').toLowerCase()}};
 }
 function playableUrl(u,type){return blocked(u)?proxyUrl(u):u}
 function proxiedMediaUrl(u){return proxyUrl(u)}
 function transcoderBase(){try{return normalize($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
 function transcoderToken(){try{return ($('transcoderToken')?.value||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
-function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)return'';const token=transcoderToken();return `${base}/hls?profile=${encodeURIComponent(profile)}${token?'&token='+encodeURIComponent(token):''}&url=${encodeURIComponent(u)}`}
+/* v15.6: no source URL, no transcode request. Without this an unbuildable stream link turned into
+   a valid-looking /hls?url= call that made ffmpeg spend the full 50s cold-start budget failing on
+   an empty input — time the player spent NOT trying the route that works. */
+function transcodeUrl(u,profile='mobile'){if(!u)return'';const base=transcoderBase();if(!base)return'';const token=transcoderToken();return `${base}/hls?profile=${encodeURIComponent(profile)}${token?'&token='+encodeURIComponent(token):''}&url=${encodeURIComponent(u)}`}
 /* v9.3: some providers 403-block datacenter IPs (Render), so the transcoder can't fetch the stream
    directly — but our Cloudflare proxy's IP IS allowed (direct movies play through it). So feed the
    transcoder the stream THROUGH that proxy: Render fetches Cloudflare, Cloudflare fetches the
    provider. This is what makes MKV/HEVC (and IP-blocked live) actually transcode. */
-function transcoderInput(x){try{const u=externalStreamUrl(x);return (typeof PROXY==='string'&&/^https?:\/\//i.test(PROXY))?PROXY+encodeURIComponent(u):u;}catch(e){return externalStreamUrl(x);}}
+function transcoderInput(x){try{const u=externalStreamUrl(x);if(!u)return '';return (typeof PROXY==='string'&&/^https?:\/\//i.test(PROXY))?PROXY+encodeURIComponent(u):u;}catch(e){return externalStreamUrl(x);}}
 /* v55: warm up the transcoder. It runs on a free host that goes to sleep after inactivity and
    takes 30-60s to cold-start on the next request — that cold start was the big "movies/series
    take too long to open" delay, because MKV/HEVC titles (which browsers can't decode) MUST go
@@ -2293,6 +2328,12 @@ function gateExtButtons(ms,label){
   tick();
 }
 async function playItemExternal(x,mode,armed){
+  /* v15.6: a MAG/Stalker title carries a portal "cmd", not a URL, and create_link has to hand
+     back the real link before ANY player can be handed anything. The result was previously
+     thrown away, so when the exchange failed — routine on Movies/Series, which sit behind a
+     separate, rate-limited portal endpoint — the launch carried straight on with whatever
+     externalStreamUrl() could invent. That is the reported bug exactly: VLC opened, and had
+     nothing to play. */
   if(x&&x._stalkerCmd)await stalkerResolve(x);
   setCurrentItem(x);cleanup();
   /* v40: cleanup() just bumped S.seq — capture it as this launch's token. Any NEWER play
@@ -2323,6 +2364,19 @@ async function playItemExternal(x,mode,armed){
   $('overlay').style.display='grid';
   $('stateTitle').textContent='Opening '+label;
   $('netStatus').textContent='External player';$('miniMeta').textContent='Opening '+label;
+  /* v15.6: NEVER launch a player with a link it cannot open. `vlc-x-callback://…/stream?url=` with
+     an empty or relative url makes VLC come to the front and show nothing — the app then reported
+     "Playing in VLC" because the launch itself had, technically, succeeded. Say what is actually
+     wrong instead, and leave the retry button so a portal that was merely busy can be tried again. */
+  if(!/^https?:\/\//i.test(String(u||''))){
+    $('extActions').classList.remove('hidden');
+    $('stateTitle').textContent='No stream link for this title';
+    $('stateText').textContent=(x&&x._stalkerCmd)
+      ? 'Your portal did not hand back a playable link for “'+title+'” just now — MAG portals rate-limit the Movies/Series endpoint. Wait a few seconds and tap it again. (v'+APP_VERSION+')'
+      : 'This title has no playable stream address, so there is nothing to send to '+label+'. Reload the playlist from Settings, or pick another title. (v'+APP_VERSION+')';
+    $('netStatus').textContent='No link';$('miniMeta').textContent='No link';
+    return;
+  }
   if(d==='desktop'){
     /* v38: browsers CANNOT detect an installed desktop app, and on Windows VLC's installer
        does NOT register the vlc:// link scheme by default — so auto-launch silently does
@@ -2545,9 +2599,23 @@ async function playItemBasic(x){
        real URL already, not an Xtream stream_id, so build the plan straight from it. */
     const raw=String(x.direct_source).trim(),durl=wrap(raw);
     const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
+    /* v15.6: THE LIVE-TV FIX — "plays in VLC, not in the preview player". A raw MPEG-TS link is
+       decodable in the browser ONLY through mpegts.js, and mpegts.js needs MSE, which an iPhone
+       does not have. So on Apple, when the link is not already HLS, every route built from it is
+       one Safari can never play: the cascade burned its whole start budget on them and the
+       channel looked dead, while VLC — which decodes raw TS natively — played the identical URL.
+       The panel serves the same channel as HLS at the .m3u8 sibling, so on a device with no TS
+       engine that sibling LEADS, and the raw link stays behind it as the fallback. */
+    const liveAlt=isM3u8?null:xtreamForms(raw);
+    const hlsFirst=!tsOk&&!!(liveAlt&&liveAlt.m3u8);
     plans=isM3u8
       ?[{kind:'hls',url:durl}].concat(tsOk?[{kind:'mpegts',url:durl}]:[])
+      :hlsFirst
+      ?[{kind:'hls',url:wrap(liveAlt.m3u8)},{kind:'hls',url:proxyUrl(liveAlt.m3u8)},{kind:'hls',url:durl}]
       :(tsOk?[{kind:'mpegts',url:durl},{kind:'hls',url:durl}]:[{kind:'hls',url:durl}]);
+    /* wrap() and proxyUrl() collapse to the same address for an http panel on this https page, so
+       drop the repeat rather than spend a second start budget re-trying an identical route. */
+    plans=plans.filter((p,i)=>p.url&&plans.findIndex(q=>q.kind===p.kind&&q.url===p.url)===i);
     /* v13.9: THE FIX FOR "the playlist doesn't play in the built-in player". wrap() only sends a
        link through our relay when the browser is FORBIDDEN to fetch it (http panel, https page).
        On an https panel — and on any panel that answers a browser User-Agent with a 403 — the
@@ -2567,7 +2635,7 @@ async function playItemBasic(x){
        link (511/403 — see xtreamForms) mpegts.js, the engine live TV actually runs on here, was
        never handed a URL the panel would serve. The channel then failed all the way through to
        the transcoder, which hit the very same refusal and reported it as its own cold start. */
-    const alt=isM3u8?null:xtreamForms(raw);
+    const alt=liveAlt;
     if(alt){
       const addAlt=(kind,u)=>{const w=wrap(u);if(!plans.some(p=>p.kind===kind&&p.url===w))plans.push({kind,url:w});
         const r=proxyUrl(u);if(r!==w&&!plans.some(p=>p.kind===kind&&p.url===r))plans.push({kind,url:r});};
@@ -2688,6 +2756,21 @@ async function playItemBasic(x){
          both, and also stamps a playable Content-Type on files the panel labels octet-stream. */
       const dr=proxyUrl(direct);if(dr!==du)addv(isH?'hls':'native',dr);
     }
+    /* v15.6: give Movies/Series the panel's own HLS remux of the SAME title, derived from the
+       direct link the way live already derives it. Until now that route existed only through
+       directUrl(), which needs an Xtream username and password — a MAG/Stalker or playlist
+       session has neither, so the whole HLS path silently vanished and the only routes left were
+       the raw file, which Safari refuses whenever it is HEVC/10-bit or a mislabelled Matroska.
+       The .m3u8 sibling is fragmented and hardware-decodable, which is what makes a movie play in
+       the preview on a phone, and the .mp4 sibling covers a panel that gates the exact container
+       its playlist printed. Both are added AFTER the routes that already work today, so no title
+       that plays now changes its first attempt. */
+    const vodSiblings=(direct&&!/\.m3u8(?:$|\?)/i.test(direct))?xtreamForms(direct):null;
+    const addSiblings=()=>{
+      if(!vodSiblings)return;
+      if(hlsUsable){addv('hls',wrap(vodSiblings.m3u8));addv('hls',proxyUrl(vodSiblings.m3u8));}
+      if(vodSiblings.ext!=='mp4'){addv('native',wrap(vodSiblings.file('mp4')));addv('native',proxyUrl(vodSiblings.file('mp4')));}
+    };
     if(UNPLAYABLE.test(cont)){
       /* hard container (MKV/AVI/…). One native shot for mislabeled-but-playable files, then the
          transcoder. v9.1: TWO transcoder routes so MKV plays in the built-in player on ANY device:
@@ -2711,6 +2794,9 @@ async function playItemBasic(x){
       const skipInApp=!!qp&&looks4k(x);
       if(skipInApp&&canTrans){try{const th=transcodeUrl(transcoderInput(x),qp);if(th)addv('hls',th);}catch(e){}}
       if(/^mkv$/.test(cont)&&global_mkvReady()&&!skipInApp)addv('mkv',lcu);
+      /* the panel's own remux comes before the transcoder: it is the provider's server doing the
+         work, so there is no cold start and no Render round-trip to wait through. */
+      addSiblings();
       if(canTrans){
         if(!skipInApp&&qp){try{const th=transcodeUrl(transcoderInput(x),qp);if(th)addv('hls',th);}catch(e){}}
         addv('hls',transUrl);
@@ -2725,6 +2811,7 @@ async function playItemBasic(x){
       if(cont!=='mp4')addv('native',lcu);
       addv('native',mp4u);
       if(hlsUsable)addv('hls',m3u);
+      addSiblings();
       if(canTrans)addv('hls',transUrl);
       if(tsOk)addv('mpegts',tsu);
     }
@@ -2941,6 +3028,23 @@ async function playItemBasic(x){
     const pr=v.play();
     if(pr&&pr.catch)pr.catch(()=>{if(token!==S.seq)return;/* v79: unmuted autoplay was blocked — play muted so it never stalls, but auto-unmute on the very next interaction (any tap) so the user never has to find the sound button */v.muted=true;/* v3.4: reflect the real state — show the MUTED icon so the user knows to tap it to enable sound */if($('muteBtn'))$('muteBtn').innerHTML=ICONS.muted;const p2=v.play();if(p2&&p2.catch)p2.catch(()=>{});armUnmute();});
   };
+  /* v15.6: with directUrl() no longer inventing an address for a session that has no Xtream
+     username and password, a title can genuinely end up with NOTHING to try. Say that, instead of
+     calling attach(undefined) — which threw a TypeError and left the preview frozen on "Loading"
+     with no error and no way forward. */
+  plans=(plans||[]).filter(p=>p&&p.url);
+  if(!plans.length){
+    if(_spinTimer){clearTimeout(_spinTimer);_spinTimer=null}
+    const why=(x&&x._stalkerCmd)
+      ?'Your portal did not hand back a playable link for this title. MAG portals rate-limit their Movies/Series endpoint — wait a few seconds and tap it again.'
+      :'This title has no playable stream address in the current playlist. Reload the playlist from Settings, or pick another title.';
+    $('overlay').style.display='grid';
+    if($('stateProgress'))$('stateProgress').classList.add('hidden');
+    $('stateTitle').textContent='No stream link for this title';
+    $('stateText').textContent=why+' (v'+APP_VERSION+')';
+    $('netStatus').textContent='No link';$('miniMeta').textContent='No link';
+    return;
+  }
   attach(plans[0]);
   /* v65: one calm 1s heartbeat — the only watchdog. If the playback clock stops advancing for
      ~9s after the stream had started (a real freeze, not brief buffering), reconnect in place.
