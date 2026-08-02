@@ -874,6 +874,13 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <span class="la-tx"><b>Load playlist with MAC address</b><small>Your provider activated the MAC above — no username needed</small></span>
         <span class="la-ch">›</span>
       </button>
+      <!-- v15.1: the one route a provider's firewall cannot block, because no server of ours is
+           involved. The phone's own connection fetches nothing — the user brings the playlist. -->
+      <button class="loginAction" id="importM3uBtn" type="button">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg></span>
+        <span class="la-tx"><b>Open or paste an M3U playlist</b><small>Works even when your provider blocks the app</small></span>
+        <span class="la-ch">›</span>
+      </button>
       <button class="loginAction" id="loginToolsBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg></span>
         <span class="la-tx"><b>Connection &amp; transcoder settings</b><small>Set the transcoder — needed when a provider blocks the app</small></span>
@@ -1031,6 +1038,14 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="macSheetGo" type="button" style="width:100%">Load playlist</button></div>
   <div class="err" id="macSheetErr" style="min-height:0"></div>
 </div></div>
+<div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
+  <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider that blocks our servers cannot block this. Open your playlist link in Safari, then either save the file and pick it below, or select all the text and paste it in.</p>
+  <div class="field nativeField"><label>Pick a saved .m3u file</label><input id="importFile" type="file" accept=".m3u,.m3u8,text/plain,audio/x-mpegurl,application/x-mpegurl"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>…or paste the playlist text</label><textarea id="importText" rows="5" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;…&quot;,Channel name&#10;http://…" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:14px;font-family:ui-monospace,Menlo,monospace"></textarea></div>
+  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="importGo" type="button" style="width:100%">Load this playlist</button></div>
+  <div class="err" id="importErr" style="min-height:0"></div>
+</div></div>
 <div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Settings</h3><button class="iconbtn" id="homeSetClose">×</button></div>
   <div class="settings-list">
@@ -1090,7 +1105,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='15.0';
+const APP_VERSION='15.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3818,7 +3833,7 @@ function stalkerFailMessage(e){
      with the wrong question for the third time. Name what is really happening, and what actually
      resolves it. */
   if(/attention required|cf-browser-verification|__cf_chl|cloudflare|ray id/i.test((e&&e.detail)||''))
-    return 'Your provider’s Cloudflare protection is blocking this app, before the request ever reaches their portal. Nothing is wrong with your MAC ('+mac+'), your password or your subscription — the block is on our server, not your account. Ask your provider for a portal address that is NOT behind Cloudflare (they usually have one on a direct port such as :8080 or :25461), or ask them to allow this app through their firewall. The app is already trying its backup route through the transcoder — check it is green under “Connection & transcoder settings” on the sign-in screen.';
+    return 'Your provider’s Cloudflare protection is blocking this app, before the request ever reaches their portal. Nothing is wrong with your MAC ('+mac+'), your password or your subscription — the block is on our server, not your account. Ask your provider for a portal address that is NOT behind Cloudflare (they usually have one on a direct port such as :8080 or :25461), or ask them to allow this app through their firewall. Meanwhile there IS a way in that they cannot block: open your playlist link in Safari (your phone’s own connection is not blocked), then use “Open or paste an M3U playlist” on the sign-in screen.';
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
     return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
   if(st===429||/rate-limit/i.test(raw))
@@ -4229,6 +4244,44 @@ async function submitMacLogin(){
     }
   }finally{ if(btn)btn.disabled=false; }
 }
+/* v15.1: adopt a playlist the USER supplies — a picked .m3u file or pasted text. No fetch, no
+   relay, no portal round-trip, so a provider whose edge refuses our servers is irrelevant here.
+   The parsed result is the same shape every other login path produces, so Live/Movies/Series,
+   categories, search, favourites and the player all behave identically. */
+async function adoptPlaylistText(text,label){
+  if(typeof Media26Portal==='undefined')throw Error('Playlist reader is still loading — try again in a moment.');
+  if(!Media26Portal.looksLikeM3U(text))throw Error('That does not look like an M3U playlist. It should start with #EXTM3U and contain #EXTINF lines.');
+  const parsed=Media26Portal.parseM3U(text);
+  if(!parsed||!parsed.total)throw Error('That playlist parsed to zero channels — it may be truncated or an error page saved as a file.');
+  S.source='m3u';S.m3u=parsed;S.playlistUrl=label||'imported';
+  S.user='';S.pass='';resetFullCatalog();
+  await loadType('live');await loadType('vod');await loadType('series');
+  $('login').classList.add('hidden');showHome();keepTranscoderWarm();updateHomeCounts();
+  toast('Playlist loaded — '+parsed.total.toLocaleString()+' items');
+}
+function openImportSheet(){if($('importErr'))$('importErr').textContent='';$('importSheet').classList.add('show');}
+async function submitImport(){
+  const err=m=>{if($('importErr'))$('importErr').textContent=m;};
+  err('');
+  const btn=$('importGo');if(btn)btn.disabled=true;
+  try{
+    let text=(($('importText')&&$('importText').value)||'').trim();
+    let label='pasted playlist';
+    const f=$('importFile')&&$('importFile').files&&$('importFile').files[0];
+    if(!text&&f){ text=await f.text(); label=f.name||'imported file'; }
+    if(!text){err('Pick a .m3u file or paste the playlist text first.');return;}
+    err('Reading…');
+    await adoptPlaylistText(text,label);
+    err('');
+    $('importSheet').classList.remove('show');
+  }catch(e){ err((e&&e.message)||'Could not read that playlist.'); }
+  finally{ if(btn)btn.disabled=false; }
+}
+if($('importM3uBtn'))$('importM3uBtn').onclick=()=>openImportSheet();
+if($('importClose'))$('importClose').onclick=()=>$('importSheet').classList.remove('show');
+if($('importGo'))$('importGo').onclick=submitImport;
+if($('importSheet'))$('importSheet').onclick=e=>{if(e.target.id==='importSheet')$('importSheet').classList.remove('show');};
+if($('importFile'))$('importFile').onchange=()=>{if($('importErr'))$('importErr').textContent=$('importFile').files&&$('importFile').files[0]?('Ready: '+$('importFile').files[0].name):'';};
 if($('macLoginBtn'))$('macLoginBtn').onclick=()=>openMacSheet();
 if($('macSheetClose'))$('macSheetClose').onclick=()=>$('macSheet').classList.remove('show');
 if($('macSheetGo'))$('macSheetGo').onclick=submitMacLogin;
