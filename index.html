@@ -867,6 +867,13 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
            second route to a portal whose edge blocks our main one — so on exactly the portals where
            it decides whether sign-in works at all, it was unreachable, because the only way in was
            the gear on the home screen you can only see once you are already signed in. -->
+      <!-- v15.0: the flow the app is actually built around — the reseller activates the MAC shown
+           above, and the portal then serves that MAC its own playlist. No username, no password. -->
+      <button class="loginAction" id="macLoginBtn" type="button">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M6 9.5h4M6 13h7M15.5 9.5h2.5M14 13h4"/></svg></span>
+        <span class="la-tx"><b>Load playlist with MAC address</b><small>Your provider activated the MAC above — no username needed</small></span>
+        <span class="la-ch">›</span>
+      </button>
       <button class="loginAction" id="loginToolsBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg></span>
         <span class="la-tx"><b>Connection &amp; transcoder settings</b><small>Set the transcoder — needed when a provider blocks the app</small></span>
@@ -1016,6 +1023,14 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Login</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
 </div></div>
+<div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Load playlist with MAC address</h3><button class="iconbtn" id="macSheetClose">×</button></div>
+  <p class="nativeText">Enter the portal URL your provider gave you. The MAC below is the one they activated — the portal serves its playlist to that MAC, so no username or password is needed.</p>
+  <div class="field nativeField"><label>Portal URL</label><input id="macPortalUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>MAC address</label><input id="macSheetMac" placeholder="00:1A:79:00:00:00" autocapitalize="characters" spellcheck="false"></div>
+  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="macSheetGo" type="button" style="width:100%">Load playlist</button></div>
+  <div class="err" id="macSheetErr" style="min-height:0"></div>
+</div></div>
 <div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Settings</h3><button class="iconbtn" id="homeSetClose">×</button></div>
   <div class="settings-list">
@@ -1075,7 +1090,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='14.9';
+const APP_VERSION='15.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1416,7 +1431,12 @@ async function login(opts){
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
   if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
   else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
-  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');
+  /* v15.0: SIGN IN WITH THE MAC ALONE. The product flow is that the reseller binds a line to the
+     MAC this app shows, and from then on the portal will hand that MAC its own M3U — there is no
+     username or password in that flow at all. Require a portal URL, and then EITHER credentials or
+     a MAC; the playlist fetch already carries the MAC either way. */
+  if(!S.url)throw Error('Enter the portal URL your provider gave you.');
+  if((!S.user||!S.pass)&&!stalkerMac())throw Error('Enter either a username and password, or the MAC address your provider activated.');
   /* Do not touch a portal that has just told us it is throttling — a further attempt only
      restarts its timer. Count down instead, so waiting is visible rather than guesswork. */
   {const w=rateLimitLeft();if(w)throw Error('This portal is still rate-limiting this connection. Wait '+w+' more second'+(w===1?'':'s')+' before signing in again — trying now only restarts its timer.');}
@@ -1813,7 +1833,9 @@ async function loadPlaylistSource(){
     if(e&&e.message)throw e;   /* a definite answer from the panel — surface it, don't retry blindly */
   }
   /* Fallback: the original browser-side walk through the CORS relay. */
-  const tries=Media26Portal.m3uCandidates(S.url,S.user,S.pass);
+  const tries=(S.user&&S.pass)
+    ? Media26Portal.m3uCandidates(S.url,S.user,S.pass).concat(Media26Portal.macM3uCandidates(S.url,stalkerMac()))
+    : Media26Portal.macM3uCandidates(S.url,stalkerMac());
   for(const u of tries){
     let text='';
     try{ text=await fetchTextChain(u,45000); }catch(e){ text=''; }
@@ -4176,6 +4198,41 @@ if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('mac
    in force by the time Login is tapped — no separate save step to forget. */
 if($('macCodeBox'))$('macCodeBox').addEventListener('blur',()=>{if(!commitLoginMac())paintLoginMac();});
 paintLoginMac();
+/* v15.0: MAC-only sign-in. Reuses login()'s {creds} form with empty username/password — the
+   playlist fetch carries the MAC, and the worker walks the MAC playlist endpoints. */
+function openMacSheet(){
+  if($('macSheetErr'))$('macSheetErr').textContent='';
+  if($('macPortalUrl')&&!$('macPortalUrl').value)$('macPortalUrl').value=($('xtreamUrl')&&$('xtreamUrl').value)||($('url')&&$('url').value)||'';
+  if($('macSheetMac'))$('macSheetMac').value=macFmt(stalkerMac());
+  $('macSheet').classList.add('show');
+  try{$('macPortalUrl').focus();}catch(e){}
+}
+async function submitMacLogin(){
+  const url=(($('macPortalUrl')&&$('macPortalUrl').value)||'').trim();
+  const mac=Media26Portal.normaliseMac(($('macSheetMac')&&$('macSheetMac').value)||'');
+  if($('macSheetErr'))$('macSheetErr').textContent='';
+  if(!url){if($('macSheetErr'))$('macSheetErr').textContent='Enter the portal URL your provider gave you.';return;}
+  if(!mac){if($('macSheetErr'))$('macSheetErr').textContent='That MAC address is not valid — it needs 12 hex characters, e.g. 00:1A:79:45:FD:AD.';return;}
+  /* Whatever MAC is used here becomes this device's MAC from now on, so the reconnect on relaunch
+     and every later request use the same one the provider activated. */
+  try{localStorage.setItem('m26_stkmac',mac);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
+  if($('macCodeBox'))$('macCodeBox').value=mac;
+  const btn=$('macSheetGo');if(btn)btn.disabled=true;
+  if($('macSheetErr'))$('macSheetErr').textContent='Loading your playlist…';
+  try{
+    await login({creds:{portalUrl:url,username:'',password:''}});
+    if($('login')&&$('login').classList.contains('hidden')){
+      if($('macSheetErr'))$('macSheetErr').textContent='';
+      $('macSheet').classList.remove('show');
+    }else{
+      if($('macSheetErr'))$('macSheetErr').textContent=($('err')&&$('err').textContent)||'The portal did not return a playlist for this MAC.';
+    }
+  }finally{ if(btn)btn.disabled=false; }
+}
+if($('macLoginBtn'))$('macLoginBtn').onclick=()=>openMacSheet();
+if($('macSheetClose'))$('macSheetClose').onclick=()=>$('macSheet').classList.remove('show');
+if($('macSheetGo'))$('macSheetGo').onclick=submitMacLogin;
+if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet')$('macSheet').classList.remove('show');};
 if($('xtreamActBtn'))$('xtreamActBtn').onclick=()=>openXtreamSheet();
 if($('xtreamClose'))$('xtreamClose').onclick=()=>$('xtreamSheet').classList.remove('show');
 if($('xtreamGo'))$('xtreamGo').onclick=submitXtreamLogin;
