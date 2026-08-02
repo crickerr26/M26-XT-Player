@@ -183,7 +183,35 @@ async function handleProxy(request) {
    Credentials arrive in a POST body, never in the query string, so they stay out of URLs,
    referrers and edge logs. */
 const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
-const MAX_PLAYLIST_BYTES = 40 * 1024 * 1024;
+const MAX_PLAYLIST_BYTES = 48 * 1024 * 1024;
+
+/* Read a response body up to a byte cap WITHOUT buffering the whole thing first. A full-catalogue
+   playlist from a large panel can be a hundred megabytes; calling .text() on that is what made an
+   otherwise-fine endpoint fail outright. Reading incrementally means an oversized playlist comes
+   back TRUNCATED but usable — an M3U is a flat list, so a prefix parses into a working (if
+   shorter) channel list, which beats failing the login entirely. */
+async function readCapped(response, max) {
+  const reader = response.body && response.body.getReader();
+  if (!reader) return { text: await response.text(), truncated: false };
+  const decoder = new TextDecoder('utf-8');
+  let out = '', size = 0, truncated = false;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      out += decoder.decode(value.slice(0, Math.max(0, value.byteLength - (size - max))), { stream: false });
+      truncated = true;
+      try { await reader.cancel(); } catch (e) {}
+      break;
+    }
+    out += decoder.decode(value, { stream: true });
+  }
+  if (!truncated) out += decoder.decode();
+  /* drop a partial trailing line so the parser never sees half a URL */
+  if (truncated) out = out.slice(0, out.lastIndexOf('\n') + 1 || out.length);
+  return { text: out, truncated };
+}
 
 function playlistCandidates(base, user, pass) {
   const b = String(base || '').trim().replace(/\/+$/, '');
@@ -192,14 +220,17 @@ function playlistCandidates(base, user, pass) {
   /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
   if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
   if (!user) return [b];
-  /* Order matters for CONTENT, not just reachability: plain type=m3u_plus returns the panel's
-     full catalogue (live + movies + series), whereas the &output=ts variant is live-oriented and
-     on many panels omits VOD entirely — leading it was why Movies and Series came back empty
-     while Live TV filled up. Ask for everything first; the narrower variants remain as
-     fallbacks for panels that only answer those. */
+  /* Order by what RELIABLY ANSWERS, not by what carries the most content. v13.3 briefly led with
+     plain type=m3u_plus to pick up movies/series in one document, and that broke logins that had
+     been working: on a big panel that variant is the entire catalogue — often far larger than a
+     worker should buffer — so it blew the size cap, and the retries behind it fared no better
+     against a panel that throttles. The &output=ts variant is the compact, live-oriented document
+     these panels serve dependably, so it leads again. Movies and Series no longer depend on this
+     choice at all: when the playlist has none, the app asks the panel's own VOD/series endpoints
+     for those tabs (see loadTypeFromApi), which is the more reliable source anyway. */
   return [
-    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
+    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
     b + '/playlist/' + u + '/' + p + '/m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p,
@@ -258,21 +289,32 @@ async function handlePlaylist(request) {
       }
       continue;
     }
-    const text = await upstream.text();
-    if (text.length > MAX_PLAYLIST_BYTES) {
-      attempts.push({ endpoint: target.pathname, error: 'playlist too large' });
+    let text = '', truncated = false;
+    try {
+      const read = await readCapped(upstream, MAX_PLAYLIST_BYTES);
+      text = read.text; truncated = read.truncated;
+    } catch (e) {
+      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), error: 'read failed: ' + String((e && e.message) || e).slice(0, 80) });
       continue;
     }
     if (!looksLikePlaylist(text)) {
-      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), status: upstream.status, error: 'not an M3U playlist' });
+      /* Report WHAT came back instead of just "not a playlist" — an HTML challenge page, a login
+         form or a panel error message are all diagnosable, and all look identical without this. */
+      attempts.push({
+        endpoint: target.pathname + (target.search ? '?…' : ''),
+        status: upstream.status,
+        error: 'not an M3U playlist',
+        got: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
+      });
       continue;
     }
     const headers = withCors(new Headers({
       'content-type': 'audio/x-mpegurl; charset=utf-8',
       'cache-control': 'no-store',
-      'x-m26-source': target.origin + target.pathname
+      'x-m26-source': target.origin + target.pathname,
+      'x-m26-truncated': truncated ? '1' : '0'
     }));
-    headers.set('access-control-expose-headers', 'x-m26-source');
+    headers.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
     return new Response(text, { status: 200, headers });
   }
 

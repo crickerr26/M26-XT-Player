@@ -1062,7 +1062,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.3';
+const APP_VERSION='13.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1630,11 +1630,25 @@ async function fetchPlaylistViaFunction(base,user,pass){
   const ct=(r.headers.get('content-type')||'').toLowerCase();
   if(/json/.test(ct)){
     const j=await r.json().catch(()=>null);
+    const attempts=(j&&j.attempts)||[];
+    /* Say WHAT the panel actually replied. "did not return a playlist" alone is unactionable —
+       whether every endpoint 404'd, or one answered with an HTML challenge page, or the whole
+       host timed out, are entirely different problems, and the raw answer names which. */
+    let detail='';
+    const spoke=attempts.filter(a=>a.status||a.got||a.error);
+    if(spoke.length){
+      const first=spoke.find(a=>a.got)||spoke[0];
+      const bits=[];
+      if(first.status)bits.push('HTTP '+first.status);
+      if(first.got)bits.push('"'+first.got+'"');
+      else if(first.error)bits.push(first.error);
+      if(bits.length)detail=' The panel answered '+(first.endpoint||'')+' with '+bits.join(' — ')+'.';
+    }
     const err=new Error(
       (j&&j.reason==='rate-limited')?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
       :(j&&j.reason==='rejected')?'The portal rejected these details — check the username and password.'
-      :'The portal did not return a playlist for these details. Check the URL, username and password.');
-    err.attempts=(j&&j.attempts)||[];
+      :'The portal did not return a playlist for these details. Check the URL, username and password.'+detail);
+    err.attempts=attempts;
     throw err;
   }
   const text=await r.text();
