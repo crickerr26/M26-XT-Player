@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='14.0';
+const APP_VERSION='14.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1438,7 +1438,7 @@ async function login(opts){
         toast('Connected — '+res.live.length+' channels loaded');
         return;
       }catch(se){
-        throw Error('Your seller has not activated this device yet. Send them the MAC address shown on this screen — '+macFmt(stalkerMac())+' — and ask them to activate it. Then sign in again.');
+        throw Error(stalkerFailMessage(se));
       }
     }
     /* A definite rejection (rate-limit / bad credentials) is the panel's final answer; asking
@@ -1751,6 +1751,15 @@ async function fetchPlaylistViaFunction(base,user,pass){
       (j&&j.reason==='rate-limited')?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
       :(j&&j.reason==='rejected')?'The portal rejected these details — check the username and password.'
       :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal. It signs devices in by MAC address, not by username and password — there is no username login to use here. Opening "Connect via MAC Address" for you…'
+      /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
+         Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
+         the panel behind it is down or its DNS is broken. Telling someone to re-check a username
+         and password they typed correctly is advice they cannot act on, and it sends them to the
+         provider with the wrong question. */
+      :(spoke.length&&spoke[0].status>=500)
+        ?('The portal’s own server is not responding (HTTP '+spoke[0].status+')'
+          +(spoke[0].status===530?' — HTTP 530 means the address resolves but the panel behind it is unreachable, which is a problem at the provider’s end':'')
+          +'. Your username and password are not the issue. Check the portal address with your provider, or try again shortly.')
       :'The portal did not return a playlist for these details. Check the URL, username and password.'+detail);
     err.attempts=attempts;
     if(j&&j.reason==='stalker-portal')err.stalker=true;
@@ -3699,6 +3708,29 @@ function stalkerMac(){
   return m;
 }
 function macFmt(m){return String(m||'').toUpperCase();}
+/* v14.1: SAY WHAT THE PORTAL ACTUALLY SAID. Every failure of the MAC handshake used to collapse
+   into one sentence — "your seller has not activated this device yet" — because the caught error
+   object was dropped on the floor. A portal that was down, rate-limiting, sitting behind a
+   Cloudflare 5xx, or handing back an empty channel list therefore all told the user to go and ask
+   their provider to activate a MAC that was already active, which is unfixable advice for a
+   problem the user does not have. Only claim "not activated" when the portal genuinely refused
+   the MAC; otherwise report what happened, and always print the MAC this device is actually
+   sending — a mismatch with the one on the provider's account is itself a common cause. */
+function stalkerFailMessage(e){
+  const mac=macFmt(stalkerMac());
+  const raw=(e&&e.message)||'';
+  const detail=(e&&e.detail)?(' Portal said: “'+e.detail+'”'):'';
+  const st=e&&e.status;
+  if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
+    return 'The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail;
+  if(st===429||/rate-limit/i.test(raw))
+    return 'This portal is rate-limiting connection attempts right now. Wait a minute, then sign in again. (MAC on this device: '+mac+')';
+  if(st===530||/\b5\d\d\b/.test(raw))
+    return 'The portal’s own server is not responding'+(st?(' (HTTP '+st+')'):'')+' — that is the panel being down or misconfigured, not your details or your MAC. Check the portal address with your provider, or try again shortly.'+detail;
+  if(/returned no channels/i.test(raw))
+    return raw+' (MAC on this device: '+mac+')';
+  return 'Could not complete the MAC sign-in. '+(raw||'The portal did not answer.')+detail+' MAC on this device: '+mac+'.';
+}
 function stalkerProxyUrl(url,mac,token){
   return PROXY+encodeURIComponent(url)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):'');
 }
