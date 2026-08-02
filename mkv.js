@@ -459,6 +459,24 @@
       const rx = new MkvRemuxer();
       let sourceBuffers = new Map(), queues = new Map(), controller = null, done = false, started = false;
 
+      /* ManagedMediaSource (iOS 17.1+) is not a drop-in MediaSource. The element MUST have
+         disableRemotePlayback set or attaching throws, and the browser drives fetching itself
+         through startstreaming/endstreaming — that pair is the platform's own backpressure and is
+         exactly what a 4K stream needs, since it tells us when to stop pulling instead of us
+         guessing from buffered seconds. */
+      const isManaged = !!(global.ManagedMediaSource && ms instanceof global.ManagedMediaSource);
+      let streamingAllowed = !isManaged;
+      if (isManaged) {
+        try { video.disableRemotePlayback = true; } catch (_) {}
+        ms.addEventListener('startstreaming', function () { streamingAllowed = true; });
+        ms.addEventListener('endstreaming', function () { streamingAllowed = false; });
+      }
+      /* 4K is 20-80 Mbit/s, so "30 seconds buffered" can mean hundreds of megabytes — far past
+         what Safari allows in a SourceBuffer, which showed up as constant quota errors and a
+         stream that never settled. Hold a much shorter window for large frames and keep less of
+         what has already played. */
+      let aheadTarget = 30, evictKeep = 10;
+
       function fail(e) {
         if (done) return; done = true;
         try { if (controller) controller.abort(); } catch (_) {}
@@ -468,8 +486,8 @@
       function evict(sb) {
         try {
           const ct = video.currentTime || 0;
-          if (sb.buffered.length && sb.buffered.start(0) < ct - 10) {
-            sb.remove(sb.buffered.start(0), ct - 10);
+          if (sb.buffered.length && sb.buffered.start(0) < ct - evictKeep) {
+            sb.remove(sb.buffered.start(0), ct - evictKeep);
             return true;
           }
         } catch (_) {}
@@ -495,6 +513,8 @@
 
       rx.onInit = function (init, tracks, unsupportedAudio) {
         try {
+          const big = tracks.some(function (t) { return t.type === 'video' && (t.width || 0) >= 2560; });
+          if (big) { aheadTarget = 10; evictKeep = 4; }
           for (const t of tracks) {
             const mime = rx.mimeFor(t);
             if (!MS.isTypeSupported || !MS.isTypeSupported(mime)) {
@@ -541,7 +561,8 @@
                 const b = video.buffered;
                 if (b.length) ahead = b.end(b.length - 1) - (video.currentTime || 0);
               } catch (_) {}
-              if (ahead < 30) return true;
+              // On iOS the browser's own signal wins; elsewhere fall back to the buffered window.
+              if (streamingAllowed && ahead < aheadTarget) return true;
               await new Promise(function (r) { setTimeout(r, 250); });
             }
           };
@@ -563,8 +584,22 @@
         }
       });
 
-      video.src = URL.createObjectURL(ms);
-      video.__mkvStop = function () { done = true; try { if (controller) controller.abort(); } catch (_) {} };
+      /* Safari attaches a ManagedMediaSource through srcObject; a blob URL from createObjectURL
+         is not accepted for it, which is why nothing ever started on iPhone. Plain MediaSource
+         keeps the blob URL, and srcObject failures fall back to it. */
+      let attached = false;
+      if (isManaged && 'srcObject' in video) {
+        try { video.srcObject = ms; attached = true; } catch (_) {}
+      }
+      if (!attached) {
+        try { video.src = URL.createObjectURL(ms); }
+        catch (e) { return fail(new Error('Could not attach the media source')); }
+      }
+      video.__mkvStop = function () {
+        done = true;
+        try { if (controller) controller.abort(); } catch (_) {}
+        try { if (video.srcObject) video.srcObject = null; } catch (_) {}
+      };
     });
   }
 
