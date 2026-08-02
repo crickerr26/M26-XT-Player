@@ -263,6 +263,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .qp:active{transform:scale(.9)}
 .qpico{width:20px;height:20px;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
 .qp-vlc{background:linear-gradient(135deg,#ff8f1c,#e85d04)}
+.qp-km{background:linear-gradient(135deg,#8b5cf6,#5b6cf0)}
 .qp-infuse{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
 .qp-nplayer{background:linear-gradient(135deg,#14b8a6,#0f766e)}
 .qp-mx{background:linear-gradient(135deg,#2563eb,#1e40af)}
@@ -1015,7 +1016,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='10.7';
+const APP_VERSION='10.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1515,7 +1516,7 @@ function renderEpisodeGrid(){
   $('sectionSub').textContent=ev.eps.length.toLocaleString()+' episodes';
   g.classList.remove('gridview');
   let html='<div class="epBar"><button class="epBack" type="button" data-epback="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>All series</button><span class="epBarName">'+esc(ev.name)+'</span></div>';
-  html+=ev.eps.map((ep,i)=>{const active=S.current&&keyOf(S.current)===keyOf(ep);const logo=logoOf(ep)||ev.logo;return `<div class="card ${active?'active':''}" data-ep="${i}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(ep.name)}</div><div class="cmeta">${esc((ep.container_extension||'mp4').toUpperCase())}</div></div><div class="rowActions"><button class="qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button></div></div>`}).join('');
+  html+=ev.eps.map((ep,i)=>{const active=S.current&&keyOf(S.current)===keyOf(ep);const logo=logoOf(ep)||ev.logo;return `<div class="card ${active?'active':''}" data-ep="${i}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(ep.name)}</div><div class="cmeta">${esc((ep.container_extension||'mp4').toUpperCase())}</div></div><div class="rowActions"><button class="qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button><button class="qp qp-km" type="button" data-kmep="${i}" title="Open in KMPlayer" aria-label="Open in KMPlayer">${playerLogo('km')}</button></div></div>`}).join('');
   g.innerHTML=html;
   updateViewToggle();
 }
@@ -1540,26 +1541,29 @@ function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.lo
 /* v7.4: VLC logo for the quick-launch button (self-contained SVG — white traffic-cone). */
 function playerLogo(mode){
   if(mode==='vlc')return'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><g fill="#fff"><path d="M16 4.5l2 6h-4z"/><path d="M13.4 12h5.2l2.9 8.8a1.2 1.2 0 0 1-1.14 1.6H11.64A1.2 1.2 0 0 1 10.5 20.8z"/><rect x="8.7" y="22.6" width="14.6" height="3" rx="1.3"/></g></svg>';
+  if(mode==='km')return'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M11.5 7.5v17L24.5 16z"/></svg>';
   return mode.toUpperCase();
 }
-/* v87: per-row quick-launch player button (replace the up/down reorder arrows). Tapping it opens
-   the channel/movie straight in VLC — no popup.
-   v7.4: VLC only (KMPlayer removed). SERIES rows show NO button — a series row opens its episode
-   list, so a play/VLC button there makes no sense; the VLC button lives on each EPISODE instead. */
+/* v87: per-row quick-launch player buttons (replace the up/down reorder arrows). Tapping one opens
+   the channel/movie straight in that app — no popup.
+   v10.8 (owner request): show BOTH VLC and KMPlayer logos on every row (Live / Movies), and on each
+   series EPISODE. A series row itself opens its episode list, so its per-stream buttons live on the
+   episodes, not the series card. */
 function rowPlayerButtons(key,type){
   if(type==='series')return'';
-  return '<button class="qp qp-vlc" type="button" data-play="vlc" data-key="'+key+'" title="Open in VLC" aria-label="Open in VLC">'+playerLogo('vlc')+'</button>';
+  return '<button class="qp qp-vlc" type="button" data-play="vlc" data-key="'+key+'" title="Open in VLC" aria-label="Open in VLC">'+playerLogo('vlc')+'</button>'+
+         '<button class="qp qp-km" type="button" data-play="km" data-key="'+key+'" title="Open in KMPlayer" aria-label="Open in KMPlayer">'+playerLogo('km')+'</button>';
 }
 function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
 async function openEpisodePicker(x){load(true,'Loading episodes...');try{const d=await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
 /* v7.4: each episode row = tap the row to play in the Media26 built-in player (fast, optimistic
    start), plus a VLC button to open that episode in VLC. */
-$('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div><button class="epvlc qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button></div>`).join('');
+$('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div><button class="epvlc qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button><button class="epvlc qp qp-km" type="button" data-kmep="${i}" title="Open in KMPlayer" aria-label="Open in KMPlayer">${playerLogo('km')}</button></div>`).join('');
 $('episodeSheet').classList.add('show');
 /* remember this series' episodes so the list under the player shows ONLY this series */
 S.episodeView={name:nameOf(x),key:keyOf(x),logo:logoOf(x),eps};renderGrid();
-$('episodeList').onclick=e=>{const vb=e.target.closest('[data-vlcep]');if(vb){e.stopPropagation();const ep=eps[Number(vb.dataset.vlcep)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,'vlc',true);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
+$('episodeList').onclick=e=>{const vb=e.target.closest('[data-vlcep]');if(vb){e.stopPropagation();const ep=eps[Number(vb.dataset.vlcep)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,'vlc',true);return}const kb=e.target.closest('[data-kmep]');if(kb){e.stopPropagation();const ep=eps[Number(kb.dataset.kmep)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,'km',true);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
 /* v3.5: Movie/Series details popup — opens when the poster is tapped. Pulls the rich metadata
    (director, cast, release date, rating, genre, plot) from the Xtream get_vod_info /
    get_series_info endpoints and shows it over a blurred poster backdrop. */
@@ -3270,6 +3274,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;
   /* episode-view (a single series' episodes shown under the player) */
   const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
   const ve=e.target.closest('[data-vlcep]');if(ve){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(ve.dataset.vlcep)];if(ep)playItemExternal(ep,'vlc',true);return}
+  const ke=e.target.closest('[data-kmep]');if(ke){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(ke.dataset.kmep)];if(ep)playItemExternal(ep,'km',true);return}
   const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
   const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
