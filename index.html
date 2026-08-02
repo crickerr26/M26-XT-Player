@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='14.4';
+const APP_VERSION='14.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3755,7 +3755,7 @@ function stalkerFailMessage(e){
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
     return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
   if(st===429||/rate-limit/i.test(raw))
-    return tail('This portal is rate-limiting connection attempts right now. Wait a minute, then sign in again. (MAC on this device: '+mac+')');
+    return tail('This portal (or the security layer in front of it) is refusing connections from our servers — HTTP 429.'+detail+' This is a block on where the request comes from, not on your account, so waiting does not clear it. Setting up a transcoder in Stream Tools gives the app a second route that usually gets through. (MAC on this device: '+mac+')');
   if(st===530||/\b5\d\d\b/.test(raw))
     return 'The portal’s own server is not responding'+(st?(' (HTTP '+st+')'):'')+' — that is the panel being down or misconfigured, not your details or your MAC. Check the portal address with your provider, or try again shortly.'+detail;
   if(/returned no channels/i.test(raw))
@@ -3770,16 +3770,41 @@ function stalkerProxyUrl(url,mac,token){
    way to tell "the portal itself rejected this" apart from "an edge/anti-bot layer in front of
    the portal blocked the request before it ever reached portal.php". */
 function _snippet(text){return String(text||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180)}
+/* v14.5: A SECOND ROUTE TO THE PORTAL.
+   A 429 or 403 on the very FIRST handshake request is not "you have made too many requests" —
+   nothing has been made yet. It is an edge/WAF in front of the portal refusing where the request
+   came FROM, and our Cloudflare relay reaches the panel from Cloudflare's own network, which such
+   filters commonly block outright. No amount of waiting clears that, which is exactly what the
+   user kept hitting. The transcoder runs on ordinary hosting with completely different IPs, and
+   it now speaks the same stb=1 MAG protocol (server.js), so the identical handshake sent through
+   it is simply a different visitor. Try Cloudflare first — it is faster and always awake — and
+   fall back to the transcoder only on the refusals that a retry through the same path can never
+   fix. */
+function stalkerRelays(u,mac,token){
+  const out=[stalkerProxyUrl(u,mac,token)];
+  try{
+    const tb=(typeof transcoderBase==='function')&&transcoderBase();
+    if(tb)out.push(tb+'/proxy?url='+encodeURIComponent(u)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):''));
+  }catch(e){}
+  return out;
+}
 async function stalkerJson(endpoint,mac,token,params){
   const u=endpoint+(endpoint.indexOf('?')>=0?'&':'?')+Media26Portal.stalkerQuery(params);
-  const r=await fetch(stalkerProxyUrl(u,mac,token),{headers:{'Accept':'application/json'}});
-  if(!r.ok){
+  const relays=stalkerRelays(u,mac,token);
+  let last=null;
+  for(let i=0;i<relays.length;i++){
+    let r;
+    try{ r=await fetch(relays[i],{headers:{'Accept':'application/json'}}); }
+    catch(e){ last=Object.assign(new Error((e&&e.message)||'Could not reach the portal'),{status:0}); continue; }
+    if(r.ok)return r.json().catch(()=>null);
     const body=await r.text().catch(()=>'');
-    const err=new Error('Portal returned HTTP '+r.status);
-    err.status=r.status;err.detail=_snippet(body);
-    throw err;
+    last=new Error('Portal returned HTTP '+r.status);
+    last.status=r.status;last.detail=_snippet(body);
+    /* Only a where-you-came-from refusal is worth re-sending down the other route. Anything else
+       is the portal's considered answer and will be identical from any IP. */
+    if(r.status!==403&&r.status!==429&&r.status<500)break;
   }
-  return r.json().catch(()=>null);
+  throw last||new Error('Could not reach the portal');
 }
 async function stalkerHandshake(base,mac){
   let lastErr=null;
