@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.8';
+const APP_VERSION='14.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1407,7 +1407,11 @@ async function login(opts){
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
   if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
   else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
-  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');S.source='xtream';S.m3u=null;
+  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');
+  /* Do not touch a portal that has just told us it is throttling — a further attempt only
+     restarts its timer. Count down instead, so waiting is visible rather than guesswork. */
+  {const w=rateLimitLeft();if(w)throw Error('This portal is still rate-limiting this connection. Wait '+w+' more second'+(w===1?'':'s')+' before signing in again — trying now only restarts its timer.');}
+  load(true,'Connecting...');S.source='xtream';S.m3u=null;resetFullCatalog();
   /* v13.2: THE PLAYLIST LEADS. Until now login opened with player_api.php and only fell back to
      the M3U playlist once that failed — but fetchJsonChain sweeps five relay candidates across
      three rounds at ~20s each, so on a panel that throttles or simply doesn't answer player_api
@@ -1438,7 +1442,7 @@ async function login(opts){
         toast('Connected — '+res.live.length+' channels loaded');
         return;
       }catch(se){
-        throw Error('Your seller has not activated this device yet. Send them the MAC address shown on this screen — '+macFmt(stalkerMac())+' — and ask them to activate it. Then sign in again.');
+        throw Error(stalkerFailMessage(se));
       }
     }
     /* A definite rejection (rate-limit / bad credentials) is the panel's final answer; asking
@@ -1467,10 +1471,13 @@ async function login(opts){
   /* On a multi-connection account, 2+ devices streaming at once is ALLOWED — never nag or block. */
   if(_max<=1&&_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
   saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
-  catch(e){$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
+  catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
-function updateHomeCounts(){if($('homeLiveCount'))$('homeLiveCount').textContent=(S.live.length||0).toLocaleString();if($('homeVodCount'))$('homeVodCount').textContent=(S.vod.length||0).toLocaleString();if($('homeSeriesCount'))$('homeSeriesCount').textContent=(S.series.length||0).toLocaleString();}
+/* v13.9: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
+   the app is mid-fetch reads as "this account has no movies", which is the wrong answer and the
+   one thing the user cannot tell apart from a real failure. */
+function updateHomeCounts(){const n=(v,busy)=>(busy&&!v)?'…':(v||0).toLocaleString();if($('homeLiveCount'))$('homeLiveCount').textContent=n(S.live.length,S.loadingLive);if($('homeVodCount'))$('homeVodCount').textContent=n(S.vod.length,S.loadingVod);if($('homeSeriesCount'))$('homeSeriesCount').textContent=n(S.series.length,S.loadingSeries);}
 function showHome(){updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
    (All / Favorites / Recently Played + every category with its count + a favorite star).
@@ -1565,6 +1572,13 @@ const TYPE_API={live:['get_live_categories','get_live_streams','liveCount'],vod:
    when the M3U gave us live channels but no movies/series, which is how most panels behave.
    Failure is silent by design — the tab simply stays empty, exactly as it is today, and the
    already-loaded live channels are never disturbed. */
+/* Keep the parsed-playlist record in step with whatever a fallback source produced, so the tab
+   survives being re-opened (loadType re-seeds every tab from S.m3u on each call). */
+function adoptIntoPlaylist(type,cats,arr){
+  if(S.source!=='m3u'||!S.m3u)return;
+  if(type==='vod'){S.m3u.vod=arr;S.m3u.vodCats=cats||[];}
+  else if(type==='series'){S.m3u.series=arr;S.m3u.seriesCats=cats||[];}
+}
 async function loadTypeFromApi(type){
   const [catA,strmA,countId]=TYPE_API[type];
   try{
@@ -1574,9 +1588,65 @@ async function loadTypeFromApi(type){
     const arr=s.map(x=>({...x,_type:type}));
     if(type==='vod'){S.vodCats=c||[];S.vod=arr;S.loadedVod=true;}
     else{S.seriesCats=c||[];S.series=arr;S.loadedSeries=true;}
+    /* v13.9: fold the result back into the parsed playlist. loadType() re-seeds each tab FROM
+       S.m3u every time it runs, so without this a second visit to Movies (or the "Load movies"
+       button) wiped the titles we had just fetched and started the whole hunt again. */
+    adoptIntoPlaylist(type,type==='vod'?S.vodCats:S.seriesCats,arr);
     if($(countId))$(countId).textContent=arr.length.toLocaleString();
     renderAll();updateHomeCounts&&updateHomeCounts();
   }catch(e){}
+}
+/* v13.9: THE SECOND SOURCE FOR MOVIES & SERIES. Login deliberately fetches the compact,
+   live-oriented playlist (get.php…&output=ts) because that is the document panels serve most
+   dependably — but on plenty of panels it carries live channels only. loadTypeFromApi then asks
+   player_api.php for the missing tabs, which works when the panel exposes that API; on a panel
+   that has it disabled, throttled, or simply never answers it, Movies and Series stayed at zero
+   forever even though the very same get.php serves the whole catalogue under a different query.
+   So ask for it: one background request for the FULL playlist, parsed with the same parser, and
+   ONLY its vod/series buckets are adopted — the live list the session already holds is
+   authoritative and is never touched. The request is made at most once per session (both tabs
+   share this promise), and any failure is silent: the tabs are left exactly as they were. */
+let _fullCatalogPromise=null;
+function resetFullCatalog(){_fullCatalogPromise=null;}
+function fullPlaylistCatalog(){
+  if(_fullCatalogPromise)return _fullCatalogPromise;
+  _fullCatalogPromise=(async()=>{
+    if(typeof Media26Portal==='undefined')return null;
+    if(!SAME_ORIGIN_PROXY||!S.url||!S.user)return null;   /* needs our own function + credentials */
+    try{
+      const r=await fetch(location.origin+'/api/playlist',{
+        method:'POST',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({url:S.url,username:S.user,password:S.pass,variant:'full',mac:stalkerMac()})
+      });
+      if(!r.ok)return null;
+      /* A JSON body is the function's "no playlist / rate-limited / stalker" answer. Nothing to
+         adopt, and nothing to report — the user is already watching live TV. */
+      if(/json/.test((r.headers.get('content-type')||'').toLowerCase()))return null;
+      const text=await r.text();
+      if(!Media26Portal.looksLikeM3U(text))return null;
+      return Media26Portal.parseM3U(text);
+    }catch(e){return null}
+  })().then(p=>{
+    /* Only a SUCCESS is cached. A failed attempt must be retryable, because the empty-tab screen
+       offers a "Load movies" button and that button has to be able to actually try again. Two
+       tabs asking at the same moment still share one in-flight request — the reset happens after
+       it settles, not before. */
+    if(!p)_fullCatalogPromise=null;
+    return p;
+  });
+  return _fullCatalogPromise;
+}
+async function loadTypeFromFullPlaylist(type){
+  const p=await fullPlaylistCatalog();
+  if(!p)return;
+  const arr=type==='vod'?p.vod:p.series;
+  if(!arr||!arr.length)return;
+  if(type==='vod'){S.vodCats=p.vodCats;S.vod=arr;S.loadedVod=true;}
+  else{S.seriesCats=p.seriesCats;S.series=arr;S.loadedSeries=true;}
+  adoptIntoPlaylist(type,type==='vod'?p.vodCats:p.seriesCats,arr);
+  if($(type==='vod'?'vodCount':'seriesCount'))$(type==='vod'?'vodCount':'seriesCount').textContent=arr.length.toLocaleString();
+  renderAll();updateHomeCounts&&updateHomeCounts();
 }
 async function loadType(type){
   /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it. */
@@ -1591,7 +1661,24 @@ async function loadType(type){
        them. When a tab comes back empty from the playlist, ask the panel's own VOD/series
        endpoints for that ONE tab (we already hold the username and password). Live is never
        re-fetched this way: it came from the playlist and is authoritative. */
-    if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass)await loadTypeFromApi(type);
+    if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass){
+      /* v13.9: mark the tab as LOADING while the fallbacks run. Without this the Home card read a
+         flat "0 titles" and the category page offered a "Load movies" button the whole time the
+         app was already busy fetching them — which is exactly what a working app looks like when
+         it looks broken. */
+      if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
+      renderAll();updateHomeCounts&&updateHomeCounts();
+      try{
+        await loadTypeFromApi(type);
+        /* If the panel's own API had nothing to say either, ask its get.php for the full
+           catalogue. Between the two, a tab now only stays empty when the account genuinely has
+           no films or shows. */
+        if(!(type==='vod'?S.vod:S.series).length)await loadTypeFromFullPlaylist(type);
+      }finally{
+        if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
+        renderAll();updateHomeCounts&&updateHomeCounts();
+      }
+    }
     return;
   }
   /* Live came from get_all_channels at connect time. Movies and series live behind a separate
@@ -1654,7 +1741,11 @@ async function fetchPlaylistViaFunction(base,user,pass){
   const r=await fetch(location.origin+'/api/playlist',{
     method:'POST',
     headers:{'content-type':'application/json'},
-    body:JSON.stringify({url:base,username:user,password:pass})
+    /* v14.3: send the device MAC with the credentials. The reseller creates the line in their
+       panel bound to the MAC this app shows, so a MAC-locked line needs it present to authorise —
+       without it the correct username and password are refused. The worker only uses it if the
+       credentials-only attempt fails, so nothing changes for a panel that is not MAC-locked. */
+    body:JSON.stringify({url:base,username:user,password:pass,mac:stalkerMac()})
   });
   if(!r.ok)return null;                /* endpoint missing/older worker → fall back to the client walk */
   const ct=(r.headers.get('content-type')||'').toLowerCase();
@@ -1678,6 +1769,15 @@ async function fetchPlaylistViaFunction(base,user,pass){
       (j&&j.reason==='rate-limited')?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
       :(j&&j.reason==='rejected')?'The portal rejected these details — check the username and password.'
       :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal. It signs devices in by MAC address, not by username and password — there is no username login to use here. Opening "Connect via MAC Address" for you…'
+      /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
+         Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
+         the panel behind it is down or its DNS is broken. Telling someone to re-check a username
+         and password they typed correctly is advice they cannot act on, and it sends them to the
+         provider with the wrong question. */
+      :(spoke.length&&spoke[0].status>=500)
+        ?('The portal’s own server is not responding (HTTP '+spoke[0].status+')'
+          +(spoke[0].status===530?' — HTTP 530 means the address resolves but the panel behind it is unreachable, which is a problem at the provider’s end':'')
+          +'. Your username and password are not the issue. Check the portal address with your provider, or try again shortly.')
       :'The portal did not return a playlist for these details. Check the URL, username and password.'+detail);
     err.attempts=attempts;
     if(j&&j.reason==='stalker-portal')err.stalker=true;
@@ -1860,6 +1960,23 @@ function renderInfo(x,info,type){
   $('infoPlot').textContent=plot||'No description available for this title.';
 }
 function directUrl(x,ext){const type=typeOf(x), sid=idOf(x);let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
+/* v14.0: THE CANONICAL XTREAM FORMS OF A PLAYLIST LINK.
+   An M3U hands us whatever URL form the panel chose to print, and by far the most common is the
+   legacy extensionless one: http://host:8080/user/pass/421107. That form is a redirect shim, not
+   the real endpoint, and a panel is perfectly entitled to gate it while serving the real ones —
+   which is exactly what "HTTP error 511 Network Authentication Required" from the panel means.
+   The same stream always also exists at .../live/user/pass/421107.ts (continuous MPEG-TS, what
+   mpegts.js and VLC want) and .../live/user/pass/421107.m3u8 (HLS, what Safari decodes natively).
+   Before this, only the .m3u8 sibling was derived and it was tried LAST, so the engine that
+   actually carries live TV here — mpegts.js — never once received a URL the panel would serve.
+   Returns null for anything that isn't shaped like an Xtream stream link, so a real .ts/CDN URL
+   in a playlist is left completely alone. */
+function xtreamForms(raw){
+  const m=/^(https?:\/\/[^/]+)\/(?!live\/|movie\/|series\/)([^/?#]+)\/([^/?#]+)\/(\d+)(?:\.([a-z0-9]{2,4}))?(?:$|\?)/i.exec(String(raw||''));
+  if(!m)return null;
+  const base=m[1]+'/live/'+m[2]+'/'+m[3]+'/'+m[4];
+  return {ts:base+'.ts',m3u8:base+'.m3u8'};
+}
 function playableUrl(u,type){return blocked(u)?proxyUrl(u):u}
 function proxiedMediaUrl(u){return proxyUrl(u)}
 function transcoderBase(){try{return normalize($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
@@ -2236,6 +2353,22 @@ function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pau
 function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();if($('ovTitle'))$('ovTitle').textContent=nameOf(x);$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls();updateMediaSession(x)}
 async function playItemVlc(x){setCurrentItem(x);cleanup();if($('stateProgress'))$('stateProgress').classList.add('hidden');if($('stateThumb'))$('stateThumb').classList.add('hidden');$('stateTitle').textContent='Opening VLC';$('stateText').textContent='If VLC is installed, the stream will open there. The link is also copied.';$('overlay').style.display='grid';$('netStatus').textContent='VLC mode';$('miniMeta').textContent='Opening VLC';openVlcForCurrent();toast('Opening in VLC')}
 async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
+/* v14.0: say WHO refused. When every route fails the last thing tried is the transcoder, so its
+   error was reported as THE reason — complete with "free servers sleep when idle, wait ~30s",
+   which sent the user chasing a transcoder problem that did not exist. But ffmpeg's log carries
+   the panel's own answer, and 401 / 403 / 511 "Network Authentication Required" is the PANEL
+   turning the stream down, not a cold server: waiting 30s and tapping again cannot fix it. Name
+   the two things that genuinely cause it, since both are the provider's to resolve. */
+function liveFailMessage(transErr){
+  if(!transErr)return 'This channel did not load. Try another channel, or open it in VLC.';
+  if(/\b(401|403|511)\b|authentication required|unauthorized|forbidden|access denied/i.test(transErr)){
+    return 'Your provider refused this stream ('+transErr.replace(/^server returned \d+ — /,'')
+      +'). That is the panel saying no, not a slow server — usually the account is already streaming '
+      +'on another device, or this channel is not in your package. Stop other devices and tap again, '
+      +'or ask your provider.';
+  }
+  return 'Channel failed — transcoder: '+transErr+'. Free servers sleep when idle; wait ~30s and tap again.';
+}
 /* v48: BASIC player mode (owner request). The full built-in player carries watchdog timers,
    stall detectors, chronic-stutter counters, multi-plan cascades, and a pre-play buffer
    gate — every one of those can itself interrupt playback and add delay. Basic mode is the
@@ -2295,16 +2428,50 @@ async function playItemBasic(x){
     plans=isM3u8
       ?[{kind:'hls',url:durl}].concat(tsOk?[{kind:'mpegts',url:durl}]:[])
       :(tsOk?[{kind:'mpegts',url:durl},{kind:'hls',url:durl}]:[{kind:'hls',url:durl}]);
-    /* v13.3: a playlist channel is usually the extensionless Xtream form
-       (http://host/user/pass/12345). The SAME stream is normally also served as HLS at
-       .../live/user/pass/12345.m3u8, which is the route Safari can hardware-decode when
-       mpegts.js can't handle the codec — so add it rather than dead-ending on one engine. */
-    if(!isM3u8){
-      const alt=raw.replace(/^(https?:\/\/[^/]+)\/(?!live\/)([^/]+\/[^/]+\/\d+)$/i,'$1/live/$2.m3u8');
-      if(alt!==raw){const au=wrap(alt);if(!plans.some(p=>p.url===au))plans.push({kind:'hls',url:au});}
+    /* v13.9: THE FIX FOR "the playlist doesn't play in the built-in player". wrap() only sends a
+       link through our relay when the browser is FORBIDDEN to fetch it (http panel, https page).
+       On an https panel — and on any panel that answers a browser User-Agent with a 403 — the
+       browser was left to fetch the stream itself, and since mpegts.js and hls.js read it with
+       fetch/XHR, a panel that returns no CORS headers (nearly all of them do not) failed the very
+       first read. The channel then looked dead, while VLC played the identical URL fine. Push the
+       same URL through our own relay as a fallback: it adds the CORS headers, sends the player
+       User-Agent the panel expects, and streams the body through untouched. */
+    const relay=proxyUrl(raw);
+    if(relay!==durl){
+      if(!isM3u8&&tsOk)plans.push({kind:'mpegts',url:relay});
+      plans.push({kind:'hls',url:relay});
+      if(isM3u8&&tsOk)plans.push({kind:'mpegts',url:relay});
     }
-    /* and the transcoder as the final safety net, exactly as the Xtream live path has */
-    try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function'){const tlu=transcodeUrl(transcoderInput(x),'remux');if(tlu&&!plans.some(p=>p.url===tlu))plans.push({kind:'hls',url:tlu});}}catch(e){}
+    /* v14.0: THE CANONICAL FORMS, and .ts BEFORE .m3u8. Previously only the .m3u8 sibling was
+       derived and it sat last in the cascade, so on a panel that gates the legacy extensionless
+       link (511/403 — see xtreamForms) mpegts.js, the engine live TV actually runs on here, was
+       never handed a URL the panel would serve. The channel then failed all the way through to
+       the transcoder, which hit the very same refusal and reported it as its own cold start. */
+    const alt=isM3u8?null:xtreamForms(raw);
+    if(alt){
+      const addAlt=(kind,u)=>{const w=wrap(u);if(!plans.some(p=>p.kind===kind&&p.url===w))plans.push({kind,url:w});
+        const r=proxyUrl(u);if(r!==w&&!plans.some(p=>p.kind===kind&&p.url===r))plans.push({kind,url:r});};
+      if(tsOk)addAlt('mpegts',alt.ts);   /* continuous TS — what VLC plays, and the fastest start */
+      addAlt('hls',alt.m3u8);            /* HLS — native hardware decode on Safari/iOS */
+      addAlt('hls',alt.ts);
+    }
+    /* and the transcoder as the final safety net, exactly as the Xtream live path has.
+       v14.0: TWO transcoder routes, not one. transcoderInput() always sends ffmpeg at the stream
+       THROUGH our Cloudflare relay (v9.3: some providers 403 Render's datacenter IPs but allow
+       Cloudflare's). When the panel refuses the relay instead — which is what a 511 arriving at
+       ffmpeg as "server returned 504" actually was — that single route left the channel with no
+       safety net at all. Try the canonical .ts form through the relay, then the raw link straight
+       from the transcoder, so a refusal aimed at one path is not a refusal of every path. */
+    try{
+      const tb=(typeof transcoderBase==='function')&&transcoderBase();
+      if(tb&&typeof transcodeUrl==='function'){
+        const seen=u=>plans.some(p=>p.url===u);
+        const addT=src=>{try{const t=transcodeUrl(src,'remux');if(t&&!seen(t))plans.push({kind:'hls',url:t});}catch(e){}};
+        addT(transcoderInput(x));                                  /* raw link via our relay */
+        if(alt)addT(PROXY+encodeURIComponent(alt.ts));              /* canonical .ts via our relay */
+        addT(raw);                                                 /* straight from the transcoder */
+      }
+    }catch(e){}
   }else if(x._stalkerCmd&&x.direct_source){
     /* A Stalker movie or episode: create_link just handed back the real file URL, and there is no
        Xtream stream_id behind it, so the usual directUrl() cascade has nothing to build from and
@@ -2365,7 +2532,13 @@ async function playItemBasic(x){
        slow "converting" step and, when it eventually gave up, dropped users onto the app-chooser — so
        normal titles that the browser CAN play were being sent the slow way round. If a title truly
        can't decode, we fall to the external-app option quickly instead of converting. */
-    const mp4u=wrap(directUrl(x,'mp4')),m3u=wrap(directUrl(x,'m3u8')),tsu=wrap(directUrl(x,'ts')),lcu=wrap(directUrl(x,cont));
+    /* v13.9: a title that came from an M3U playlist has no Xtream stream_id — its id is our own
+       'm3u_<n>' — so every directUrl() below would build .../movie/user/pass/m3u_12.mp4, which the
+       panel can only 404. Those dead routes were burning up to 12 seconds EACH before the one real
+       route was reached, which is why a playlist film sat on "Loading" and then gave up. The
+       playlist link IS the file, so use it as the container route and drop the Xtream-only forms. */
+    const fromPlaylist=!!direct&&/^m3u_/.test(String(idOf(x)));
+    const mp4u=fromPlaylist?'':wrap(directUrl(x,'mp4')),m3u=fromPlaylist?'':wrap(directUrl(x,'m3u8')),tsu=fromPlaylist?'':wrap(directUrl(x,'ts')),lcu=fromPlaylist?wrap(direct):wrap(directUrl(x,cont));
     /* the transcoder repackage URL (fastvod = copy video, no slow re-encode) if a transcoder is set */
     let transUrl='';try{const tb=(typeof transcoderBase==='function')&&transcoderBase();if(tb&&typeof transcodeUrl==='function')transUrl=transcodeUrl(transcoderInput(x),'fastvod')||'';}catch(e){}
     /* v5.0: NATIVE FIRST for everything. Proof: these "mkv" titles play the instant they're
@@ -2387,7 +2560,14 @@ async function playItemBasic(x){
     quickVerdict=UNPLAYABLE.test(cont)&&!hasTrans;   /* only decide fast when there is NO transcoder at all */
     plans=[];
     const addv=(kind,url)=>{if(url&&!plans.some(p=>p.kind===kind&&p.url===url))plans.push({kind,url});};
-    if(direct){const du=wrap(direct);addv(du.includes('.m3u8')?'hls':'native',du);}
+    if(direct){
+      const du=wrap(direct),isH=/\.m3u8(?:$|\?)/i.test(direct);
+      addv(isH?'hls':'native',du);
+      /* Same relay fallback as live: an https panel is fetched by the browser itself, and one that
+         sends no CORS headers (or blocks a browser User-Agent) fails that read. The relay adds
+         both, and also stamps a playable Content-Type on files the panel labels octet-stream. */
+      const dr=proxyUrl(direct);if(dr!==du)addv(isH?'hls':'native',dr);
+    }
     if(UNPLAYABLE.test(cont)){
       /* hard container (MKV/AVI/…). One native shot for mislabeled-but-playable files, then the
          transcoder. v9.1: TWO transcoder routes so MKV plays in the built-in player on ANY device:
@@ -2489,7 +2669,7 @@ async function playItemBasic(x){
   const next=()=>{
     if(token!==S.seq)return;
     idx++;
-    if(idx>=plans.length){if(!live){vodFailedFallback();}else{stopMsg((transErr?('Channel failed — transcoder: '+transErr+'. Free servers sleep when idle; wait ~30s and tap again.'):'This channel did not load. Try another channel, or open it in VLC.')+' (v'+APP_VERSION+')');}return}
+    if(idx>=plans.length){if(!live){vodFailedFallback();}else{stopMsg(liveFailMessage(transErr)+' (v'+APP_VERSION+')');}return}
     dropEngines();
     attach(plans[idx]);
   };
@@ -2749,13 +2929,25 @@ function plan(x){
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
     if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
     else{if(tsOk)add('mpegts','Direct TS',durl);add('hls','Direct HLS',durl);}
-    /* v13.3: same HLS sibling as playItemBasic — the extensionless playlist form of an Xtream
-       channel is also served as .../live/user/pass/id.m3u8, which Safari can decode natively. */
-    if(!isM3u8){
-      const alt=raw.replace(/^(https?:\/\/[^/]+)\/(?!live\/)([^/]+\/[^/]+\/\d+)$/i,'$1/live/$2.m3u8');
-      if(alt!==raw)add('hls','Panel HLS',blocked(alt)?proxyUrl(alt):alt);
+    /* v13.9: the relay is a FALLBACK for a playlist link, not merely a mixed-content workaround.
+       blocked() only routes an http panel on an https page through it — so on an https panel the
+       browser fetched the link itself, and because mpegts.js and hls.js read the stream with
+       fetch/XHR, a panel that sends no CORS headers (which is nearly all of them) failed the read
+       outright. The same URL through our own relay comes back with CORS headers and a player
+       User-Agent, so add it whenever it isn't already the primary. */
+    const relay=proxyUrl(raw);
+    if(relay!==durl){if(tsOk)add('mpegts','TS Relay',relay);add('hls','HLS Relay',relay);}
+    /* v14.0: same canonical Xtream forms as playItemBasic — .ts first (mpegts/VLC's format), then
+       .m3u8 (native Safari decode). A panel that gates the legacy extensionless link still serves
+       both of these, which is the difference between a playlist channel playing and not. */
+    const alt=isM3u8?null:xtreamForms(raw);
+    if(alt){
+      if(tsOk){add('mpegts','Panel TS',blocked(alt.ts)?proxyUrl(alt.ts):alt.ts);add('mpegts','Panel TS Relay',proxyUrl(alt.ts));}
+      add('hls','Panel HLS',blocked(alt.m3u8)?proxyUrl(alt.m3u8):alt.m3u8);
+      add('hls','Panel HLS Relay',proxyUrl(alt.m3u8));
     }
     addTrans('Live',raw);
+    if(alt)addTrans('Panel',alt.ts);
     return p;
   }
   /* Same for a Stalker movie/episode — the resolved link is all there is to play. */
@@ -3549,10 +3741,63 @@ async function sendActToWhatsApp(){
 function stalkerMac(){
   let m;try{m=localStorage.getItem('m26_stkmac');}catch(e){}
   m=(typeof Media26Portal!=='undefined')?Media26Portal.normaliseMac(m):'';
-  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem('m26_stkmac',m);}catch(e){}}
+  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}}
   return m;
 }
+/* v14.2: was this MAC invented by this device, or typed in from the seller? The MAC lives in
+   localStorage, which is PER BROWSER AND PER DEVICE — so signing in on a phone after activating
+   on a desktop silently generates a brand-new MAC that the seller has never seen, and Safari
+   evicting site data does the same thing to a device that was working yesterday. The portal's
+   answer is identical in both cases, so the app has to be the one to point it out. */
+const MAC_SRC_KEY='m26_stkmac_src';
+function macIsAuto(){try{return localStorage.getItem(MAC_SRC_KEY)!=='user';}catch(e){return true}}
 function macFmt(m){return String(m||'').toUpperCase();}
+/* v14.4: A RATE-LIMIT COOLDOWN, because the app was the thing keeping itself locked out.
+   One tap of Login fires up to five playlist endpoints, a diagnostic probe, and then four
+   Stalker handshake endpoints — ten upstream requests. On a portal that throttles, tapping
+   Login again (which is exactly what "wait a minute, then sign in again" invites) lands another
+   ten on top and refreshes the ban, so the user can never get out of the 429 no matter how
+   correct their details are. Once the portal says it is throttling, refuse to contact it again
+   until the window has passed and show the countdown instead of a dead-end message. */
+let _rlUntil=0;
+function rateLimitLeft(){const ms=_rlUntil-Date.now();return ms>0?Math.ceil(ms/1000):0;}
+function markRateLimited(sec){_rlUntil=Date.now()+((sec||70)*1000);}
+function isRateLimitError(e){return /rate-limit|rate limit|\b429\b/i.test((e&&e.message)||'');}
+/* v14.1: SAY WHAT THE PORTAL ACTUALLY SAID. Every failure of the MAC handshake used to collapse
+   into one sentence — "your seller has not activated this device yet" — because the caught error
+   object was dropped on the floor. A portal that was down, rate-limiting, sitting behind a
+   Cloudflare 5xx, or handing back an empty channel list therefore all told the user to go and ask
+   their provider to activate a MAC that was already active, which is unfixable advice for a
+   problem the user does not have. Only claim "not activated" when the portal genuinely refused
+   the MAC; otherwise report what happened, and always print the MAC this device is actually
+   sending — a mismatch with the one on the provider's account is itself a common cause. */
+function stalkerFailMessage(e){
+  const mac=macFmt(stalkerMac());
+  const raw=(e&&e.message)||'';
+  const detail=(e&&e.detail)?(' Portal said: “'+e.detail+'”'):'';
+  const st=e&&e.status;
+  /* v14.2: the single most common reason an "already activated" MAC fails is that it is not the
+     MAC this device is sending. Say it on EVERY failure where the MAC was self-generated — the
+     user has no other way to know the phone invented a different one from the desktop. */
+  const hint=macIsAuto()?(' Note: this device generated the MAC '+mac+' itself. If your seller activated a DIFFERENT MAC, tap the MAC box above, type theirs, and sign in again.'):'';
+  const tail=s=>s+hint;
+  /* v14.8: an "Attention Required! | Cloudflare" body is not the portal answering at all — it is
+     the provider's CDN blocking our server before the request reaches portal.php. Saying "the
+     portal refused this MAC" there is simply false, and it sends the user back to their provider
+     with the wrong question for the third time. Name what is really happening, and what actually
+     resolves it. */
+  if(/attention required|cf-browser-verification|__cf_chl|cloudflare|ray id/i.test((e&&e.detail)||''))
+    return 'Your provider’s Cloudflare protection is blocking this app, before the request ever reaches their portal. Nothing is wrong with your MAC ('+mac+'), your password or your subscription — the block is on our server, not your account. Ask your provider for a portal address that is NOT behind Cloudflare (they usually have one on a direct port such as :8080 or :25461), or ask them to allow this app through their firewall.';
+  if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
+    return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
+  if(st===429||/rate-limit/i.test(raw))
+    return tail('This portal (or the security layer in front of it) is refusing connections from our servers — HTTP 429.'+detail+' This is a block on where the request comes from, not on your account, so waiting does not clear it. Setting up a transcoder in Stream Tools gives the app a second route that usually gets through. (MAC on this device: '+mac+')');
+  if(st===530||/\b5\d\d\b/.test(raw))
+    return 'The portal’s own server is not responding'+(st?(' (HTTP '+st+')'):'')+' — that is the panel being down or misconfigured, not your details or your MAC. Check the portal address with your provider, or try again shortly.'+detail;
+  if(/returned no channels/i.test(raw))
+    return tail(raw+' (MAC on this device: '+mac+')');
+  return tail('Could not complete the MAC sign-in. '+(raw||'The portal did not answer.')+detail+' MAC on this device: '+mac+'.');
+}
 function stalkerProxyUrl(url,mac,token){
   return PROXY+encodeURIComponent(url)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):'');
 }
@@ -3561,16 +3806,46 @@ function stalkerProxyUrl(url,mac,token){
    way to tell "the portal itself rejected this" apart from "an edge/anti-bot layer in front of
    the portal blocked the request before it ever reached portal.php". */
 function _snippet(text){return String(text||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,180)}
+/* v14.5: A SECOND ROUTE TO THE PORTAL.
+   A 429 or 403 on the very FIRST handshake request is not "you have made too many requests" —
+   nothing has been made yet. It is an edge/WAF in front of the portal refusing where the request
+   came FROM, and our Cloudflare relay reaches the panel from Cloudflare's own network, which such
+   filters commonly block outright. No amount of waiting clears that, which is exactly what the
+   user kept hitting. The transcoder runs on ordinary hosting with completely different IPs, and
+   it now speaks the same stb=1 MAG protocol (server.js), so the identical handshake sent through
+   it is simply a different visitor. Try Cloudflare first — it is faster and always awake — and
+   fall back to the transcoder only on the refusals that a retry through the same path can never
+   fix. */
+function stalkerRelays(u,mac,token){
+  const out=[stalkerProxyUrl(u,mac,token)];
+  /* v14.8: the same relay again, but presenting an ordinary browser User-Agent. A portal sitting
+     behind Cloudflare with bot protection on answers the MAG "stbapp" string with an "Attention
+     Required!" page that never reaches portal.php — the MAC cookie and MAG model header still go,
+     so the portal itself sees what it needs while the edge sees a browser. */
+  out.push(stalkerProxyUrl(u,mac,token)+'&ua=browser');
+  try{
+    const tb=(typeof transcoderBase==='function')&&transcoderBase();
+    if(tb)out.push(tb+'/proxy?url='+encodeURIComponent(u)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):''));
+  }catch(e){}
+  return out;
+}
 async function stalkerJson(endpoint,mac,token,params){
   const u=endpoint+(endpoint.indexOf('?')>=0?'&':'?')+Media26Portal.stalkerQuery(params);
-  const r=await fetch(stalkerProxyUrl(u,mac,token),{headers:{'Accept':'application/json'}});
-  if(!r.ok){
+  const relays=stalkerRelays(u,mac,token);
+  let last=null;
+  for(let i=0;i<relays.length;i++){
+    let r;
+    try{ r=await fetch(relays[i],{headers:{'Accept':'application/json'}}); }
+    catch(e){ last=Object.assign(new Error((e&&e.message)||'Could not reach the portal'),{status:0}); continue; }
+    if(r.ok)return r.json().catch(()=>null);
     const body=await r.text().catch(()=>'');
-    const err=new Error('Portal returned HTTP '+r.status);
-    err.status=r.status;err.detail=_snippet(body);
-    throw err;
+    last=new Error('Portal returned HTTP '+r.status);
+    last.status=r.status;last.detail=_snippet(body);
+    /* Only a where-you-came-from refusal is worth re-sending down the other route. Anything else
+       is the portal's considered answer and will be identical from any IP. */
+    if(r.status!==403&&r.status!==429&&r.status<500)break;
   }
-  return r.json().catch(()=>null);
+  throw last||new Error('Could not reach the portal');
 }
 async function stalkerHandshake(base,mac){
   let lastErr=null;
@@ -3756,7 +4031,7 @@ function paintLoginMac(){
 function commitLoginMac(){
   const mac=Media26Portal.normaliseMac(macInputValue());
   if(!mac)return '';
-  try{localStorage.setItem('m26_stkmac',mac);}catch(e){}
+  try{localStorage.setItem('m26_stkmac',mac);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
   if($('macCodeBox'))$('macCodeBox').value=mac;
   return mac;
 }

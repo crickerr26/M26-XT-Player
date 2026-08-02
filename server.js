@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '12.6';
+const SERVER_BUILD = '12.7';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -510,10 +510,41 @@ function relayFetch(target, req, res, hops) {
     return json(res, 403, { error: 'Target host not allowed' });
   }
   const mod = t.protocol === 'https:' ? https : http;
+  /* Match the Cloudflare relay (_worker.js): panels are built for set-top boxes and many of them
+     answer a browser User-Agent with a 403 or an HTML error page on their stream endpoints, which
+     the media engines can only report as a generic network failure. Ask as a player instead;
+     `&ua=browser` opts back in. */
+  let uaMode = '';
+  try { uaMode = new URL(req.url, 'http://x').searchParams.get('ua') || ''; } catch (e) {}
   const headers = {
-    'user-agent': req.headers['user-agent'] || 'Mozilla/5.0',
+    'user-agent': uaMode === 'browser'
+      ? (req.headers['user-agent'] || 'Mozilla/5.0')
+      : 'VLC/3.0.20 LibVLC/3.0.20',
     accept: req.headers.accept || '*/*'
   };
+  /* v14.5: MAG/Stalker support, mirroring _worker.js. This exists so the app has a SECOND route
+     to a portal. The Cloudflare relay reaches a panel from Cloudflare's own network, and a portal
+     sitting behind an edge/WAF routinely refuses that on the very first request — a 429 or 403
+     that no amount of waiting clears, because it is a block on where the request came from, not a
+     count of how many were made. This server runs on ordinary hosting with entirely different
+     IPs, so the same handshake through here is simply a different visitor. */
+  let stbMac = '';
+  try {
+    const q = new URL(req.url, 'http://x').searchParams;
+    if (q.get('stb') === '1') {
+      const m = q.get('mac') || '';
+      if (/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(m)) stbMac = m.toUpperCase();
+      const tok = (q.get('token') || '').trim();
+      if (stbMac) {
+        headers['user-agent'] = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
+        headers['x-user-agent'] = 'Model: MAG250; Link: WiFi';
+        headers.cookie = 'mac=' + stbMac + '; stb_lang=en; timezone=UTC';
+        /* Ministra checks the Referer on some builds — a box always arrives from its own /c/ UI. */
+        headers.referer = t.protocol + '//' + t.host + '/c/';
+        if (tok && /^[\w.\-]{1,256}$/.test(tok)) headers.authorization = 'Bearer ' + tok;
+      }
+    }
+  } catch (e) {}
   if (req.headers.range) headers.range = req.headers.range;
   const upstream = mod.request(t, { method: req.method === 'HEAD' ? 'HEAD' : 'GET', headers }, up => {
     const loc = up.headers.location;

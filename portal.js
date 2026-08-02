@@ -41,6 +41,17 @@
      Live TV. Checked against the name only, never the URL (stream ids contain bare digits). */
   const EPISODE_RE = /(^|[\s\-–_.\[(])(s\s?\d{1,2}\s?[ex]\s?\d{1,3}|\d{1,2}x\d{1,3}|season\s*\d+|episode\s*\d+)([\s\-–_.\])]|$)/i;
 
+  /* Group-title keywords, kept as named constants because they are the ONLY signal for the many
+     panels whose playlist URLs carry no /movie/ or /series/ path segment and no file extension.
+     Written without \b on the non-English stems so they still match inside "PELICULAS|ACCION",
+     "FILMES - LANCAMENTOS", "SERIES EN ESPANOL" and the other run-together group names panels use. */
+  const GROUP_SERIES_RE = /\bseries\b|\bserie\b|s[ée]ries?|\bshow(s)?\b|\btv[ -]?show|\bseason(s)?\b|\bepisode(s)?\b|\banime\b|\bdrama(s)?\b|temporada|staffel|novela|serial(es)?|\bdizi\b|\bsezon\b|مسلسل/i;
+  const GROUP_VOD_RE = /\bvod\b|\bmovie(s)?\b|\bfilm(s|e|es|me|mes)?\b|\bcinema\b|pelicula|película|filme|\bkino\b|\bpeliculas\b|\bmovi\b|\bott\b\s*movie|أفلام|\bfilmy\b/i;
+  /* "SERIE A" / "SERIE B" are Italian football leagues, and they are among the most common LIVE
+     group names there are. Without this they would trip the series keywords and every match in
+     them would vanish out of Live TV. Checked before the series keywords, never after. */
+  const FOOTBALL_SERIE_RE = /\bserie\s*[ab]\b/i;
+
   function classify(url, group, name) {
     const u = String(url || '').toLowerCase();
     /* Path segment is the strongest signal: Xtream serves /live/, /movie/ and /series/. */
@@ -49,8 +60,8 @@
     if (/\/live\//.test(u)) return 'live';
     const g = String(group || '').toLowerCase();
     const n = String(name || '');
-    if (/\bseries\b|\bshow(s)?\b|\btv[ -]?show|\bseason(s)?\b|\bepisode(s)?\b|\banime\b|\bdrama(s)?\b/.test(g)) return 'series';
-    if (/\bvod\b|\bmovie(s)?\b|\bfilm(s)?\b|\bcinema\b|\bpelicula|\bfilme(s)?\b/.test(g)) return 'vod';
+    if (GROUP_SERIES_RE.test(g) && !FOOTBALL_SERIE_RE.test(g)) return 'series';
+    if (GROUP_VOD_RE.test(g)) return 'vod';
     /* A file extension that isn't a live container means on-demand. Do this BEFORE the episode
        heuristic so a live channel merely named "Season Sports 1" is not mistaken for a show. */
     const e = extOf(u);
@@ -122,6 +133,10 @@
           stream_icon: pending.logo || show.cover, category_id: catId
         });
         if (!show.cover && pending.logo) { show.cover = show.stream_icon = pending.logo; }
+        /* Clear the pending EXTINF exactly like the live/vod branch below does. Without this a
+           playlist that lists two URLs under one #EXTINF (some panels emit a backup source) had
+           the second URL silently attached to the previous entry's metadata. */
+        pending = null;
         continue;
       }
 

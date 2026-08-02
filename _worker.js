@@ -30,6 +30,16 @@ function withCors(headers) {
    http(s) targets are allowed. */
 const PRIVATE_HOST = /^(localhost$|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1?\]|\[f[cd])/i;
 
+/* The User-Agent every upstream request to a panel carries. IPTV panels are built for set-top
+   boxes and media players, and a great many of them gate their playlist AND their stream
+   endpoints on seeing one — a browser UA gets a 403 or an HTML error page. Used by both the
+   relay (/proxy) and the server-side playlist login (/api/playlist). */
+const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
+/* The set-top-box identity a MAC-locked line expects. Sent only on the MAC pass of the playlist
+   login, alongside the `mac=` cookie, because a panel that binds a line to a MAC generally wants
+   to see the request come from something that looks like a MAG box. */
+const MAG_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
+
 function corsJson(status, data) {
   return new Response(JSON.stringify(data), {
     status,
@@ -78,7 +88,17 @@ async function handleProxy(request) {
     return corsJson(403, { error: 'Target host not allowed' });
   }
   const headers = new Headers();
-  headers.set('user-agent', request.headers.get('user-agent') || 'Mozilla/5.0');
+  /* v13.9: ask the panel as a PLAYER, not as a browser. Xtream panels routinely refuse a generic
+     browser User-Agent on their stream endpoints — they answer 403, or an HTML error page that the
+     media engines report as a plain network failure — which is precisely why /api/playlist has
+     always sent a player UA. The relay, however, was still forwarding the browser's own UA, so a
+     playlist that downloaded perfectly produced channels that would not open in the built-in
+     player. Send the same player UA here. `&ua=browser` opts back in when a target needs it. */
+  const qs = new URL(request.url).searchParams;
+  const uaMode = qs.get('ua') || '';
+  headers.set('user-agent', uaMode === 'browser'
+    ? (request.headers.get('user-agent') || 'Mozilla/5.0')
+    : PLAYER_UA);
   headers.set('accept', request.headers.get('accept') || '*/*');
   const range = request.headers.get('range');
   if (range) headers.set('range', range);
@@ -89,14 +109,23 @@ async function handleProxy(request) {
      instead passes the MAC/token as query params here, which this worker validates strictly
      (never forwarded verbatim — CRLF/header injection is not possible) and turns into the real
      MAG headers server-side before contacting the panel. */
-  const qs = new URL(request.url).searchParams;
   if (qs.get('stb') === '1') {
     const mac = qs.get('mac') || '';
     if (!/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(mac)) {
       return corsJson(400, { error: 'Invalid or missing mac for stb=1' });
     }
     const token = (qs.get('token') || '').trim();
-    headers.set('user-agent', 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3');
+    /* v14.8: the MAG User-Agent is itself a bot signature. When a portal sits behind Cloudflare
+       with bot protection on, that string is one of the things that trips it — the request is
+       answered with "Attention Required!" and never reaches portal.php at all. `ua=browser` keeps
+       the MAC cookie and the MAG model header (which is what the PORTAL checks) while presenting
+       an ordinary browser User-Agent (which is what the EDGE checks), so the app can try both. */
+    if (uaMode !== 'browser') {
+      headers.set('user-agent', 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3');
+    } else {
+      headers.set('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15');
+      headers.set('accept-language', 'en-US,en;q=0.9');
+    }
     headers.set('x-user-agent', 'Model: MAG250; Link: WiFi');
     headers.set('cookie', 'mac=' + mac.toUpperCase() + '; stb_lang=en; timezone=UTC');
     if (token && /^[\w.\-]{1,256}$/.test(token)) headers.set('authorization', 'Bearer ' + token);
@@ -182,7 +211,6 @@ async function handleProxy(request) {
 
    Credentials arrive in a POST body, never in the query string, so they stay out of URLs,
    referrers and edge logs. */
-const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
 const MAX_PLAYLIST_BYTES = 48 * 1024 * 1024;
 
 /* Read a response body up to a byte cap WITHOUT buffering the whole thing first. A full-catalogue
@@ -213,13 +241,28 @@ async function readCapped(response, max) {
   return { text: out, truncated };
 }
 
-function playlistCandidates(base, user, pass) {
+function playlistCandidates(base, user, pass, variant) {
   const b = String(base || '').trim().replace(/\/+$/, '');
   if (!b) return [];
   const u = encodeURIComponent(user || ''), p = encodeURIComponent(pass || '');
   /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
   if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
   if (!user) return [b];
+  /* v13.9: the FULL-CATALOGUE variant, asked for separately and only once the user is already
+     signed in and watching. Login still leads with the compact live-oriented document (below) —
+     that ordering is what made logins reliable and must not change. But when that document turns
+     out to hold no films or shows, Movies and Series were left permanently empty on any panel
+     whose player_api is closed or throttled, even though its own get.php serves the whole
+     catalogue. Asking for that document as a deliberate follow-up request costs the login
+     nothing: it happens in the background, and a failure just leaves the tabs as they were. */
+  if (variant === 'full') {
+    return [
+      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
+      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=m3u8',
+      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
+      b + '/playlist/' + u + '/' + p + '/m3u_plus'
+    ];
+  }
   /* Order by what RELIABLY ANSWERS, not by what carries the most content. v13.3 briefly led with
      plain type=m3u_plus to pick up movies/series in one document, and that broke logins that had
      been working: on a big panel that variant is the entire catalogue — often far larger than a
@@ -227,7 +270,9 @@ function playlistCandidates(base, user, pass) {
      against a panel that throttles. The &output=ts variant is the compact, live-oriented document
      these panels serve dependably, so it leads again. Movies and Series no longer depend on this
      choice at all: when the playlist has none, the app asks the panel's own VOD/series endpoints
-     for those tabs (see loadTypeFromApi), which is the more reliable source anyway. */
+     for those tabs (see loadTypeFromApi) and, failing that, re-requests this endpoint with
+     variant:'full' in the background (see fullPlaylistCatalog) — neither of which can delay or
+     break the login. */
   /* NOTE: the bare base URL is deliberately NOT a candidate once we hold credentials. A bare GET
      on / can only ever return the panel's landing page — on a Stalker/Ministra host that is the
      portal's HTML, which is exactly the confusing "the panel answered / with HTTP 200 —
@@ -278,67 +323,107 @@ async function handlePlaylist(request) {
   if (!/^https?:$/.test(baseUrl.protocol)) return corsJson(400, { error: 'Portal url must be http or https' });
   if (PRIVATE_HOST.test(baseUrl.hostname)) return corsJson(403, { error: 'Target host not allowed' });
 
-  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password);
-  const attempts = [];
+  /* v14.3: THE DEVICE MAC, sent with the username and password.
+     The product flow is: the app shows a MAC, the reseller creates the line in their panel BOUND
+     to that MAC, and the customer then signs in with a username and password. A MAC-locked line
+     refuses a request that carries no MAC, and until now the playlist login sent none at all —
+     so the one flow the app is built around could not complete. Panels implement the check two
+     ways, so both are sent together on the MAC pass: `&mac=` on the query string, and the MAG
+     `mac=` cookie with a set-top-box User-Agent. Strictly validated, never forwarded verbatim. */
+  const macHex = String(body.mac || '').replace(/[^0-9a-fA-F]/g, '').toUpperCase();
+  const mac = macHex.length === 12 ? macHex.match(/../g).join(':') : '';
 
-  for (const candidate of candidates) {
+  const variant = String(body.variant || '').trim().toLowerCase();
+  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant);
+  const attempts = [];
+  let sawStalker = false, rejected = 0, limited = 0;
+
+  const label = (target, useMac) =>
+    target.pathname + (target.search ? '?…' : '') + (useMac ? ' +stb' : (mac ? ' +mac' : ''));
+
+  /* One candidate, one pass. Returns a Response on success, null to keep going. */
+  const attempt = async (candidate, useMac) => {
     let target;
-    try { target = new URL(candidate); } catch { continue; }
-    if (PRIVATE_HOST.test(target.hostname)) continue;   /* a redirect target could differ from base */
+    try { target = new URL(candidate); } catch { return null; }
+    if (PRIVATE_HOST.test(target.hostname)) return null;   /* a redirect target could differ from base */
+    /* v14.4: the MAC rides along on the FIRST pass too. A panel that does not bind lines to a
+       MAC simply ignores an unknown query parameter, so this costs nothing there — while a panel
+       that checks `mac=` on the query string now authorises on request number one instead of
+       request number six. That matters more than tidiness here: these portals rate-limit hard,
+       and every wasted request is what pushes a legitimate sign-in into a 429 it cannot escape.
+       The second pass is now only about the OTHER way panels check — the MAG cookie and set-top
+       User-Agent — rather than about the MAC being present at all. */
+    if (mac) target.searchParams.set('mac', mac);
+    const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
+    if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
     let upstream;
     try {
-      upstream = await fetch(target.href, {
-        method: 'GET',
-        headers: { 'user-agent': PLAYER_UA, 'accept': '*/*' },
-        redirect: 'follow'
-      });
+      upstream = await fetch(target.href, { method: 'GET', headers, redirect: 'follow' });
     } catch (e) {
-      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), error: String((e && e.message) || e).slice(0, 120) });
-      continue;
+      attempts.push({ endpoint: label(target, useMac), error: String((e && e.message) || e).slice(0, 120) });
+      return null;
     }
     if (!upstream.ok) {
-      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), status: upstream.status });
-      /* A rate-limit or auth rejection is the panel's final answer — walking the remaining
-         candidates just spends more requests against the same limit. */
-      if (upstream.status === 429 || upstream.status === 401 || upstream.status === 403) {
-        return corsJson(200, { ok: false, status: upstream.status, attempts, reason: upstream.status === 429 ? 'rate-limited' : 'rejected' });
-      }
-      continue;
+      attempts.push({ endpoint: label(target, useMac), status: upstream.status });
+      /* 429 is the panel throttling: stop everything, more requests only make it worse.
+         401/403 is a rejection of THIS pass — on a MAC-locked line that is exactly what the
+         credentials-only pass is supposed to get, so it must not end the whole login any more. */
+      if (upstream.status === 429) limited = 429;
+      else if (upstream.status === 401 || upstream.status === 403) rejected = upstream.status;
+      return null;
     }
     let text = '', truncated = false;
     try {
       const read = await readCapped(upstream, MAX_PLAYLIST_BYTES);
       text = read.text; truncated = read.truncated;
     } catch (e) {
-      attempts.push({ endpoint: target.pathname + (target.search ? '?…' : ''), error: 'read failed: ' + String((e && e.message) || e).slice(0, 80) });
-      continue;
+      attempts.push({ endpoint: label(target, useMac), error: 'read failed: ' + String((e && e.message) || e).slice(0, 80) });
+      return null;
     }
     if (!looksLikePlaylist(text)) {
-      /* A Stalker portal is a definite, recognisable answer — stop and say so, rather than
-         spending the remaining candidates (and the panel's rate limit) on endpoints that this
-         product does not implement. */
-      if (looksLikeStalkerPortal(text)) {
-        return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
-      }
+      /* v14.3: a Stalker-looking answer is REMEMBERED, not acted on immediately. Plenty of hosts
+         run a Ministra portal on / AND serve get.php perfectly well; bailing out at the first
+         sight of portal markup meant the remaining playlist endpoints — and the whole MAC pass —
+         were never tried, and the user was pushed into a MAC handshake instead of simply being
+         logged in. It is only the answer if nothing else produces a playlist. */
+      if (looksLikeStalkerPortal(text)) { sawStalker = true; return null; }
       /* Report WHAT came back instead of just "not a playlist" — an HTML challenge page, a login
          form or a panel error message are all diagnosable, and all look identical without this. */
       attempts.push({
-        endpoint: target.pathname + (target.search ? '?…' : ''),
+        endpoint: label(target, useMac),
         status: upstream.status,
         error: 'not an M3U playlist',
         got: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
       });
-      continue;
+      return null;
     }
-    const headers = withCors(new Headers({
+    const headersOut = withCors(new Headers({
       'content-type': 'audio/x-mpegurl; charset=utf-8',
       'cache-control': 'no-store',
       'x-m26-source': target.origin + target.pathname,
       'x-m26-truncated': truncated ? '1' : '0'
     }));
-    headers.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
-    return new Response(text, { status: 200, headers });
+    headersOut.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
+    return new Response(text, { status: 200, headers: headersOut });
+  };
+
+  /* Pass 1: credentials only — identical to what has always worked, same endpoints, same order,
+     same request count for any panel that answers. */
+  for (const candidate of candidates) {
+    const ok = await attempt(candidate, false);
+    if (ok) return ok;
+    if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
   }
+  /* Pass 2: the same endpoints again, now carrying the device MAC. Only reached when pass 1
+     produced nothing, so a working login never spends these requests. */
+  if (mac) {
+    for (const candidate of candidates) {
+      const ok = await attempt(candidate, true);
+      if (ok) return ok;
+      if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
+    }
+  }
+  if (rejected) return corsJson(200, { ok: false, status: rejected, attempts, reason: 'rejected' });
 
   /* No playlist endpoint answered. Before giving up, make ONE deliberate probe of the base URL to
      identify what kind of server this actually is. This is a diagnostic, not another playlist
@@ -352,20 +437,19 @@ async function handlePlaylist(request) {
       headers: { 'user-agent': PLAYER_UA, 'accept': 'text/html,*/*' },
       redirect: 'follow'
     });
-    const body = (await readCapped(probe, 256 * 1024)).text;
-    if (looksLikeStalkerPortal(body)) {
-      return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
-    }
-    if (/^\s*(<!doctype\s+html|<html\b)/i.test(body)) {
+    const probeBody = (await readCapped(probe, 256 * 1024)).text;
+    if (looksLikeStalkerPortal(probeBody)) sawStalker = true;
+    else if (/^\s*(<!doctype\s+html|<html\b)/i.test(probeBody)) {
       attempts.push({
         endpoint: '/ (probe)', status: probe.status, error: 'served a web page, not a playlist',
-        got: body.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
+        got: probeBody.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
       });
     }
   } catch (e) {
     attempts.push({ endpoint: '/ (probe)', error: String((e && e.message) || e).slice(0, 120) });
   }
 
+  if (sawStalker) return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
   return corsJson(200, { ok: false, reason: 'no-playlist', attempts });
 }
 
