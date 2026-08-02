@@ -9,6 +9,7 @@
 <title>Media26 XT Player</title>
 <!-- FIX: load engines locally if present, else fall back to CDN so playback never dies when the local .min.js files are missing -->
 <script src="hls.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js';document.head.appendChild(s);"></script>
+<script src="mkv.js"></script>
 <script src="mpegts.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';s.onerror=function(){var u=document.createElement('script');u.src='https://unpkg.com/mpegts.js@1.8.0/dist/mpegts.js';document.head.appendChild(u);};document.head.appendChild(s);"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
@@ -1016,7 +1017,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='11.0';
+const APP_VERSION='11.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2109,6 +2110,13 @@ async function playItemBasic(x){
          "one native shot" just wastes ~12s before the transcoder starts. Skip it on Apple and go
          straight to the transcoder; other devices still get the quick native attempt first. */
       if(!isApple)addv('native',lcu);
+      /* v11.1: THE IN-APP MATROSKA PLAYER, ahead of the transcoder. The container is parsed in
+         JavaScript and remuxed to fragmented MP4 straight into this same <video> element, so the
+         phone's own decoder plays it with nothing re-encoded: no server, no cold start, no
+         external app, and it works on a free plan because no byte touches Render. Only H.264/HEVC
+         with AAC survives a pure remux — anything else (AC-3/DTS audio, VP9, MPEG-2) falls through
+         to the transcoder routes below exactly as before. */
+      if(/^mkv$/.test(cont)&&global_mkvReady())addv('mkv',lcu);
       if(canTrans){
         addv('hls',transUrl);
         try{const tv=transcodeUrl(transcoderInput(x),'vod');if(tv)addv('hls',tv);}catch(e){}
@@ -2251,6 +2259,22 @@ async function playItemBasic(x){
           attach({kind:'hls',url:(r.url||p.url),label:p.label,_resolved:true});}).catch(e=>{if(token!==S.seq)return;transErr='couldn’t reach server ('+((e&&e.message)||'network')+')';next();});
         return;
       }
+      if(p.kind==='mkv'){
+        /* In-app Matroska: parsed and remuxed to fMP4 in JS, fed to this same <video>. Rejecting
+           fast matters as much as playing — an unsupported codec must reach the transcoder route
+           quickly rather than sit on a spinner, so any failure calls next() immediately. */
+        $('stateTitle').textContent='Loading';$('stateText').textContent=nameOf(x);
+        if($('stateProgress'))$('stateProgress').classList.remove('hidden');
+        Media26Mkv.play(v,p.url,{onInfo:info=>{
+          if(info&&info.unsupportedAudio)toast('Playing video — this file’s '+String(info.unsupportedAudio).replace(/^A_/,'')+' audio can’t be decoded in-app.');
+        }}).then(()=>{if(token!==S.seq)return;}).catch(e=>{
+          if(token!==S.seq)return;
+          transErr='the in-app player couldn’t handle it ('+((e&&e.message)||'unknown')+')';
+          next();
+        });
+        const pr0=v.play();if(pr0&&pr0.catch)pr0.catch(()=>{v.muted=true;const p2=v.play();if(p2&&p2.catch)p2.catch(()=>{});armUnmute();});
+        return;
+      }
       if(p.kind==='mpegts'){
         /* v66: fastest possible first frame — for LIVE the stash is tiny (32KB) so mpegts emits
            and decodes as soon as the first packets arrive instead of filling the default
@@ -2327,6 +2351,9 @@ async function playItemBasic(x){
   clearTimeout(S.timer);S.timer=setTimeout(beat,1000);
 }
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
+/* The in-app Matroska player needs MediaSource — ManagedMediaSource on iOS 17.1+, plain
+   MediaSource everywhere else. Older iPhones have neither and keep the transcoder route. */
+function global_mkvReady(){try{return !!(window.Media26Mkv&&window.Media26Mkv.supported())}catch(e){return false}}
 function forceMobileSmoothLevel(hls){
   /* v3: FULL ABR on every device — no more 720p pin blocking 4K on mobile.
      capLevelToPlayerSize (set in config) already prevents wasting bandwidth on
@@ -2486,7 +2513,7 @@ function plan(x){
   }
   return p;
 }
-function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down — external launches wait until the origin has had time to release the slot (see playItemExternal) */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
+function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down — external launches wait until the origin has had time to release the slot (see playItemExternal) */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
 async function playItem(item,fromAlternative=false){
   S.audioOnly=false;
   let x=smoothLiveStart(item);

@@ -119,7 +119,7 @@ const staticMime = {
   '.webp': 'image/webp',
   '.ico': 'image/x-icon'
 };
-const STATIC_ALLOW = new Set(['index.html', 'admin.html', 'hls.min.js', 'mpegts.min.js', 'Logo.png', 'favicon.ico', 'manifest.json', 'image_482ee8.png', 'sw.js']);
+const STATIC_ALLOW = new Set(['index.html', 'admin.html', 'hls.min.js', 'mpegts.min.js', 'mkv.js', 'Logo.png', 'favicon.ico', 'manifest.json', 'image_482ee8.png', 'sw.js']);
  
 function send(res, status, body, headers = {}) {
   res.writeHead(status, {
