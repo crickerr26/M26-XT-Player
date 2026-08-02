@@ -157,10 +157,18 @@
       esdsBox(t.codecPrivate));
   }
 
+  /* Dolby sample entry: same AudioSampleEntry layout as mp4a, with dac3/dec3 in place of esds. */
+  function dolby(t) {
+    const type = t.kind === 'eac3' ? 'ec-3' : 'ac-3';
+    const cfg = t.kind === 'eac3' ? dec3Box(t.ac3) : dac3Box(t.ac3);
+    return box(type, u32(0), u32(1), u32(0), u32(0),
+      u16(t.channels || 2), u16(16), u16(0), u16(0), u32((t.sampleRate || 48000) << 16), cfg);
+  }
   function stbl(t) {
     let entry;
     if (t.kind === 'avc') entry = avc1(t);
     else if (t.kind === 'hevc') entry = hvc1(t);
+    else if (t.kind === 'ac3' || t.kind === 'eac3') entry = dolby(t);
     else entry = mp4a(t);
     return box('stbl', box('stsd', u32(0), u32(1), entry),
       box('stts', u32(0), u32(0)), box('stsc', u32(0), u32(0)),
@@ -251,7 +259,90 @@
   }
 
   const VIDEO_CODECS = { 'V_MPEG4/ISO/AVC': 'avc', 'V_MPEGH/ISO/HEVC': 'hevc' };
-  const AUDIO_CODECS = { 'A_AAC': 'aac' };
+  /* Apple devices decode Dolby Digital and Digital Plus natively inside MP4 — treating them as
+     "no browser can decode this" cost the soundtrack on films that would have played with sound
+     all along. Matroska carries no CodecPrivate for either, so the configuration has to be read
+     out of the first audio frame's syncframe header (below). */
+  const AUDIO_CODECS = { 'A_AAC': 'aac', 'A_AC3': 'ac3', 'A_EAC3': 'eac3' };
+
+  function BitReader(d) { this.d = d; this.p = 0; }
+  BitReader.prototype.read = function (n) {
+    let v = 0;
+    for (let i = 0; i < n; i++) {
+      v = (v << 1) | ((this.d[this.p >> 3] >> (7 - (this.p & 7))) & 1);
+      this.p++;
+    }
+    return v >>> 0;
+  };
+  function BitWriter() { this.bits = []; }
+  BitWriter.prototype.write = function (v, n) {
+    for (let i = n - 1; i >= 0; i--) this.bits.push((v >> i) & 1);
+  };
+  BitWriter.prototype.bytes = function () {
+    while (this.bits.length % 8) this.bits.push(0);
+    const out = new Uint8Array(this.bits.length / 8);
+    for (let i = 0; i < this.bits.length; i++) out[i >> 3] |= this.bits[i] << (7 - (i & 7));
+    return out;
+  };
+
+  const AC3_SAMPLE_RATES = [48000, 44100, 32000, 0];
+  const AC3_CHANNELS = [2, 1, 2, 3, 3, 4, 4, 5];   // by acmod, before adding LFE
+
+  /* AC-3 syncframe -> the fields a dac3 box needs. */
+  function parseAc3(d) {
+    if (!d || d.length < 8 || d[0] !== 0x0b || d[1] !== 0x77) return null;
+    const r = new BitReader(d);
+    r.read(16); r.read(16);                 // syncword, crc1
+    const fscod = r.read(2), frmsizecod = r.read(6);
+    const bsid = r.read(5), bsmod = r.read(3), acmod = r.read(3);
+    if ((acmod & 0x1) && acmod !== 0x1) r.read(2);   // cmixlev
+    if (acmod & 0x4) r.read(2);                      // surmixlev
+    if (acmod === 0x2) r.read(2);                    // dsurmod
+    const lfeon = r.read(1);
+    return { fscod: fscod, bsid: bsid, bsmod: bsmod, acmod: acmod, lfeon: lfeon,
+             bitRateCode: frmsizecod >> 1,
+             sampleRate: AC3_SAMPLE_RATES[fscod] || 48000,
+             channels: (AC3_CHANNELS[acmod] || 2) + lfeon };
+  }
+  function dac3Box(c) {
+    const w = new BitWriter();
+    w.write(c.fscod, 2); w.write(c.bsid, 5); w.write(c.bsmod, 3);
+    w.write(c.acmod, 3); w.write(c.lfeon, 1); w.write(c.bitRateCode, 5); w.write(0, 5);
+    return box('dac3', w.bytes());
+  }
+
+  /* E-AC-3 syncframe -> the fields a dec3 box needs, for one independent substream. */
+  function parseEac3(d) {
+    if (!d || d.length < 8 || d[0] !== 0x0b || d[1] !== 0x77) return null;
+    const r = new BitReader(d);
+    r.read(16);                              // syncword
+    r.read(2);                               // strmtyp
+    r.read(3);                               // substreamid
+    const frmsiz = r.read(11);
+    const fscod = r.read(2);
+    let numblkscod = 3;
+    if (fscod === 3) r.read(2); else numblkscod = r.read(2);
+    const acmod = r.read(3), lfeon = r.read(1), bsid = r.read(5);
+    const blocks = [1, 2, 3, 6][numblkscod];
+    const sampleRate = fscod === 3 ? 24000 : (AC3_SAMPLE_RATES[fscod] || 48000);
+    const frameBytes = (frmsiz + 1) * 2;
+    // kbit/s = bytes * 8 * frames-per-second / 1000
+    const dataRate = Math.round(frameBytes * 8 * (sampleRate / (blocks * 256)) / 1000);
+    return { fscod: fscod, bsid: bsid, bsmod: 0, acmod: acmod, lfeon: lfeon,
+             dataRate: Math.min(dataRate || 768, 8191),
+             sampleRate: sampleRate,
+             channels: (AC3_CHANNELS[acmod] || 2) + lfeon };
+  }
+  function dec3Box(c) {
+    const w = new BitWriter();
+    w.write(c.dataRate, 13);
+    w.write(0, 3);                 // num_ind_sub - 1  (one independent substream)
+    w.write(c.fscod, 2); w.write(c.bsid, 5); w.write(0, 1); w.write(0, 1);
+    w.write(c.bsmod, 3); w.write(c.acmod, 3); w.write(c.lfeon, 1); w.write(0, 3);
+    w.write(0, 4);                 // num_dep_sub = 0
+    w.write(0, 1);                 // reserved (present because num_dep_sub is 0)
+    return box('dec3', w.bytes());
+  }
 
   /* ── the remuxer ──────────────────────────────────────────────────────────────────────────── */
 
@@ -364,7 +455,7 @@
         codec: vk === 'avc' ? avcCodecString(t.codecPrivate) : hevcCodecString(t.codecPrivate)
       });
     } else if (t.trackType === 2) {
-      if (ak) {
+      if (ak === 'aac') {
         this.tracks.push({
           id: this.tracks.length + 1, number: t.number, type: 'audio', kind: 'aac',
           codecPrivate: t.codecPrivate || new Uint8Array([0x11, 0x90]),
@@ -372,8 +463,19 @@
           defaultDuration: 21,
           codec: aacCodecString(t.codecPrivate)
         });
+      } else if (ak === 'ac3' || ak === 'eac3') {
+        /* Matroska stores no CodecPrivate for Dolby, so this track cannot be described until its
+           first frame arrives and the syncframe can be read. It is registered now and configured
+           in _block; the init segment waits for it. */
+        this.tracks.push({
+          id: this.tracks.length + 1, number: t.number, type: 'audio', kind: ak,
+          codecPrivate: new Uint8Array(0), ac3: null, needsFrameConfig: true,
+          sampleRate: t.sampleRate || 48000, channels: t.channels || 2,
+          defaultDuration: 32,
+          codec: ak === 'eac3' ? 'ec-3' : 'ac-3'
+        });
       } else if (!this.unsupported) {
-        // AC-3, DTS, TrueHD, Vorbis… no browser decodes these. Video still plays.
+        // DTS, TrueHD, Vorbis… genuinely undecodable in a browser. Video still plays.
         this.unsupported = t.codecId;
       }
     }
@@ -385,6 +487,24 @@
     if (!this.tracks.length) return;
     this.tracks.forEach(t => { this.byNumber.set(t.number, t); this.pending.set(t.id, []); });
     this.ready = true;
+    this._emitInit();
+  };
+
+  /* The init segment can only be built once every track can describe itself. Dolby tracks are
+     configured from their first frame, so emitting immediately would leave them out. If a Dolby
+     frame never turns up, _block gives up after a short grace period and emits without it rather
+     than stalling the file. */
+  MkvRemuxer.prototype._emitInit = function () {
+    if (this.initSent) return;
+    const waiting = this.tracks.filter(t => t.needsFrameConfig && !t.ac3);
+    if (waiting.length && !this._initForced) return;
+    const usable = this.tracks.filter(t => !t.needsFrameConfig || t.ac3);
+    if (!usable.length) return;
+    for (const t of this.tracks) {
+      if (t.needsFrameConfig && !t.ac3 && !this.unsupported) this.unsupported = t.kind.toUpperCase();
+    }
+    this.tracks = usable;
+    this.initSent = true;
     if (this.onInit) this.onInit(initSegment(this.tracks, this.durationMs), this.tracks, this.unsupported);
   };
 
@@ -436,6 +556,26 @@
       for (const s of sizes) { frames.push(data.subarray(o, o + s)); o += s; }
     }
 
+    /* Read a Dolby track's configuration out of its first frame, then release the init segment. */
+    if (track.needsFrameConfig && !track.ac3 && frames.length) {
+      const cfg = track.kind === 'eac3' ? parseEac3(frames[0]) : parseAc3(frames[0]);
+      if (cfg) {
+        track.ac3 = cfg;
+        track.sampleRate = cfg.sampleRate;
+        track.channels = cfg.channels;
+        this._emitInit();
+      }
+    }
+    this._blocksSeen = (this._blocksSeen || 0) + 1;
+    if (!this.initSent && this._blocksSeen > 60) { this._initForced = true; this._emitInit(); }
+    /* Keep collecting while the init segment is still pending. A Dolby track is configured by its
+       first audio frame, and in a real file the cluster opens with video — discarding those frames
+       lost the opening seconds of every film. They are buffered here and flushed once init is out.
+       A track dropped from the init (config never arrived) stops collecting, since no trak
+       describes it. */
+    if (!this.pending.has(track.id)) return;
+    if (this.initSent && this.tracks.indexOf(track) < 0) return;
+
     const list = this.pending.get(track.id);
     const step = frames.length > 1 ? Math.max(1, Math.round(track.defaultDuration)) : 0;
     frames.forEach((f, i) => {
@@ -445,7 +585,7 @@
     // The FIRST fragment goes out far earlier so the picture appears while the rest is still
     // downloading — on a 4K file, waiting for a full 48-sample run before the first append is
     // most of the perceived "taking too long to load".
-    if (list.length > (this.firstEmitted ? 48 : 12)) this._flush(track);
+    if (this.initSent && list.length > (this.firstEmitted ? 48 : 12)) this._flush(track);
   };
 
   MkvRemuxer.prototype._flush = function (track, all) {
@@ -463,6 +603,9 @@
 
   MkvRemuxer.prototype.flushAll = function () {
     if (!this.ready) this._finalizeTracks();
+    /* Release the init even if a Dolby track never produced a readable frame — otherwise a short
+       or unusual file would end with everything still buffered and nothing ever played. */
+    if (!this.initSent) { this._initForced = true; this._emitInit(); }
     for (const t of this.tracks) this._flush(t, true);
   };
 
