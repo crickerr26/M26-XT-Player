@@ -8,10 +8,28 @@
 <meta http-equiv="Expires" content="0">
 <title>Media26 XT Player</title>
 <!-- FIX: load engines locally if present, else fall back to CDN so playback never dies when the local .min.js files are missing -->
-<script src="hls.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js';document.head.appendChild(s);"></script>
+<script src="hls.min.js"></script>
 <script src="mkv.js"></script>
 <script src="portal.js"></script>
-<script src="mpegts.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js';s.onerror=function(){var u=document.createElement('script');u.src='https://unpkg.com/mpegts.js@1.8.0/dist/mpegts.js';document.head.appendChild(u);};document.head.appendChild(s);"></script>
+<script src="mpegts.min.js"></script>
+<script>
+/* v15.7: load the CDN copy of an engine by CHECKING WHETHER IT IS ACTUALLY THERE, not by waiting
+   for the <script> tag to report an error. hls.min.js is not in this repository at all, and
+   wrangler.jsonc sets "not_found_handling": "single-page-application" — so Cloudflare answers
+   /hls.min.js with index.html at HTTP 200. A 200 fires the tag's LOAD event, never its ERROR
+   event, so the old onerror fallback could not fire: the browser silently parsed a page of HTML
+   as JavaScript and window.Hls stayed undefined on the deployed site. Every HLS route in the
+   player then fell through to `v.src = <playlist>`, which only Safari can decode — which is why
+   HLS worked on iPhone and nowhere else, and why the transcoder route (also HLS) never played on
+   Android or desktop. A positive check is immune to how the miss is reported: if the global is
+   missing after the local tag has run, fetch the engine from the CDN. */
+(function(){
+  var add=function(u){var s=document.createElement('script');s.src=u;document.head.appendChild(s);return s};
+  if(!window.Hls)add('https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.15/hls.min.js');
+  if(!window.mpegts){var m=add('https://cdn.jsdelivr.net/npm/mpegts.js@1.8.0/dist/mpegts.js');
+    m.onerror=function(){add('https://unpkg.com/mpegts.js@1.8.0/dist/mpegts.js')};}
+})();
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
 body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#607088;--soft:#26384f;--line:rgba(20,32,51,.11);--shadow:0 18px 45px rgba(27,39,62,.12)}
@@ -1179,7 +1197,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='15.6';
+const APP_VERSION='15.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
