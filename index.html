@@ -1066,7 +1066,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='14.1';
+const APP_VERSION='14.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3704,9 +3704,16 @@ async function sendActToWhatsApp(){
 function stalkerMac(){
   let m;try{m=localStorage.getItem('m26_stkmac');}catch(e){}
   m=(typeof Media26Portal!=='undefined')?Media26Portal.normaliseMac(m):'';
-  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem('m26_stkmac',m);}catch(e){}}
+  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}}
   return m;
 }
+/* v14.2: was this MAC invented by this device, or typed in from the seller? The MAC lives in
+   localStorage, which is PER BROWSER AND PER DEVICE — so signing in on a phone after activating
+   on a desktop silently generates a brand-new MAC that the seller has never seen, and Safari
+   evicting site data does the same thing to a device that was working yesterday. The portal's
+   answer is identical in both cases, so the app has to be the one to point it out. */
+const MAC_SRC_KEY='m26_stkmac_src';
+function macIsAuto(){try{return localStorage.getItem(MAC_SRC_KEY)!=='user';}catch(e){return true}}
 function macFmt(m){return String(m||'').toUpperCase();}
 /* v14.1: SAY WHAT THE PORTAL ACTUALLY SAID. Every failure of the MAC handshake used to collapse
    into one sentence — "your seller has not activated this device yet" — because the caught error
@@ -3721,15 +3728,20 @@ function stalkerFailMessage(e){
   const raw=(e&&e.message)||'';
   const detail=(e&&e.detail)?(' Portal said: “'+e.detail+'”'):'';
   const st=e&&e.status;
+  /* v14.2: the single most common reason an "already activated" MAC fails is that it is not the
+     MAC this device is sending. Say it on EVERY failure where the MAC was self-generated — the
+     user has no other way to know the phone invented a different one from the desktop. */
+  const hint=macIsAuto()?(' Note: this device generated the MAC '+mac+' itself. If your seller activated a DIFFERENT MAC, tap the MAC box above, type theirs, and sign in again.'):'';
+  const tail=s=>s+hint;
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
-    return 'The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail;
+    return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
   if(st===429||/rate-limit/i.test(raw))
-    return 'This portal is rate-limiting connection attempts right now. Wait a minute, then sign in again. (MAC on this device: '+mac+')';
+    return tail('This portal is rate-limiting connection attempts right now. Wait a minute, then sign in again. (MAC on this device: '+mac+')');
   if(st===530||/\b5\d\d\b/.test(raw))
     return 'The portal’s own server is not responding'+(st?(' (HTTP '+st+')'):'')+' — that is the panel being down or misconfigured, not your details or your MAC. Check the portal address with your provider, or try again shortly.'+detail;
   if(/returned no channels/i.test(raw))
-    return raw+' (MAC on this device: '+mac+')';
-  return 'Could not complete the MAC sign-in. '+(raw||'The portal did not answer.')+detail+' MAC on this device: '+mac+'.';
+    return tail(raw+' (MAC on this device: '+mac+')');
+  return tail('Could not complete the MAC sign-in. '+(raw||'The portal did not answer.')+detail+' MAC on this device: '+mac+'.');
 }
 function stalkerProxyUrl(url,mac,token){
   return PROXY+encodeURIComponent(url)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):'');
@@ -3831,7 +3843,7 @@ function paintLoginMac(){
 function commitLoginMac(){
   const mac=Media26Portal.normaliseMac(macInputValue());
   if(!mac)return '';
-  try{localStorage.setItem('m26_stkmac',mac);}catch(e){}
+  try{localStorage.setItem('m26_stkmac',mac);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
   if($('macCodeBox'))$('macCodeBox').value=mac;
   return mac;
 }
