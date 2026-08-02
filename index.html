@@ -1061,7 +1061,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='13.1';
+const APP_VERSION='13.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1402,20 +1402,34 @@ async function login(opts){
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
   if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
   else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
-  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');S.source='xtream';S.m3u=null;/* v12.4: not every service speaks Xtream. Try player_api.php first, and when it is absent or
-     rejects us, fall back to the M3U playlist the same panel almost always exposes. The playlist
-     is normalised into the same shape, so nothing downstream needs to know which was used. */
-  let info=null;
-  try{ info=await fetchJsonChain(accountUrl()); if(info&&info.user_info&&info.user_info.auth===0) info=null; }
-  catch(e){
-    /* v13.1: a rate-limit is a definitive, fast answer — falling through to the M3U fallback would
-       just hit the SAME limit again via a different URL and turn one clear error into another
-       multi-round timeout, so surface it immediately instead of masking it behind the generic
-       "Could not sign in" message. */
-    if(e&&/rate-limit/i.test(e.message||''))throw e;
-    info=null;
+  if(!S.url||!S.user||!S.pass)throw Error('Fill portal, username and password');load(true,'Connecting...');S.source='xtream';S.m3u=null;
+  /* v13.2: THE PLAYLIST LEADS. Until now login opened with player_api.php and only fell back to
+     the M3U playlist once that failed — but fetchJsonChain sweeps five relay candidates across
+     three rounds at ~20s each, so on a panel that throttles or simply doesn't answer player_api
+     the user waited minutes before the playlist was even attempted, and every one of those
+     requests counted against the panel's rate limit. get.php is also the endpoint far more
+     panels actually serve. So: fetch the playlist first (server-side, via /api/playlist), and
+     only reach for the Xtream API when there is no playlist to be had — which keeps panels that
+     are genuinely Xtream-only working exactly as before. */
+  let info=null,plErr=null;
+  let pl=false;
+  try{ pl=await loadPlaylistSource(); }
+  catch(e){ plErr=e; pl=false; }
+  if(pl){
+    /* The playlist IS the session — no player_api call at all on this path, so a rate-limiting
+       panel never sees a second request. Account metadata simply isn't available here. */
+    info={user_info:{}};
+  }else{
+    /* A definite rejection (rate-limit / bad credentials) is the panel's final answer; asking
+       player_api the same question would only burn another request against the same limit. */
+    if(plErr&&/rate-limit|rejected/i.test(plErr.message||''))throw plErr;
+    try{ info=await fetchJsonChain(accountUrl()); if(info&&info.user_info&&info.user_info.auth===0) info=null; }
+    catch(e){
+      if(e&&/rate-limit/i.test(e.message||''))throw e;
+      info=null;
+    }
+    if(!info)throw Error((plErr&&plErr.message)||'Could not sign in. Check the URL, username and password — or paste the M3U link your provider gave you.');
   }
-  if(!info){ const pl=await loadPlaylistSource(); if(!pl) throw Error('Could not sign in. Check the URL, username and password — or paste the M3U link your provider gave you.'); info={user_info:{}}; }
 
   /* v46: surface account problems AT LOGIN instead of leaving the user staring at an
      endless "Loading video". Expired subscription and an already-busy connection slot are
@@ -1572,18 +1586,59 @@ function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='
    gave us a username and password, and accepts a direct .m3u link pasted as the portal URL.
    Everything is normalised into the same arrays the Xtream path fills, so categories, search,
    favourites and the player are all unchanged. */
+/* v13.2: the playlist is fetched by our OWN Cloudflare Pages Function (/api/playlist) instead of
+   by the browser. An https page cannot fetch an http panel at all (mixed content), and even
+   through the generic /proxy relay the browser had to walk five candidate endpoints itself, each
+   capped by a short client timeout — and a real IPTV M3U is tens of megabytes, so those timeouts,
+   not the panel, were what failed. Server-side there is no mixed-content rule, no CORS preflight,
+   no per-candidate browser timeout, and the worker can send a player User-Agent (panels commonly
+   reject generic browser UAs). One request replaces five, and a failure comes back with the
+   reason instead of silently returning ''. The old client-side walk stays as the fallback for
+   any deploy where the function isn't present (local file:// use, older cached worker). */
+async function fetchPlaylistViaFunction(base,user,pass){
+  if(!SAME_ORIGIN_PROXY)return null;   /* not on an http(s) origin — no function available */
+  const r=await fetch(location.origin+'/api/playlist',{
+    method:'POST',
+    headers:{'content-type':'application/json'},
+    body:JSON.stringify({url:base,username:user,password:pass})
+  });
+  if(!r.ok)return null;                /* endpoint missing/older worker → fall back to the client walk */
+  const ct=(r.headers.get('content-type')||'').toLowerCase();
+  if(/json/.test(ct)){
+    const j=await r.json().catch(()=>null);
+    const err=new Error(
+      (j&&j.reason==='rate-limited')?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
+      :(j&&j.reason==='rejected')?'The portal rejected these details — check the username and password.'
+      :'The portal did not return a playlist for these details. Check the URL, username and password.');
+    err.attempts=(j&&j.attempts)||[];
+    throw err;
+  }
+  const text=await r.text();
+  return {text,url:r.headers.get('x-m26-source')||base};
+}
 async function loadPlaylistSource(){
   if(typeof Media26Portal==='undefined')return false;
+  const adopt=(text,srcUrl)=>{
+    if(!text||!Media26Portal.looksLikeM3U(text))return false;
+    let parsed=null;
+    try{ parsed=Media26Portal.parseM3U(text); }catch(e){ parsed=null; }
+    if(!parsed||!parsed.total)return false;
+    S.source='m3u'; S.m3u=parsed; S.playlistUrl=srcUrl;
+    return true;
+  };
+  /* Preferred path: our own serverless function does the whole fetch. */
+  try{
+    const res=await fetchPlaylistViaFunction(S.url,S.user,S.pass);
+    if(res&&adopt(res.text,res.url))return true;
+  }catch(e){
+    if(e&&e.message)throw e;   /* a definite answer from the panel — surface it, don't retry blindly */
+  }
+  /* Fallback: the original browser-side walk through the CORS relay. */
   const tries=Media26Portal.m3uCandidates(S.url,S.user,S.pass);
   for(const u of tries){
     let text='';
-    try{ text=await fetchTextChain(u); }catch(e){ text=''; }
-    if(!text||!Media26Portal.looksLikeM3U(text))continue;
-    let parsed=null;
-    try{ parsed=Media26Portal.parseM3U(text); }catch(e){ parsed=null; }
-    if(!parsed||!parsed.total)continue;
-    S.source='m3u'; S.m3u=parsed; S.playlistUrl=u;
-    return true;
+    try{ text=await fetchTextChain(u,45000); }catch(e){ text=''; }
+    if(adopt(text,u))return true;
   }
   return false;
 }
@@ -1849,7 +1904,10 @@ function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX 
    back to the proven raw .ts. Live-stream resilience is the BUILT-IN player's job (v43
    persistent resume); external apps get the format the panel demonstrably serves. */
 function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
-async function fetchTextChain(u){const tries=blocked(u)?[proxyUrl(u)]:[u,proxyUrl(u)];for(const t of tries){try{const r=await fetchWithTimeout(t,8000);if(r.ok)return await r.text()}catch(e){}}return''}
+/* v13.2: the timeout is a parameter now. 8s is right for the small probes this serves (the
+   stream doctor's playlist check), but a full IPTV M3U is tens of megabytes and never finished
+   inside 8s — the playlist fallback passes a realistic budget instead. */
+async function fetchTextChain(u,ms){const tries=blocked(u)?[proxyUrl(u)]:[u,proxyUrl(u)];for(const t of tries){try{const r=await fetchWithTimeout(t,ms||8000);if(r.ok)return await r.text()}catch(e){}}return''}
 function androidIntentUrl(u,pkg,title){try{const x=new URL(u);const scheme=x.protocol.replace(':','');return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${scheme};action=android.intent.action.VIEW;type=video/*;${pkg?`package=${pkg};`:''}S.title=${encodeURIComponent(title||'Media26')};end`}catch{return''}}
 function iosVlcUrl(u){return'vlc-x-callback://x-callback-url/stream?url='+encodeURIComponent(u)}
 /* KMPlayer takes the stream URL with its scheme REPLACED, the same convention as vlc:// —

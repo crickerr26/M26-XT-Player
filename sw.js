@@ -3,7 +3,7 @@
    icons) so a fresh deploy shows up on the next launch; cache is only a fallback for offline.
    Playback is never touched: stream/proxy/transcoder requests and all cross-origin requests
    bypass the worker entirely, so video never goes through the cache. */
-const CACHE = 'media26-shell-v69';
+const CACHE = 'media26-shell-v70';
 
 self.addEventListener('install', () => {
   /* activate the new worker immediately instead of waiting for old tabs to close */
