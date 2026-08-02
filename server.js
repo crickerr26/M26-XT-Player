@@ -9,14 +9,16 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '10.4';
+const SERVER_BUILD = '10.5';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
 const FFMPEG = process.env.FFMPEG_PATH || 'ffmpeg';
 const FFPROBE = process.env.FFPROBE_PATH || 'ffprobe';
-/* How long the copy-mode codec probe may take before we give up and use the old TS path. */
-const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 12000);
+/* How long the copy-mode codec probe may take before we give up and use the old TS path. Kept
+   short on purpose: it is spent BEFORE ffmpeg even starts, and the whole /hls response has to
+   come back inside the CDN's ~100s edge timeout or the browser is handed a 524 instead. */
+const PROBE_TIMEOUT_MS = Number(process.env.PROBE_TIMEOUT_MS || 6000);
 /* Media26 watermark burned into transcoded video. PiP (and Chromecast/AirPlay) show only the
    decoded picture, so the only way to make the logo appear there is to bake it into the stream.
    Any re-encoding profile picks it up automatically when this file is present. */
@@ -404,9 +406,12 @@ async function buildSession(id, url, profile) {
 async function waitForPlaylist(session, ms = 30000) {
   const file = session.playlist;
   const startAt = Date.now();
-  /* fastvod: return as soon as the FIRST segment exists — native HLS starts on one segment while
-     the rest are still being written, shaving a couple seconds off the perceived load time. */
-  const need = session.profile === 'fastvod' ? 1 : 2;
+  /* Return as soon as the FIRST segment exists — native HLS and hls.js both start on one segment
+     while the rest are still being written. v10.5: this now applies to the full re-encode too. On
+     a free instance libx264 needed far longer to produce a SECOND 6s segment than the response
+     budget allowed, so the slow-but-universal fallback timed out instead of starting. Live keeps
+     two, so it joins with a little buffer rather than at the very edge. */
+  const need = isLiveProfile(session.profile) ? 2 : 1;
   while (Date.now() - startAt < ms) {
     if (session.exited && !fs.existsSync(file)) return false;
     if (fs.existsSync(file)) {
@@ -725,7 +730,11 @@ const server = http.createServer(async (req, res) => {
       /* Give a cold/slow free server more room to emit the first segment before declaring failure
          (copy-mode VOD is quick once ffmpeg can read the source; a re-encode needs longer). If the
          source can't be read, waitForPlaylist returns early with the ffmpeg error in session.log. */
-      const waitMs = isLiveProfile(profile) ? 30000 : (profile === 'vod' ? 75000 : 55000);
+      /* These windows must leave room for a cold free instance to wake INSIDE the CDN's ~100s
+         edge timeout. Blocking for 75s on top of a 50s cold start meant the edge returned 524
+         before the transcoder ever answered — the app reported "server returned 504/524" and the
+         movie never started, which looked exactly like a transcoder that could not handle MKV. */
+      const waitMs = isLiveProfile(profile) ? 30000 : (profile === 'vod' ? 45000 : 35000);
       const ok = await waitForPlaylist(session, waitMs);
       if (!ok) { console.log(`[hls] 504 profile=${profile} id=${session.id} — no playlist in ${waitMs}ms`); return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) }); }
       console.log(`[hls] 302 OK profile=${profile} id=${session.id}`);

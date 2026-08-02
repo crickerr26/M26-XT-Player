@@ -1015,7 +1015,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='10.4';
+const APP_VERSION='10.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1613,8 +1613,12 @@ function transcodeUrl(u,profile='mobile'){const base=transcoderBase();if(!base)r
 /* v9.3: some providers 403-block datacenter IPs (Render), so the transcoder can't fetch the stream
    directly — but our Cloudflare proxy's IP IS allowed (direct movies play through it). So feed the
    transcoder the stream THROUGH that proxy: Render fetches Cloudflare, Cloudflare fetches the
-   provider. This is what makes MKV/HEVC (and IP-blocked live) actually transcode. */
-function transcoderInput(x){try{const u=externalStreamUrl(x);return (typeof PROXY==='string'&&/^https?:\/\//i.test(PROXY))?PROXY+encodeURIComponent(u):u;}catch(e){return externalStreamUrl(x);}}
+   provider. This is what makes MKV/HEVC (and IP-blocked live) actually transcode.
+   v10.5: that proxy hop is now the FALLBACK, not the only route. Forcing it meant every byte of a
+   multi-GB movie travelled browser -> Cloudflare -> Render -> Cloudflare -> panel, putting a free
+   Worker in the path twice for a file ffmpeg can nearly always fetch itself (it is a server: it
+   needs no CORS, and plain http is fine). Pass direct:true for the raw provider URL. */
+function transcoderInput(x,direct){try{const u=externalStreamUrl(x);if(direct)return u;return (typeof PROXY==='string'&&/^https?:\/\//i.test(PROXY))?PROXY+encodeURIComponent(u):u;}catch(e){return externalStreamUrl(x);}}
 /* v55: warm up the transcoder. It runs on a free host that goes to sleep after inactivity and
    takes 30-60s to cold-start on the next request — that cold start was the big "movies/series
    take too long to open" delay, because MKV/HEVC titles (which browsers can't decode) MUST go
@@ -2094,7 +2098,13 @@ async function playItemBasic(x){
               copy-mode can't make browser-decodable still comes up (universal, just slower). */
       addv('native',lcu);
       if(canTrans){
+        /* v10.5: try the transcoder with the DIRECT provider URL first. ffmpeg is a server — it
+           needs no CORS and reads plain http fine — so the direct fetch is one hop instead of
+           three and is what works for the great majority of panels. The proxied input stays right
+           behind it for providers that 403 datacenter IPs, and the full re-encode last. */
+        try{const td=transcodeUrl(transcoderInput(x,true),'fastvod');if(td)addv('hls',td);}catch(e){}
         addv('hls',transUrl);
+        try{const tvd=transcodeUrl(transcoderInput(x,true),'vod');if(tvd)addv('hls',tvd);}catch(e){}
         try{const tv=transcodeUrl(transcoderInput(x),'vod');if(tv)addv('hls',tv);}catch(e){}
       }
     }else{
