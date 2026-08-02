@@ -610,7 +610,8 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .actHave{margin-top:16px;text-align:center;font-size:12.5px;color:#8497b5}
 .actHave a{color:#12b6c9;font-weight:800;text-decoration:none;border-bottom:1px solid rgba(18,182,201,.4)}
 /* MAC-address device activation sheet — same box language as the numeric code, sized for 17 chars */
-.macCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:24px;font-weight:800;letter-spacing:3px;text-align:center;color:#12d0e6;background:#0c1626;border:1px solid #1c3450;border-radius:16px;padding:18px 6px;margin:6px 0 4px}
+.macCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:24px;font-weight:800;letter-spacing:3px;text-align:center;color:#12d0e6;background:#0c1626;border:1px solid #1c3450;border-radius:16px;padding:18px 6px;margin:6px 0 4px;width:100%;box-sizing:border-box;outline:none}
+.macCode:focus{border-color:#12d0e6}
 .macActions{display:flex;gap:8px;margin-top:2px}
 .macActions .pillbtn{flex:1}
 /* login: "Ask the admin" request link */
@@ -976,8 +977,8 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 </div></div>
 <div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Connect via MAC Address</h3><button class="iconbtn" id="macClose">×</button></div>
-  <p class="nativeText">This is your device's unique MAC address. Give it to your IPTV provider — they'll bind it to your subscription in their admin panel. Then enter your provider's portal URL below and tap Connect.</p>
-  <div class="macCode" id="macCodeBox">00:1A:79:00:00:00</div>
+  <p class="nativeText">This is your device's unique MAC address. Give it to your IPTV provider — they'll bind it to your subscription in their admin panel. If your provider already assigned you a MAC address, paste it here instead. Then enter your provider's portal URL below and tap Connect.</p>
+  <input class="macCode" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text">
   <div class="macActions nativeActions" style="margin-top:2px">
     <button class="pillbtn" id="macCopy" type="button">Copy MAC</button>
     <button class="pillbtn primary" id="macSend" type="button"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>WhatsApp</button>
@@ -1046,7 +1047,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='12.7';
+const APP_VERSION='12.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3361,7 +3362,7 @@ function stalkerProxyUrl(url,mac,token){
 async function stalkerJson(endpoint,mac,token,params){
   const u=endpoint+(endpoint.indexOf('?')>=0?'&':'?')+Media26Portal.stalkerQuery(params);
   const r=await fetch(stalkerProxyUrl(u,mac,token),{headers:{'Accept':'application/json'}});
-  if(!r.ok)throw new Error('Portal returned HTTP '+r.status);
+  if(!r.ok){const err=new Error('Portal returned HTTP '+r.status);err.status=r.status;throw err;}
   return r.json().catch(()=>null);
 }
 async function stalkerHandshake(base,mac){
@@ -3375,12 +3376,23 @@ async function stalkerHandshake(base,mac){
          token is treated as fully authorised, and it surfaces "MAC not found" quickly. */
       await stalkerJson(ep,mac,token,{type:'stb',action:'get_profile',hd:'1',stb_type:'MAG250',image_version:'218',JsHttpRequest:'1-xml'}).catch(()=>null);
       return {endpoint:ep,token};
-    }catch(e){lastErr=e;}
+    }catch(e){
+      lastErr=e;
+      /* A 429/403 means the portal is actively throttling or blocking this MAC/IP — trying the
+         next 3 candidate endpoint paths right away only piles on more requests against the same
+         limit and makes it worse. Stop immediately and surface a clear, actionable message. */
+      if(e&&(e.status===429||e.status===403)){
+        e.message=e.status===429
+          ?'This portal is rate-limiting connection attempts. Wait a minute, then try Connect again.'
+          :'This portal refused the connection (403) — the MAC may not be bound to your subscription yet, or the portal is blocking this request.';
+        throw e;
+      }
+    }
   }
   throw lastErr||new Error('Could not reach that portal');
 }
-async function stalkerLogin(base){
-  const mac=stalkerMac();
+async function stalkerLogin(base,mac){
+  mac=Media26Portal.normaliseMac(mac)||stalkerMac();
   const {endpoint,token}=await stalkerHandshake(base,mac);
   const genresRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_genres',JsHttpRequest:'1-xml'}).catch(()=>null);
   const genres=(genresRes&&genresRes.js)||[];
@@ -3404,15 +3416,23 @@ async function stalkerResolve(x){
     return url;
   }catch(e){return '';}
 }
+function macInputValue(){return $('macCodeBox')?$('macCodeBox').value:'';}
 async function connectStalker(){
   const input=$('macPortalUrl');
   const base=normalize((input&&input.value)||'');
   if($('macErr'))$('macErr').textContent='';
   if(!base){macSetStatus('bad','Enter your provider\'s portal URL.');return;}
+  const mac=Media26Portal.normaliseMac(macInputValue());
+  if(!mac){macSetStatus('bad','Enter a valid MAC address, e.g. 00:1A:79:12:34:56.');return;}
+  /* Whatever MAC ends up in the box — auto-generated or pasted in because the provider already
+     had one on file for this subscription — becomes this device's MAC going forward, so the next
+     Connect/auto-resume uses the SAME one instead of silently reverting to a different one. */
+  try{localStorage.setItem('m26_stkmac',mac);}catch(e){}
+  if($('macCodeBox'))$('macCodeBox').value=mac;
   macSetStatus('','Connecting…');
   const btn=$('macCheckBtn');if(btn)btn.disabled=true;
   try{
-    const res=await stalkerLogin(base);
+    const res=await stalkerLogin(base,mac);
     S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
     S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
     S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
@@ -3432,14 +3452,15 @@ async function connectStalker(){
 function openMacSheet(){
   if($('macErr'))$('macErr').textContent='';
   const mac=stalkerMac();
-  if($('macCodeBox'))$('macCodeBox').textContent=macFmt(mac);
+  if($('macCodeBox'))$('macCodeBox').value=macFmt(mac);
   let saved=null;try{saved=JSON.parse(localStorage.getItem('m26_stk')||'null');}catch(e){}
   if(saved&&saved.url&&$('macPortalUrl'))$('macPortalUrl').value=saved.url;
   macSetStatus('','Enter your portal URL and tap Connect');
   $('macSheet').classList.add('show');
+  try{$('macCodeBox').focus();$('macCodeBox').select();}catch(e){}
 }
 function sendMacToWhatsApp(){
-  const mac=stalkerMac();
+  const mac=Media26Portal.normaliseMac(macInputValue())||stalkerMac();
   const msg='Hi, please bind my device to my IPTV subscription.\nMy device MAC address: '+macFmt(mac);
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
@@ -3522,7 +3543,9 @@ if($('actSheet'))$('actSheet').onclick=e=>{if(e.target.id==='actSheet'){stopActP
 if($('macActBtn'))$('macActBtn').onclick=()=>openMacSheet();
 if($('macClose'))$('macClose').onclick=()=>{$('macSheet').classList.remove('show');};
 if($('macSend'))$('macSend').onclick=sendMacToWhatsApp;
-if($('macCopy'))$('macCopy').onclick=()=>{const m=stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
+if($('macCopy'))$('macCopy').onclick=()=>{const m=Media26Portal.normaliseMac(macInputValue())||stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
+if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('macCodeBox');const pos=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=pos;}catch(e){}});
+if($('macCodeBox'))$('macCodeBox').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();connectStalker();}});
 if($('macCheckBtn'))$('macCheckBtn').onclick=()=>connectStalker();
 if($('macPortalUrl'))$('macPortalUrl').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();connectStalker();}});
 if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet'){$('macSheet').classList.remove('show');}};
@@ -4043,7 +4066,7 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
   if(!saved||!saved.url)return;
   (async function(){
     try{
-      const res=await stalkerLogin(saved.url);
+      const res=await stalkerLogin(saved.url,saved.mac);
       S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
       S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
       S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
