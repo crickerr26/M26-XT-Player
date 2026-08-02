@@ -838,6 +838,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
       <input class="macCode" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text">
       <div class="macActions">
         <button class="pillbtn" id="macCopy" type="button">Copy MAC</button>
+        <button class="pillbtn" id="macRenew" type="button" title="Generate a brand-new MAC address for this device">Renew MAC</button>
         <button class="pillbtn primary" id="macSend" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:5px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>Send</button>
       </div>
       <p class="macHint">Give this MAC to your IPTV seller so they can activate it. Already been given a MAC by them? Tap it and type theirs instead. Then sign in below.</p>
@@ -1105,7 +1106,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='15.1';
+const APP_VERSION='15.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4207,6 +4208,27 @@ if($('actEnterGo'))$('actEnterGo').onclick=async()=>{
 };
 if($('actSheet'))$('actSheet').onclick=e=>{if(e.target.id==='actSheet'){stopActPoll();$('actSheet').classList.remove('show');}};
 if($('macSend'))$('macSend').onclick=sendMacToWhatsApp;
+/* v15.2: RENEW THE MAC. A MAC can need replacing — the provider bound the line to a different
+   one, a device is being moved to a fresh subscription, or the current one has been refused and a
+   clean identity is wanted. Doing it by hand meant clearing site data, which also throws away
+   favourites, recents and the saved playlist. This mints a new one and nothing else.
+   It is destructive in one specific way: the provider's activation is against the OLD MAC, so
+   after renewing they must be given the new one before sign-in can work again. That is worth a
+   confirmation, and the new MAC is put straight on the clipboard so it can be sent immediately. */
+if($('macRenew'))$('macRenew').onclick=()=>{
+  const current=macFmt(Media26Portal.normaliseMac(macInputValue())||stalkerMac());
+  if(!confirm('Replace this device’s MAC address?\n\nCurrent: '+current+'\n\nA new one will be generated. Your provider activated the CURRENT MAC, so you will need to send them the new one before you can sign in again.'))return;
+  const next=Media26Portal.randomMac();
+  try{localStorage.setItem('m26_stkmac',next);localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}
+  /* Drop the saved Stalker session too — it is bound to the old MAC and would be reconnected on
+     the next launch, silently putting the previous identity back in play. */
+  try{localStorage.removeItem('m26_stk');}catch(e){}
+  if($('macCodeBox'))$('macCodeBox').value=macFmt(next);
+  if($('macSheetMac'))$('macSheetMac').value=macFmt(next);
+  if($('err'))$('err').textContent='';
+  try{navigator.clipboard.writeText(macFmt(next));toast('New MAC '+macFmt(next)+' — copied, send it to your provider');}
+  catch(e){toast('New MAC: '+macFmt(next));}
+};
 if($('macCopy'))$('macCopy').onclick=()=>{const m=Media26Portal.normaliseMac(macInputValue())||stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
 if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('macCodeBox');const pos=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=pos;}catch(e){}});
 /* Remember a hand-typed MAC as soon as the field loses focus, so a seller-issued MAC is already
