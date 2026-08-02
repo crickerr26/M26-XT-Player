@@ -190,7 +190,7 @@
     return cat([ftyp, moov]);
   }
 
-  function fragment(track, samples, seq, nextDts) {
+  function fragment(track, samples, seq, nextDts, shift) {
     /* Matroska stores blocks in DECODE order but stamps them with PRESENTATION times. Any file
        with B-frames — which is every real movie encode — therefore has non-monotonic timestamps,
        so treating the gaps between them as sample durations yields negative and nonsensical
@@ -214,8 +214,12 @@
       dv.setUint32(i * 16 + 4, samples[i].data.length);
       // Non-keyframes are marked non-sync and depend on other samples.
       dv.setUint32(i * 16 + 8, samples[i].key ? 0x02000000 : 0x01010000);
-      // Signed composition offset (trun version 1) = presentation time - decode time.
-      dv.setInt32(i * 16 + 12, samples[i].pts - dts[i]);
+      /* Composition offset = presentation - decode. Taken raw this goes NEGATIVE for B-frames,
+         which claims a frame is shown before it is decoded — impossible, and the decoder throws
+         it out ("Buffer error on avc1..."). The whole presentation timeline is therefore delayed
+         by a constant `shift`, big enough that no sample is ever displayed before its decode
+         time. The same shift is applied to every track, so audio and video stay in sync. */
+      dv.setInt32(i * 16 + 12, samples[i].pts + (shift || 0) - dts[i]);
     }
 
     const tfhd = box('tfhd', u32(0x020000), u32(track.id));   // default-base-is-moof
@@ -624,8 +628,18 @@
       nextDts = list.length ? list[0].pts : null;
     }
     if (!out.length) return;
+
+    /* How far the presentation timeline must be delayed so that no sample in this fragment is
+       displayed before it is decoded. It is the stream's reorder depth expressed in time, and it
+       only ever grows — held on the remuxer so audio and video are delayed by the same amount and
+       stay in sync. In practice it settles within the first GOP. */
+    const ordered = out.map(s => s.pts).sort((a, b) => a - b);
+    let need = 0;
+    for (let i = 0; i < out.length; i++) need = Math.max(need, ordered[i] - out[i].pts);
+    if (need > (this.ctsShift || 0)) this.ctsShift = need;
+
     this.firstEmitted = true;
-    if (this.onFragment) this.onFragment(fragment(track, out, this.seq++, nextDts), track);
+    if (this.onFragment) this.onFragment(fragment(track, out, this.seq++, nextDts, this.ctsShift || 0), track);
   };
 
   MkvRemuxer.prototype.flushAll = function () {
@@ -725,7 +739,13 @@
                never cost the film — before this, one rejected audio buffer failed the whole
                playback and sent a perfectly good file off to the transcoder. */
             sb.addEventListener('error', function () {
-              if (t.type === 'video') return fail(new Error('Buffer error on ' + t.codec));
+              /* Include whatever the browser actually said — its MediaError message names the
+                 offending box or rule far better than the codec string alone. */
+              if (t.type === 'video') {
+                let why = '';
+                try { if (video.error && video.error.message) why = ': ' + String(video.error.message).slice(0, 120); } catch (_) {}
+                return fail(new Error('Buffer error on ' + t.codec + why));
+              }
               try { sourceBuffers.delete(t.id); queues.delete(t.id); } catch (_) {}
               if (opts.onInfo) { try { opts.onInfo({ tracks: rx.tracks, audioDropped: t.codec }); } catch (_) {} }
             });
