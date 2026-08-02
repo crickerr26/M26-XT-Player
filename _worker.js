@@ -326,7 +326,32 @@ function looksLikeStalkerPortal(text) {
   return /stalker_portal|\bvar\s+gmode\b|\bresolution_prefix\b|\/c\/version\.js|ministra/i.test(head);
 }
 
-async function handlePlaylist(request) {
+/* Statuses that mean "the edge in front of the panel refused THIS caller" rather than "the panel
+   answered no". Cloudflare returns 403 (bot/WAF), 429 (its own rate-limit, error 1015) and 503
+   (challenge) for a request it will not pass through, all without the origin ever seeing it. */
+function edgeRefused(status) {
+  return status === 403 || status === 429 || status === 503;
+}
+
+/* Re-issue a request through the transcoder service, which sits on ordinary hosting with IPs
+   unrelated to Cloudflare's. Its /proxy already speaks the MAG dialect (stb=1&mac=), so the MAC
+   pass survives the detour intact. Best-effort: any failure returns null and the caller keeps its
+   original verdict. */
+async function viaRelay(env, target, useMac, mac) {
+  try {
+    const base = transcoderOrigin(env);
+    if (!/^https?:\/\//i.test(base)) return null;
+    let relay = base.replace(/\/+$/, '') + '/proxy?url=' + encodeURIComponent(target.href);
+    if (useMac && mac) relay += '&stb=1&mac=' + encodeURIComponent(mac);
+    return await fetch(relay, {
+      method: 'GET',
+      headers: { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' },
+      redirect: 'follow'
+    });
+  } catch (e) { return null; }
+}
+
+async function handlePlaylist(request, env) {
   if (request.method === 'OPTIONS') {
     return new Response(null, { status: 204, headers: withCors(new Headers()) });
   }
@@ -385,7 +410,24 @@ async function handlePlaylist(request) {
       attempts.push({ endpoint: label(target, useMac), error: String((e && e.message) || e).slice(0, 120) });
       return null;
     }
-    if (!upstream.ok) {
+    /* v15.3: SECOND EGRESS. A 403/429/503 here is very often not the panel refusing the account
+       but the panel's EDGE refusing where the request came from — this worker runs on Cloudflare,
+       and a portal behind Cloudflare routinely blocks that on the very first request, which is
+       why waiting never clears it. The transcoder service runs on ordinary hosting with entirely
+       different IPs and already relays these exact requests (server.js /proxy, MAG headers and
+       all), so the same attempt is simply a different visitor. Retry there before giving up. */
+    if (edgeRefused(upstream.status)) {
+      const relayed = await viaRelay(env, target, useMac, mac);
+      if (relayed && relayed.ok) {
+        attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: 'edge refused; succeeded via relay' });
+        upstream = relayed;
+      } else {
+        attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: relayed ? 'relay also ' + relayed.status : 'relay unreachable' });
+        if (upstream.status === 429) limited = 429;
+        else if (upstream.status === 401 || upstream.status === 403) rejected = upstream.status;
+        return null;
+      }
+    } else if (!upstream.ok) {
       attempts.push({ endpoint: label(target, useMac), status: upstream.status });
       /* 429 is the panel throttling: stop everything, more requests only make it worse.
          401/403 is a rejection of THIS pass — on a MAC-locked line that is exactly what the
@@ -495,7 +537,7 @@ export default {
       return handleProxy(request);
     }
     if (url.pathname === '/api/playlist') {
-      return handlePlaylist(request);
+      return handlePlaylist(request, env);
     }
     if (!url.pathname.startsWith('/transcoder/')) {
       return env.ASSETS.fetch(request);
