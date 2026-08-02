@@ -609,6 +609,10 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 @keyframes actpulse{0%{box-shadow:0 0 0 0 rgba(255,210,90,.45)}70%{box-shadow:0 0 0 8px rgba(255,210,90,0)}100%{box-shadow:0 0 0 0 rgba(255,210,90,0)}}
 .actHave{margin-top:16px;text-align:center;font-size:12.5px;color:#8497b5}
 .actHave a{color:#12b6c9;font-weight:800;text-decoration:none;border-bottom:1px solid rgba(18,182,201,.4)}
+/* MAC-address device activation sheet — same box language as the numeric code, sized for 17 chars */
+.macCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:24px;font-weight:800;letter-spacing:3px;text-align:center;color:#12d0e6;background:#0c1626;border:1px solid #1c3450;border-radius:16px;padding:18px 6px;margin:6px 0 4px}
+.macActions{display:flex;gap:8px;margin-top:2px}
+.macActions .pillbtn{flex:1}
 /* login: "Ask the admin" request link */
 .askAdmin{margin-top:14px;text-align:center;font-size:12.5px;color:#8497b5;line-height:1.5}
 .askAdmin span{color:#8497b5;font-weight:600}
@@ -830,6 +834,11 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <span class="la-tx"><b>Load from another device</b><small>Scan a QR code or paste a share code</small></span>
         <span class="la-ch">›</span>
       </button>
+      <button class="loginAction" id="macActBtn" type="button">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="11" rx="2"/><path d="M8 7V5a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M8 12h.01M12 12h.01M16 12h.01M8 15h.01M12 15h.01M16 15h.01"/></svg></span>
+        <span class="la-tx"><b>Connect via MAC Address</b><small>Give your device ID to the admin to activate</small></span>
+        <span class="la-ch">›</span>
+      </button>
     </div>
     <div class="err" id="err"></div>
     <!-- v8.5: manual portal/username/password are no longer shown; kept hidden so activation
@@ -965,6 +974,18 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="field nativeField" id="actEnterWrap" style="display:none"><label>Activation code</label><input id="actEnterBox" inputmode="numeric" maxlength="8" placeholder="8-digit code" autocomplete="off"><div class="nativeActions" style="margin-top:10px"><button class="pillbtn primary" id="actEnterGo">Use this code</button></div></div>
   <div class="err" id="actErr" style="min-height:0"></div>
 </div></div>
+<div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Connect via MAC Address</h3><button class="iconbtn" id="macClose">×</button></div>
+  <p class="nativeText">This is your device's unique ID. Give it to your IPTV admin — they'll assign your username, password and server to it in their admin panel. Once they do, tap <b>Check Activation</b> (or just wait — it checks automatically).</p>
+  <div class="macCode" id="macCodeBox">— — — — — —</div>
+  <div class="macActions nativeActions" style="margin-top:2px">
+    <button class="pillbtn" id="macCopy" type="button">Copy</button>
+    <button class="pillbtn primary" id="macSend" type="button"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>WhatsApp</button>
+  </div>
+  <div class="nativeActions" style="margin-top:8px"><button class="pillbtn primary" id="macCheckBtn" type="button" style="width:100%">Check Activation</button></div>
+  <div class="actStatus" id="macStatus"><span class="actDot"></span><span id="macStatusTx">Waiting for the admin to activate…</span></div>
+  <div class="err" id="macErr" style="min-height:0"></div>
+</div></div>
 <div class="episodeSheet" id="homeSetSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Settings</h3><button class="iconbtn" id="homeSetClose">×</button></div>
   <div class="settings-list">
@@ -1024,7 +1045,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='12.5';
+const APP_VERSION='12.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3280,6 +3301,81 @@ async function sendActToWhatsApp(){
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
+/* ── MAC-ADDRESS DEVICE ACTIVATION ───────────────────────────────────────────────────
+   Same idea as the 8-digit activation code, in the format IPTV/STB portals conventionally
+   use for device identification: this device generates a unique, PERSISTENT MAC-formatted
+   ID, the admin binds the real IPTV login to it on the admin dashboard, and this device polls
+   /api/activate (the SAME endpoint the numeric-code flow uses — the server accepts either
+   format transparently) until the admin has activated it, then signs in silently. Kept as a
+   fully separate storage key + poll timer from the numeric flow so the two can never collide
+   or interfere with each other, even if a device happens to hold both at once. */
+const MAC_RE=/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/;
+var _macMem='';
+function genLocalMac(){
+  /* Locally-administered, unicast MAC (IEEE 802: first octet bit0=0, bit1=1) — guaranteed to never
+     collide with a real vendor's hardware address, since this is a virtual device identifier. */
+  let bytes;try{bytes=new Uint8Array(6);crypto.getRandomValues(bytes);}catch(e){bytes=Array.from({length:6},()=>Math.floor(Math.random()*256));}
+  bytes[0]=(bytes[0]&0xfe)|0x02;
+  return Array.from(bytes).map(b=>('0'+b.toString(16)).slice(-2).toUpperCase()).join(':');
+}
+function macCodeGet(create){
+  let c;try{c=localStorage.getItem('m26_devmac');}catch(e){}
+  if(!c||!MAC_RE.test(c))c=_macMem;
+  if((!c||!MAC_RE.test(c))&&create){c=genLocalMac();_macMem=c;try{localStorage.setItem('m26_devmac',c);}catch(e){}}
+  return c||'';
+}
+function setMacCode(m){_macMem=m;try{localStorage.setItem('m26_devmac',m);}catch(e){}}
+function macFmt(m){return String(m||'').toUpperCase();}
+let _macPoll=0,_macBusy=false;
+function stopMacPoll(){if(_macPoll){clearInterval(_macPoll);_macPoll=0;}}
+function macSetStatus(kind,text){const s=$('macStatus');if(s)s.className='actStatus'+(kind?(' '+kind):'');if($('macStatusTx'))$('macStatusTx').textContent=text;}
+async function pollMacOnce(){
+  if(_macBusy)return;const mac=macCodeGet(false);const dev=deviceUid();if(!MAC_RE.test(mac))return;
+  _macBusy=true;
+  try{
+    const {j}=await actApi('/api/activate',{code:mac,deviceId:dev});
+    const st=(j&&j.status)||'';
+    if(st==='active'&&j.portalUrl&&j.username){
+      stopMacPoll();macSetStatus('ok','Activated! Loading your playlist…');
+      if($('macSheet'))$('macSheet').classList.remove('show');
+      try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}
+      catch(e){macSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
+    }else if(st==='blocked'){
+      stopMacPoll();macSetStatus('bad','This device ID is blocked — it was used on too many devices. Contact the admin.');
+    }else if(st==='expired'||st==='disabled'){
+      stopMacPoll();macSetStatus('bad','This device ID is '+st+'. Contact the admin.');
+    }else{
+      macSetStatus('','Waiting for the admin to activate…');
+    }
+  }catch(e){macSetStatus('','Waiting for the admin to activate…');}
+  finally{_macBusy=false;}
+}
+function startMacPoll(){stopMacPoll();pollMacOnce();_macPoll=setInterval(pollMacOnce,4000);}
+/* Get this device's MAC: reuse the stored one, else ask the server for a GUARANTEED-UNIQUE one
+   (so two devices can never collide), falling back to a local generator if offline. */
+async function allocMac(){
+  let m=macCodeGet(false);
+  if(MAC_RE.test(m))return m;
+  try{const {j}=await actApi('/api/newmac',{deviceId:deviceUid()});if(j&&j.code&&MAC_RE.test(j.code)){setMacCode(j.code);return j.code;}}catch(e){}
+  return macCodeGet(true);
+}
+async function openMacSheet(){
+  if($('macErr'))$('macErr').textContent='';
+  macSetStatus('','Getting your device ID…');
+  if($('macCodeBox'))$('macCodeBox').textContent='— — — — — —';
+  $('macSheet').classList.add('show');
+  const mac=await allocMac();
+  if($('macCodeBox'))$('macCodeBox').textContent=macFmt(mac);
+  macSetStatus('','Waiting for the admin to activate…');
+  try{await actApi('/api/request',{code:mac,deviceId:deviceUid()});}catch(e){}
+  startMacPoll();
+}
+async function sendMacToWhatsApp(){
+  let mac=macCodeGet(false);if(!MAC_RE.test(mac))mac=await allocMac();
+  const msg='Hi Inzi, please activate my Media26 XT Player.\nMy device ID (MAC): '+macFmt(mac);
+  const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
+  try{window.open(url,'_blank');}catch(err){location.href=url;}
+}
 /* ── v9.9 · ONE-STEP ACTIVATION-CODE LOGIN ──────────────────────────────────────
    The customer types ONLY their 8-digit code: this resolves it straight to the
    credentials the admin bound to it and signs in. /api/activate is used on purpose
@@ -3355,6 +3451,12 @@ if($('actEnterGo'))$('actEnterGo').onclick=async()=>{
   startActPoll();
 };
 if($('actSheet'))$('actSheet').onclick=e=>{if(e.target.id==='actSheet'){stopActPoll();$('actSheet').classList.remove('show');}};
+if($('macActBtn'))$('macActBtn').onclick=()=>openMacSheet();
+if($('macClose'))$('macClose').onclick=()=>{stopMacPoll();$('macSheet').classList.remove('show');};
+if($('macSend'))$('macSend').onclick=sendMacToWhatsApp;
+if($('macCopy'))$('macCopy').onclick=()=>{const m=macCodeGet(false);if(!m)return;try{navigator.clipboard.writeText(macFmt(m));toast('Device ID copied');}catch(e){toast(macFmt(m));}};
+if($('macCheckBtn'))$('macCheckBtn').onclick=()=>{macSetStatus('','Checking…');pollMacOnce();};
+if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet'){stopMacPoll();$('macSheet').classList.remove('show');}};
 if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairScan'))$('pairScan').onclick=()=>{startQrScan();};
@@ -3860,6 +3962,17 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
     }catch(e){}
   })();
 }catch(e){}})();
+/* Same auto-resume as above, for a device holding a MAC-address ID instead of a numeric code.
+   Fully independent of the numeric flow (own storage key, own poll timer) so the two can never
+   interfere with each other even if a device happens to hold both. */
+(function(){try{
+  const hasDeepLink=/[#?&][pa]=/.test(String(location.hash||'')+String(location.search||''));
+  if(hasDeepLink)return;
+  if($('login')&&$('login').classList.contains('hidden'))return;   /* saved creds already signed in above */
+  const mac=(typeof macCodeGet==='function')?macCodeGet(false):'';
+  if(!MAC_RE.test(mac))return;
+  try{startMacPoll();}catch(e){}
+}catch(e){}})();
 /* v10.5: pick up the admin's activation the moment the user returns to the app. If it's still on
    the login screen with a pending code, re-check on focus / visibility / reconnect so it signs in
    within a second of coming back, instead of only on a full reload or the 4s poll tick. */
@@ -3871,9 +3984,17 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
     if(!/^\d{8}$/.test(code)||typeof activateWithCode!=='function')return;
     activateWithCode(code,{silent:true}).catch(()=>{});
   }catch(e){}};
-  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')recheck();});
-  window.addEventListener('focus',recheck);
-  window.addEventListener('online',recheck);
+  const recheckMac=()=>{try{
+    if(typeof S!=='undefined'&&S.current)return;
+    if($('login')&&$('login').classList.contains('hidden'))return;
+    const mac=(typeof macCodeGet==='function')?macCodeGet(false):'';
+    if(!MAC_RE.test(mac)||typeof pollMacOnce!=='function')return;
+    pollMacOnce();
+    if(!_macPoll)try{startMacPoll();}catch(e){}
+  }catch(e){}};
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){recheck();recheckMac();}});
+  window.addEventListener('focus',()=>{recheck();recheckMac();});
+  window.addEventListener('online',()=>{recheck();recheckMac();});
 }catch(e){}})();
 /* v18: init per-category player selects after restore() has loaded saved modes.
    v41: extra named players are injected per device — MX Player on Android, Infuse and

@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '11.6';
+const SERVER_BUILD = '12.6';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -87,6 +87,33 @@ async function licGet(code) {
 }
 async function licSet(code, obj) {
   await redis(['SET', 'lic:' + code, JSON.stringify(obj)]);
+}
+
+/* Activation identifiers come in two shapes that share ONE licence store (same 'lic:' key
+   namespace, same admin dashboard, same device-limit/expiry/WhatsApp-alert logic):
+     - an 8-digit numeric code (the original "get an activation code" flow), or
+     - a MAC-address-formatted device ID (AA:BB:CC:DD:EE:FF), for admins who prefer to identify
+       a device the way IPTV/STB portals conventionally do.
+   normalizeCode() accepts either shape from any endpoint and returns the canonical storage key
+   (unpadded 8 digits, or uppercase colon-separated MAC), or null if it matches neither. */
+function normalizeCode(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return null;
+  const hex = s.replace(/[:\-\s]/g, '');
+  if (/^[0-9a-fA-F]{12}$/.test(hex) && (/[:\-]/.test(s) || /[a-fA-F]/.test(hex))) {
+    return hex.toUpperCase().match(/.{2}/g).join(':');
+  }
+  const digits = s.replace(/\D/g, '');
+  if (digits.length === 8) return digits;
+  return null;
+}
+/* Generate a guaranteed-unique, LOCALLY-ADMINISTERED MAC address (IEEE 802: first-octet bit 1 set,
+   bit 0 clear) so it can never collide with a real vendor's hardware OUI — this is a virtual device
+   identifier, not a claim to be genuine STB hardware. */
+function randomLocalMac() {
+  const b = crypto.randomBytes(6);
+  b[0] = (b[0] & 0xfe) | 0x02;
+  return Array.from(b).map(x => x.toString(16).padStart(2, '0').toUpperCase()).join(':');
 }
 
 /* Fire-and-forget WhatsApp alert to the admin via CallMeBot. Never throws into the request path. */
@@ -574,13 +601,34 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, code });
       }
 
+      /* CUSTOMER: same as /api/newcode but returns a GUARANTEED-UNIQUE MAC-address-formatted device
+         ID instead of an 8-digit code. Used by "Connect via MAC Address" — the admin binds the IPTV
+         login to this MAC on their dashboard, exactly like they would an activation code. Shares the
+         same 'lic:' store, so it appears in /api/admin/list alongside numeric codes. */
+      if (u.pathname === '/api/newmac') {
+        const body = await parseJsonBody(req);
+        const deviceId = String(body.deviceId || '').trim().slice(0, 80);
+        if (!deviceId) return json(res, 400, { error: 'Device is required.' });
+        let mac = '', tries = 0;
+        do {
+          mac = randomLocalMac();
+          tries++;
+          const existing = await licGet(mac);
+          if (!existing) break;
+          if (tries >= 12) { mac = ''; break; }
+        } while (true);
+        if (!mac) return json(res, 500, { error: 'Could not allocate a device ID, try again.' });
+        await licSet(mac, { code: mac, status: 'pending', devices: [deviceId], createdAt: Date.now() });
+        return json(res, 200, { ok: true, code: mac });
+      }
+
       /* CUSTOMER: request a new activation code. The app generates an 8-digit code on the device
          and registers it here as "pending", binding this first device. The admin then activates it. */
       if (u.pathname === '/api/request') {
         const body = await parseJsonBody(req);
-        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
+        const code = normalizeCode(body.code);
         const deviceId = String(body.deviceId || '').trim().slice(0, 80);
-        if (code.length !== 8 || !deviceId) return json(res, 400, { error: 'A valid 8-digit code and device are required.' });
+        if (!code || !deviceId) return json(res, 400, { error: 'A valid 8-digit code (or MAC address) and device are required.' });
         let lic = await licGet(code);
         if (!lic) {
           lic = { code, status: 'pending', devices: [deviceId], createdAt: Date.now() };
@@ -596,9 +644,9 @@ const server = http.createServer(async (req, res) => {
          returned credentials silently — it never shows them to the user. */
       if (u.pathname === '/api/activate') {
         const body = await parseJsonBody(req);
-        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
+        const code = normalizeCode(body.code);
         const deviceId = String(body.deviceId || '').trim().slice(0, 80);
-        if (code.length !== 8 || !deviceId) return json(res, 400, { error: 'A valid 8-digit code and device are required.' });
+        if (!code || !deviceId) return json(res, 400, { error: 'A valid 8-digit code (or MAC address) and device are required.' });
         const lic = await licGet(code);
         if (!lic) return json(res, 200, { status: 'invalid' });
         if (lic.status === 'pending') return json(res, 200, { status: 'pending' });
@@ -628,11 +676,12 @@ const server = http.createServer(async (req, res) => {
       const adminKey = req.headers['x-admin-key'] || u.searchParams.get('key') || '';
       if (adminKey !== ADMIN_API_KEY) return json(res, 401, { error: 'Unauthorized' });
 
-      // ADMIN: activate a code — bind the IPTV credentials you created to the customer's 8-digit code.
+      // ADMIN: activate a code — bind the IPTV credentials you created to the customer's 8-digit code
+      // or MAC-address device ID (accepts either — see normalizeCode).
       if (u.pathname === '/api/admin/activate') {
         const body = await parseJsonBody(req);
-        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
-        if (code.length !== 8) return json(res, 400, { error: 'Enter the customer’s 8-digit code.' });
+        const code = normalizeCode(body.code);
+        if (!code) return json(res, 400, { error: 'Enter the customer’s 8-digit code or MAC address.' });
         const url = String(body.url || '').trim();
         const user = String(body.user || '').trim();
         const pass = String(body.pass != null ? body.pass : '').trim();
@@ -681,9 +730,9 @@ const server = http.createServer(async (req, res) => {
       // ADMIN: block / unblock / reset devices / delete a code.
       if (u.pathname === '/api/admin/update') {
         const body = await parseJsonBody(req);
-        const code = String(body.code || '').replace(/\D/g, '').slice(0, 8);
+        const code = normalizeCode(body.code);
         const op = String(body.op || '').trim();
-        if (code.length !== 8) return json(res, 400, { error: 'Enter an 8-digit code.' });
+        if (!code) return json(res, 400, { error: 'Enter an 8-digit code or MAC address.' });
         if (op === 'delete') { await redis(['DEL', 'lic:' + code]); return json(res, 200, { ok: true, deleted: true }); }
         const lic = await licGet(code);
         if (!lic) return json(res, 404, { error: 'Code not found.' });

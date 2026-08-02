@@ -65,8 +65,8 @@
   <div class="card">
     <h2>Create / activate a code</h2>
     <p class="muted" style="margin:0 0 10px">Fill in the IPTV login below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate a code a customer already gave you</b>.</p>
-    <label>Customer's 8-digit code <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate this code"</span></label>
-    <input id="a_code" inputmode="numeric" maxlength="8" placeholder="e.g. 48207391">
+    <label>Customer's 8-digit code or MAC address <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate this code"</span></label>
+    <input id="a_code" placeholder="e.g. 48207391 or 02:AB:CD:EF:12:34" style="text-transform:uppercase">
     <label>Portal URL</label>
     <input id="a_url" placeholder="http://yourserver.com:8080" autocomplete="off">
     <div class="row">
@@ -98,7 +98,7 @@
   var $=function(id){return document.getElementById(id)};
   /* Bumped on every deploy alongside APP_VERSION in index.html, so it is obvious at a glance
      whether this page is the current build or a stale cached/preview copy. */
-  var ADMIN_VERSION='12.5';
+  var ADMIN_VERSION='12.6';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   var DEFAULT_BASE='https://media26-transcoder-xutt.onrender.com';
   /* v10.4: consolidated onto ONE Render service. A stored URL still pointing at the retired
@@ -187,10 +187,17 @@
     catch(e){ try{ var t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }catch(_){} }
     var old=btn.textContent; btn.textContent=done; setTimeout(function(){ btn.textContent=old; },1000);
   }
-  $('a_copy').onclick=function(){ flashCopy(this, String($('a_code').value||'').replace(/\D/g,''), 'Copied!'); };
+  /* The code field holds either an 8-digit numeric code or a MAC address (colons + hex letters) —
+     only strip stray characters for the numeric case, never mangle a MAC's colons/letters. */
+  function shareableCode(){
+    var v=String($('a_code').value||'').trim();
+    var digits=v.replace(/\D/g,'');
+    return digits.length===8 ? digits : v.toUpperCase();
+  }
+  $('a_copy').onclick=function(){ flashCopy(this, shareableCode(), 'Copied!'); };
   $('a_wa').onclick=function(){
-    var c=String($('a_code').value||'').replace(/\D/g,'');
-    var t='Your Media26 activation code: '+c+'\n\nOpen the Media26 app, type this code in "Have an activation code?" and tap Go — your channels will load automatically.';
+    var c=shareableCode();
+    var t='Your Media26 activation code: '+c+'\n\nOpen the Media26 app and either type this in "Have an activation code?" (numeric codes) or use "Connect via MAC Address" → Check Activation (device IDs) — your channels will load automatically.';
     window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
   };
   function copyCode(el, code){ flashCopy(el, code, 'Copied!'); }
