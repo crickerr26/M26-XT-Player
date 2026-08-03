@@ -34,7 +34,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
 body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#607088;--soft:#26384f;--line:rgba(20,32,51,.11);--shadow:0 18px 45px rgba(27,39,62,.12)}
-.app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line)}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}.searchbox{padding:0 10px 10px}.searchbox input,.field input{width:100%;height:44px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:0 13px}.cats{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:0 10px 10px}.cat{width:100%;min-height:42px;border-radius:12px;background:transparent;color:var(--muted);display:flex;justify-content:space-between;align-items:center;text-align:left;padding:9px 11px;margin-bottom:5px}.cat.active{background:rgba(56,189,248,.14);color:var(--ink)}.cat{gap:10px}.catStar{flex-shrink:0;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;color:var(--soft);font-size:20px;line-height:1;border-radius:9px;background:rgba(255,255,255,.06)}.catStar.on{color:var(--amber);background:rgba(251,191,36,.16)}.catStar.spacer{opacity:0;background:none;pointer-events:none}.catStar:active{transform:scale(.9)}.catName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.catCount{flex-shrink:0;font-size:11px;color:var(--muted)}.main{display:grid;grid-template-rows:minmax(260px,48vh) auto auto minmax(0,1fr);gap:12px;min-width:0;min-height:0}.player{position:relative;background:#000;border-radius:18px;overflow:hidden;min-height:260px}.player video{width:100%;height:100%;object-fit:contain;background:#000;display:block}.player-overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(3,7,18,.35),rgba(3,7,18,.68));pointer-events:none}.state{text-align:center;max-width:80%;color:#dbeafe;display:flex;flex-direction:column;align-items:center}.state strong{display:block;font-size:20px;margin-bottom:6px}.state p{font-size:13px;color:#aebed2}.state-thumb{width:72px;height:72px;object-fit:cover;border-radius:14px;margin-bottom:12px;background:rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.35);flex-shrink:0}.state-progress{width:160px;height:5px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:16px;overflow:hidden;position:relative}.progress-bar{position:absolute;top:0;left:0;bottom:0;width:40%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;animation:pbar 1.5s infinite ease-in-out}@keyframes pbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}.playerbar{display:flex;position:absolute;left:10px;right:10px;bottom:10px;top:auto;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(5,10,20,.82);backdrop-filter:blur(16px);opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}.player.showbar .playerbar{opacity:1;pointer-events:auto}.player:fullscreen .playerbar,.player:-webkit-full-screen .playerbar{opacity:0;pointer-events:none}.player:fullscreen.showbar .playerbar,.player:-webkit-full-screen.showbar .playerbar{opacity:1;pointer-events:auto}.round{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.14);color:white;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px}.round:hover{background:rgba(255,255,255,.26)}.grow{flex:1;min-width:0}.now{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 4px}.now h2{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.now p{font-size:12px;color:var(--muted)}.status{font-size:12px;color:var(--muted);white-space:nowrap}.grid{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:10px;padding:2px}.card{min-height:76px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),var(--panel2));display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:10px;color:var(--ink);text-align:left}.card.active{outline:2px solid var(--blue);background:rgba(56,189,248,.14)}.poster{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}.poster img{width:100%;height:100%;object-fit:cover}.ctitle{font-size:14px;font-weight:850;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.cmeta{font-size:11px;color:var(--muted);margin-top:4px}.star{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.08);color:var(--amber);font-size:18px}.info{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;padding:12px;min-height:0}.hero{border-radius:16px;background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(45,212,191,.13));padding:14px;border:1px solid var(--line)}
+.app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line);position:relative;overflow:hidden}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}.tab.loading::after,.cp-tab.loading::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:38%;border-radius:3px;background:linear-gradient(90deg,transparent,var(--green),var(--blue),transparent);animation:tabload 1.05s infinite ease-in-out;pointer-events:none}.tab.active.loading::after{background:linear-gradient(90deg,transparent,#fff,rgba(255,255,255,.55),transparent)}@keyframes tabload{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}.searchbox{padding:0 10px 10px}.searchbox input,.field input{width:100%;height:44px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:0 13px}.cats{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:0 10px 10px}.cat{width:100%;min-height:42px;border-radius:12px;background:transparent;color:var(--muted);display:flex;justify-content:space-between;align-items:center;text-align:left;padding:9px 11px;margin-bottom:5px}.cat.active{background:rgba(56,189,248,.14);color:var(--ink)}.cat{gap:10px}.catStar{flex-shrink:0;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;color:var(--soft);font-size:20px;line-height:1;border-radius:9px;background:rgba(255,255,255,.06)}.catStar.on{color:var(--amber);background:rgba(251,191,36,.16)}.catStar.spacer{opacity:0;background:none;pointer-events:none}.catStar:active{transform:scale(.9)}.catName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.catCount{flex-shrink:0;font-size:11px;color:var(--muted)}.main{display:grid;grid-template-rows:minmax(260px,48vh) auto auto minmax(0,1fr);gap:12px;min-width:0;min-height:0}.player{position:relative;background:#000;border-radius:18px;overflow:hidden;min-height:260px}.player video{width:100%;height:100%;object-fit:contain;background:#000;display:block}.player-overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(3,7,18,.35),rgba(3,7,18,.68));pointer-events:none}.state{text-align:center;max-width:80%;color:#dbeafe;display:flex;flex-direction:column;align-items:center}.state strong{display:block;font-size:20px;margin-bottom:6px}.state p{font-size:13px;color:#aebed2}.state-thumb{width:72px;height:72px;object-fit:cover;border-radius:14px;margin-bottom:12px;background:rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.35);flex-shrink:0}.state-progress{width:160px;height:5px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:16px;overflow:hidden;position:relative}.progress-bar{position:absolute;top:0;left:0;bottom:0;width:40%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;animation:pbar 1.5s infinite ease-in-out}@keyframes pbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}.playerbar{display:flex;position:absolute;left:10px;right:10px;bottom:10px;top:auto;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(5,10,20,.82);backdrop-filter:blur(16px);opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}.player.showbar .playerbar{opacity:1;pointer-events:auto}.player:fullscreen .playerbar,.player:-webkit-full-screen .playerbar{opacity:0;pointer-events:none}.player:fullscreen.showbar .playerbar,.player:-webkit-full-screen.showbar .playerbar{opacity:1;pointer-events:auto}.round{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.14);color:white;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px}.round:hover{background:rgba(255,255,255,.26)}.grow{flex:1;min-width:0}.now{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 4px}.now h2{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.now p{font-size:12px;color:var(--muted)}.status{font-size:12px;color:var(--muted);white-space:nowrap}.grid{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:10px;padding:2px}.card{min-height:76px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),var(--panel2));display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:10px;color:var(--ink);text-align:left}.card.active{outline:2px solid var(--blue);background:rgba(56,189,248,.14)}.poster{width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}.poster img{width:100%;height:100%;object-fit:cover}.ctitle{font-size:14px;font-weight:850;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.cmeta{font-size:11px;color:var(--muted);margin-top:4px}.star{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.08);color:var(--amber);font-size:18px}.info{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;padding:12px;min-height:0}.hero{border-radius:16px;background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(45,212,191,.13));padding:14px;border:1px solid var(--line)}
 /* --- device-aware recommended-player banner (matches .hero aesthetic) --- */
 .recBanner{position:relative;display:flex;gap:8px;align-items:center;border-radius:12px;padding:7px 34px 7px 9px;border:1px solid var(--line);background:linear-gradient(135deg,rgba(56,189,248,.14),rgba(45,212,191,.10));opacity:1;transition:opacity .5s ease}.recBanner.fading{opacity:0}
 .recBanner .recIcon{flex:0 0 auto;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:12px;color:#04111e;background:linear-gradient(135deg,var(--blue),var(--green))}
@@ -54,7 +54,11 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
    free space when there is any and collapse to zero when there is not, so tall content starts
    at the top and scrolls normally instead of being clipped. */
 .login{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:18px;padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom));background:radial-gradient(circle at 15% 14%,rgba(56,189,248,.12),transparent 36%),radial-gradient(circle at 86% 18%,rgba(191,138,242,.10),transparent 32%),linear-gradient(160deg,#eef1f7,#e6ebf3)}
-.login-card{margin-top:auto;margin-bottom:auto;flex-shrink:0}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.login-card{margin-top:auto;margin-bottom:auto;flex-shrink:0}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}
+/* v16.3: a toast is normally click-through so it never eats a tap meant for the UI behind it —
+   which is also why the "tap to undo" toasts could not be tapped at all. armToastUndo() adds this
+   class for exactly as long as the undo is on offer, and takes it off again after. */
+.toast.tappable{pointer-events:auto;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1120px){.layout{grid-template-columns:290px 1fr}.info{display:none}.main{grid-template-rows:minmax(240px,44vh) auto auto minmax(0,1fr)}}
 @media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
@@ -341,9 +345,11 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .home-card:nth-child(2) .hc-shine{animation-delay:-1.6s}.home-card:nth-child(3) .hc-shine{animation-delay:-3.2s}
 .home-exit{margin-top:4px;height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800;animation:homeRise .7s ease .3s both}
 /* v7.8: settings gear on the home hub + settings sheet rows */
-.home-settings{position:absolute;top:calc(16px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));z-index:6;width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#dce8fb;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .15s ease,background .15s ease;animation:homeRise .7s ease .1s both}
+.home-actions{position:absolute;top:calc(16px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));z-index:6;display:flex;align-items:center;gap:10px}
+.home-settings{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#dce8fb;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .15s ease,background .15s ease;animation:homeRise .7s ease .1s both}
 .home-settings svg{width:22px;height:22px}
-.home-settings:active{transform:scale(.9) rotate(35deg)}
+.home-settings:active{transform:scale(.9)}
+#homeSettings:active{transform:scale(.9) rotate(35deg)}
 @media(hover:hover){.home-settings:hover{background:rgba(255,255,255,.16)}}
 .settings-list{display:flex;flex-direction:column;gap:9px}
 .settings-row{display:flex;align-items:center;gap:13px;padding:12px 14px;border-radius:15px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);color:#eaf1fb;text-align:left;transition:transform .15s ease,background .15s ease}
@@ -364,8 +370,19 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @keyframes hcIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes hcShine{0%,100%{left:-60%}46%,54%{left:118%}}
 @keyframes homeBrandPulse{0%,100%{box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08)}50%{box-shadow:0 12px 54px rgba(56,189,248,.5),inset 0 0 0 1px rgba(255,255,255,.18)}}
+/* v16.4: a provider with no series section has two catalogues, not three — Live TV and Video Club.
+   Everything that names or lays out the Series tab keys off this one class on <body>, so the tab,
+   its home card, its stat tile and its per-category player picker all disappear together, and the
+   grids that held three columns close up to two instead of leaving a hole. */
+body.noSeries .hc-series,
+body.noSeries .cp-tab[data-cattab="series"],
+body.noSeries .tab[data-tab="series"],
+body.noSeries .pm-series,
+body.noSeries .stat-series{display:none!important}
+body.noSeries .side .tabs{grid-template-columns:repeat(2,1fr)}
 @media(min-width:720px){
   .home-cards{grid-template-columns:repeat(3,1fr)}
+  body.noSeries .home-cards{grid-template-columns:repeat(2,1fr)}
   .home-card{flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:210px;gap:16px}
   .hc-arrow{position:absolute;right:18px;top:18px}
 }
@@ -520,9 +537,10 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .extActions .pillbtn{height:38px;font-size:13px}
 .field select{width:100%;height:44px;border-radius:13px;background:#edf4fb;color:#132033;border:1px solid #d9e5f2;padding:0 10px;outline:0;font:inherit}
 .playerModes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 .playerModes .pm{min-width:0}
 .playerModes .pm span{display:block;font-size:10px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:5px;text-transform:uppercase}
-@media(max-width:760px){.playerModes{grid-template-columns:1fr}}
+@media(max-width:760px){.playerModes,body.noSeries .playerModes{grid-template-columns:1fr}}
 /* --- v22: PWA install popup --- */
 .a2hs{position:fixed;inset:0;display:none;align-items:flex-end;justify-content:center;background:rgba(5,10,20,.55);z-index:200;padding:14px}
 .a2hs.show{display:flex}
@@ -653,29 +671,33 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .loginRefresh{flex:none;width:40px;height:40px;border-radius:12px;display:grid;place-items:center;border:1px solid rgba(20,50,90,.12);background:rgba(20,50,90,.05);color:#3f7fae;cursor:pointer;transition:transform .3s ease}
 .loginRefresh:active{transform:rotate(180deg)}
 .loginRefresh svg{width:20px;height:20px}
-/* activation sheet */
-.actCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:800;letter-spacing:10px;text-align:center;color:#12d0e6;background:#0c1626;border:1px solid #1c3450;border-radius:16px;padding:18px 6px;margin:6px 0 4px;text-indent:10px}
-.actStatus{display:flex;align-items:center;justify-content:center;gap:9px;margin-top:12px;font-size:13px;color:#9fb3d2}
-.actStatus.ok{color:#4fe0a5}.actStatus.bad{color:#ff8a8a}
-.actDot{width:9px;height:9px;border-radius:50%;background:#ffd25a;box-shadow:0 0 0 0 rgba(255,210,90,.5);animation:actpulse 1.4s infinite}
-.actStatus.ok .actDot{background:#4fe0a5;animation:none}.actStatus.bad .actDot{background:#ff8a8a;animation:none}
-@keyframes actpulse{0%{box-shadow:0 0 0 0 rgba(255,210,90,.45)}70%{box-shadow:0 0 0 8px rgba(255,210,90,0)}100%{box-shadow:0 0 0 0 rgba(255,210,90,0)}}
-.actHave{margin-top:16px;text-align:center;font-size:12.5px;color:#8497b5}
-.actHave a{color:#12b6c9;font-weight:800;text-decoration:none;border-bottom:1px solid rgba(18,182,201,.4)}
-/* MAC-address device activation sheet — same box language as the numeric code, sized for 17 chars */
-.macCode{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:22px;font-weight:800;letter-spacing:2.5px;text-align:center;color:#0a6b78;background:#e8f6f8;border:1.5px solid #9fd9e2;border-radius:14px;padding:15px 6px;margin:0;width:100%;box-sizing:border-box;outline:none}
-.macCode:focus{border-color:#12b6c9;background:#fff}
-/* v13.7: the MAC on the login screen — step one of the flow, so it reads as a card of its own
-   rather than another button competing with the sign-in options below it. */
-.macBlock{background:#f2f7fb;border:1px solid rgba(20,50,90,.1);border-radius:16px;padding:14px;margin:0 0 16px}
-.macBlock label{display:block;font-size:12px;font-weight:800;letter-spacing:.3px;color:#7288a8;margin:0 0 8px;text-transform:uppercase}
-.macBlock .macActions{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-/* v15.5: three buttons share this row now (Copy / Renew / Send). They sit side by side when
-   there is room and wrap to a second line on a narrow phone rather than squeezing the labels. */
-.macBlock .macActions .pillbtn{flex:1 1 30%;min-width:96px;height:38px;font-size:13px}
+/* v16.3: the activation-sheet styles (.actCode/.actStatus/.actDot/.actHave) went with the sheet —
+   the code is a row in the identity block below now, and its status is the one line under it. */
 .macHint{margin:9px 0 0;font-size:11.5px;line-height:1.45;color:#6b7f9c;font-weight:600}
-.macBlock.needsAction{border-color:#e0813a;background:#fdf4ec;box-shadow:0 0 0 3px rgba(224,129,58,.12)}
-@media(max-width:760px){.macCode{font-size:19px;letter-spacing:2px;padding:13px 4px}}
+/* v16.3: the identity block — MAC address AND activation code, one row each, both on screen the
+   moment the app opens. They are the same kind of thing (a value you hand to your seller), so they
+   get the same treatment: a label, a monospace value you can type over if the seller issued their
+   own, and copy/renew beside it. One Send button carries both, because sending only one of them
+   was the single most common reason a customer's activation stalled. */
+.idBlock{background:#f2f7fb;border:1px solid rgba(20,50,90,.1);border-radius:16px;padding:13px;margin:12px 0 2px}
+.idRow+.idRow{margin-top:10px}
+.idRow label{display:block;font-size:11px;font-weight:800;letter-spacing:.4px;color:#7288a8;margin:0 0 5px;text-transform:uppercase}
+.idLine{display:flex;align-items:center;gap:7px}
+.idVal{flex:1;min-width:0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:19px;font-weight:800;letter-spacing:1.6px;text-align:center;color:#0a6b78;background:#e8f6f8;border:1.5px solid #9fd9e2;border-radius:12px;padding:11px 6px;box-sizing:border-box;outline:none}
+.idVal:focus{border-color:#12b6c9;background:#fff}
+.idVal::placeholder{color:#9fd0d8;letter-spacing:2px}
+.idBtn{flex:none;width:40px;height:45px;border-radius:12px;display:grid;place-items:center;border:1px solid rgba(20,50,90,.12);background:#fff;color:#3f7fae;cursor:pointer;transition:transform .18s ease,background .15s ease}
+.idBtn svg{width:19px;height:19px}
+.idBtn:active{transform:scale(.9)}
+#actRenew:active,#macRenew:active{transform:rotate(-180deg)}
+@media(hover:hover){.idBtn:hover{background:#e9f1fa}}
+.idSend{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:11px;height:44px;border:0;border-radius:13px;cursor:pointer;font-size:14px;font-weight:800;background:linear-gradient(135deg,#43c96f,#22a457);color:#03230f;box-shadow:0 8px 18px rgba(34,164,87,.3)}
+.idSend svg{width:18px;height:18px}
+.idSend:active{transform:scale(.985)}
+#loginActCodeErr{font-size:11.5px;min-height:15px;margin-top:9px;text-align:center;font-weight:700;color:#66758c;line-height:1.4}
+.idBlock.needsAction{border-color:#e0813a;background:#fdf4ec;box-shadow:0 0 0 3px rgba(224,129,58,.12)}
+/* the icon cluster at the top-right of the sign-in card: share · connection settings · refresh */
+.login-headbtns{display:flex;align-items:center;gap:7px;flex:none}
 /* v15.2: phone sizing for the sign-in card. It now carries six routes plus the MAC block and the
    code entry, and at desktop padding that came to roughly twice a phone screen. These must sit
    AFTER the base .loginAction/.macBlock rules above — an equal-specificity rule declared earlier
@@ -694,11 +716,19 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   .la-tx b{font-size:13.5px;line-height:1.25}
   .la-tx small{font-size:10.5px;line-height:1.3}
   .la-ch{font-size:15px}
-  .macBlock{padding:11px;border-radius:14px;margin:0 0 12px}
-  .macBlock label{font-size:11px;margin:0 0 6px}
-  .macBlock .macActions{gap:7px;margin-top:7px}
-  .macBlock .macActions .pillbtn{height:34px;font-size:12px}
   .macHint{font-size:10.5px;margin-top:7px;line-height:1.4}
+  .idBlock{padding:10px;border-radius:14px;margin:9px 0 2px}
+  .idRow+.idRow{margin-top:8px}
+  .idRow label{font-size:10px;margin:0 0 4px}
+  .idLine{gap:6px}
+  .idVal{font-size:16px;letter-spacing:1.1px;padding:10px 4px;border-radius:11px}
+  .idBtn{width:36px;height:41px;border-radius:11px}
+  .idBtn svg{width:17px;height:17px}
+  .idSend{height:40px;font-size:12.5px;margin-top:9px;border-radius:12px}
+  #loginActCodeErr{font-size:10.5px;margin-top:7px}
+  .login-headbtns{gap:5px}
+  .loginRefresh{width:34px;height:34px;border-radius:10px}
+  .loginRefresh svg{width:17px;height:17px}
 }
 @media(max-width:380px){
   .loginAction{padding:9px 10px;gap:9px}
@@ -706,9 +736,12 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   .loginAction .la-ic svg{width:17px;height:17px}
   .la-tx b{font-size:12.5px}
   .la-tx small{font-size:10px}
+  .idVal{font-size:14px;letter-spacing:.6px}
+  .idBtn{width:32px}
+  .login-headbtns{gap:4px}
+  .loginRefresh{width:31px;height:31px}
+  .loginRefresh svg{width:16px;height:16px}
 }
-.macActions{display:flex;gap:8px;margin-top:2px}
-.macActions .pillbtn{flex:1}
 /* login: "Ask the admin" request link */
 .askAdmin{margin-top:14px;text-align:center;font-size:12.5px;color:#8497b5;line-height:1.5}
 .askAdmin span{color:#8497b5;font-weight:600}
@@ -755,18 +788,21 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     <div class="top-actions">
       <button class="iconbtn" id="menuBtn" title="Channels" aria-label="Toggle channel menu"></button>
       <button class="iconbtn" id="themeBtn" title="Theme" aria-label="Toggle theme"></button>
-      <button class="pillbtn" id="openStreamBtn">Stream <span class="pilltxt">Tools</span></button><button class="pillbtn" id="refreshBtn">↻ <span class="pilltxt">Refresh</span></button>
+      <!-- v16.3: connection & transcoder settings is an icon beside Refresh now, not a labelled
+           pill. On a phone the header ran out of room and "Stream Tools" was the widest thing in
+           it, so the title had nowhere to go. -->
+      <button class="pillbtn" id="refreshBtn">↻ <span class="pilltxt">Refresh</span></button><button class="iconbtn" id="openStreamBtn" title="Connection &amp; transcoder settings" aria-label="Connection and transcoder settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg></button>
       <button class="pillbtn" id="logoutBtn">Exit</button>
     </div>
   </header>
   <div class="layout">
     <aside class="panel side" id="side">
       <div class="tabs">
-        <button class="tab active" data-tab="live">Live</button>
-        <button class="tab" data-tab="vod">Movies</button>
+        <button class="tab active" data-tab="live">Live TV</button>
+        <button class="tab" data-tab="vod">Video Club</button>
         <button class="tab" data-tab="series">Series</button>
       </div>
-      <div class="searchbox"><input id="search" placeholder="Search channels, movies..." autocomplete="off"></div>
+      <div class="searchbox"><input id="search" placeholder="Search Live TV and Video Club..." autocomplete="off"></div>
       <div class="cats" id="cats"></div>
     </aside>
     <main class="main">
@@ -831,16 +867,24 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </main>
     <aside class="panel info">
       <div class="hero"><h3 id="infoTitle">Welcome</h3><p id="infoText">This mode plays streams inside the preview area using native video, HLS, MPEG-TS, proxy, and transcoder paths.</p></div>
-      <div class="stats"><div class="stat"><strong id="liveCount">0</strong><span>LIVE</span></div><div class="stat"><strong id="vodCount">0</strong><span>MOVIES</span></div><div class="stat"><strong id="seriesCount">0</strong><span>SERIES</span></div></div>
+      <div class="stats"><div class="stat"><strong id="liveCount">0</strong><span>LIVE TV</span></div><div class="stat"><strong id="vodCount">0</strong><span>VIDEO CLUB</span></div><div class="stat stat-series"><strong id="seriesCount">0</strong><span>SERIES</span></div></div>
       <div class="details" id="details">Tip: on phones, turn sideways after video starts for a clean full-screen layout.</div>
     </aside>
   </div>
 </div>
 <div class="home hidden" id="home">
   <div class="home-bg"><span></span><span></span><span></span><span></span></div>
-  <button class="home-settings" id="homeSettings" type="button" aria-label="Settings" title="Settings">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.4 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.15 1.7 1.7 0 0 0-.34-1.87l-.06-.06A2 2 0 1 1 6.07 2.9l.06.06a1.7 1.7 0 0 0 1.87.34H8a1.7 1.7 0 0 0 1-1.55V2a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V8a1.7 1.7 0 0 0 1.55 1H22a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
-  </button>
+  <!-- v16.3: Share playlist sits beside the gear as an icon of its own. It was one row down inside
+       the Settings sheet, which is two taps and a reading task for the thing people hand to a
+       friend standing next to them. -->
+  <div class="home-actions">
+    <button class="home-settings" id="homeShare" type="button" aria-label="Share playlist" title="Share playlist">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><path d="M14 14h3v3M20.5 14v3.5M14 20.5h3.5M20.5 20.5v.01"/></svg>
+    </button>
+    <button class="home-settings" id="homeSettings" type="button" aria-label="Settings" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.4 19.3a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H2a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.15 1.7 1.7 0 0 0-.34-1.87l-.06-.06A2 2 0 1 1 6.07 2.9l.06.06a1.7 1.7 0 0 0 1.87.34H8a1.7 1.7 0 0 0 1-1.55V2a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V8a1.7 1.7 0 0 0 1.55 1H22a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
   <div class="home-inner">
     <div class="home-head">
       <div class="home-brand"><img src="image_482ee8.png" alt="Media26"></div>
@@ -857,7 +901,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
       <button class="home-card hc-vod" data-go="vod">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg></span>
-        <span class="hc-txt"><b>Movies</b><small><i id="homeVodCount">—</i> titles</small></span>
+        <span class="hc-txt"><b>Video Club</b><small><i id="homeVodCount">—</i> titles</small></span>
         <span class="hc-arrow">→</span>
       </button>
       <button class="home-card hc-series" data-go="series">
@@ -884,7 +928,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </div>
     <div class="cp-tabs" id="catTabs">
       <button class="cp-tab" type="button" data-cattab="live">Live TV</button>
-      <button class="cp-tab" type="button" data-cattab="vod">Movies</button>
+      <button class="cp-tab" type="button" data-cattab="vod">Video Club</button>
       <button class="cp-tab" type="button" data-cattab="series">Series</button>
     </div>
     <div class="cp-searchwrap">
@@ -901,42 +945,66 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
       <div style="min-width:0">
         <div class="logo">XT</div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version vv1</p>
       </div>
-      <button class="loginRefresh" id="loginRefresh" type="button" aria-label="Refresh" title="Refresh">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
+      <!-- v16.3: the two settings that used to eat a full-width row each — connection/transcoder
+           and share-playlist — are icons beside Refresh now. They are occasional errands, not
+           sign-in routes, and as rows they competed for attention with the one thing that is. -->
+      <div class="login-headbtns">
+        <button class="loginRefresh" id="loginShareBtn" type="button" aria-label="Share playlist" title="Share playlist with a friend">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><path d="M14 14h3v3M20.5 14v3.5M14 20.5h3.5M20.5 20.5v.01"/></svg>
+        </button>
+        <button class="loginRefresh" id="loginToolsBtn" type="button" aria-label="Connection and transcoder settings" title="Connection &amp; transcoder settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg>
+        </button>
+        <button class="loginRefresh" id="loginRefresh" type="button" aria-label="Refresh" title="Refresh">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>
+        </button>
+      </div>
+    </div>
+    <p class="loginLead">Send both of these to your IPTV seller. They set up your account and give you back a username and password — sign in with those below.</p>
+    <!-- v16.3: MAC ADDRESS AND ACTIVATION CODE, BOTH ON SCREEN AT ONCE. They were two separate
+         places before — the MAC in its own card here, the code behind a "Get an activation code"
+         sheet — so a customer had to be told which of the two their seller wanted, and half of
+         them sent the wrong one. One block, one line each, one Send button that carries both.
+         Each row is editable: a seller who issues their own MAC or code can have it typed over. -->
+    <div class="idBlock" id="macBlock">
+      <div class="idRow">
+        <label for="macCodeBox">MAC Address</label>
+        <div class="idLine">
+          <input class="idVal" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text" aria-label="Device MAC address">
+          <button class="idBtn" id="macCopy" type="button" aria-label="Copy MAC address" title="Copy MAC address">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 4h8A1.5 1.5 0 0 1 14.5 5.5V6"/></svg>
+          </button>
+          <button class="idBtn" id="macRenew" type="button" aria-label="Renew MAC address" title="Renew MAC — issues a brand-new MAC for this device">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5v5h-5"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="idRow">
+        <label for="actCodeBox">Activation Code</label>
+        <div class="idLine">
+          <input class="idVal" id="actCodeBox" inputmode="numeric" maxlength="9" placeholder="————————" autocomplete="off" spellcheck="false" aria-label="Activation code">
+          <button class="idBtn" id="actCopy" type="button" aria-label="Copy activation code" title="Copy activation code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 4h8A1.5 1.5 0 0 1 14.5 5.5V6"/></svg>
+          </button>
+          <button class="idBtn" id="actRenew" type="button" aria-label="Renew activation code" title="Renew code — issues a brand-new activation code">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5v5h-5"/></svg>
+          </button>
+        </div>
+      </div>
+      <button class="idSend" id="idSendWa" type="button">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
+        Send both to my IPTV seller
       </button>
+      <div class="err" id="loginActCodeErr"></div>
     </div>
-    <p class="loginLead">Send your MAC address below to your IPTV seller. Once they activate it, sign in with your username and password.</p>
-    <div class="activationCodeEntry" id="activationCodeEntry">
-      <label style="display:block;font-size:12px;font-weight:800;letter-spacing:.3px;color:#7288a8;margin:16px 0 8px;text-transform:uppercase">Have an activation code?</label>
-      <div style="display:flex;gap:8px;margin-bottom:14px">
-        <input id="loginActCodeBox" inputmode="numeric" maxlength="8" placeholder="8-digit code" autocomplete="off" style="flex:1;background:#eef2f8;border:1px solid rgba(20,50,90,.12);color:#1b2740;border-radius:11px;padding:12px;font-size:15px;font-weight:600">
-        <button id="loginActCodeGo" type="button" style="cursor:pointer;border:0;border-radius:11px;font-weight:800;font-size:14px;padding:12px 18px;background:linear-gradient(135deg,#8fd6df,#5fc0cf);color:#0a2b33">Go</button>
-      </div>
-      <div class="err" id="loginActCodeErr" style="font-size:12px;min-height:16px;margin-bottom:8px"></div>
-    </div>
-    <!-- v13.7: the device MAC lives HERE, on the first screen, because it is step one of the
-         only flow that matters: read this MAC, give it to your seller, then sign in below.
-         It used to be buried behind a separate "Connect via MAC Address" card, which read like
-         a rival way to log in and left people choosing between two doors to the same room. -->
-    <div class="macBlock" id="macBlock">
-      <label>Your device MAC address</label>
-      <input class="macCode" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text">
-      <div class="macActions">
-        <button class="pillbtn" id="macCopy" type="button">Copy MAC</button>
-        <button class="pillbtn" id="macRenew" type="button" title="Generate a brand-new MAC address for this device">Renew MAC</button>
-        <button class="pillbtn primary" id="macSend" type="button"><svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" style="vertical-align:-3px;margin-right:5px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>Send</button>
-      </div>
-      <p class="macHint">Give this MAC to your IPTV seller so they can activate it. Already been given a MAC by them? Tap it and type theirs instead. Then sign in below.</p>
-    </div>
+    <!-- v16.3: THE ONLY SIGN-IN ROUTE THE FLOW ACTUALLY USES IS FIRST AND PRIMARY. The seller is
+         given the MAC and code above, hands back a username and password, and this is where they
+         go. "Load playlist with MAC address" was removed outright: it promised a second, no-login
+         way in that the seller never sets up, so every customer who tried it hit a dead end. -->
     <div class="loginActions">
-      <button class="loginAction primary" id="getActBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.4 8.5 8 10 4.6-1.5 8-5 8-10V6l-8-4z"/><path d="M9 12l2 2 4-4"/></svg></span>
-        <span class="la-tx"><b>Get an activation code</b><small>The admin activates you — no login to type</small></span>
-        <span class="la-ch">›</span>
-      </button>
-      <button class="loginAction" id="loginShareBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><path d="M14 14h3v3M20.5 14v3.5M14 20.5h3.5M20.5 20.5v.01"/></svg></span>
-        <span class="la-tx"><b>Share playlist with a friend</b><small>Show a QR code to add one more device</small></span>
+      <button class="loginAction primary" id="xtreamActBtn" type="button">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg></span>
+        <span class="la-tx"><b>Login with Username &amp; Password</b><small>Sign in with what your seller gave you</small></span>
         <span class="la-ch">›</span>
       </button>
       <button class="loginAction" id="loginPairBtn" type="button">
@@ -944,32 +1012,11 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
         <span class="la-tx"><b>Load from another device</b><small>Scan a QR code or paste a share code</small></span>
         <span class="la-ch">›</span>
       </button>
-      <button class="loginAction" id="xtreamActBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg></span>
-        <span class="la-tx"><b>Login with Username &amp; Password</b><small>Already have a portal, username and password?</small></span>
-        <span class="la-ch">›</span>
-      </button>
-      <!-- v14.9: Stream Tools reachable BEFORE signing in. The transcoder is what gives the app a
-           second route to a portal whose edge blocks our main one — so on exactly the portals where
-           it decides whether sign-in works at all, it was unreachable, because the only way in was
-           the gear on the home screen you can only see once you are already signed in. -->
-      <!-- v15.0: the flow the app is actually built around — the reseller activates the MAC shown
-           above, and the portal then serves that MAC its own playlist. No username, no password. -->
-      <button class="loginAction" id="macLoginBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.2"/><path d="M6 9.5h4M6 13h7M15.5 9.5h2.5M14 13h4"/></svg></span>
-        <span class="la-tx"><b>Load playlist with MAC address</b><small>Your provider activated the MAC above — no username needed</small></span>
-        <span class="la-ch">›</span>
-      </button>
       <!-- v15.1: the one route a provider's firewall cannot block, because no server of ours is
            involved. The phone's own connection fetches nothing — the user brings the playlist. -->
       <button class="loginAction" id="importM3uBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg></span>
         <span class="la-tx"><b>Open or paste an M3U playlist</b><small>Works even when your provider blocks the app</small></span>
-        <span class="la-ch">›</span>
-      </button>
-      <button class="loginAction" id="loginToolsBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg></span>
-        <span class="la-tx"><b>Connection &amp; transcoder settings</b><small>Set the transcoder — needed when a provider blocks the app</small></span>
         <span class="la-ch">›</span>
       </button>
     </div>
@@ -1032,7 +1079,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span>Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto: Movies &amp; Series open in VLC (it plays MKV/HEVC that the browser can't); Live TV uses the built-in player (VLC drops live channels mid-view). Pick a specific app to force a whole category to it. The per-row VLC and KMPlayer buttons launch any single title on demand.</p></div><div class="field nativeField"><label>M26 Player 2 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in M26 Player 2. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span id="pmVodLabel">Video Club</span><select id="modeVod"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto: Video Club titles open in VLC (it plays MKV/HEVC that the browser can't); Live TV uses the built-in player (VLC drops live channels mid-view). Pick a specific app to force a whole category to it. The per-row VLC and KMPlayer buttons launch any single title on demand.</p></div><div class="field nativeField"><label>M26 Player 2 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in M26 Player 2. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -1097,16 +1144,8 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="qrScanActions"></div>
   <div class="qrScanHint" id="qrScanHint">Point your camera at the QR code on the other device.</div>
 </div>
-<div class="episodeSheet" id="actSheet"><div class="episodePanel nativePanel">
-  <div class="episodeHead"><h3>Get activated</h3><button class="iconbtn" id="actClose">×</button></div>
-  <p class="nativeText">Send this code to the admin on WhatsApp. Once the admin activates it, your playlist loads here automatically — you don’t need a username or password.</p>
-  <div class="actCode" id="actCode">— — — —</div>
-  <div class="nativeActions" style="margin-top:2px"><button class="pillbtn primary" id="actSend"><svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor" style="vertical-align:-3px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>Send code to admin on WhatsApp</button></div>
-  <div class="actStatus" id="actStatus"><span class="actDot"></span><span id="actStatusTx">Waiting for the admin to activate…</span></div>
-  <div class="actHave"><span>Already have a code from the admin?</span> <a href="#" id="actHaveLink">Enter it</a></div>
-  <div class="field nativeField" id="actEnterWrap" style="display:none"><label>Activation code</label><input id="actEnterBox" inputmode="numeric" maxlength="8" placeholder="8-digit code" autocomplete="off"><div class="nativeActions" style="margin-top:10px"><button class="pillbtn primary" id="actEnterGo">Use this code</button></div></div>
-  <div class="err" id="actErr" style="min-height:0"></div>
-</div></div>
+<!-- v16.3: the "Get activated" sheet is gone. The code it used to hold is on the sign-in card
+     itself now, next to the MAC, so there is nothing left for a sheet to reveal. -->
 <div class="episodeSheet" id="xtreamSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Login with Username &amp; Password</h3><button class="iconbtn" id="xtreamClose">×</button></div>
   <p class="nativeText">Enter the portal URL, username and password your provider gave you.</p>
@@ -1116,14 +1155,9 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Login</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
 </div></div>
-<div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
-  <div class="episodeHead"><h3>Load playlist with MAC address</h3><button class="iconbtn" id="macSheetClose">×</button></div>
-  <p class="nativeText">Enter the portal URL your provider gave you. The MAC below is the one they activated — the portal serves its playlist to that MAC, so no username or password is needed.</p>
-  <div class="field nativeField"><label>Portal URL</label><input id="macPortalUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url"></div>
-  <div class="field nativeField" style="margin-top:10px"><label>MAC address</label><input id="macSheetMac" placeholder="00:1A:79:00:00:00" autocapitalize="characters" spellcheck="false"></div>
-  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="macSheetGo" type="button" style="width:100%">Load playlist</button></div>
-  <div class="err" id="macSheetErr" style="min-height:0"></div>
-</div></div>
+<!-- v16.3: "Load playlist with MAC address" is removed. The seller binds the MAC and then issues a
+     username and password for it — there is no MAC-only playlist for this app to fetch, so the
+     route only ever produced "the portal did not return a playlist for this MAC". -->
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
   <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider that blocks our servers cannot block this. Your phone's own connection is never blocked.</p>
@@ -1158,13 +1192,21 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
    point the app at it with ?proxy=... &livehls=... in the URL (saved after first use), or
    set localStorage keys 'm26-proxy' / 'm26-livehls'. Falls back to the shared workers. */
 const _relayOverride=(k,def)=>{try{const qs=new URLSearchParams(location.search);const q=qs.get(k);if(q){localStorage.setItem('m26-'+k,q);return q}const s=localStorage.getItem('m26-'+k);return s||def}catch{return def}};
-/* v48: when the page itself is served over https, its OWN origin always exposes /proxy
-   (_worker.js on Cloudflare Workers/Pages, server.js on the node host) — and that proxy now
-   rewrites HLS playlists so every segment stays on this origin. Using it instead of the
-   SHARED community relay removes the rate-limited bottleneck that made mobile live playback
-   stutter and stick. The shared worker remains the fallback for non-https contexts
-   (Capacitor/file://), and the ?proxy= / localStorage override still wins over both. */
-const PROXY=_relayOverride('proxy',location.protocol==='https:'?location.origin+'/proxy?url=':'https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=');
+/* v48: when the page is served from a real ORIGIN, that origin always exposes /proxy
+   (_worker.js on Cloudflare Workers/Pages, server.js or media26-connect on a node host) — and
+   that proxy now rewrites HLS playlists so every segment stays on this origin. Using it instead
+   of the SHARED community relay removes the rate-limited bottleneck that made mobile live
+   playback stutter and stick. The shared worker remains the fallback for contexts that have no
+   origin of their own, and the ?proxy= / localStorage override still wins over both.
+   v16.1: the test was location.protocol==='https:', which is narrower than the thing it is
+   actually asking. An http:// origin — a LAN server, a local install, anything not yet behind a
+   certificate — exposes /proxy exactly the same way, but the app skipped it and pushed every
+   request through the shared worker, which keeps a host allowlist and answers
+   "403 Host is not allowed" for a portal it does not know. isEdgeRefusal() then reads that 403
+   as the PROVIDER's firewall, so the customer is told to take up a block with a provider who
+   never saw the request. Ask the question that matters — is there an origin to use — which is
+   false only for file:// and Capacitor, the two cases the fallback was written for. */
+const PROXY=_relayOverride('proxy',/^https?:$/.test(location.protocol)?location.origin+'/proxy?url=':'https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=');
 const LIVE_HLS=_relayOverride('livehls','https://smartertv-secure.gz-inzi84.workers.dev/live-hls?url=');
 const KEY='smarter-fresh-v1';
 const FAV='smarter-fresh-favs-v1';
@@ -1175,8 +1217,11 @@ const TRANSCODER_KEY='smarter-transcoder-url-v1';
 const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
 /* Prefer the app's own Worker relay for transcoding. The Worker owns the real
    Render/VPS transcoder URL, so playback stays same-origin and old saved hosts
-   can be repaired without asking users to paste a new server URL. */
-const DEFAULT_TRANSCODER=location.protocol==='https:'?location.origin+'/transcoder':'https://smarteriptv.gz-inzi84.workers.dev/transcoder';
+   can be repaired without asking users to paste a new server URL.
+   v16.1: match PROXY above — any http(s) origin can carry /transcoder, so an http host no
+   longer hands its transcoding to a third party. Only file:// and Capacitor, which have no
+   origin to route through, still need the hosted fallback. */
+const DEFAULT_TRANSCODER=/^https?:$/.test(location.protocol)?location.origin+'/transcoder':'https://smarteriptv.gz-inzi84.workers.dev/transcoder';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
 /* v11.4: playback quality ceiling. A 4K source is 20-80 Mbit/s, which no phone connection streams
    comfortably — that is the whole "4K takes too long to load" problem. Downscaling needs a real
@@ -1198,7 +1243,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='16.0';
+const APP_VERSION='16.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1266,6 +1311,17 @@ const ICONS={
 };
 const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},transFast:false,quality:'auto',source:'xtream',m3u:null};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
+/* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
+   tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
+   in time is the same as no undo — which is what Renew MAC shipped with in v16.2. */
+function armToastUndo(fn,ms){
+  const t=$('toast');if(!t)return;
+  clearTimeout(t._t);clearTimeout(t._u);
+  t.classList.add('show','tappable');
+  const clear=()=>{clearTimeout(t._u);t.onclick=null;t.classList.remove('tappable','show');};
+  t.onclick=()=>{clear();try{fn();}catch(e){}};
+  t._u=setTimeout(clear,ms||6000);
+}
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function normalize(raw){let u=String(raw||'').trim();if(!u)return'';if(!/^https?:\/\//i.test(u))u='http://'+u;const x=new URL(u);x.hash='';x.search='';return x.href.replace(/\/+$/,'')}
@@ -1620,20 +1676,70 @@ async function login(opts){
    the app is mid-fetch reads as "this account has no movies", which is the wrong answer and the
    one thing the user cannot tell apart from a real failure. */
 function updateHomeCounts(){const n=(v,busy)=>(busy&&!v)?'…':(v||0).toLocaleString();if($('homeLiveCount'))$('homeLiveCount').textContent=n(S.live.length,S.loadingLive);if($('homeVodCount'))$('homeVodCount').textContent=n(S.vod.length,S.loadingVod);if($('homeSeriesCount'))$('homeSeriesCount').textContent=n(S.series.length,S.loadingSeries);}
-function showHome(){updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
+function showHome(){applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
    (All / Favorites / Recently Played + every category with its count + a favorite star).
    Tapping a category then drops into that category's channel grid. */
 const CATPAGE_META={
   live:{label:'Live TV',unit:'channels',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg>'},
-  vod:{label:'Movies',unit:'titles',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg>'},
+  vod:{label:'Video Club',unit:'titles',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg>'},
   series:{label:'Series',unit:'shows',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg>'}
 };
+/* ── v16.4: ONE OWNER FOR THE CATALOGUE NAMES AND THE SERIES TAB ──────────────────────────
+   NAMING. The two catalogues are called Live TV and Video Club everywhere now, on every kind of
+   source — Xtream, Stalker/MAG and playlist alike. Before this the same shelf was "Movies" on a
+   portal and "Video Club" on a playlist purely because of how the account happened to be
+   provisioned, which is a distinction no customer can see or cares about.
+
+   SERIES. The tab is shown until the catalogue has actually come back EMPTY, then hidden. Plenty
+   of providers have no series section at all — tv.stream4k.cc answers series get_categories with
+   `false` — and a third tab that can never fill is a dead end the user keeps re-checking. It
+   deliberately stays put while the fetch is still in flight, so it never blinks out and back on a
+   normal login, and it reappears by itself if a provider later starts serving shows.
+
+   The names appear in seven places (home cards, category-page tabs and heading, sidebar tabs,
+   section title, search placeholder, stat tiles, the Stream Tools player picker). They used to be
+   that many separate literals; setting them from here means none can be left behind. */
+const LIVE_LABEL='Live TV',VOD_LABEL='Video Club';
+function vodLabel(){return VOD_LABEL;}
+function seriesAvailable(){
+  if(S.series&&S.series.length)return true;
+  /* Not "there are none" — "we have asked and the answer was none". Anything else means the
+     request has not finished, and the tab stays. */
+  return !(S.loadedSeries&&!S.loadingSeries);
+}
+function applyCatalogUi(){
+  const hasSeries=seriesAvailable();
+  CATPAGE_META.live.label=LIVE_LABEL;
+  CATPAGE_META.vod.label=VOD_LABEL;
+  /* A session left sitting on Series when it turns out to be empty has to be moved, or the user
+     is looking at an empty grid with no tab left to leave by. */
+  if(!hasSeries&&S.tab==='series')S.tab='vod';
+  try{document.body.classList.toggle('noSeries',!hasSeries);}catch(e){}
+  const txt=(el,s)=>{if(el&&el.textContent!==s)el.textContent=s;};
+  txt(document.querySelector('.home-card.hc-live .hc-txt b'),LIVE_LABEL);
+  txt(document.querySelector('.home-card.hc-vod .hc-txt b'),VOD_LABEL);
+  txt(document.querySelector('.cp-tab[data-cattab="live"]'),LIVE_LABEL);
+  txt(document.querySelector('.cp-tab[data-cattab="vod"]'),VOD_LABEL);
+  txt(document.querySelector('.tab[data-tab="live"]'),LIVE_LABEL);
+  txt(document.querySelector('.tab[data-tab="vod"]'),VOD_LABEL);
+  txt($('pmVodLabel'),VOD_LABEL);
+  txt(document.querySelector('.stats .stat:nth-child(1) span'),'LIVE TV');
+  txt(document.querySelector('.stats .stat:nth-child(2) span'),'VIDEO CLUB');
+  /* The idle-player hint names the tabs, so it has to name the ones that are actually there. */
+  const st=$('stateText');
+  if(st&&/^(Login, pick |Pick Live TV)/.test(st.textContent||''))
+    st.textContent='Pick '+LIVE_LABEL+', '+VOD_LABEL+(hasSeries?' or Series':'')+', then tap play.';
+}
 const CP_STAR='<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.27 5.82.85-4.21 4.1.99 5.79L12 16.9l-5.2 2.73.99-5.79-4.21-4.1 5.82-.85z"/></svg>';
 const CP_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>';
 const CP_GRID='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>';
 function showCategories(tab,restore){
   S.tab=tab;
+  /* Runs before the page is built rather than after, so a jump to a Series tab this provider does
+     not have lands on Video Club instead of drawing an empty page first. */
+  applyCatalogUi();
+  tab=S.tab;
   if(!restore)S.catQ='';
   const cp=$('catpage');if(!cp)return goCategoryDirect(tab);
   const meta=CATPAGE_META[tab]||CATPAGE_META.live;
@@ -1641,7 +1747,7 @@ function showCategories(tab,restore){
   document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('active',b.dataset.cattab===tab));
   if($('catIcon'))$('catIcon').innerHTML=meta.icon;
   if($('catHeading'))$('catHeading').textContent=meta.label;
-  if($('catSearch')){$('catSearch').value=restore?(S.catQ||''):'';/* v7.7: placeholder reflects the tab you're searching within */$('catSearch').placeholder='Search '+(tab==='live'?'Live TV':tab==='vod'?'Movies':'Series')+'…';}
+  if($('catSearch')){$('catSearch').value=restore?(S.catQ||''):'';/* v7.7: placeholder reflects the tab you're searching within */$('catSearch').placeholder='Search '+(tab==='live'?LIVE_LABEL:tab==='vod'?VOD_LABEL:'Series')+'…';}
   ensureTypeLoaded(tab);
   renderCatPage();
   if($('home'))$('home').classList.add('hidden');
@@ -1767,7 +1873,7 @@ function fullPlaylistCatalog(){
       if(/json/.test((r.headers.get('content-type')||'').toLowerCase()))return null;
       const text=await r.text();
       if(!Media26Portal.looksLikeM3U(text))return null;
-      return Media26Portal.parseM3U(text);
+      return foldM3uSeriesIntoVod(Media26Portal.parseM3U(text));
     }catch(e){return null}
   })().then(p=>{
     /* Only a SUCCESS is cached. A failed attempt must be retryable, because the empty-tab screen
@@ -1791,6 +1897,14 @@ async function loadTypeFromFullPlaylist(type){
   renderAll();updateHomeCounts&&updateHomeCounts();
 }
 async function loadType(type){
+  /* v16.3: a playlist source has no Series tab — its shows live in Video Club. Answering here
+     also stops the live-only fallback below from going off and re-fetching a series catalogue
+     from the panel's own API to fill a tab that is no longer on screen. */
+  if(type==='series'&&S.source==='m3u'){
+    S.series=[];S.seriesCats=[];S.loadedSeries=true;S.loadingSeries=false;
+    renderAll();updateHomeCounts&&updateHomeCounts();
+    return;
+  }
   /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it. */
   if(S.source==='m3u'&&S.m3u){
     const p=S.m3u;
@@ -1928,12 +2042,34 @@ async function fetchPlaylistViaFunction(base,user,pass){
   const text=await r.text();
   return {text,url:r.headers.get('x-m26-source')||base};
 }
+/* ── v16.3: A PLAYLIST SOURCE IS LIVE TV + VIDEO CLUB. NO SERIES TAB. ─────────────────────
+   "Series" in an M3U is a guess: the parser infers it from group names and episode-looking
+   filenames, because a playlist has no series endpoint to ask. That guess put a third of a
+   playlist's on-demand content behind a tab most playlist users never opened, and split shows
+   away from the films they sit next to on the provider's own panel.
+   So the shows are folded into Video Club instead of being dropped — every title stays reachable,
+   and tapping a show still opens its episode picker, because that is driven by _m3uEpisodes on
+   the entry rather than by which bucket it came out of. Xtream and Stalker portals are untouched:
+   they have real per-series endpoints and keep their Series tab. */
+function foldM3uSeriesIntoVod(parsed){
+  if(!parsed||!Array.isArray(parsed.series)||!parsed.series.length)return parsed;
+  const cats=Array.isArray(parsed.vodCats)?parsed.vodCats:(parsed.vodCats=[]);
+  const seen=new Set(cats.map(c=>String(c&&c.category_id)));
+  for(const c of (parsed.seriesCats||[])){
+    const id=String(c&&c.category_id);
+    if(!seen.has(id)){seen.add(id);cats.push(c);}
+  }
+  cats.sort((a,b)=>String((a&&a.category_name)||'').localeCompare(String((b&&b.category_name)||'')));
+  parsed.vod=(parsed.vod||[]).concat(parsed.series);
+  parsed.series=[];parsed.seriesCats=[];
+  return parsed;
+}
 async function loadPlaylistSource(){
   if(typeof Media26Portal==='undefined')return false;
   const adopt=(text,srcUrl)=>{
     if(!text||!Media26Portal.looksLikeM3U(text))return false;
     let parsed=null;
-    try{ parsed=Media26Portal.parseM3U(text); }catch(e){ parsed=null; }
+    try{ parsed=foldM3uSeriesIntoVod(Media26Portal.parseM3U(text)); }catch(e){ parsed=null; }
     if(!parsed||!parsed.total)return false;
     S.source='m3u'; S.m3u=parsed; S.playlistUrl=srcUrl;
     return true;
@@ -1968,7 +2104,12 @@ async function refreshAll(){
   load(false);
   Promise.all([loadType('vod'),loadType('series')]).catch(()=>{});
 }
-function renderAll(){renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));const label=S.tab==='live'?'Live Channels':S.tab==='vod'?'Movies':'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
+/* v16.2: a tab shows a sliding progress bar while ITS catalogue is still being fetched, so Live,
+   Movies and Series each signal "still loading" independently — the same cue as the category
+   rows. Driven straight off the per-type loading flags, so it appears and clears on its own. */
+function tabIsLoading(t){return t==='live'?S.loadingLive:t==='vod'?S.loadingVod:S.loadingSeries}
+function paintTabLoading(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.tab)));document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.cattab)));}
+function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
 function renderCats(){
   const rows=[
     `<button class="cat ${!S.cat?'active':''}" data-cat=""><span class="catStar spacer"></span><span class="catName">All</span><span class="catCount">${list().length}</span></button>`,
@@ -2017,7 +2158,7 @@ function renderGrid(){
   }else{
     html=arr.slice(0,900).map(x=>{const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);return `<div class="card ${active?'active':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${esc(typeOf(x).toUpperCase())} ${x.container_extension?'- '+esc(x.container_extension):''}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}).join('');
   }
-  g.innerHTML=html||(tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+(S.tab==='live'?'channels':S.tab==='vod'?'movies':'series')+'</button></div>');
+  g.innerHTML=html||(tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+'</button></div>');
   updateViewToggle();
 }
 function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.loadingVod:!!S.loadingSeries}
@@ -2519,7 +2660,7 @@ async function streamDoctor(){
   }
 }
 function openVlcForCurrent(){const u=nativeAppUrl(S.current);if(!u)return;location.href=vlcUrl(u);setTimeout(()=>{try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}},250)}
-function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live, Movies, or Series and tap an item.');try{if(transcoderBase()){testTranscoder()}else{setTStatus('idle','No transcoder URL set')}}catch(e){}}
+function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live TV or Video Club and tap an item.');try{if(transcoderBase()){testTranscoder()}else{setTStatus('idle','No transcoder URL set')}}catch(e){}}
 function openRawStream(){if(S.current)routePlayback(S.current,'browser',false)}
 function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pause, Rewind, Forward and the scrubber for live;
    keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. v55: also toggle a
@@ -2744,7 +2885,17 @@ function plan(x){
      cascade below does not apply to either, so use the direct link as-is. */
   if(type==='live'&&x.direct_source){
     const raw=String(x.direct_source).trim();
-    const durl=blocked(raw)?proxyUrl(raw):raw;
+    /* v16.2: PROXY A CROSS-ORIGIN STREAM ON EVERY ORIGIN, not just the https mixed-content case.
+       hls.js and mpegts.js read the stream with fetch/XHR, so a cross-origin stream (which a MAG
+       create_link ALWAYS is — it lives on a separate streaming node) needs CORS headers the stream
+       server never sends; fed the raw URL, the engine's manifest fetch fails and the built-in
+       player shows nothing. Routing through our own /proxy adds the CORS headers, the player
+       User-Agent, and the HLS segment rewriting that keeps every segment on this origin — which is
+       also exactly what makes native Safari playback work. blocked() alone missed this on an http
+       origin (a LAN/local build), where it returns false and the raw URL was handed straight to
+       hls.js. Prefer the proxied URL whenever the stream is cross-origin. */
+    let _xo=false;try{_xo=new URL(raw).host!==location.host;}catch(e){}
+    const durl=(blocked(raw)||_xo)?proxyUrl(raw):raw;
     const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
     if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
@@ -2773,8 +2924,13 @@ function plan(x){
   /* Same for a Stalker movie/episode — the resolved link is all there is to play. */
   if(type!=='live'&&x._stalkerCmd&&x.direct_source){
     const raw=String(x.direct_source).trim();
-    const durl=blocked(raw)?proxyUrl(raw):raw;
-    add(/\.m3u8(?:$|\?)/i.test(raw)?'hls':'native','Direct',durl);
+    /* v16.2: cross-origin VOD link needs the relay for the same reason as live (see above). */
+    let _xo=false;try{_xo=new URL(raw).host!==location.host;}catch(e){}
+    const durl=(blocked(raw)||_xo)?proxyUrl(raw):raw;
+    const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
+    add(isM3u8?'hls':'native','Direct',durl);
+    /* a cross-origin non-HLS file also needs the CORS relay for the browser to read it */
+    if(!isM3u8&&durl===raw&&_xo)add('native','Direct Relay',proxyUrl(raw));
     addTrans('Movie',raw);
     return p;
   }
@@ -3053,7 +3209,7 @@ function chooserResolve(save){
     S.playerModes[t]=pmVal;try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}
     const sel=$(t==='live'?'modeLive':t==='vod'?'modeVod':'modeSeries');
     if(sel){if(!sel.querySelector('option[value="'+pmVal+'"]')){const o=document.createElement('option');o.value=pmVal;o.textContent=playerLabel(mode);sel.appendChild(o)}sel.value=pmVal;}
-    toast('Always using '+playerLabel(mode)+' for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series'));
+    toast('Always using '+playerLabel(mode)+' for '+(t==='live'?LIVE_LABEL:t==='vod'?VOD_LABEL:'Series'));
   }
   if(!x)return;
   /* v64: route external players through the normal handoff, which honours the connection-slot
@@ -3333,7 +3489,7 @@ function fail(msg){
 }
 function seekBy(sec){
   const v=$('video');
-  if(!S.current||typeOf(S.current)==='live'){toast('Seek is available for Movies and Series');return}
+  if(!S.current||typeOf(S.current)==='live'){toast('Seek is available for Video Club titles, not live channels');return}
   /* v52: fall back to the seekable range when duration isn't a finite number (streamed VOD),
      and record the seek so the stall watchdog treats the buffering that follows as "seeking",
      not "dead stream" — the watchdog reloading was what snapped the movie back to the start. */
@@ -3455,7 +3611,7 @@ function downloadCurrent(){
   document.body.appendChild(a);a.click();a.remove();
   toast('Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden')};
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden');maybeStartActivationWatch()};
 /* v4.1: share-profile wiring */
 if($('shareOpenBtn'))$('shareOpenBtn').onclick=()=>openShare();
 if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove('show');
@@ -3497,27 +3653,31 @@ async function actApi(path,body){
 }
 let _actPoll=0,_actBusy=false;
 function stopActPoll(){if(_actPoll){clearInterval(_actPoll);_actPoll=0;}}
-function actSetStatus(kind,text){const s=$('actStatus');if(s)s.className='actStatus'+(kind?(' '+kind):'');if($('actStatusTx'))$('actStatusTx').textContent=text;/* v9.9: mirror onto the login card, so the code box shows live status while the sheet is closed */try{loginActMsg(kind,text);}catch(e){}}
+/* v16.3: there is one place a status can go now — the line under the identity block on the
+   sign-in card — so this is a straight pass-through to it. */
+function actSetStatus(kind,text){try{loginActMsg(kind,text);}catch(e){}}
 async function pollActivationOnce(){
   if(_actBusy)return;const code=actCodeGet(false);const dev=deviceUid();if(!/^\d{8}$/.test(code))return;
+  /* v16.3: the watch now runs from the sign-in screen itself rather than from a sheet the user
+     opened deliberately, so it has to stop itself once that screen is gone. */
+  const _lg=$('login');if(_lg&&_lg.classList.contains('hidden')){stopActPoll();return;}
   _actBusy=true;
   try{
     const {j}=await actApi('/api/activate',{code:code,deviceId:dev});
     const st=(j&&j.status)||'';
     if(st==='active'&&j.portalUrl&&j.username){
       stopActPoll();actSetStatus('ok','Activated! Loading your playlist…');
-      if($('actSheet'))$('actSheet').classList.remove('show');
       try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}catch(e){actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
     }else if(st==='blocked'){
-      stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact the admin.');
+      stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact your seller.');
     }else if(st==='expired'||st==='disabled'){
-      stopActPoll();actSetStatus('bad','This code is '+st+'. Contact the admin.');
+      stopActPoll();actSetStatus('bad','This code is '+st+'. Contact your seller.');
     }else if(st==='invalid'){
-      actSetStatus('','Waiting for the admin to activate…');   /* not registered yet — keep waiting */
+      actSetStatus('','Waiting for your seller to activate this code…');   /* not registered yet — keep waiting */
     }else{
-      actSetStatus('','Waiting for the admin to activate…');
+      actSetStatus('','Waiting for your seller to activate this code…');
     }
-  }catch(e){actSetStatus('','Waiting for the admin to activate…');}
+  }catch(e){actSetStatus('','Waiting for your seller to activate this code…');}
   finally{_actBusy=false;}
 }
 function startActPoll(){stopActPoll();pollActivationOnce();_actPoll=setInterval(pollActivationOnce,4000);}
@@ -3529,21 +3689,47 @@ async function allocActCode(){
   try{const {j}=await actApi('/api/newcode',{deviceId:deviceUid()});if(j&&j.code&&/^\d{8}$/.test(j.code)){setActCode(j.code);return j.code;}}catch(e){}
   return actCodeGet(true); /* offline fallback */
 }
-async function openActSheet(){
-  if($('actErr'))$('actErr').textContent='';
-  if($('actEnterWrap'))$('actEnterWrap').style.display='none';
-  actSetStatus('','Getting your code…');
-  if($('actCode'))$('actCode').textContent='— — — —';
-  $('actSheet').classList.add('show');
+/* v16.3: THE CODE IS ON THE SIGN-IN CARD, NOT BEHIND A SHEET. It used to be minted only when
+   "Get an activation code" was tapped, which meant a customer looking at their MAC had no idea a
+   code existed — and the two halves of what the seller needs were never on screen together.
+   Allocation is unchanged (server-issued and unique, local fallback offline); only where it lands
+   and when it happens are different. */
+function actFmt(c){return String(c||'').replace(/\D/g,'').slice(0,8).replace(/(\d{4})(\d{1,4})/,'$1 $2');}
+function paintActCode(code){const el=$('actCodeBox');if(el)el.value=actFmt(code);}
+async function ensureActCode(){
+  const have=actCodeGet(false);
+  if(/^\d{8}$/.test(have)){paintActCode(have);return have;}
+  const el=$('actCodeBox');if(el)el.placeholder='getting code…';
   const code=await allocActCode();
-  if($('actCode'))$('actCode').textContent=code.replace(/(\d{4})(\d{4})/,'$1 $2');
-  actSetStatus('','Waiting for the admin to activate…');
+  paintActCode(code);
+  if(el)el.placeholder='————————';
+  return code;
+}
+/* Register this device's code with the server and wait for the seller to bind a subscription to
+   it. Safe to call repeatedly — startActPoll clears any previous timer first. */
+async function beginActivationWatch(){
+  const code=await ensureActCode();
+  if(!/^\d{8}$/.test(code)){loginActMsg('bad','Could not reach the activation server — check your connection, then tap Refresh.');return;}
+  actSetStatus('','Waiting for your seller to activate this code…');
   try{await actApi('/api/request',{code:code,deviceId:deviceUid()});}catch(e){}
   startActPoll();
 }
-async function sendActToWhatsApp(){
-  let code=actCodeGet(false);if(!/^\d{8}$/.test(code))code=await allocActCode();
-  const msg='Hi Inzi, please activate my Media26 XT Player.\nMy activation code: '+code;
+/* Only watch while the sign-in screen is actually up. A signed-in device polling every few
+   seconds for an activation it no longer needs is pure battery and bandwidth. */
+function maybeStartActivationWatch(){
+  const lg=$('login');
+  if(!lg||lg.classList.contains('hidden')){stopActPoll();return;}
+  beginActivationWatch();
+}
+/* One message carries BOTH values. Sending only the MAC (or only the code) was the most common
+   reason an activation stalled — the seller had half of what they needed and had to ask. */
+function sendIdsToWhatsApp(){
+  const mac=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
+  const code=actCodeGet(false);
+  const msg='Hi, please set up my Media26 XT Player.'
+    +'\nMAC Address: '+mac
+    +(/^\d{8}$/.test(code)?('\nActivation Code: '+code):'')
+    +'\n\nPlease send me back the server URL, username and password.';
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
@@ -3601,6 +3787,16 @@ function stalkerFailMessage(e){
      user has no other way to know the phone invented a different one from the desktop. */
   const hint=macIsAuto()?(' Note: this device generated the MAC '+mac+' itself. If your seller activated a DIFFERENT MAC, tap the MAC box above, type theirs, and sign in again.'):'';
   const tail=s=>s+hint;
+  /* v16.1: the portal named the problem itself (see stalkerProfileProblem) — say that and stop.
+     This has to come before every test below, because the checks that follow match on words like
+     "blocked" and "refus…" that appear INSIDE the portal's own explanation, and would replace a
+     precise, actionable answer with the generic "the portal refused this MAC". The MAC is still
+     printed, because it is the one value the provider needs; the auto-generated hint is still
+     appended, because a self-invented MAC is a genuine cause of both verdicts. */
+  if(e&&e.profile){
+    const said=e.portalSaid?(' The portal said: “'+e.portalSaid+'”.'):'';
+    return tail(raw+said+' (MAC on this device: '+mac+')');
+  }
   /* v14.8: an "Attention Required! | Cloudflare" body is not the portal answering at all — it is
      the provider's CDN blocking our server before the request reaches portal.php. Saying "the
      portal refused this MAC" there is simply false, and it sends the user back to their provider
@@ -3728,11 +3924,23 @@ async function portalGate(){
 }
 /* An edge refusal looks nothing like the portal's own answer: a challenge page, a Ray ID, or a
    bare 403/429 arriving before portal.php was ever reached. Told apart because the remedy is
-   opposite — the portal's answer is final, the edge's clears itself if we simply stop knocking. */
+   opposite — the portal's answer is final, the edge's clears itself if we simply stop knocking.
+   v16.1: the old last clause was "|| status===403", which made EVERY 403 an edge refusal no
+   matter what the body said — including the one our OWN relay returns. The shared worker keeps
+   a host allowlist and answers a plain "Host is not allowed" with 403 for any portal not on it,
+   and that was being reported to the customer as their provider's firewall blocking us. It is
+   not: the provider never saw the request. A 403 is only an edge refusal when it LOOKS like one
+   (a challenge page, a Ray ID, an HTML body); a bare, short 403 is a refusal by whatever
+   answered, and saying so leads somewhere. Relay-side refusals are named outright so the
+   message can point at the app's own configuration instead of at the provider. */
 function isEdgeRefusal(status,body){
   if(status===429)return true;
   if(status!==403&&status<500)return false;
-  return /attention required|cf-browser-verification|__cf_chl|cloudflare|ray id|just a moment|access denied/i.test(String(body||''))||status===403;
+  const b=String(body||'');
+  if(/host is not allowed|not allowed|invalid target|forbidden target/i.test(b))return false;
+  if(/attention required|cf-browser-verification|__cf_chl|cloudflare|ray id|just a moment|access denied/i.test(b))return true;
+  /* An HTML body on a 403 is a challenge or block page; a short plain-text one is an API saying no. */
+  return status===403&&(/<html/i.test(b)||b.length>400);
 }
 async function stalkerJson(endpoint,mac,token,params){
   const left=portalCooldownLeft();
@@ -3764,8 +3972,54 @@ async function stalkerJson(endpoint,mac,token,params){
   if(last&&last.edge)portalCooldown(45);
   throw last||new Error('Could not reach the portal');
 }
-async function stalkerHandshake(base,mac){
+/* v16.1: WHAT get_profile SAID. A Ministra portal states the actual problem here and nowhere
+   else, and the answer was being dropped on the floor by a `.catch(()=>null)`. Two replies seen
+   on real portals, both of which used to end up as "the portal accepted this MAC but returned no
+   channels":
+     status 2, "Authentication request"                 -> the MAC is not on this portal at all.
+     status 1, "Device conflict - Serial Number mismatch"
+                                                        -> the MAC IS registered, but the portal
+                                                           has a different SERIAL stored against
+                                                           it. The subscription is fine; the
+                                                           provider has to reset the device.
+   Telling someone with the second reply to "confirm the MAC is bound to an active subscription"
+   is advice for a problem they do not have, about a MAC that is already bound. Read the reply
+   and repeat what it said. */
+function stalkerProfileProblem(js){
+  if(!js||typeof js!=='object')return null;
+  const status=Number(js.status);
+  const msg=String(js.msg||'').trim();
+  const said=String(js.block_msg||'').replace(/<br\s*\/?>/gi,' ').replace(/\s+/g,' ').trim();
+  if(/serial number mismatch|device conflict/i.test(msg))
+    return {state:'serial-mismatch',said:msg+(said?' — '+said:''),
+      message:'This portal already has a DIFFERENT serial number stored against this MAC, so it is refusing the device. Your subscription and your MAC are not the problem. Ask your provider to RESET the device (their panel has a "reset device / clear serial" button), then sign in again.'};
+  if(status===2||/authentication request/i.test(msg))
+    return {state:'not-provisioned',said:msg||'Authentication request',
+      message:'This portal does not know this MAC. Send your provider this exact MAC and ask them to add it to your subscription on this portal address.'};
+  if(status===1)
+    return {state:'blocked',said:msg+(said?' — '+said:''),
+      message:'The portal blocked this device'+(msg?': "'+msg+'"':'')+'.'+(said?' '+said:'')};
+  return null;
+}
+/* v16.2: a STABLE per-MAC set-top identity. Ministra stores the serial / device_id a box first
+   presents and counts devices against them, so the same MAC MUST send the same values on every
+   launch — otherwise each connect looks like a brand-new device, burns through the line's device
+   limit, and the portal starts answering "Authentication request" or a device conflict on a line
+   that is perfectly valid. Generated once at random and persisted, exactly like a real box's fixed
+   hardware serial, keyed by MAC so a hand-typed provider MAC keeps its own identity. */
+function stalkerDevice(mac){
+  const key='m26_stkdev_'+String(mac||'').toUpperCase();
+  let d=null;try{d=JSON.parse(localStorage.getItem(key)||'null');}catch(e){}
+  if(!d||!d.sn||!d.deviceId){
+    const hex=n=>{let s='';while(s.length<n)s+=Math.floor(Math.random()*16).toString(16);return s.slice(0,n).toUpperCase();};
+    d={sn:hex(13),deviceId:hex(64)};
+    try{localStorage.setItem(key,JSON.stringify(d));}catch(e){}
+  }
+  return d;
+}
+async function stalkerHandshake(base,mac,creds){
   let lastErr=null;
+  const dev=stalkerDevice(mac);
   for(const ep of Media26Portal.stalkerEndpoints(base)){
     try{
       const hs=await stalkerJson(ep,mac,'',{type:'stb',action:'handshake',token:'',JsHttpRequest:'1-xml'});
@@ -3776,11 +4030,39 @@ async function stalkerHandshake(base,mac){
          thing that went wrong. Name it. */
       if(!token){lastErr=lastErr||new Error('This portal answered the handshake without issuing a token — the reply was not a portal response.');continue;}
       /* get_profile registers the device with the portal — most panels expect this before the
-         token is treated as fully authorised, and it surfaces "MAC not found" quickly. */
-      await stalkerJson(ep,mac,token,{type:'stb',action:'get_profile',hd:'1',stb_type:'MAG250',image_version:'218',JsHttpRequest:'1-xml'}).catch(()=>null);
+         token is treated as fully authorised, and it surfaces "MAC not found" quickly. Sent BARE
+         (no serial) first: that is what a dealer-registered, empty-serial line accepts, and it is
+         exactly the request that loaded this portal's 10k channels on the first clean connect. */
+      let pr=await stalkerJson(ep,mac,token,{type:'stb',action:'get_profile',hd:'1',stb_type:'MAG250',image_version:'218',JsHttpRequest:'1-xml'}).catch(()=>null);
+      let bad=stalkerProfileProblem(pr&&pr.js);
+      /* v16.2: LOGIN / PASSWORD LINES. A Ministra line that authenticates by username+password
+         answers get_profile with status 2 ("Authentication request") until stb.do_auth has run —
+         indistinguishable from an unregistered MAC unless the credentials are actually tried. When
+         we hold them, authenticate (binding this device with its STABLE id so it only ever takes
+         one of the line's device slots) and ask again, exactly as the MAG on-screen login does. */
+      if(bad&&bad.state==='not-provisioned'&&creds&&creds.user){
+        const auth=await stalkerJson(ep,mac,token,{type:'stb',action:'do_auth',login:creds.user,password:(creds.pass==null?'':creds.pass),device_id:dev.deviceId,device_id2:dev.deviceId,JsHttpRequest:'1-xml'}).catch(()=>null);
+        if(auth&&auth.js===true){
+          pr=await stalkerJson(ep,mac,token,{type:'stb',action:'get_profile',hd:'1',stb_type:'MAG250',image_version:'218',JsHttpRequest:'1-xml'}).catch(()=>null);
+          bad=stalkerProfileProblem(pr&&pr.js);
+          /* Some builds still report status 2 on the immediate re-profile but have in fact
+             authorised the session — let get_all_channels be the real test rather than blocking
+             here on a stale profile read. */
+          if(bad&&bad.state==='not-provisioned')bad=null;
+        }else if(auth&&auth.js===false){
+          const pe=new Error('This line signs in with a username and password, and the portal rejected them. Double-check the username and password with your provider. If they are right, the line’s devices may be full — ask your provider to RESET the devices for this line, then sign in again.');
+          pe.profile='login-rejected';throw pe;
+        }
+      }
+      /* Thrown rather than returned so it ends the endpoint loop immediately. The portal has
+         given its answer; asking the same host down three more paths cannot change it, and on a
+         portal that counts requests those three are exactly what trips the edge. */
+      if(bad){const pe=new Error(bad.message);pe.profile=bad.state;pe.portalSaid=bad.said;throw pe;}
       return {endpoint:ep,token};
     }catch(e){
       lastErr=e;
+      /* The portal has spoken about this device — stop, and let the message through untouched. */
+      if(e&&e.profile)throw e;
       /* A 429/403 means the portal (or an edge/WAF layer in front of it) is actively throttling
          or blocking this request — trying the next 3 candidate endpoint paths right away only
          piles on more requests against the same limit and makes it worse. Stop immediately and
@@ -3805,14 +4087,17 @@ async function stalkerHandshake(base,mac){
   }
   throw lastErr||new Error('Could not reach that portal');
 }
-async function stalkerLogin(base,mac){
+async function stalkerLogin(base,mac,creds){
   mac=Media26Portal.normaliseMac(mac)||stalkerMac();
-  const {endpoint,token}=await stalkerHandshake(base,mac);
+  /* Carry whatever username/password the customer entered, so a login/password Ministra line
+     authenticates (do_auth) inside the handshake. A MAC-only line simply never needs them. */
+  creds=creds||{user:(S.user||''),pass:(S.pass||'')};
+  const {endpoint,token}=await stalkerHandshake(base,mac,creds);
   const genresRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_genres',JsHttpRequest:'1-xml'}).catch(()=>null);
   const genres=(genresRes&&genresRes.js)||[];
   const chRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_all_channels',JsHttpRequest:'1-xml'});
   const chList=(chRes&&chRes.js&&(chRes.js.data||chRes.js))||[];
-  if(!Array.isArray(chList)||!chList.length)throw new Error('The portal accepted this MAC but returned no channels — ask your provider to confirm it is bound to an active subscription.');
+  if(!Array.isArray(chList)||!chList.length)throw new Error('The portal accepted this MAC but returned no channels — ask your provider to confirm it is bound to an active subscription (and, if the line uses a username and password, that those are correct).');
   const norm=Media26Portal.stalkerChannelsToApp(chList,genres);
   return {base,mac,endpoint,token,live:norm.live,liveCats:norm.liveCats};
 }
@@ -3854,7 +4139,7 @@ function stalkerCats(list,byId,prefix,fallback){
 async function stalkerLoadVod(){
   const st=S.stalker;if(!st)return;
   const catRes=await stalkerJson(st.endpoint,st.mac,st.token,{type:'vod',action:'get_categories',JsHttpRequest:'1-xml'}).catch(()=>null);
-  const byId=new Map();((catRes&&catRes.js)||[]).forEach(c=>byId.set(String(c.id),c.title||c.name||'Movies'));
+  const byId=new Map();((catRes&&catRes.js)||[]).forEach(c=>byId.set(String(c.id),c.title||c.name||VOD_LABEL));
   const adopt=(list)=>{
     S.vod=list.map((it,i)=>({
       _type:'vod',
@@ -3997,6 +4282,19 @@ async function stalkerResolve(x){
     const url=stalkerPickUrl(r);
     if(url){x.direct_source=url;S.stalkerLastError='';return url}
     lastErr='the portal accepted the request but returned no link for this title';
+    /* v16.2: A NULL LINK IS A COLD TOKEN, NOT A DEAD TITLE. Measured against tv.stream4k.cc: a
+       create_link on a token that has gone stale returns js:null (or "Authorization failed"),
+       identical to a genuinely unavailable title — but a FRESH client-side handshake immediately
+       resolves the very same cmd to a real stream URL. So a null answer is worth exactly one
+       re-handshake and retry, the same as an explicit 401. This is what turns "This channel didn't
+       start" into a playing channel when the streaming token has simply aged out mid-session. */
+    if(!renewed){
+      renewed=true;
+      try{
+        const hs=await stalkerHandshake(S.url,st.mac);
+        if(hs&&hs.token){S.stalker.endpoint=st.endpoint=hs.endpoint||st.endpoint;S.stalker.token=st.token=hs.token;i--;continue}
+      }catch(he){ if(he&&(he.edge||he.cooling)){lastErr=(he&&he.message)||lastErr;break} }
+    }
   }
   S.stalkerLastError=lastErr;
   return '';
@@ -4007,14 +4305,18 @@ function macInputValue(){return $('macCodeBox')?$('macCodeBox').value:'';}
    when a username login turns out to be pointed at a MAG portal — and they must not drift apart. */
 function adoptStalkerSession(res){
   S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
-  S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
+  /* v16.2: keep the username/password that were used, so a login/password Ministra line can
+     re-authenticate (do_auth) on the next launch. A MAC-only line simply has none, and storing
+     empty strings is harmless. */
+  const _u=S.user||'',_p=S.pass||'';
+  S.source='stalker';S.m3u=null;S.url=res.base;S.user=_u;S.pass=_p;
   S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
   /* Movies and series are NOT marked loaded here — they live behind a different, paged endpoint
      and are fetched below. Claiming they were already loaded is what left both tabs reading
      "0 titles" forever: loadType saw nothing left to do and never asked the portal for them. */
   S.vod=[];S.vodCats=[];S.loadedVod=false;S.loadingVod=false;
   S.series=[];S.seriesCats=[];S.loadedSeries=false;S.loadingSeries=false;
-  try{localStorage.setItem('m26_stk',JSON.stringify({url:res.base,mac:res.mac}));}catch(e){}
+  try{localStorage.setItem('m26_stk',JSON.stringify({url:res.base,mac:res.mac,user:_u,pass:_p}));}catch(e){}
   if($('login'))$('login').classList.add('hidden');
   showHome();keepTranscoderWarm();
   renderAll();updateHomeCounts();
@@ -4038,12 +4340,8 @@ function commitLoginMac(){
   if($('macCodeBox'))$('macCodeBox').value=mac;
   return mac;
 }
-function sendMacToWhatsApp(){
-  const mac=Media26Portal.normaliseMac(macInputValue())||stalkerMac();
-  const msg='Hi, please bind my device to my IPTV subscription.\nMy device MAC address: '+macFmt(mac);
-  const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
-  try{window.open(url,'_blank');}catch(err){location.href=url;}
-}
+/* v16.3: sendMacToWhatsApp() is replaced by sendIdsToWhatsApp(), which sends the MAC and the
+   activation code together — see the identity block on the sign-in card. */
 /* ── MANUAL XTREAM LOGIN (portal URL + username + password) ─────────────────────────
    For users who already have full Xtream credentials from their provider — a straight
    shot at the existing login(), which already handles the Xtream/M3U handshake, saving
@@ -4111,7 +4409,6 @@ async function activateWithCode(code,opts){
   if(st==='active'&&j.portalUrl&&j.username){
     setActCode(code);
     stopActPoll();
-    if($('actSheet'))$('actSheet').classList.remove('show');
     loginActMsg('ok','Activated — loading your playlist…');
     try{ await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}}); }
     catch(e){ loginActMsg('bad',(e&&e.message)||'Activated, but the playlist could not load.'); }
@@ -4123,47 +4420,71 @@ async function activateWithCode(code,opts){
     startActPoll();
     return 'pending';
   }
-  if(st==='blocked'){ if(!silent)loginActMsg('bad','This code is blocked — it was used on too many devices. Contact the admin.'); return st; }
-  if(st==='expired'||st==='disabled'){ if(!silent)loginActMsg('bad','This code is '+st+'. Contact the admin.'); return st; }
-  if(st==='invalid'){ if(!silent)loginActMsg('bad','That code is not recognised. Check it with the admin.'); return st; }
+  if(st==='blocked'){ if(!silent)loginActMsg('bad','This code is blocked — it was used on too many devices. Contact your seller.'); return st; }
+  if(st==='expired'||st==='disabled'){ if(!silent)loginActMsg('bad','This code is '+st+'. Contact your seller.'); return st; }
+  if(st==='invalid'){ if(!silent)loginActMsg('bad','That code is not recognised. Check it with your seller.'); return st; }
   if(!silent)loginActMsg('bad',(j&&j.error)||'Activation is unavailable right now. Try again in a moment.');
   return st||'error';
 }
-function submitLoginActCode(){
-  const box=$('loginActCodeBox');
-  const v=String((box&&box.value)||'').replace(/\D/g,'').slice(0,8);
-  if(!/^\d{8}$/.test(v)){ loginActMsg('bad','Enter the 8-digit code from the admin.'); return; }
-  activateWithCode(v);
-}
-if($('loginActCodeGo'))$('loginActCodeGo').onclick=submitLoginActCode;
-if($('loginActCodeBox'))$('loginActCodeBox').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitLoginActCode();}});
-if($('getActBtn'))$('getActBtn').onclick=()=>openActSheet();
 /* Share from the login screen: works if this device already has an activation code or saved
    playlist; otherwise it tells the user to get activated first (nothing to share yet). */
 if($('loginShareBtn'))$('loginShareBtn').onclick=()=>{
   const hasCode=(typeof actCodeGet==='function')&&/^\d{8}$/.test(actCodeGet(false));
   let hasCreds=false;try{const c=JSON.parse(store.getItem(KEY)||'null');hasCreds=!!(c&&c.url&&c.user&&c.pass);}catch(e){}
   if(hasCode||hasCreds)openShare();
-  else toast('Get an activation code first — then you can share your playlist with a friend.');
+  else toast('Get activated first — then you can share your playlist with a friend.');
 };
 /* Login-screen refresh: re-check activation and reload to pick up the latest app version. */
 if($('loginRefresh'))$('loginRefresh').onclick=()=>{try{toast('Refreshing…');}catch(e){}setTimeout(()=>{try{location.reload();}catch(e){}},250);};
-if($('actClose'))$('actClose').onclick=()=>{stopActPoll();$('actSheet').classList.remove('show');};
-if($('actSend'))$('actSend').onclick=sendActToWhatsApp;
-if($('actHaveLink'))$('actHaveLink').onclick=e=>{e.preventDefault();const w=$('actEnterWrap');if(w){w.style.display=w.style.display==='none'?'block':'none';if(w.style.display!=='none'){try{$('actEnterBox').focus();}catch(_){}}}};
-if($('actEnterGo'))$('actEnterGo').onclick=async()=>{
-  const v=($('actEnterBox')&&$('actEnterBox').value||'').replace(/\D/g,'').slice(0,8);
-  if(!/^\d{8}$/.test(v)){if($('actErr'))$('actErr').textContent='Enter the 8-digit code from the admin.';return;}
-  if($('actErr'))$('actErr').textContent='';
-  setActCode(v);
-  if($('actCode'))$('actCode').textContent=v.replace(/(\d{4})(\d{4})/,'$1 $2');
-  if($('actEnterWrap'))$('actEnterWrap').style.display='none';
-  actSetStatus('','Checking your code…');
-  try{await actApi('/api/request',{code:v,deviceId:deviceUid()});}catch(e){}
-  startActPoll();
+/* ── The identity block: MAC + activation code, both live on the sign-in card ─────────── */
+if($('idSendWa'))$('idSendWa').onclick=sendIdsToWhatsApp;
+if($('actCopy'))$('actCopy').onclick=()=>{
+  const c=actCodeGet(false);
+  if(!/^\d{8}$/.test(c)){toast('Still getting your activation code — try again in a second.');return;}
+  try{navigator.clipboard.writeText(c);toast('Activation code copied');}catch(e){toast(c);}
 };
-if($('actSheet'))$('actSheet').onclick=e=>{if(e.target.id==='actSheet'){stopActPoll();$('actSheet').classList.remove('show');}};
-if($('macSend'))$('macSend').onclick=sendMacToWhatsApp;
+/* Renew the code the same way Renew MAC works: mint a new one immediately, keep the old one
+   recoverable from the toast for a few seconds, and start waiting on the new one. The seller
+   activated the OLD code, so this needs to be undoable when it was a mis-tap. */
+if($('actRenew'))$('actRenew').onclick=async()=>{
+  const prev=actCodeGet(false);
+  setActCode('');try{localStorage.removeItem('m26_actcode');}catch(e){}
+  _actCodeMem='';
+  stopActPoll();
+  paintActCode('');
+  loginActMsg('','Getting a new activation code…');
+  await beginActivationWatch();
+  const now=actCodeGet(false);
+  if(/^\d{8}$/.test(prev)&&/^\d{8}$/.test(now)&&prev!==now){
+    window._m26PrevCode=prev;
+    toast('New code '+actFmt(now)+' — send it to your seller (tap to undo)');
+    armToastUndo(()=>{
+      const p=window._m26PrevCode;if(!p)return;
+      setActCode(p);paintActCode(p);
+      window._m26PrevCode='';
+      beginActivationWatch();
+      toast('Reverted to '+actFmt(p));
+    });
+  }else if(/^\d{8}$/.test(now)){
+    toast('Activation code '+actFmt(now));
+  }
+};
+/* The code box is editable, exactly like the MAC box above it: a seller who issues codes from
+   their own panel can have theirs typed straight in, and it is adopted on blur or Enter. */
+if($('actCodeBox')){
+  const box=$('actCodeBox');
+  box.addEventListener('input',()=>{box.value=actFmt(box.value);});
+  const commit=()=>{
+    const v=String(box.value||'').replace(/\D/g,'').slice(0,8);
+    if(!v||v===actCodeGet(false)){paintActCode(actCodeGet(false));return;}
+    if(!/^\d{8}$/.test(v)){loginActMsg('bad','An activation code is 8 digits.');return;}
+    setActCode(v);paintActCode(v);
+    loginActMsg('','Checking your code…');
+    activateWithCode(v);
+  };
+  box.addEventListener('blur',commit);
+  box.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();box.blur();}});
+}
 /* v15.2: RENEW THE MAC. A MAC can need replacing — the provider bound the line to a different
    one, a device is being moved to a fresh subscription, or the current one has been refused and a
    clean identity is wanted. Doing it by hand meant clearing site data, which also throws away
@@ -4172,18 +4493,31 @@ if($('macSend'))$('macSend').onclick=sendMacToWhatsApp;
    after renewing they must be given the new one before sign-in can work again. That is worth a
    confirmation, and the new MAC is put straight on the clipboard so it can be sent immediately. */
 if($('macRenew'))$('macRenew').onclick=()=>{
+  /* v16.2: NO MORE confirm(). A blocking window.confirm() is suppressed outright in an installed
+     PWA, an Android/iOS WebView and a sandboxed frame — it silently returns false, so the button
+     "did nothing". Renew directly and make it recoverable instead: the previous MAC is kept for a
+     few seconds so a mis-tap can be undone from the toast, and the new MAC is copied ready to send
+     to the provider. */
   const current=macFmt(Media26Portal.normaliseMac(macInputValue())||stalkerMac());
-  if(!confirm('Replace this device’s MAC address?\n\nCurrent: '+current+'\n\nA new one will be generated. Your provider activated the CURRENT MAC, so you will need to send them the new one before you can sign in again.'))return;
   const next=Media26Portal.randomMac();
   try{localStorage.setItem('m26_stkmac',next);localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}
   /* Drop the saved Stalker session too — it is bound to the old MAC and would be reconnected on
      the next launch, silently putting the previous identity back in play. */
   try{localStorage.removeItem('m26_stk');}catch(e){}
   if($('macCodeBox'))$('macCodeBox').value=macFmt(next);
-  if($('macSheetMac'))$('macSheetMac').value=macFmt(next);
   if($('err'))$('err').textContent='';
-  try{navigator.clipboard.writeText(macFmt(next));toast('New MAC '+macFmt(next)+' — copied, send it to your provider');}
-  catch(e){toast('New MAC: '+macFmt(next));}
+  /* Let the customer put the OLD one back if they renewed by accident — the provider activated the
+     old MAC, so an accidental renew would otherwise lock them out until re-activation. */
+  window._m26PrevMac=current;
+  try{navigator.clipboard.writeText(macFmt(next));toast('New MAC '+macFmt(next)+' copied — send it to your provider (tap to undo)');}
+  catch(e){toast('New MAC: '+macFmt(next)+' (tap to undo)');}
+  armToastUndo(()=>{
+    const p=window._m26PrevMac;if(!p)return;
+    try{localStorage.setItem('m26_stkmac',Media26Portal.normaliseMac(p));localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
+    if($('macCodeBox'))$('macCodeBox').value=macFmt(p);
+    window._m26PrevMac='';
+    toast('Reverted to '+macFmt(p));
+  });
 };
 if($('macCopy'))$('macCopy').onclick=()=>{const m=Media26Portal.normaliseMac(macInputValue())||stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
 if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('macCodeBox');const pos=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=pos;}catch(e){}});
@@ -4191,45 +4525,10 @@ if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('mac
    in force by the time Login is tapped — no separate save step to forget. */
 if($('macCodeBox'))$('macCodeBox').addEventListener('blur',()=>{if(!commitLoginMac())paintLoginMac();});
 paintLoginMac();
-/* v15.0: MAC-only sign-in. Reuses login()'s {creds} form with empty username/password — the
-   playlist fetch carries the MAC, and the worker walks the MAC playlist endpoints. */
-function openMacSheet(){
-  if($('macSheetErr'))$('macSheetErr').textContent='';
-  if($('macPortalUrl')&&!$('macPortalUrl').value)$('macPortalUrl').value=($('xtreamUrl')&&$('xtreamUrl').value)||($('url')&&$('url').value)||'';
-  if($('macSheetMac'))$('macSheetMac').value=macFmt(stalkerMac());
-  $('macSheet').classList.add('show');
-  try{$('macPortalUrl').focus();}catch(e){}
-}
-async function submitMacLogin(){
-  const url=(($('macPortalUrl')&&$('macPortalUrl').value)||'').trim();
-  const mac=Media26Portal.normaliseMac(($('macSheetMac')&&$('macSheetMac').value)||'');
-  if($('macSheetErr'))$('macSheetErr').textContent='';
-  if(!url){if($('macSheetErr'))$('macSheetErr').textContent='Enter the portal URL your provider gave you.';return;}
-  if(!mac){if($('macSheetErr'))$('macSheetErr').textContent='That MAC address is not valid — it needs 12 hex characters, e.g. 00:1A:79:45:FD:AD.';return;}
-  /* Whatever MAC is used here becomes this device's MAC from now on, so the reconnect on relaunch
-     and every later request use the same one the provider activated. */
-  try{localStorage.setItem('m26_stkmac',mac);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
-  if($('macCodeBox'))$('macCodeBox').value=mac;
-  const btn=$('macSheetGo');if(btn)btn.disabled=true;
-  if($('macSheetErr'))$('macSheetErr').textContent='Loading your playlist…';
-  try{
-    await login({creds:{portalUrl:url,username:'',password:''}});
-    if($('login')&&$('login').classList.contains('hidden')){
-      if($('macSheetErr'))$('macSheetErr').textContent='';
-      $('macSheet').classList.remove('show');
-    }else{
-      const msg=($('err')&&$('err').textContent)||'The portal did not return a playlist for this MAC.';
-      if($('macSheetErr'))$('macSheetErr').textContent=msg;
-      /* v16.0: the sheet STAYS PUT on a failure. v15.4 waited 1.8s and then threw the user into
-         the manual "open your playlist in a browser tab, copy it, paste it back" flow, which is a
-         chore, and it did it on the strength of a firewall diagnosis the app could not actually
-         make. Retrying is the right next action for a throttled request, and it is one tap away
-         because the portal URL and MAC they just typed are still on screen. The manual import is
-         still there for anyone who wants it — under Open or paste an M3U playlist — but the app
-         no longer decides on their behalf that it is the only way. */
-    }
-  }finally{ if(btn)btn.disabled=false; }
-}
+/* v16.3: openMacSheet()/submitMacLogin() are gone with the sheet they drove. A MAC-only sign-in
+   only works on a portal that serves a playlist to a bare MAC, which is not how this app's sellers
+   provision anyone — they bind the MAC and hand back a username and password, so the route was a
+   dead end dressed up as a choice. Sign-in is Login with Username & Password. */
 /* v15.1: adopt a playlist the USER supplies — a picked .m3u file or pasted text. No fetch, no
    relay, no portal round-trip, so a provider whose edge refuses our servers is irrelevant here.
    The parsed result is the same shape every other login path produces, so Live/Movies/Series,
@@ -4237,7 +4536,7 @@ async function submitMacLogin(){
 async function adoptPlaylistText(text,label){
   if(typeof Media26Portal==='undefined')throw Error('Playlist reader is still loading — try again in a moment.');
   if(!Media26Portal.looksLikeM3U(text))throw Error('That does not look like an M3U playlist. It should start with #EXTM3U and contain #EXTINF lines.');
-  const parsed=Media26Portal.parseM3U(text);
+  const parsed=foldM3uSeriesIntoVod(Media26Portal.parseM3U(text));
   if(!parsed||!parsed.total)throw Error('That playlist parsed to zero channels — it may be truncated or an error page saved as a file.');
   S.source='m3u';S.m3u=parsed;S.playlistUrl=label||'imported';
   S.user='';S.pass='';resetFullCatalog();
@@ -4253,12 +4552,10 @@ async function adoptPlaylistText(text,label){
    Returning with the text is one tap too. Nothing here touches a server we control. */
 function devicePlaylistUrl(){
   const base=normalize(
-    (($('macPortalUrl')&&$('macPortalUrl').value)||'')
-    ||(($('xtreamUrl')&&$('xtreamUrl').value)||'')
+    (($('xtreamUrl')&&$('xtreamUrl').value)||'')
     ||S.url||'');
   if(!base)return '';
-  const mac=Media26Portal.normaliseMac(
-    (($('macSheetMac')&&$('macSheetMac').value)||'')||macInputValue())||'';
+  const mac=Media26Portal.normaliseMac(macInputValue())||'';
   const u=(($('xtreamUser')&&$('xtreamUser').value)||S.user||'').trim();
   const p=(($('xtreamPass')&&$('xtreamPass').value)||S.pass||'');
   /* A direct .m3u link pasted as the portal URL is already the playlist. */
@@ -4319,10 +4616,6 @@ if($('importPaste'))$('importPaste').onclick=async()=>{
     err('This browser would not hand over the clipboard. Long-press the box below and choose Paste instead.');
   }
 };
-if($('macLoginBtn'))$('macLoginBtn').onclick=()=>openMacSheet();
-if($('macSheetClose'))$('macSheetClose').onclick=()=>$('macSheet').classList.remove('show');
-if($('macSheetGo'))$('macSheetGo').onclick=submitMacLogin;
-if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet')$('macSheet').classList.remove('show');};
 if($('xtreamActBtn'))$('xtreamActBtn').onclick=()=>openXtreamSheet();
 if($('xtreamClose'))$('xtreamClose').onclick=()=>$('xtreamSheet').classList.remove('show');
 if($('xtreamGo'))$('xtreamGo').onclick=submitXtreamLogin;
@@ -4336,11 +4629,13 @@ if($('pairLoad'))$('pairLoad').onclick=async()=>{const code=$('pairCodeBox')&&$(
 ['shareSheet','pairSheet'].forEach(id=>{const s=$(id);if(s)s.onclick=e=>{if(e.target.id===id)s.classList.remove('show')}});
 /* v7.8: Settings sheet (opened by the gear on the home hub) — Share QR / Receive / Stream Tools / Log out. */
 if($('homeSettings'))$('homeSettings').onclick=e=>{e.stopPropagation();if($('setVer'))$('setVer').textContent=APP_VERSION;$('homeSetSheet').classList.add('show')};
+/* v16.3: Share playlist straight off the home screen, beside the gear. */
+if($('homeShare'))$('homeShare').onclick=e=>{e.stopPropagation();openShare()};
 if($('homeSetClose'))$('homeSetClose').onclick=()=>$('homeSetSheet').classList.remove('show');
 if($('setShare'))$('setShare').onclick=()=>{$('homeSetSheet').classList.remove('show');openShare()};
 if($('setReceive'))$('setReceive').onclick=()=>{$('homeSetSheet').classList.remove('show');openPairSheet('')};
 if($('setStream'))$('setStream').onclick=()=>{$('homeSetSheet').classList.remove('show');openNativePlayer()};
-if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden')};
+if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden');maybeStartActivationWatch()};
 if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetSheet')$('homeSetSheet').classList.remove('show')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
@@ -4389,7 +4684,7 @@ if($('catList'))$('catList').addEventListener('click',e=>{
   if(sr){const x=findByKey(sr.dataset.skey);if(x){if($('catpage'))$('catpage').classList.add('hidden');playItem(x);}return}
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
 });
-if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden')};
+if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden');maybeStartActivationWatch()};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))backToCategories();else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
 $('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ M26 Player 2 ready — MKV plays here in the app':'⚠️ M26 Player 2 '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
@@ -4808,12 +5103,16 @@ if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)
 if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
 if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes={live:'auto',vod:'auto',series:'auto'};try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}clearChooserDefaults();['modeLive','modeVod','modeSeries'].forEach(id=>{const s=$(id);if(s)s.value='auto'});$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
 restore();renderAll();warmTranscoder();keepTranscoderWarm();
+/* v16.3: mint and show the activation code as soon as the sign-in screen is up, so the MAC and the
+   code are readable together on first launch with nothing to tap first. restore() has already run,
+   so a device that signed itself back in skips this entirely. */
+maybeStartActivationWatch();
 /* v4.1: if the app was opened from a shared QR / deep link (origin/#p=CODE), auto-load that
    playlist — the receiving device pairs with one tap, no typing. */
 (function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]p=([^&\s]+)/);if(m&&m[1]){const code=decodeURIComponent(m[1]);setTimeout(()=>{importFromCode(code).catch(err=>{if($('login'))$('login').classList.remove('hidden');openPairSheet(code);if($('pairErr'))$('pairErr').textContent=(err&&err.message)||'Could not load that code.';});},200);}}catch(e){}})();
 /* Shared via an activation-code QR (origin/#a=12345678): the receiving device adopts that code and
    activates through the server (counts as another device on the same account, within the limit). */
-(function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]a=(\d{8})/);if(m&&m[1]){const code=m[1];try{if(typeof setActCode==='function')setActCode(code);}catch(e){}try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}setTimeout(()=>{try{openActSheet();}catch(e){}},250);}}catch(e){}})();
+(function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]a=(\d{8})/);if(m&&m[1]){const code=m[1];try{if(typeof setActCode==='function')setActCode(code);}catch(e){}try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}setTimeout(()=>{try{paintActCode(code);maybeStartActivationWatch();}catch(e){}},250);}}catch(e){}})();
 /* v6.4: STAY LOGGED IN. If credentials are already saved, connect automatically on launch so the
    login screen only appears for a brand-new user or after an explicit Exit/logout (which clears the
    saved credentials). Skips when a deep-link pairing code is present — that flow loads its own list. */
@@ -4846,9 +5145,12 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
   if(!saved||!saved.url)return;
   (async function(){
     try{
-      const res=await stalkerLogin(saved.url,saved.mac);
+      /* v16.2: pass any saved username/password so a login/password Ministra line re-authenticates
+         on launch, and keep them in state for the same reason. MAC-only lines carry none. */
+      if(saved.user)S.user=saved.user;if(saved.pass!=null)S.pass=saved.pass;
+      const res=await stalkerLogin(saved.url,saved.mac,{user:saved.user||'',pass:saved.pass||''});
       S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
-      S.source='stalker';S.m3u=null;S.url=res.base;S.user='';S.pass='';
+      S.source='stalker';S.m3u=null;S.url=res.base;S.user=saved.user||'';S.pass=saved.pass||'';
       S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
       S.vod=[];S.vodCats=[];S.loadedVod=true;S.series=[];S.seriesCats=[];S.loadedSeries=true;
       $('login').classList.add('hidden');showHome();keepTranscoderWarm();
@@ -4887,7 +5189,7 @@ restore();renderAll();warmTranscoder();keepTranscoderWarm();
   const extra=(dk==='android'?[['mx','MX Player'],['km','KMPlayer']]:dk==='ios'?[['km','KMPlayer']]:[]);extra.forEach(([val,lbl])=>{if(el.querySelector('option[value="'+val+'"]'))return;const o=document.createElement('option');o.value=val;o.textContent=lbl;el.appendChild(o)});
   /* v88: VLC is not offered for Live TV — it drops live channels mid-view */
   if(t==='live'){const vo=el.querySelector('option[value="vlc"]');if(vo)vo.remove();if(S.playerModes.live==='vlc'){S.playerModes.live='auto';try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}}}
-  const saved=S.playerModes[t]||'auto';el.value=el.querySelector('option[value="'+saved+'"]')?saved:'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?'Live TV':t==='vod'?'Movies':'Series')+' updated')}});
+  const saved=S.playerModes[t]||'auto';el.value=el.querySelector('option[value="'+saved+'"]')?saved:'auto';el.onchange=()=>{S.playerModes[t]=el.value;store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes));toast('Player for '+(t==='live'?LIVE_LABEL:t==='vod'?VOD_LABEL:'Series')+' updated')}});
 </script>
 <!-- v22: PWA install layer — asks to save Media26 to the phone with its own icon -->
 <div class="a2hs" id="a2hs">
