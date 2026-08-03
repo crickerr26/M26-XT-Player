@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '12.7';
+const SERVER_BUILD = '12.8';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -588,6 +588,39 @@ function relayFetch(target, req, res, hops) {
         if (!outHeaders['accept-ranges']) outHeaders['accept-ranges'] = 'bytes';
       }
     } catch (e) {}
+    /* v16.6: HLS PLAYLIST REWRITING (mirrors _worker.js). This relay's whole reason to exist for a
+       Stalker/MAG stream is that the stream node BLOCKS Cloudflare's network (Cloudflare error 1003
+       / 403) while serving this server's ordinary IP perfectly — so the app routes MAG playback
+       here instead of through the Cloudflare /proxy. But hls.js then fetches not just the master
+       playlist but every variant, segment and key; if those sub-URIs still point at the origin,
+       they go straight back to the Cloudflare-blocked (and, on an https page, mixed-content) host
+       and playback dies a few seconds in. Buffer an m3u8 and repoint every URI back through /proxy
+       on THIS origin so the whole stream stays on the accepted IP. */
+    const _ctype = String(up.headers['content-type'] || '').toLowerCase();
+    const _isM3u8 = /mpegurl|m3u8/.test(_ctype) || /\.m3u8(?:$|\?)/i.test((t.pathname || '') + (t.search || ''));
+    if (req.method === 'GET' && up.statusCode === 200 && _isM3u8) {
+      const chunks = [];
+      up.on('data', c => chunks.push(c));
+      up.on('end', () => {
+        let text = Buffer.concat(chunks).toString('utf8');
+        if (/#EXTM3U/.test(text)) {
+          const self = requestBaseUrl(req);
+          const prox = u => { try { return self + '/proxy?url=' + encodeURIComponent(new URL(u, t.href).href); } catch (e) { return u; } };
+          text = text.split(/\r?\n/).map(line => {
+            const s = line.trim();
+            if (!s) return line;
+            if (s.startsWith('#')) return line.replace(/URI="([^"]+)"/g, (_, u) => 'URI="' + prox(u) + '"');
+            return prox(s);
+          }).join('\n');
+          delete outHeaders['content-length'];
+          outHeaders['content-type'] = 'application/vnd.apple.mpegurl';
+        }
+        if (!res.headersSent) res.writeHead(up.statusCode, outHeaders);
+        res.end(text);
+      });
+      up.on('error', () => { try { if (!res.headersSent) res.writeHead(502, outHeaders); res.end(); } catch (e) {} });
+      return;
+    }
     res.writeHead(up.statusCode, outHeaders);
     up.pipe(res);
   });
