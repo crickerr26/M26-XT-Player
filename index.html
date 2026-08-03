@@ -1243,7 +1243,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='16.4';
+const APP_VERSION='16.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1632,7 +1632,17 @@ async function login(opts){
        complete it here. If the MAC this device holds is already bound to the subscription the
        user lands straight in live TV and never sees an error at all. If it isn't bound yet the
        message names the exact MAC to hand to the provider, which is the one thing they need. */
-    if(plErr&&plErr.stalker){
+    /* v16.5: try the MAG handshake whenever the playlist step did not clearly identify an Xtream
+       or M3U line — not only when it positively fingerprinted a Stalker portal. When the portal is
+       momentarily rate-limited (Cloudflare 1015), the /api/playlist probe can't read the landing
+       page either, so it comes back 'no-playlist' instead of 'stalker-portal' — and the old code
+       then fell through to the generic "check username/password" message on a line that is
+       perfectly valid. A MAG host has a real handshake, and stalkerLogin has its own transcoder
+       egress fallback for exactly the 1015 case, so attempting it here is the right move and it
+       reports the true reason (busy / not registered) instead of blaming the credentials. */
+    const _plReason=(plErr&&(plErr.reason||''))||'';
+    const _tryMag=plErr&&(plErr.stalker||_plReason==='no-playlist'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&stalkerMac();
+    if(_tryMag){
       try{
         const mac=stalkerMac();
         const res=await stalkerLogin(S.url,mac);
@@ -1640,6 +1650,9 @@ async function login(opts){
         toast('Connected — '+res.live.length+' channels loaded');
         return;
       }catch(se){
+        /* A MAG failure is authoritative here (we know it is not Xtream/M3U). Report exactly what
+           the portal said — "busy, wait a minute", "MAC not registered", etc. — never the generic
+           credentials line. */
         throw Error(stalkerFailMessage(se));
       }
     }
@@ -2898,6 +2911,21 @@ function plan(x){
     const durl=(blocked(raw)||_xo)?proxyUrl(raw):raw;
     const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
     const tsOk=!!(window.mpegts&&mpegts.isSupported());
+    /* v16.6: A MAG STREAM NODE BLOCKS CLOUDFLARE. Measured against tv.stream4k.cc: the stream host
+       (a bare IP) answers the app's same-origin /proxy — which on the deployed site runs ON
+       Cloudflare — with "error code: 1003 / 403", while the transcoder relay (ordinary hosting, a
+       normal IP) fetches the very same link with HTTP 200. The token is not IP-locked, so the fix
+       is simply to carry a Stalker channel's stream through the transcoder's pass-through /proxy
+       FIRST. It is a plain relay (no re-encode), and server.js now rewrites the HLS so variants and
+       segments ride the same accepted IP. Only for Stalker links (x._stalkerCmd) and only when a
+       transcoder is configured — an Xtream/M3U live link still leads with the direct proxy that
+       already works for it. */
+    let magRelay='';
+    try{ const tb=(typeof transcoderBase==='function')&&transcoderBase(); if(x._stalkerCmd&&tb) magRelay=tb.replace(/\/+$/,'')+'/proxy?url='+encodeURIComponent(raw); }catch(e){}
+    if(magRelay){
+      if(isM3u8){add('hls','Stream Relay',magRelay);if(tsOk)add('mpegts','Stream Relay TS',magRelay);}
+      else{if(tsOk)add('mpegts','Stream Relay TS',magRelay);add('hls','Stream Relay',magRelay);}
+    }
     if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
     else{if(tsOk)add('mpegts','Direct TS',durl);add('hls','Direct HLS',durl);}
     /* v13.9: the relay is a FALLBACK for a playlist link, not merely a mixed-content workaround.
@@ -2928,6 +2956,10 @@ function plan(x){
     let _xo=false;try{_xo=new URL(raw).host!==location.host;}catch(e){}
     const durl=(blocked(raw)||_xo)?proxyUrl(raw):raw;
     const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
+    /* v16.6: MAG VOD nodes block Cloudflare exactly like live — relay through the transcoder first. */
+    let magRelay='';
+    try{ const tb=(typeof transcoderBase==='function')&&transcoderBase(); if(tb) magRelay=tb.replace(/\/+$/,'')+'/proxy?url='+encodeURIComponent(raw); }catch(e){}
+    if(magRelay)add(isM3u8?'hls':'native','Stream Relay',magRelay);
     add(isM3u8?'hls':'native','Direct',durl);
     /* a cross-origin non-HLS file also needs the CORS relay for the browser to read it */
     if(!isM3u8&&durl===raw&&_xo)add('native','Direct Relay',proxyUrl(raw));
@@ -4232,6 +4264,13 @@ async function stalkerResolve(x){
   if(!S.stalker||!x||!x._stalkerCmd)return '';
   const st=S.stalker;
   const live=typeOf(x)==='live';
+  /* v16.5: ALWAYS resolve fresh. A MAG stream link is one-shot and short-lived, so a link cached
+     on the item from an earlier tap is stale within minutes. If it were left in place and a new
+     resolve failed (the portal's VOD backend is intermittently flaky), plan() would happily reuse
+     the OLD link — which is exactly how "I tapped this movie but a different one plays" happens.
+     Clearing it first guarantees each tap either gets a brand-new link for THIS title or fails
+     cleanly, never silently plays the previous one. */
+  x.direct_source='';
   const cmds=[];
   const push=c=>{c=String(c||'').trim();if(c&&cmds.indexOf(c)<0)cmds.push(c)};
   push(x._stalkerCmdRaw);
