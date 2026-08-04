@@ -1532,7 +1532,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.1.0';
+const APP_VERSION='19.1.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2000,19 +2000,52 @@ async function login(opts){
      once, and only after the first egress has already failed — so a working sign-in never spends
      a second here. If the relay never answers, that is a real and different fault and the message
      below names it instead of blaming a security layer. */
+  /* ── v19.1.1: TRY THE ROUTE THAT WORKS BEFORE WAITING ON THE ONE THAT MIGHT ────────────────
+     `edge-blocked` used to go straight into a 75-second wait for the relay to boot. On a MAG
+     portal that wait is spent on the wrong question. The refusal came from the portal's edge
+     turning away the PLAYLIST request — but a MAG portal has no playlist to fetch, so even a
+     fully-awake relay only gets to the same place the MAC handshake reaches on its own, and the
+     handshake has THREE egresses of its own (stalkerRelays): our proxy, our proxy presenting an
+     ordinary browser User-Agent — which exists precisely to get past this kind of bot protection —
+     and the relay. Two of those need nothing woken up.
+     So when we hold a MAC, attempt the handshake first. It is fast, it is the route this product
+     actually signs in through, and it costs the relay path nothing: if it fails we fall into
+     exactly the wait that used to run immediately. A customer on a Cloudflare-fronted MAG portal
+     stops staring at a 75-second countdown before the app tries the thing that works. */
+  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&!(opts&&opts._relayRetry)&&stalkerMac()){
+    try{
+      const t='Your portal blocks our main route — signing in with your MAC instead…';
+      load(true,t);signInMsg(t,'working');
+      const mac=stalkerMac();
+      const res=await stalkerLogin(S.url,mac);
+      if(signInCancelled(_tok))return;
+      adoptStalkerSession(res);
+      toast('Connected — '+res.live.length+' channels loaded');
+      return;
+    }catch(se){
+      /* Keep the portal's own words for the message below, then carry on to the relay wait. */
+      S.stalkerLastError=(se&&se.message)||'';
+    }
+  }
   if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&!(opts&&opts._relayRetry)&&transcoderBase()){
     const ready=await awaitRelayReady(sec=>{
+      if(signInCancelled(_tok))return false;   /* v19.1.1: Cancel actually cancels */
       const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…';
       load(true,t);signInMsg(t,'working');
     },75000);
+    if(signInCancelled(_tok))return;
     if(ready){
       load(true,'Backup connection ready — signing you in…');
       portalClearCooldown();
       return await login(Object.assign({},opts||{},{_relayRetry:true,
         creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
     }
-    /* It never came up. Say so — this is the app's own service failing, not the provider's. */
-    throw Error('Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC. Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
+    /* v19.1.1: name the MAC route's own verdict when it was tried and refused — "the relay is not
+       responding" is only half the story on a line that also has a MAC, and blaming our relay for
+       a portal that rejected the MAC sends the customer to the wrong person. */
+    throw Error(S.stalkerLastError
+      ? ('Your portal blocks our main route, your MAC sign-in was refused ('+S.stalkerLastError+'), and our backup relay is not responding right now. Try again in a few minutes; if your MAC is the problem your seller needs to bind '+macFmt(stalkerMac())+' on their panel.')
+      : 'Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC. Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
   }
   if(pl){
     /* The playlist IS the session — no player_api call at all on this path, so a rate-limiting
@@ -3076,7 +3109,13 @@ async function awaitRelayReady(onProgress,budgetMs){
   _lastWarm=Date.now();   /* this IS the warm-up; do not let warmTranscoder throttle it away */
   for(let attempt=0;Date.now()<until;attempt++){
     if(typeof onProgress==='function'){
-      try{onProgress(Math.max(0,Math.ceil((until-Date.now())/1000)))}catch(e){}
+      /* v19.1.1: the progress callback may return false to abandon the wait. Without this the
+         Cancel button added in v18.8 was inert for the whole 75 seconds — it bumped the sign-in
+         sequence, but this loop never asked, so the customer pressed Cancel and went on watching
+         the same countdown. */
+      let keep=true;
+      try{keep=onProgress(Math.max(0,Math.ceil((until-Date.now())/1000)))!==false}catch(e){}
+      if(!keep)return false;
     }
     try{
       const r=await fetch(url,{cache:'no-store'});
