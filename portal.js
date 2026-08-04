@@ -291,6 +291,18 @@
         stream_icon: ch.logo || ch.logo_big || '',
         category_id: catId,
         category_name: gname,
+        /* v19.0.1: KEEP THE PORTAL'S ORIGINAL COMMAND STRING, exactly as the VOD and Series
+           loaders already do (see stalkerLoadVod). create_link matches on the exact text the
+           portal printed, and a channel is listed as `ffmpeg http://…` — stalkerStreamCmd()
+           strips that prefix to make the value usable as a URL elsewhere, so sending only the
+           cleaned form asks the portal for a command it never issued. The portal answers
+           normally and returns a null link, which surfaces as "the portal accepted the request
+           but returned no link for this title" on a channel that is perfectly fine.
+           Live was the ONE loader that dropped the raw text; stalkerResolve has always tried
+           _stalkerCmdRaw first, so carrying it here is all that was missing. The id is kept for
+           the same reason it is on VOD: it is what /media/file_<id>.mpg is built from. */
+        _stalkerCmdRaw: String(ch.cmd || ch.url || ''),
+        _stalkerId: (ch.id != null ? String(ch.id) : ''),
         _stalkerCmd: stalkerStreamCmd(ch),
         container_extension: 'ts'
       });

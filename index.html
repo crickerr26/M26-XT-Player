@@ -1507,7 +1507,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.0.0';
+const APP_VERSION='19.0.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5398,15 +5398,25 @@ async function stalkerResolve(x){
      Clearing it first guarantees each tap either gets a brand-new link for THIS title or fails
      cleanly, never silently plays the previous one. */
   x.direct_source='';
-  const cmds=[];
-  const push=c=>{c=String(c||'').trim();if(c&&cmds.indexOf(c)<0)cmds.push(c)};
+  /* v19.0.1: an attempt is now a COMMAND PLUS THE BACKEND to ask for it under, because those are
+     two independent guesses and only one of them was ever varied. */
+  const attempts=[];
+  const push=(c,t)=>{c=String(c||'').trim();if(!c)return;t=t||(live?'itv':'vod');
+    if(!attempts.some(a=>a.cmd===c&&a.type===t))attempts.push({cmd:c,type:t})};
   push(x._stalkerCmdRaw);
   push(x._stalkerCmd);
   if(!live&&x._stalkerId!=null&&x._stalkerId!==''){
     push('/media/file_'+x._stalkerId+'.mpg');
     push('/media/'+x._stalkerId+'.mpg');
   }
-  if(!cmds.length)return '';
+  /* A LIVE TAP THE ITV BACKEND WILL NOT ISSUE A LINK FOR IS OFTEN A MOVIE FILED UNDER A TV GENRE.
+     Portals routinely park on-demand titles in an ITV category — "Scum of the Brave
+     (Hindi-Amazon Prime)" is the shape of it — and create_link is answered by a DIFFERENT backend
+     per type. Asked under 'itv' a VOD title is simply not there, so the portal replies normally
+     with no link, which reads as a dead channel. Ask the VOD backend for the same command before
+     giving up. A real channel resolves on the first attempt and never reaches this. */
+  if(live){push(x._stalkerCmdRaw,'vod');push(x._stalkerCmd,'vod');}
+  if(!attempts.length)return '';
   /* v16.0: A HARD CEILING ON WHAT ONE TAP MAY COST. The alternative command shapes exist for
      portals that are fussy about which string they will match, not to be fired at a portal that
      is already saying no — v15.8 walked all of them twice and re-handshaked in between, which is
@@ -5416,10 +5426,12 @@ async function stalkerResolve(x){
      answer actually points at the token. */
   const MAX_TRIES=3;
   let lastErr='',tries=0,renewed=false;
-  for(let i=0;i<cmds.length&&tries<MAX_TRIES;i++){
-    const cmd=cmds[i];
-    const params={type:live?'itv':'vod',action:'create_link',cmd:cmd,JsHttpRequest:'1-xml'};
-    if(!live){
+  for(let i=0;i<attempts.length&&tries<MAX_TRIES;i++){
+    const cmd=attempts[i].cmd,sect=attempts[i].type;
+    const params={type:sect,action:'create_link',cmd:cmd,JsHttpRequest:'1-xml'};
+    /* keyed off the backend being ASKED, not the item's own type, so the live→vod fallback above
+       carries the parameters that backend expects */
+    if(sect==='vod'){
       params.series=(x._stalkerEpisode!=null)?String(x._stalkerEpisode):'';
       params.forced_storage='undefined';params.disable_ad='0';params.download='0';
     }
