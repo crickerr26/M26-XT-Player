@@ -362,6 +362,24 @@
   /* The transcoder's endpoint blocks while ffmpeg builds the first segment, and a free host needs
      30-50s to wake — far longer than any decoder's own manifest timeout. Poll for a ready playlist
      under our own deadline, then hand the resolved address to the HLS engine. */
+  /* v18.1: WHAT "STILL WAKING" ACTUALLY LOOKS LIKE ON THE WIRE.
+     This polling loop knew exactly one waking signal — 503 — and treated everything else as the
+     transcoder's final answer. A free-plan instance that has gone to sleep does not answer 503.
+     Render's edge answers 502 while the container boots, and the gateway in front of it gives up
+     first and answers 504 once the boot outruns its own timeout, which is the common case: a cold
+     start is 30-50s and the gateway's patience is shorter. Cloudflare's /transcoder pass-through
+     adds its own origin-timeout family (522 connection timed out, 523 unreachable, 524 origin took
+     too long) for the same situation.
+     So the ONE route that can play a raw transport stream on a device with no Media Source (every
+     iPhone) was being written off at the exact moment it was coming up, and the customer was shown
+     "server returned 504" — a number that reads like the provider refusing the channel, when it
+     means the app's own helper had not finished starting. Poll through all of them; the 120-second
+     deadline below is what decides when to genuinely give up. */
+  function stillWaking(status) {
+    return !status || status === 408 || status === 502 || status === 503 || status === 504
+      || status === 522 || status === 523 || status === 524;
+  }
+
   function awaitTranscode(ctx, url, ready) {
     var deadline = Date.now() + 120000;
     function why(res) {
@@ -372,26 +390,35 @@
         return tail ? base + ' — ' + tail.slice(-180) : base;
       }).catch(function () { return base; });
     }
+    function poll(manifest) {
+      if (!ctx.alive()) return;
+      if (Date.now() > deadline) return ctx.fail('transcoder: no video produced in time (it may be waking up — try again in ~30s)');
+      var again = function () { setTimeout(function () { poll(manifest); }, 2000); };
+      fetch(manifest, { cache: 'no-store' }).then(function (m) {
+        if (!ctx.alive()) return;
+        if (m.ok) return m.text().then(function (t) {
+          if (!ctx.alive()) return;
+          if (/#EXTINF/.test(t)) return ready(manifest);
+          again();
+        });
+        /* 404 stays in the keep-polling set for its own reason: ffmpeg has been started but has
+           not written the playlist file yet, so the address is briefly genuinely absent. */
+        if (!stillWaking(m.status) && m.status !== 404) return why(m).then(function (w) { ctx.fail('transcoder: ' + w); });
+        again();
+      }).catch(again);
+    }
     fetch(url, { cache: 'no-store' }).then(function (res) {
       if (!ctx.alive()) return;
-      var manifest = res.url || url;
-      if (!res.ok && res.status !== 503) return why(res).then(function (w) { ctx.fail('transcoder: ' + w); });
-      (function poll() {
-        if (!ctx.alive()) return;
-        if (Date.now() > deadline) return ctx.fail('transcoder: no video produced in time (it may be waking up — try again in ~30s)');
-        fetch(manifest, { cache: 'no-store' }).then(function (m) {
-          if (!ctx.alive()) return;
-          if (m.ok) return m.text().then(function (t) {
-            if (!ctx.alive()) return;
-            if (/#EXTINF/.test(t)) return ready(manifest);
-            setTimeout(poll, 2000);
-          });
-          if (m.status !== 503 && m.status !== 404) return why(m).then(function (w) { ctx.fail('transcoder: ' + w); });
-          setTimeout(poll, 2000);
-        }).catch(function () { setTimeout(poll, 2000); });
-      })();
-    }).catch(function (e) {
-      if (ctx.alive()) ctx.fail('transcoder: unreachable (' + ((e && e.message) || 'network') + ')');
+      if (!res.ok && !stillWaking(res.status)) return why(res).then(function (w) { ctx.fail('transcoder: ' + w); });
+      poll(res.url || url);
+    }).catch(function () {
+      /* v18.1: a THROWN fetch here is not proof the transcoder is dead. A host that is still
+         booting refuses the connection outright, and the pass-through in front of it can answer
+         with an error page carrying no CORS headers — both surface as a rejected promise, and
+         both clear themselves seconds later. This used to end the only route an iPhone has with
+         "transcoder: unreachable" before the service had finished starting. Hand it to the same
+         poll loop as every other waking signal and let the deadline decide. */
+      if (ctx.alive()) poll(url);
     });
   }
 

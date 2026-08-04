@@ -1393,7 +1393,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.0';
+const APP_VERSION='18.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1987,7 +1987,14 @@ function showCategories(tab,restore){
   /* restore==true (coming BACK from a category) returns you to the exact same
      scroll spot in the list — e.g. the Tamil row at #30 — not the top. */
   if($('catList'))$('catList').scrollTop=(restore&&S.catScrollTab===tab)?(S.catScroll||0):0;
-  if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}
+  /* v18.1: Live TV warms it too. This used to be Movies/Series only, on the sound reasoning that
+     live never went near the transcoder — but that is only true of a device with Media Source
+     Extensions. An iPhone has none, so it cannot decode a raw transport stream in the browser at
+     all, and for a playlist whose channels are plain .ts the transcoder is not a fallback, it is
+     the ONLY route. Leaving live out meant the one device that always needs the service was the
+     one device that never woke it, so the 30-50s cold start landed on the channel tap instead of
+     overlapping the time spent scrolling the list. */
+  warmForTab(tab);
 }
 function renderCatPage(){
   const list_=$('catList');if(!list_)return;
@@ -2038,7 +2045,7 @@ function renderCatPage(){
   }
   list_.innerHTML=html;
 }
-function goCategoryDirect(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');if(tab==='vod'||tab==='series'){try{warmTranscoder()}catch(e){}}}
+function goCategoryDirect(tab){S.tab=tab;S.cat='';renderAll();ensureTypeLoaded(tab);if($('home'))$('home').classList.add('hidden');warmForTab(tab);}
 function goCategory(tab){showCategories(tab);}
 /* pick a category from the category page → drop into its channel grid */
 function openCategory(cat){if($('catList')){S.catScroll=$('catList').scrollTop;S.catScrollTab=S.tab;}S.cat=cat;S.q='';S.episodeView=null;if($('search'))$('search').value='';if($('catpage'))$('catpage').classList.add('hidden');if(mobile()&&$('side'))$('side').classList.remove('open');renderAll();if($('grid'))$('grid').scrollTop=0;}
@@ -2552,6 +2559,16 @@ function warmTranscoder(){
   const base=transcoderBase();if(!base)return;
   const now=Date.now();if(now-_lastWarm<60000)return;_lastWarm=now;
   try{fetch(base+'/health',{mode:'no-cors',cache:'no-store'}).catch(()=>{})}catch(e){}
+}
+/* Which tabs are worth waking the transcoder for. Movies and Series always are — MKV/HEVC has to
+   be re-wrapped for any browser. Live is worth it exactly when this device cannot decode a raw
+   transport stream itself: with Media Source Extensions mpegts.js plays the .ts directly and the
+   transcoder is never touched, but without them (iPhone, and any browser with MSE disabled) it is
+   the only thing that can put a live channel on screen. Asking the same question the player asks
+   keeps the two from drifting apart. */
+function deviceDecodesRawTs(){try{return !!(window.mpegts&&mpegts.isSupported())}catch(e){return false}}
+function warmForTab(tab){
+  try{ if(tab==='vod'||tab==='series'||(tab==='live'&&!deviceDecodesRawTs()))warmTranscoder(); }catch(e){}
 }
 /* v4.2: keep the transcoder AWAKE so movies load fast. Free hosting (Render/Railway) puts an idle
    instance to sleep, and waking it costs 30-50s on the next play — the "slow loading" the user hit.

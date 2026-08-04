@@ -652,12 +652,27 @@ export default {
     const headers = new Headers(request.headers);
     headers.delete('host');
 
-    const upstreamResponse = await fetch(upstreamUrl, {
-      method: request.method,
-      headers,
-      body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
-      redirect: 'manual'
-    });
+    /* v18.1: answer a cold transcoder with a PROPER 504, not an unhandled throw. The service sleeps
+       on a free plan, and a subrequest to a container that is still booting can time out or be
+       refused — which used to escape this handler and become the runtime's own error page: no CORS
+       headers, so the player's poll saw a rejected fetch rather than a status it could reason
+       about. A clean CORS 504 is the signal the player now waits on (see stillWaking in
+       m26player2.js), so a channel that only needs the service to finish waking plays instead of
+       reporting a gateway number to the customer. */
+    let upstreamResponse;
+    try {
+      upstreamResponse = await fetch(upstreamUrl, {
+        method: request.method,
+        headers,
+        body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
+        redirect: 'manual'
+      });
+    } catch (e) {
+      return new Response(JSON.stringify({
+        error: 'Transcoder is starting up',
+        detail: String((e && e.message) || e).slice(0, 200)
+      }), { status: 504, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+    }
 
     const responseHeaders = withCors(upstreamResponse.headers);
     const location = rewriteLocation(responseHeaders.get('location'), request.url, origin);
