@@ -440,6 +440,16 @@ body.light .home-head p{color:#5a6f90}
 .cp-back:active{transform:scale(.92)}
 @media(hover:hover){.cp-back:hover{background:rgba(255,255,255,.12)}}
 .cp-titlewrap{display:flex;align-items:center;gap:13px;min-width:0}
+/* Sits at the far right of the category header, so it reads as acting on the list below it
+   rather than on the app as a whole. Spins while a refresh is in flight. */
+.cp-refresh{flex-shrink:0;margin-left:auto;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
+.cp-refresh svg{width:21px;height:21px}
+.cp-refresh:active{transform:scale(.92)}
+@media(hover:hover){.cp-refresh:hover{background:rgba(255,255,255,.12)}}
+.cp-refresh.busy{pointer-events:none;opacity:.65}
+.cp-refresh.busy svg{animation:cpspin .9s linear infinite}
+@keyframes cpspin{to{transform:rotate(360deg)}}
+@media(max-width:760px){.cp-refresh{width:40px;height:40px;border-radius:13px}.cp-refresh svg{width:19px;height:19px}}
 .cp-ic{flex-shrink:0;width:48px;height:48px;border-radius:15px;display:grid;place-items:center;color:#eef3fa;background:linear-gradient(135deg,rgba(var(--cp-rgb),.5),rgba(var(--cp-rgb),.26));border:1px solid rgba(var(--cp-rgb),.3);box-shadow:0 6px 16px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.12)}
 .cp-ic svg{width:27px;height:27px}
 .cp-tt{min-width:0}
@@ -993,6 +1003,10 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
         <span class="cp-ic" id="catIcon"></span>
         <div class="cp-tt"><h1 id="catHeading">Live TV</h1><p id="catSub">— categories</p></div>
       </div>
+      <!-- Refreshes whichever of Live TV / Movies / Series is open, by re-reading the provider. -->
+      <button class="cp-refresh" id="catRefresh" type="button" aria-label="Refresh this list" title="Refresh this list from your provider">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
     </div>
     <div class="cp-tabs" id="catTabs">
       <button class="cp-tab" type="button" data-cattab="live">Live TV</button>
@@ -1401,7 +1415,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.2';
+const APP_VERSION='18.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1903,7 +1917,7 @@ async function login(opts){
   rememberProfile((S.user&&S.pass)
     ?{kind:'xtream',name:S.user,url:S.url,user:S.user,pass:S.pass,mac:stalkerMac(),source:hostOf(S.url)}
     :{kind:'mac',name:macFmt(stalkerMac())||hostOf(S.url),url:S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
-  $('login').classList.add('hidden');showHome();keepTranscoderWarm();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
+  $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
   catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{portalEndAttempt();load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
@@ -2075,6 +2089,57 @@ function adoptIntoPlaylist(type,cats,arr){
   if(type==='vod'){S.m3u.vod=arr;S.m3u.vodCats=cats||[];}
   else if(type==='series'){S.m3u.series=arr;S.m3u.seriesCats=cats||[];}
 }
+/* ── v18.3: UNION, NEVER REPLACE ────────────────────────────────────────────────────────────
+   Two documents describe the same account and neither is a strict superset of the other. The
+   sign-in fetches get.php's compact live-oriented playlist (&output=ts) because that is the one
+   these panels serve dependably; the full catalogue (no &output) carries far more films and shows
+   but is slower and larger. Adopting one over the other loses whatever only the other had, which
+   is how a library of thousands could show up as the few hundred that happened to be in the
+   compact document. Merge them instead, keyed on the thing that actually identifies an entry —
+   its stream address — so a title present in either is present in the app, and a title present in
+   both appears once.
+   Series are keyed by show and their EPISODE lists merged, because the same show legitimately
+   appears in both documents carrying different episodes. */
+function entryKey(x){
+  const u=String((x&&x.direct_source)||'').trim();
+  if(u)return 'u:'+u;
+  const id=(x&&(x.stream_id||x.series_id||x.episode_id));
+  if(id)return 'i:'+id;
+  return 'n:'+String((x&&x.name)||'').trim().toLowerCase()+'|'+String((x&&x.category_id)||'');
+}
+function showKey(x){
+  return String((x&&x.category_id)||'')+'|'+String((x&&x.name)||'').trim().toLowerCase();
+}
+function mergeEntries(type,base,extra){
+  const out=[],seen=new Map();
+  const push=x=>{
+    if(!x)return;
+    if(type==='series'){
+      const k=showKey(x),had=seen.get(k);
+      if(!had){seen.set(k,x);out.push(x);return}
+      /* Same show from the other document — take the episodes it has and we do not. */
+      const eps=had._m3uEpisodes||(had._m3uEpisodes=[]);
+      const seenEp=new Set(eps.map(entryKey));
+      for(const e of (x._m3uEpisodes||[]))if(!seenEp.has(entryKey(e))){eps.push(e);seenEp.add(entryKey(e));}
+      if(!had.cover&&x.cover){had.cover=x.cover;had.stream_icon=x.stream_icon||x.cover;}
+      return;
+    }
+    const k=entryKey(x);
+    if(seen.has(k))return;
+    seen.set(k,x);out.push(x);
+  };
+  for(const x of (base||[]))push(x);
+  for(const x of (extra||[]))push(x);
+  return out;
+}
+function mergeCats(base,extra){
+  const out=[],seen=new Set();
+  for(const c of (base||[]).concat(extra||[])){
+    const id=c&&c.category_id;if(!id||seen.has(id))continue;
+    seen.add(id);out.push(c);
+  }
+  return out.sort((a,b)=>String(a.category_name||'').localeCompare(String(b.category_name||'')));
+}
 async function loadTypeFromApi(type){
   const [catA,strmA,countId]=TYPE_API[type];
   try{
@@ -2108,7 +2173,10 @@ function fullPlaylistCatalog(){
   if(_fullCatalogPromise)return _fullCatalogPromise;
   _fullCatalogPromise=(async()=>{
     if(typeof Media26Portal==='undefined')return null;
-    if(!SAME_ORIGIN_PROXY||!S.url||!S.user)return null;   /* needs our own function + credentials */
+    /* v18.3: a MAC-only line asks for the full catalogue too. The worker's candidate list already
+       carries the MAC (macPlaylistCandidates), so requiring a username here excluded exactly the
+       customers the MAC flow was built for from ever seeing their films and shows. */
+    if(!SAME_ORIGIN_PROXY||!S.url||!(S.user||stalkerMac()))return null;
     try{
       const r=await fetch(location.origin+'/api/playlist',{
         method:'POST',
@@ -2136,11 +2204,20 @@ function fullPlaylistCatalog(){
 async function loadTypeFromFullPlaylist(type){
   const p=await fullPlaylistCatalog();
   if(!p)return;
-  const arr=type==='vod'?p.vod:p.series;
-  if(!arr||!arr.length)return;
-  if(type==='vod'){S.vodCats=p.vodCats;S.vod=arr;S.loadedVod=true;}
-  else{S.seriesCats=p.seriesCats;S.series=arr;S.loadedSeries=true;}
-  adoptIntoPlaylist(type,type==='vod'?p.vodCats:p.seriesCats,arr);
+  const incoming=type==='vod'?p.vod:p.series;
+  if(!incoming||!incoming.length)return;
+  /* v18.3: merge into what the tab already holds instead of overwriting it. This used to run only
+     when the tab was EMPTY, so an account whose compact playlist happened to carry a few hundred
+     films never asked for the full catalogue at all and was capped at that number for the whole
+     session — the reported "only 560 of them load". It now always runs, and the union is what the
+     tab shows, so neither document can hide titles the other has. */
+  const held=type==='vod'?S.vod:S.series;
+  const heldCats=type==='vod'?S.vodCats:S.seriesCats;
+  const arr=mergeEntries(type,held,incoming);
+  const cats=mergeCats(heldCats,type==='vod'?p.vodCats:p.seriesCats);
+  if(type==='vod'){S.vodCats=cats;S.vod=arr;S.loadedVod=true;}
+  else{S.seriesCats=cats;S.series=arr;S.loadedSeries=true;}
+  adoptIntoPlaylist(type,cats,arr);
   if($(type==='vod'?'vodCount':'seriesCount'))$(type==='vod'?'vodCount':'seriesCount').textContent=arr.length.toLocaleString();
   renderAll();updateHomeCounts&&updateHomeCounts();
 }
@@ -2158,7 +2235,15 @@ async function loadType(type){
        them. When a tab comes back empty from the playlist, ask the panel's own VOD/series
        endpoints for that ONE tab (we already hold the username and password). Live is never
        re-fetched this way: it came from the playlist and is authoritative. */
-    if(type!=='live'&&!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass){
+    /* v18.3: THE FULL CATALOGUE IS NO LONGER A LAST RESORT. This condition used to include
+       `&& !(...).length` — the panel's own endpoints and its full get.php document were consulted
+       ONLY when a tab came back completely empty. So an account whose compact sign-in playlist
+       carried a few hundred films looked "loaded", the richer document was never requested, and
+       the library was silently capped at whatever that one document happened to contain for the
+       rest of the session. A partially-filled tab is exactly the case that needs topping up.
+       Everything found is merged (see mergeEntries), so this can only ever ADD titles, and the
+       whole thing runs in the background behind the tab's own loading bar. */
+    if(type!=='live'&&(S.user||stalkerMac())){
       /* v13.9: mark the tab as LOADING while the fallbacks run. Without this the Home card read a
          flat "0 titles" and the category page offered a "Load movies" button the whole time the
          app was already busy fetching them — which is exactly what a working app looks like when
@@ -2166,11 +2251,11 @@ async function loadType(type){
       if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
       renderAll();updateHomeCounts&&updateHomeCounts();
       try{
-        await loadTypeFromApi(type);
-        /* If the panel's own API had nothing to say either, ask its get.php for the full
-           catalogue. Between the two, a tab now only stays empty when the account genuinely has
-           no films or shows. */
-        if(!(type==='vod'?S.vod:S.series).length)await loadTypeFromFullPlaylist(type);
+        /* The panel's own VOD/series API is only worth asking when the tab is still empty: where
+           it answers at all it returns the same catalogue the full playlist does, and it costs
+           credentials-authenticated requests a MAC-only line cannot make. */
+        if(!(type==='vod'?S.vod:S.series).length&&S.user&&S.pass)await loadTypeFromApi(type);
+        await loadTypeFromFullPlaylist(type);
       }finally{
         if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
         renderAll();updateHomeCounts&&updateHomeCounts();
@@ -2290,7 +2375,11 @@ async function fetchPlaylistViaFunction(base,user,pass){
     throw err;
   }
   const text=await r.text();
-  return {text,url:r.headers.get('x-m26-source')||base};
+  /* v18.3: the worker caps how much of a playlist it will buffer and says so in this header. A
+     truncated document is a SHORT LIBRARY — exactly the "titles are missing" complaint — and it
+     used to arrive with no indication that anything had been cut. Carry the flag so the caller
+     can say it out loud rather than let the customer count the gap themselves. */
+  return {text,url:r.headers.get('x-m26-source')||base,truncated:r.headers.get('x-m26-truncated')==='1'};
 }
 /* ── v16.8: A PLAYLIST SOURCE HAS ALL THREE SHELVES. ──────────────────────────────────────
    v16.3 folded a playlist's shows into the on-demand shelf and dropped the Series tab, on the
@@ -2313,7 +2402,10 @@ async function loadPlaylistSource(){
   /* Preferred path: our own serverless function does the whole fetch. */
   try{
     const res=await fetchPlaylistViaFunction(S.url,S.user,S.pass);
-    if(res&&adopt(res.text,res.url))return true;
+    if(res&&adopt(res.text,res.url)){
+      if(res.truncated)toast('This playlist is larger than the app can read in one go — some titles at the end were left out. Tell your provider, or use a smaller playlist link.');
+      return true;
+    }
   }catch(e){
     if(e&&e.message)throw e;   /* a definite answer from the panel — surface it, don't retry blindly */
   }
@@ -2327,6 +2419,125 @@ async function loadPlaylistSource(){
     if(adopt(text,u))return true;
   }
   return false;
+}
+/* ── v18.3: A REFRESH THAT ACTUALLY RE-READS THE PROVIDER ───────────────────────────────────
+   refreshAll() below re-seeds each tab from state the app already holds. On an Xtream account
+   that is a genuine refresh, because every tab is an API call. On a PLAYLIST account it was not
+   one at all: the document is fetched and parsed once at sign-in and kept in S.m3u, so "Refresh"
+   re-sliced the same stale parse and could never show a channel or film the provider had added
+   since. Anyone on a playlist line had to sign out and back in to see new content.
+
+   resyncSource() is the real thing: it goes back to the provider for the source document, then
+   rebuilds the tabs from what comes back. Everything merges, so a title that exists only in the
+   copy already held is never dropped by a refresh that happens to fetch a thinner document. */
+const SYNCED_AT_KEY='m26_synced_at';
+function markSynced(){try{localStorage.setItem(SYNCED_AT_KEY,String(Date.now()))}catch(e){}}
+function lastSyncedAt(){try{return parseInt(localStorage.getItem(SYNCED_AT_KEY)||'0',10)||0}catch(e){return 0}}
+let _resyncing=false;
+async function resyncSource(opts){
+  const quiet=!!(opts&&opts.quiet);
+  if(_resyncing)return false;
+  _resyncing=true;
+  try{
+    if(S.source==='m3u'){
+      if(!S.url)return false;
+      const before=S.m3u;
+      resetFullCatalog();
+      if(!quiet)load(true,'Refreshing your playlist…');
+      let got=false;
+      try{ got=await loadPlaylistSource(); }catch(e){ got=false; }
+      /* A refresh that could not reach the provider must not empty the app. Keep what we had. */
+      if(!got&&before)S.m3u=before;
+      if(S.m3u&&before&&S.m3u!==before){
+        /* Union the freshly-fetched document with the one held, so a provider serving a thinner
+           playlist this minute cannot delete titles the customer could see a minute ago. */
+        S.m3u.live=mergeEntries('live',before.live,S.m3u.live);
+        S.m3u.vod=mergeEntries('vod',before.vod,S.m3u.vod);
+        S.m3u.series=mergeEntries('series',before.series,S.m3u.series);
+        S.m3u.liveCats=mergeCats(before.liveCats,S.m3u.liveCats);
+        S.m3u.vodCats=mergeCats(before.vodCats,S.m3u.vodCats);
+        S.m3u.seriesCats=mergeCats(before.seriesCats,S.m3u.seriesCats);
+      }
+    }else if(S.source==='stalker'&&S.stalker){
+      if(!quiet)load(true,'Refreshing your channels…');
+      try{
+        const res=await stalkerLogin(S.url,S.stalker.mac);
+        S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
+        S.live=mergeEntries('live',S.live,res.live);
+        S.liveCats=mergeCats(S.liveCats,res.liveCats);
+      }catch(e){ /* keep the session we have; the tabs below still re-read it */ }
+      /* Movies and series come from the paged endpoint — clear them so loadType re-fetches. */
+      S.vod=[];S.series=[];S.loadedVod=S.loadedSeries=false;
+    }
+    await refreshAll();
+    markSynced();
+    return true;
+  }finally{ _resyncing=false;load(false); }
+}
+/* Refresh ONE tab, for the per-tab buttons on Live TV / Movies / Series. A playlist is a single
+   document, so refreshing any tab necessarily re-reads all of it — but only the tab asked for is
+   forced to reload, which keeps the wait proportionate to what the user tapped. */
+async function refreshTab(tab){
+  if(_resyncing){toast('Already refreshing…');return}
+  const label=tab==='live'?LIVE_LABEL:tab==='vod'?VOD_LABEL:'Series';
+  const before=(tab==='live'?S.live:tab==='vod'?S.vod:S.series).length;
+  toast('Refreshing '+label+'…');
+  try{
+    await resyncSource({quiet:false});
+    await ensureTypeLoaded(tab);
+    const after=(tab==='live'?S.live:tab==='vod'?S.vod:S.series).length;
+    const added=after-before;
+    toast(added>0?(label+': '+added.toLocaleString()+' new — '+after.toLocaleString()+' total')
+                 :(label+' is up to date — '+after.toLocaleString()+' items'));
+  }catch(e){ toast((e&&e.message)||'Refresh failed — try again in a moment.'); }
+}
+/* ── v18.3: THE PLAYLIST KEEPS ITSELF CURRENT ───────────────────────────────────────────────
+   Providers add channels and titles daily, and until now the app only ever saw what the provider
+   happened to be serving at the moment the customer last signed in — on a playlist line, possibly
+   weeks earlier. Once a day the app goes and re-reads the source by itself.
+
+   Three properties this has to have, and each one is a decision rather than an accident:
+
+   - IT IS TIME-BASED, NOT LAUNCH-BASED, and the timestamp is PERSISTED. Refreshing on every
+     launch would re-download a catalogue of tens of megabytes several times an evening, on
+     mobile data, for content that changes once a day. The stamp survives restarts, so closing
+     and reopening the app does not re-trigger it.
+   - IT IS SILENT AND NEVER DESTRUCTIVE. It runs quietly with no overlay, and every result is
+     MERGED — so a sync that reaches a provider mid-edit, or gets a thinner document than last
+     time, can only add. A background job must never be able to empty someone's library.
+   - IT WAITS FOR A SENSIBLE MOMENT. It checks when the app comes to the foreground and on a slow
+     timer, and it stands down entirely while something is playing: a multi-megabyte fetch during
+     playback competes with the stream, and on a single-connection line it can cost the customer
+     the picture they are actually watching. */
+const AUTO_SYNC_MS=24*60*60*1000;         /* once a day */
+const AUTO_SYNC_CHECK_MS=30*60*1000;      /* how often to ask whether a day has passed */
+function autoSyncDue(){
+  if(!S.url||(S.source==='xtream'&&!S.user))return false;
+  if($('login')&&!$('login').classList.contains('hidden'))return false;   /* not signed in */
+  const last=lastSyncedAt();
+  if(!last){markSynced();return false}   /* first run: start the clock, do not sync immediately */
+  return (Date.now()-last)>=AUTO_SYNC_MS;
+}
+function playbackBusy(){
+  try{const v=$('video');return !!(v&&!v.paused&&!v.ended&&v.readyState>2)}catch(e){return false}
+}
+async function maybeAutoSync(){
+  try{
+    if(_resyncing||!autoSyncDue()||playbackBusy())return;
+    await resyncSource({quiet:true});
+    toast('Playlist updated with the latest from your provider');
+  }catch(e){}
+}
+let _autoSyncTimer=null;
+function startAutoSync(){
+  if(_autoSyncTimer)return;
+  _autoSyncTimer=setInterval(()=>{maybeAutoSync()},AUTO_SYNC_CHECK_MS);
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible')maybeAutoSync();
+  });
+  /* One check shortly after sign-in catches a device that has been closed for days without
+     making the sign-in itself wait on it. */
+  setTimeout(()=>{maybeAutoSync()},20000);
 }
 async function refreshAll(){
   S.loadedLive=S.loadedVod=S.loadedSeries=false;
@@ -3942,7 +4153,7 @@ function downloadCurrent(){
   document.body.appendChild(a);a.click();a.remove();
   toast('Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));
+$('loginBtn').onclick=login;/* v18.3: the toolbar Refresh goes back to the provider now (resyncSource), not just re-slice the copy already in memory — see the note there for why that was not a refresh at all on a playlist line. */$('refreshBtn').onclick=()=>refreshTab(S.tab||'live');
 /* v17.0: signing out ends the SESSION and keeps the identity, so the Login button has something to
    resume — that is the whole point of the button. The saved credentials are no longer wiped here;
    the signed-out flag is what stops every automatic path instead. (The activation code was never
@@ -5000,7 +5211,7 @@ function adoptStalkerSession(res){
      for two MAG lines signs in as the right one — see signInWithProfile. */
   rememberProfile({kind:'mac',name:_u||macFmt(res.mac)||hostOf(res.base),url:res.base,user:_u,pass:_p,mac:res.mac,source:hostOf(res.base)});
   if($('login'))$('login').classList.add('hidden');
-  showHome();keepTranscoderWarm();
+  showHome();keepTranscoderWarm();markSynced();startAutoSync();
   renderAll();updateHomeCounts();
   /* Fetch them in the background so the home tiles show real counts without the user having to
      open each tab first. Failure is silent — the tab is simply empty, as before. */
@@ -5402,6 +5613,11 @@ if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetShee
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
 /* v90: categories page interactions */
 if($('catBack'))$('catBack').onclick=()=>showHome();
+/* One button, three lists: it refreshes whichever tab is open. */
+if($('catRefresh'))$('catRefresh').onclick=async()=>{
+  const b=$('catRefresh');if(b)b.classList.add('busy');
+  try{ await refreshTab(S.tab||'live'); }finally{ if(b)b.classList.remove('busy'); }
+};
 /* v7.3: top tabs on the category page switch Live TV / Movies / Series in place. */
 if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(!b)return;const t=b.dataset.cattab;if(t&&t!==S.tab)showCategories(t);};
 /* v3.0: iOS-style swipe-from-left-edge to go back.
