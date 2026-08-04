@@ -1243,7 +1243,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='16.6';
+const APP_VERSION='16.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3777,9 +3777,20 @@ function sendIdsToWhatsApp(){
    headers (User-Agent, X-User-Agent, Cookie, Authorization) can be set — a browser fetch()
    cannot set a Cookie header cross-origin itself. */
 function stalkerMac(){
-  let m;try{m=localStorage.getItem('m26_stkmac');}catch(e){}
-  m=(typeof Media26Portal!=='undefined')?Media26Portal.normaliseMac(m):'';
-  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}}
+  /* v16.7: THE MAC BOX ON SCREEN IS THE SINGLE SOURCE OF TRUTH. Previously this read only
+     localStorage, so the value the user SEES at the top of the sign-in card could diverge from the
+     MAC actually used to sign in and named in error messages — e.g. after a Renew, or when the box
+     was repainted from a fresh value that had not been committed. The user rightly flagged the
+     error showing a different MAC than the box. Now: if the box holds a real MAC, that IS the
+     device MAC — used for login, stream resolution and every message — and localStorage is kept in
+     step with it. Falls back to localStorage (and then a fresh random) only when the box is absent
+     or still empty. The all-zero placeholder is treated as empty. */
+  if(typeof Media26Portal==='undefined')return '';
+  let m='';
+  try{const box=$('macCodeBox');if(box){const v=Media26Portal.normaliseMac(box.value);if(v&&v!=='00:1A:79:00:00:00'&&!/^00:00:00:00:00:00$/.test(v))m=v;}}catch(e){}
+  if(!m){try{m=Media26Portal.normaliseMac(localStorage.getItem('m26_stkmac'));}catch(e){}}
+  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}}
+  try{localStorage.setItem('m26_stkmac',m);}catch(e){}
   return m;
 }
 /* v14.2: was this MAC invented by this device, or typed in from the seller? The MAC lives in
@@ -4545,6 +4556,7 @@ if($('macRenew'))$('macRenew').onclick=()=>{
   try{localStorage.removeItem('m26_stk');}catch(e){}
   if($('macCodeBox'))$('macCodeBox').value=macFmt(next);
   if($('err'))$('err').textContent='';
+  if($('xtreamErr'))$('xtreamErr').textContent='';
   /* Let the customer put the OLD one back if they renewed by accident — the provider activated the
      old MAC, so an accidental renew would otherwise lock them out until re-activation. */
   window._m26PrevMac=current;
@@ -4559,7 +4571,7 @@ if($('macRenew'))$('macRenew').onclick=()=>{
   });
 };
 if($('macCopy'))$('macCopy').onclick=()=>{const m=Media26Portal.normaliseMac(macInputValue())||stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
-if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('macCodeBox');const pos=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=pos;}catch(e){}});
+if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('macCodeBox');const pos=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=pos;}catch(e){}/* v16.7: editing the MAC clears any old error so a stale message can never sit under a MAC it no longer refers to */if($('err'))$('err').textContent='';if($('xtreamErr'))$('xtreamErr').textContent='';});
 /* Remember a hand-typed MAC as soon as the field loses focus, so a seller-issued MAC is already
    in force by the time Login is tapped — no separate save step to forget. */
 if($('macCodeBox'))$('macCodeBox').addEventListener('blur',()=>{if(!commitLoginMac())paintLoginMac();});
