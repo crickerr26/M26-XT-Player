@@ -670,6 +670,36 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 .loginTab.active{background:#fff;color:#12203a;box-shadow:0 2px 8px rgba(20,50,90,.14)}
 .loginTab:active{transform:scale(.97)}
 .loginPane[hidden]{display:none}
+/* v17.6: SAVED USERS. A device is not one line. A household runs an Xtream account and an M3U/MAG
+   playlist side by side, or one line per person, and this app remembered exactly ONE sign-in — so
+   the other one had to be typed in from scratch every time somebody wanted it, and switching back
+   meant typing the first one in again. Every successful sign-in is now kept as a user, and the
+   sign-in screen lists them above the tabs: who the line belongs to, which product it is, and
+   which playlist it came from. Picking one is a tap, and it is never a guess about which of two
+   near-identical portal addresses was the right one.
+   It sits ABOVE the tabs on purpose: for anyone who has signed in before this is the whole screen,
+   and the tabs below are for adding a line they do not have yet. */
+.userBlock{margin:16px 0 2px}
+.userHead{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 3px 9px}
+.userHead b{font-size:11px;font-weight:900;letter-spacing:.5px;color:#7288a8;text-transform:uppercase}
+.userEdit{background:none;border:0;padding:0;font-size:12px;font-weight:800;color:#3f7fae;cursor:pointer}
+.userList{display:flex;flex-direction:column;gap:9px}
+.userRow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:11px 13px;border-radius:16px;border:1px solid rgba(20,50,90,.1);background:#fff;color:#1b2740;cursor:pointer;box-shadow:0 3px 12px rgba(20,50,90,.05);transition:transform .15s ease,box-shadow .15s ease}
+.userRow:active{transform:scale(.985)}
+.userRow .userAv{flex:none;width:42px;height:42px;border-radius:14px;display:grid;place-items:center;font-size:17px;font-weight:900;color:#04222a;background:linear-gradient(135deg,#8fd6df,#5fc0cf);text-transform:uppercase}
+.userRow .userAv.k-m3u{background:linear-gradient(135deg,#ffd08a,#f4a63f);color:#3a2404}
+.userRow .userAv.k-mac{background:linear-gradient(135deg,#c8bcf8,#9b87e8);color:#1d1140}
+.userRow .userTx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.userRow .userTx b{font-size:15px;font-weight:850;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.userRow .userTx small{font-size:11.5px;color:#66758c;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.userRow .userTx small i{font-style:normal;font-weight:800;color:#3f7fae}
+.userRow .userAv.k-m3u+.userTx small i,.userRow .userAv.k-mac+.userTx small i{color:#b06f14}
+.userRow .userGo{flex:none;font-size:22px;opacity:.45;font-weight:700;color:#1b2740}
+.userDel{flex:none;width:34px;height:34px;border-radius:11px;display:none;place-items:center;border:1px solid rgba(190,18,60,.18);background:#fdecef;color:#be123c;font-size:17px;font-weight:800;cursor:pointer}
+.userBlock.managing .userDel{display:grid}
+.userBlock.managing .userGo{display:none}
+.userRow .userAv svg{width:21px;height:21px;stroke-width:1.9}
+.addHead{margin:20px 3px 0;font-size:11px;font-weight:900;letter-spacing:.5px;color:#7288a8;text-transform:uppercase}
 .loginActions{display:flex;flex-direction:column;gap:11px;margin-top:16px}
 /* v8.5: softer, lighter cards to match the light login card (was too bright/dark before) */
 .loginAction{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:15px 15px;border-radius:16px;border:1px solid rgba(20,50,90,.1);background:#eef2f8;color:#1b2740;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
@@ -728,6 +758,13 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   .loginLead{margin:10px 0 2px!important;font-size:12.5px;line-height:1.45}
   .loginTabs{margin:10px 0 2px;padding:4px;border-radius:12px;gap:4px}
   .loginTab{height:36px;font-size:12.5px;border-radius:9px}
+  .userBlock{margin:12px 0 2px}
+  .userHead{margin:0 3px 7px}
+  .userList{gap:7px}
+  .userRow{padding:9px 11px;gap:11px;border-radius:14px}
+  .userRow .userAv{width:36px;height:36px;border-radius:11px;font-size:15px}
+  .userRow .userTx b{font-size:13.5px}
+  .userRow .userTx small{font-size:10.5px}
   .loginActions{gap:8px;margin-top:12px}
   .loginAction{padding:10px 12px;gap:11px;border-radius:14px}
   .loginAction .la-ic{width:34px;height:34px;border-radius:10px}
@@ -983,6 +1020,24 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
         </button>
       </div>
     </div>
+    <!-- v17.6: SAVED USERS. Every line this device has signed into successfully, named. A row says
+         who it is and which product and playlist the line is, so a household running an Xtream
+         account and an M3U playlist picks between them by tapping the right name instead of
+         re-typing a portal address. Hidden entirely until there is at least one, so a brand-new
+         user never sees an empty list. Manage reveals the remove buttons. -->
+    <div class="userBlock" id="userBlock" style="display:none">
+      <div class="userHead">
+        <b>Users</b>
+        <button class="userEdit" id="userEdit" type="button">Manage</button>
+      </div>
+      <div class="userList" id="userList"></div>
+    </div>
+    <!-- v17.6: the lead sits BELOW the users, because it describes the tabs under it — how to get a
+         line you do not have yet — and not the list of lines you already have. For a first-time
+         user the block above is hidden and this is still the first thing under the title, exactly
+         as before. The heading appears only once there are users, so the tabs read as "add another
+         one" rather than as the only way in. -->
+    <div class="addHead" id="addHead" style="display:none">Add another line</div>
     <p class="loginLead" id="loginLead">Send your activation code to your IPTV seller. They set up your account and give you back a username and password — sign in with those below.</p>
     <!-- v17.4: ONE TAB PER PRODUCT. An Xtream line is identified by an ACTIVATION CODE and signs in
          with a username and password. An M3U / MAG line is identified by this device's MAC ADDRESS,
@@ -1329,7 +1384,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.5';
+const APP_VERSION='17.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1788,7 +1843,17 @@ async function login(opts){
   const _rawMax=parseInt(ui.max_connections,10);const _max=(isFinite(_rawMax)&&_rawMax>0)?_rawMax:99;S.maxConns=_max;
   /* On a multi-connection account, 2+ devices streaming at once is ALLOWED — never nag or block. */
   if(_max<=1&&_act>0&&_act>=_max)showAccountConflict('Your account is ALREADY streaming on another device or app right now ('+_act+' of '+_max+' connections busy). Videos cannot start here until the other device stops playing.');
-  saveCreds();$('login').classList.add('hidden');showHome();keepTranscoderWarm();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
+  saveCreds();
+  /* v17.6: this sign-in worked, so it becomes a named user on the sign-in screen. The KIND is the
+     product the customer bought, taken from what they actually signed in WITH: a username and
+     password is an Xtream Code line; a portal address carried by the device MAC alone is an M3U /
+     MAG line. It is deliberately NOT taken from S.source, which is 'm3u' for most Xtream accounts
+     because the playlist endpoint is what answers the login (v13.2) — reading the label off that
+     would file nearly every Xtream customer under M3U Playlist. */
+  rememberProfile((S.user&&S.pass)
+    ?{kind:'xtream',name:S.user,url:S.url,user:S.user,pass:S.pass,mac:'',source:hostOf(S.url)}
+    :{kind:'mac',name:macFmt(stalkerMac())||hostOf(S.url),url:S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
+  $('login').classList.add('hidden');showHome();keepTranscoderWarm();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
   catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
@@ -2358,7 +2423,25 @@ function renderInfo(x,info,type){
    as the built-in player's whole fallback cascade for Movies and Series. Return '' instead: every
    caller already skips an empty URL, so the app now tries only the routes that can exist and says
    so plainly when there are none. */
-function directUrl(x,ext){if(!S.url||!S.user||!S.pass)return '';const type=typeOf(x), sid=idOf(x);if(!sid)return '';let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
+/* v17.6: ONLY A REAL PANEL STREAM ID BUILDS A PANEL URL.
+   This composes the canonical Xtream address .../live|movie|series/user/pass/<id>.<ext>, which is
+   only meaningful when <id> is the panel's own numeric stream id. It was building one from
+   WHATEVER idOf() returned — and on every playlist-backed session that is a parser counter, not a
+   stream id: portal.js mints 'm3u_1', 'm3u_s2', 'm3u_e3' so the app has stable keys for
+   favourites and ordering. Since v13.2 "the playlist leads", so an ORDINARY XTREAM LOGIN ends up
+   playlist-backed — which meant every channel and every film carried two or three fabricated
+   addresses (…/live/user/pass/m3u_1.ts) into the player's candidate list.
+   They cost far more than the time to fail. This product's own lines report max_connections:1, so
+   each of those is a second connection the panel counts against the one the user is trying to
+   watch — the documented cause of a stream being killed mid-start. And a panel handed an unknown
+   id habitually answers HTTP 200 with an HTML error page, which passes the reachability probe and
+   then burns a full decoder start budget on a route that was never real. Several of those in a
+   row is exactly "the preview sits there and nothing plays".
+   A Stalker/MAG title is excluded for the same reason from the other direction: its portal has no
+   Xtream endpoints at all, so this address shape cannot exist there however numeric the id looks.
+   Both are guards on a URL we invent — a playlist entry and a MAG channel already carry the real
+   address the provider gave them (direct_source), and that is what plays. */
+function directUrl(x,ext){if(!S.url||!S.user||!S.pass)return '';const type=typeOf(x), sid=idOf(x);if(!/^\d+$/.test(sid))return '';if(x&&x._stalkerCmd)return '';let e=String(ext||x.container_extension||'').replace(/^\./,'').toLowerCase();if(type==='live')e=e||'m3u8';else e=e||'mp4';const path=type==='vod'?'movie':type==='series'?'series':'live';return `${S.url}/${path}/${encodeURIComponent(S.user)}/${encodeURIComponent(S.pass)}/${encodeURIComponent(sid)}.${encodeURIComponent(e)}`}
 /* v14.0: THE CANONICAL XTREAM FORMS OF A PLAYLIST LINK.
    An M3U hands us whatever URL form the panel chose to print, and by far the most common is the
    legacy extensionless one: http://host:8080/user/pass/421107. That form is a redirect shim, not
@@ -2933,7 +3016,7 @@ async function playItemBasic(x){
   }
   $('netStatus').textContent=M26Player2.name;
   M26Player2.play(x,{
-    onState:(state)=>{
+    onState:(state,detail)=>{
       if(state==='playing'){
         clearSpin();$('overlay').style.display='none';
         $('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';
@@ -2942,6 +3025,15 @@ async function playItemBasic(x){
         /* the identify step — a fraction of a second, and it is why a dead route no longer costs
            the user most of a minute */
         $('netStatus').textContent='Checking stream';$('miniMeta').textContent='Checking';
+      }else if(state==='loading'){
+        /* v17.6: NAME THE ROUTE BEING TRIED. Until now the panel said only "Loading" from the
+           first tap to the final give-up, so a stream that was working through the candidate list
+           and one that was stuck looked identical — which is why "nothing plays" arrives with
+           nothing to act on. The label says which address is in hand (the provider's own link,
+           the panel's derived form, our relay, the transcoder), so a screenshot of a stall now
+           identifies the route that stalled. */
+        if(detail)$('netStatus').textContent='Trying '+detail;
+        $('miniMeta').textContent='Loading';
       }else if(state==='recovering'){
         $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
       }else if(state==='switching'){
@@ -3914,14 +4006,176 @@ function canResumeSession(){
   return '';
 }
 function paintResumeLogin(){
+  /* Every path that brings the sign-in screen back already repaints this button, so the user list
+     is repainted from the same place rather than needing its own call at each of them. */
+  paintProfiles();
   const b=$('resumeLoginBtn');if(!b)return;
+  /* v17.6: the Users list does this job by name. When it has rows, a second unlabelled "Login"
+     button underneath is the same action with less information — and worse, it silently resumes
+     whichever line happens to be in KEY, which on a two-line device is a coin toss. It stays only
+     for the activation-code route, which no user row can represent (there are no credentials to
+     name yet — the seller has not issued them). */
   const how=signedOut()?canResumeSession():'';
-  b.style.display=how?'':'none';
+  const covered=(how==='creds'&&profiles().length>0);
+  b.style.display=(how&&!covered)?'':'none';
   const sub=$('resumeLoginSub');
   if(sub)sub.textContent=how==='creds'?'Reconnect with your saved sign-in':'Connect using your activation code';
   /* Only one action can read as THE one to press. While Login is up it takes the primary styling
      from "Login with Username & Password", which is the route for someone who has no session yet. */
-  const x=$('xtreamActBtn');if(x)x.classList.toggle('primary',!how);
+  const x=$('xtreamActBtn');if(x)x.classList.toggle('primary',!(how&&!covered)&&!profiles().length);
+}
+/* ── v17.6: USERS ─────────────────────────────────────────────────────────────────────────────
+   ONE DEVICE, SEVERAL LINES. The app stored exactly one sign-in (KEY) plus one MAG portal
+   (m26_stk), so a household with an Xtream account AND an M3U/MAG playlist could only ever keep
+   whichever was used last — the other had to be typed in again in full, and doing so overwrote the
+   first. Every sign-in that can be repeated is now remembered as a USER, and the sign-in screen
+   lists them by name with the product and the playlist they came from.
+
+   WHAT IS STORED is only what is needed to sign in again, which is exactly what the device already
+   held for one line: portal URL, username, password, MAC. Nothing new leaves the device — these
+   sit in the same localStorage the single saved sign-in always used.
+
+   WHAT IS NOT STORED is a playlist that was pasted or picked as a FILE. There is no address to go
+   back to and the parsed catalogue is far too large for localStorage, so that row is kept as a
+   pointer: tapping it reopens the import sheet rather than pretending it can reconnect on its own.
+
+   THE KIND IS THE PRODUCT THE CUSTOMER BOUGHT, not the transport the login happened to use. An
+   ordinary Xtream sign-in resolves through the panel's get.php (v13.2, "the playlist leads"), so
+   S.source is 'm3u' for most Xtream lines — labelling from that would call nearly every Xtream
+   account an M3U playlist. The route the user took is the honest answer and it matches the two
+   tabs they chose between: a username and password is an Xtream Code line, a MAC or an imported
+   file is an M3U Playlist line. */
+const PROFILES_KEY='m26-users-v1';
+const PROFILE_KINDS={
+  xtream:{label:'Xtream Code',cls:''},
+  mac:{label:'M3U Playlist',cls:'k-mac'},
+  m3ufile:{label:'M3U Playlist',cls:'k-m3u'}
+};
+/* The migration below has to have run before anything READS the list, and the first read can come
+   from several places depending on how the app was opened (boot, an explicit sign-out, the
+   activation watch). Gating it on the first read instead of on a call at load time means the order
+   of those cannot matter, and it still runs exactly once. */
+let _profilesMigrated=false;
+function profiles(){
+  if(!_profilesMigrated){_profilesMigrated=true;migrateProfiles();}
+  try{const a=JSON.parse(store.getItem(PROFILES_KEY)||'[]');return Array.isArray(a)?a.filter(p=>p&&p.id&&PROFILE_KINDS[p.kind]):[]}catch(e){return []}
+}
+function saveProfiles(arr){try{store.setItem(PROFILES_KEY,JSON.stringify(arr.slice(0,12)))}catch(e){}}
+/* Identity is what the sign-in actually uses, so re-signing in with the same line updates its row
+   instead of stacking a duplicate, while a second username on the same panel is its own user. */
+function profileId(p){return [p.kind,String(p.url||'').toLowerCase(),String(p.user||'').toLowerCase(),String(p.label||'').toLowerCase()].join('|')}
+function hostOf(u){try{return new URL(/^https?:\/\//i.test(u)?u:'http://'+u).host}catch(e){return String(u||'')}}
+function rememberProfile(p){
+  if(!p||!PROFILE_KINDS[p.kind])return;
+  const rec=Object.assign({},p,{id:profileId(p),lastUsed:Date.now()});
+  if(!rec.name)return;
+  /* Most-recent first: the line you are using is the one you are most likely to come back to. */
+  const rest=profiles().filter(x=>x.id!==rec.id);
+  saveProfiles([rec,...rest]);
+  paintProfiles();
+}
+function forgetProfile(id){
+  const left=profiles().filter(p=>p.id!==id);
+  saveProfiles(left);
+  if(!left.length&&$('userBlock'))$('userBlock').classList.remove('managing');
+  paintProfiles();paintResumeLogin();
+}
+/* The one-line description under the name: which product this line is, and which playlist it came
+   from. "Inzi — Xtream Code · panel.example.com" answers both questions a two-line household has. */
+function profileSub(p){
+  const kind=(PROFILE_KINDS[p.kind]||{}).label||'';
+  const src=p.source||hostOf(p.url||'')||'';
+  return src?(kind+' · '+src):kind;
+}
+/* The avatar. A username gets its initial, which is what makes a list of people scannable — but a
+   MAC line and an imported file have no person's name to take one from, and "0" (from
+   00:1A:79:…) or "f" (from family.m3u) reads as a glitch rather than as an identity. Those get the
+   glyph of what they ARE: a set-top box, and a playlist. */
+function profileAvatar(p){
+  if(p.kind==='mac')return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M7 21h10M12 17v4"/><path d="M6 9h4M6 12h7"/></svg>';
+  if(p.kind==='m3ufile')return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 11h11M4 16h7"/><path d="M17.5 12.5v6.2"/><circle cx="15.6" cy="18.7" r="1.9"/></svg>';
+  const initial=String(p.name||'').trim()[0]||'';
+  /* An Xtream username that begins with a digit or a symbol has no usable initial either. */
+  return /[a-z]/i.test(initial)?esc(initial):'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg>';
+}
+function paintProfiles(){
+  const box=$('userBlock'),list=$('userList'),add=$('addHead');
+  if(!box||!list)return;
+  const arr=profiles();
+  box.style.display=arr.length?'':'none';
+  if(add)add.style.display=arr.length?'':'none';
+  if(!arr.length){box.classList.remove('managing');list.innerHTML='';return}
+  list.innerHTML=arr.map(p=>{
+    const cls=(PROFILE_KINDS[p.kind]||{}).cls||'';
+    return '<div class="userRow" role="button" tabindex="0" data-user="'+esc(p.id)+'">'
+      +'<span class="userAv '+cls+'">'+profileAvatar(p)+'</span>'
+      +'<span class="userTx"><b>'+esc(p.name)+'</b><small>'+esc(profileSub(p))+'</small></span>'
+      +'<button class="userDel" type="button" data-userdel="'+esc(p.id)+'" aria-label="Remove '+esc(p.name)+'">×</button>'
+      +'<span class="userGo">›</span></div>';
+  }).join('');
+}
+/* Sign in AS one of them. Every route here is a route the app already had — this only chooses
+   which stored line feeds it, which is the whole point of the list. */
+async function signInWithProfile(id){
+  const p=profiles().find(x=>x.id===id);
+  if(!p)return;
+  if($('err'))$('err').textContent='';
+  /* A file/pasted playlist has no address to reconnect to. Say so plainly and open the importer
+     on the same tap, rather than failing at a portal URL that was never part of it. */
+  if(p.kind==='m3ufile'){
+    setLoginTab('m3u',false);
+    if(typeof openImportSheet==='function')openImportSheet();
+    if($('importErr'))$('importErr').textContent='“'+p.name+'” came from a file on this device, so it has to be opened again — pick it below.';
+    return;
+  }
+  /* A MAC line is bound to ONE MAC on the seller's panel, and a device can hold rows for more than
+     one. Put this user's MAC back in force before the handshake, or the sign-in goes out as
+     whichever MAC was last on screen and the portal refuses a MAC it never bound. */
+  if(p.mac&&typeof Media26Portal!=='undefined'){
+    const m=Media26Portal.normaliseMac(p.mac);
+    if(m){try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
+      if($('macCodeBox'))$('macCodeBox').value=m;}
+  }
+  $('url').value=p.url||'';$('user').value=p.user||'';$('pass').value=p.pass||'';
+  await login();
+}
+if($('userList'))$('userList').onclick=e=>{
+  const del=e.target.closest('[data-userdel]');
+  if(del){e.stopPropagation();forgetProfile(del.dataset.userdel);return}
+  const row=e.target.closest('[data-user]');
+  if(row)signInWithProfile(row.dataset.user);
+};
+/* The rows are divs carrying role="button", so the keyboard has to be wired by hand — this screen
+   is used on a TV browser and a laptop as well as a phone. */
+if($('userList'))$('userList').onkeydown=e=>{
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  const row=e.target.closest&&e.target.closest('[data-user]');
+  if(!row)return;
+  e.preventDefault();signInWithProfile(row.dataset.user);
+};
+if($('userEdit'))$('userEdit').onclick=()=>{
+  const box=$('userBlock');if(!box)return;
+  const on=box.classList.toggle('managing');
+  $('userEdit').textContent=on?'Done':'Manage';
+};
+/* Carry forward the lines this device already holds, so upgrading to this build never looks like
+   the app forgot who was signed in. Runs once: after it, the sign-ins themselves keep the list. */
+function migrateProfiles(){
+  try{
+    if(store.getItem(PROFILES_KEY))return;
+    const out=[];
+    let stk=null;try{stk=JSON.parse(localStorage.getItem('m26_stk')||'null')}catch(e){}
+    if(stk&&stk.url){
+      const name=stk.user||macFmt(stk.mac||'')||hostOf(stk.url);
+      out.push({kind:'mac',id:'',name,url:normalize(stk.url),user:stk.user||'',pass:stk.pass||'',mac:stk.mac||'',source:hostOf(stk.url)});
+    }
+    let c=null;try{c=JSON.parse(store.getItem(KEY)||'null')}catch(e){}
+    if(c&&c.url&&c.user&&c.pass){
+      out.push({kind:'xtream',id:'',name:c.user,url:normalize(c.url),user:c.user,pass:c.pass,mac:'',source:hostOf(c.url)});
+    }
+    if(!out.length)return;
+    saveProfiles(out.map(p=>Object.assign(p,{id:profileId(p),lastUsed:Date.now()})));
+  }catch(e){}
 }
 async function resumeLogin(){
   const how=canResumeSession();
@@ -4624,6 +4878,10 @@ function adoptStalkerSession(res){
   S.vod=[];S.vodCats=[];S.loadedVod=false;S.loadingVod=false;
   S.series=[];S.seriesCats=[];S.loadedSeries=false;S.loadingSeries=false;
   try{localStorage.setItem('m26_stk',JSON.stringify({url:res.base,mac:res.mac,user:_u,pass:_p}));}catch(e){}
+  /* v17.6: a MAG line is a user too. Its identity is the MAC the seller bound (or the Ministra
+     username, on a portal that issues one), and it carries its own MAC so a device holding rows
+     for two MAG lines signs in as the right one — see signInWithProfile. */
+  rememberProfile({kind:'mac',name:_u||macFmt(res.mac)||hostOf(res.base),url:res.base,user:_u,pass:_p,mac:res.mac,source:hostOf(res.base)});
   if($('login'))$('login').classList.add('hidden');
   showHome();keepTranscoderWarm();
   renderAll();updateHomeCounts();
@@ -4847,6 +5105,11 @@ if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('mac
    in force by the time Login is tapped — no separate save step to forget. */
 if($('macCodeBox'))$('macCodeBox').addEventListener('blur',()=>{if(!commitLoginMac())paintLoginMac();});
 paintLoginMac();
+/* First paint of the user list on every launch. The sign-in screen is on screen at this point
+   whether or not one of the automatic paths is about to replace it, and a launch that ends up
+   staying here (no saved session, or the last one was logged out of) would otherwise show no users
+   at all until something else happened to repaint. */
+paintProfiles();
 /* v16.3: openMacSheet()/submitMacLogin() are gone with the sheet they drove. A MAC-only sign-in
    only works on a portal that serves a playlist to a bare MAC, which is not how this app's sellers
    provision anyone — they bind the MAC and hand back a username and password, so the route was a
@@ -4864,6 +5127,11 @@ async function adoptPlaylistText(text,label){
   setSignedOut(false);
   S.source='m3u';S.m3u=parsed;S.playlistUrl=label||'imported';
   S.user='';S.pass='';resetFullCatalog();
+  /* v17.6: remembered as a user under the playlist's own name — there is no username on this
+     route, so the file IS the identity. It cannot be replayed on its own (the text came off this
+     device and the parsed catalogue is far too large to keep), so the row reopens the importer
+     rather than promising a reconnect it cannot make. */
+  rememberProfile({kind:'m3ufile',name:label||'Imported playlist',url:'',user:'',pass:'',mac:'',label:label||'imported',source:'on this device'});
   await loadType('live');await loadType('vod');await loadType('series');
   $('login').classList.add('hidden');showHome();keepTranscoderWarm();updateHomeCounts();
   toast('Playlist loaded — '+parsed.total.toLocaleString()+' items');
@@ -4959,7 +5227,11 @@ if($('homeSetClose'))$('homeSetClose').onclick=()=>$('homeSetSheet').classList.r
 if($('setShare'))$('setShare').onclick=()=>{$('homeSetSheet').classList.remove('show');openShare()};
 if($('setReceive'))$('setReceive').onclick=()=>{$('homeSetSheet').classList.remove('show');openPairSheet('')};
 if($('setStream'))$('setStream').onclick=()=>{$('homeSetSheet').classList.remove('show');openNativePlayer()};
-if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden');maybeStartActivationWatch()};
+/* v17.6: logging out drops the ACTIVE session (KEY, m26_stk) but never the saved users — that list
+   is how you get back in, and to any of the other lines on this device. It has to be repainted
+   here, because this is a path back to the sign-in screen that did not go through
+   paintResumeLogin() and so left the list showing whatever was on it before. */
+if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
 if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetSheet')$('homeSetSheet').classList.remove('show')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});

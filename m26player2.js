@@ -197,13 +197,22 @@
          transport stream at all, and the panel's HLS form is the only thing that can play. */
       var tsFirst = c.mpegts && !(c.apple && D.looks4k(item));
       var ts = [], hls = [];
-      if (direct) (formatFromUrl(direct) === HLS ? hls : ts).push(direct);
       if (forms) { ts.push(forms.ts); hls.push(forms.m3u8); }
       var xt = D.directUrl(item, 'ts'), xm = D.directUrl(item, 'm3u8');
       if (xt) ts.push(xt);
       if (xm) hls.push(xm);
       var order = tsFirst ? ts.concat(hls) : hls.concat(ts);
-      for (var i = 0; i < order.length; i++) addPair(order[i], 'live');
+      /* THE ADDRESS THE PROVIDER PRINTED GOES FIRST. Everything else in this list is a form the
+         app DERIVED from it — the sibling .ts/.m3u8 that rescues a panel gating its own legacy
+         link — and a derivation is a good guess, never better than the panel's own answer.
+         It used to be filed into the ts/hls buckets by GUESSING its format from its name, and the
+         commonest playlist link of all (the extensionless .../user/pass/421107 shim) reads as
+         neither, so it landed in the ts bucket and on an iPhone — which has no transport-stream
+         decoder, so hls leads there — the real link was tried THIRD, behind two guesses.
+         Leading with it costs one probe, and the probe is exactly what makes that safe: a format
+         this device cannot decode is identified from the bytes and skipped in a fifth of a second. */
+      if (direct) order.unshift(direct);
+      for (var i = 0; i < order.length; i++) addPair(order[i], i === 0 && direct ? 'provider link' : 'live');
     } else {
       /* The real file first — full quality, and seekable by byte range — then the panel's own HLS
          remux, which is fragmented and hardware-decodable and is what makes an HEVC title play on
@@ -216,7 +225,7 @@
       var xmp4 = D.directUrl(item, 'mp4'), xm3u = D.directUrl(item, 'm3u8');
       if (xmp4) addrs.push(xmp4);
       if (xm3u) addrs.push(xm3u);
-      for (var j = 0; j < addrs.length; j++) addPair(addrs[j], 'title');
+      for (var j = 0; j < addrs.length; j++) addPair(addrs[j], j === 0 && direct ? 'provider link' : 'title');
     }
 
     /* The transcoder last: it re-wraps anything at all into browser-playable HLS and is the only
