@@ -62,7 +62,7 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
    free space when there is any and collapse to zero when there is not, so tall content starts
    at the top and scrolls normally instead of being clipped. */
 .login{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;align-items:center;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:18px;padding-top:max(18px,env(safe-area-inset-top));padding-bottom:max(18px,env(safe-area-inset-bottom));background:radial-gradient(circle at 15% 14%,rgba(56,189,248,.12),transparent 36%),radial-gradient(circle at 86% 18%,rgba(191,138,242,.10),transparent 32%),linear-gradient(160deg,#eef1f7,#e6ebf3)}
-.login-card{margin-top:auto;margin-bottom:auto;flex-shrink:0}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}
+.login-card{margin-top:auto;margin-bottom:auto;flex-shrink:0}.login-card{width:min(430px,100%);background:rgba(247,249,252,.92);color:#1b2740;border:1px solid rgba(255,255,255,.7);border-radius:24px;box-shadow:0 16px 46px rgba(17,34,58,.11);padding:24px;backdrop-filter:blur(20px)}.login-card .logo{margin-bottom:12px}.login-card h2{font-size:24px}.login-card p{color:#66758c;font-size:13px;margin:6px 0 18px}.field{margin-bottom:12px}.field label{display:block;font-size:11px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:6px;text-transform:uppercase}.field input{background:#edf4fb;color:#132033;border-color:#d9e5f2}.login-card .pillbtn{width:100%;height:48px}.err{margin-top:10px;color:#be123c;font-size:12px;text-align:center;min-height:16px}/* v18.7: the same line also carries PROGRESS — waiting out a portal's quiet period, bringing up the backup connection. Those are the app working, not the app failing, and in the failure colour they read as a third error in a row. .working turns it into a calm status line. */.err.working{color:#2f7fb8;font-weight:700}body.light .err.working{color:#1d6fa5}.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%) translateY(20px);background:#0b1220;color:#fff;padding:11px 14px;border-radius:14px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.2s;z-index:30;max-width:min(520px,92vw);font-size:13px}
 /* v16.3: a toast is normally click-through so it never eats a tap meant for the UI behind it —
    which is also why the "tap to undo" toasts could not be tapped at all. armToastUndo() adds this
    class for exactly as long as the undo is on offer, and takes it off again after. */
@@ -1415,7 +1415,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.6';
+const APP_VERSION='18.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1807,8 +1807,7 @@ async function login(opts){
      hold, show what is being waited for, then carry on into the sign-in that was asked for. */
   portalBeginAttempt(sec=>{
     const t='Your portal asked us to wait — retrying in '+sec+'s…';
-    load(true,t);
-    if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+    load(true,t);signInMsg(t,'working');
   });
   /* v17.9's transcoder warm-up runs when the sign-in FORM opens. Fire it again here for the paths
      that never open that form (a pair code, an activation code, the relaunch reconnect) so the
@@ -1818,8 +1817,7 @@ async function login(opts){
     let w=rateLimitLeft();
     while(w>0){
       const t='Your portal is throttling connections — waiting '+w+'s, then signing you in…';
-      load(true,t);
-      if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+      load(true,t);signInMsg(t,'working');
       await new Promise(r=>setTimeout(r,Math.min(1000,w*1000)));
       w=rateLimitLeft();
     }
@@ -1851,8 +1849,7 @@ async function login(opts){
   if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&!(opts&&opts._relayRetry)&&transcoderBase()){
     const ready=await awaitRelayReady(sec=>{
       const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…';
-      load(true,t);
-      if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+      load(true,t);signInMsg(t,'working');
     },75000);
     if(ready){
       load(true,'Backup connection ready — signing you in…');
@@ -1903,8 +1900,7 @@ async function login(opts){
         if(se&&se.edge&&!(opts&&opts._relayRetry)&&transcoderBase()){
           const ready=await awaitRelayReady(sec=>{
             const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…';
-            load(true,t);
-            if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+            load(true,t);signInMsg(t,'working');
           },75000);
           if(ready){
             load(true,'Backup connection ready — signing you in…');
@@ -1973,7 +1969,7 @@ async function login(opts){
   rememberProfile((S.user&&S.pass)
     ?{kind:'xtream',name:S.user,url:S.url,user:S.user,pass:S.pass,mac:stalkerMac(),source:hostOf(S.url)}
     :{kind:'mac',name:macFmt(stalkerMac())||hostOf(S.url),url:S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
-  $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
+  $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast(sourceLabel()+' loaded — '+S.live.length.toLocaleString()+' channels')}
   catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{portalEndAttempt();load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
@@ -2594,6 +2590,14 @@ function startAutoSync(){
   /* One check shortly after sign-in catches a device that has been closed for days without
      making the sign-in itself wait on it. */
   setTimeout(()=>{maybeAutoSync()},20000);
+}
+/* v18.7: NAME WHAT THE SERVER TURNED OUT TO BE. The app decides between the two products by
+   asking — it requests the M3U document first and only reaches for player_api.php when there is
+   no playlist to be had — but it never said which answer it got, so "did it understand my line?"
+   was unanswerable from the screen. S.source carries the finding: 'm3u' means the address served
+   a playlist, 'xtream' means it answered the Xtream API, 'stalker' means it is a MAG portal. */
+function sourceLabel(){
+  return S.source==='m3u'?'M3U playlist':S.source==='stalker'?'MAG portal':'Xtream Code';
 }
 async function refreshAll(){
   S.loadedLive=S.loadedVod=S.loadedSeries=false;
@@ -5365,9 +5369,17 @@ function openXtreamSheet(){
      seller's panel and this copy can be lost (see the field's own note). */
   const m=$('xtreamMac');
   if(m)m.value=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
-  /* Pre-fill the server already in use, so a reconnect or a password change is one field. */
-  const u=$('xtreamUrl');
-  if(u&&!u.value){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c&&c.url)u.value=c.url;}catch(e){}}
+  /* ── v18.7: THE FORM OPENS EMPTY EXCEPT THE MAC. ────────────────────────────────────────
+     This is the shape of the product, not a preference. The customer is handed a MAC on the
+     screen behind this one, sends THAT MAC to their seller, and the seller registers it against a
+     line and sends back three things: an M3U server address, a login and a password. So the MAC
+     is the one field the app already knows and the customer must not have to type; the other
+     three are what the seller just sent and are typed fresh.
+     Carrying the previous attempt's server, username and password forward actively fought that:
+     a customer setting up a NEW line was met with an OLD line's details already in the boxes, and
+     the natural thing — change the URL, tap Load — silently submitted the previous line's
+     username and password against the new server. Every field except the MAC is cleared. */
+  ['xtreamUrl','xtreamUser','xtreamPass'].forEach(id=>{const el=$(id);if(el)el.value='';});
   /* v17.9: wake the transcoder NOW, not after signing in. It is the app's second egress: when a
      portal sits behind Cloudflare — which the ones that fail here do — the worker's own request is
      turned away at the edge and /api/playlist retries the identical request through the transcoder,
@@ -5377,7 +5389,9 @@ function openXtreamSheet(){
      time the customer spends typing, so the fallback is live by the time it is needed. */
   try{warmTranscoder();}catch(e){}
   $('xtreamSheet').classList.add('show');
-  try{(u&&!u.value?u:($('xtreamUser')&&!$('xtreamUser').value?$('xtreamUser'):u)).focus();}catch(e){}
+  /* Every field but the MAC is now empty, so the cursor belongs in the first one the seller's
+     reply fills: the server address. */
+  try{$('xtreamUrl').focus();}catch(e){}
 }
 /* A MAC typed in here becomes this device's MAC, exactly as the one on the sign-in card does — the
    sign-in, the stream resolution and every error message all read from the same place, so they can
@@ -5390,6 +5404,15 @@ function commitSheetMac(){
   el.value=mac;
   if($('macCodeBox'))$('macCodeBox').value=mac;   /* the card and the sheet show one MAC, not two */
   return mac;
+}
+/* v18.7: one place that writes the sign-in message line, so progress and failure can never be
+   styled the same by accident. kind==='working' is the app doing something on the customer's
+   behalf; anything else is a result they have to act on. */
+function signInMsg(text,kind){
+  const el=$('xtreamErr');
+  if(el){el.textContent=text||'';el.classList.toggle('working',kind==='working'&&!!text);}
+  const e2=$('err');
+  if(e2&&kind!=='working'){e2.textContent=text||'';}
 }
 async function submitXtreamLogin(){
   const url=(($('xtreamUrl')&&$('xtreamUrl').value)||'').trim();
@@ -5410,7 +5433,7 @@ async function submitXtreamLogin(){
     if($('xtreamErr'))$('xtreamErr').textContent='Enter the username and password your seller gave you.';return;
   }
   const btn=$('xtreamGo');if(btn)btn.disabled=true;
-  if($('xtreamErr'))$('xtreamErr').textContent='Connecting…';
+  signInMsg('Connecting…','working');
   try{
     await login({creds:{portalUrl:url,username:user,password:pass}});
     if($('login')&&$('login').classList.contains('hidden')){
@@ -5425,7 +5448,7 @@ async function submitXtreamLogin(){
       if(!user&&!pass&&/username and password|check the username/i.test(msg)){
         msg='This server would not issue a playlist for MAC '+macFmt(stalkerMac())+'. Either your seller has not finished binding it, or this line needs the username and password they were given — add them above and try again.';
       }
-      if($('xtreamErr'))$('xtreamErr').textContent=msg;
+      signInMsg(msg,'error');
       /* The seller hasn't activated this device's MAC yet. Close the form and put the MAC —
          which lives on the login screen — back in front of the user, since sending it to the
          seller is the one action that unblocks them. */

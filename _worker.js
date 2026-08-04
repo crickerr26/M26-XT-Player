@@ -431,6 +431,9 @@ async function handlePlaylist(request, env) {
      so the one flow the app is built around could not complete. Panels implement the check two
      ways, so both are sent together on the MAC pass: `&mac=` on the query string, and the MAG
      `mac=` cookie with a set-top-box User-Agent. Strictly validated, never forwarded verbatim. */
+  /* Which of the two products this is being asked on behalf of: a line with a username and
+     password is authorised by those, a line without one is authorised by its MAC. */
+  const hasCreds = !!String(body.username || '').trim();
   const variant = String(body.variant || '').trim().toLowerCase();
   const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant, mac);
   const attempts = [];
@@ -500,7 +503,19 @@ async function handlePlaylist(request, env) {
        and every wasted request is what pushes a legitimate sign-in into a 429 it cannot escape.
        The second pass is now only about the OTHER way panels check — the MAG cookie and set-top
        User-Agent — rather than about the MAC being present at all. */
-    if (mac) target.searchParams.set('mac', mac);
+    /* ── v18.7: THE MAC BELONGS TO THE MAC PASS, NOT TO EVERY REQUEST. ────────────────────────
+       v14.4 attached the MAC to the credentials pass as well, reasoning that a MAC-locked panel
+       would then authorise on request one instead of request six. The cost of that was never
+       counted: it also attaches a MAC to every request made on behalf of a line that is NOT sold
+       by MAC. These are two different products. An Xtream Code line is authorised by its username
+       and password and has no MAC at all, and handing a panel a MAC it has never seen is at best
+       noise and at worst the thing it refuses on — a refusal that then reads as "your details are
+       wrong" for details that are perfectly correct.
+       So: pass one is exactly the line's own identity — credentials only, nothing invented. Pass
+       two is the MAC line, where the MAC goes on the query string AND in the MAG cookie. A line
+       with no username keeps the MAC from the start, because there the MAC IS the identity
+       (macPlaylistCandidates builds those addresses). */
+    if (mac && (useMac || !hasCreds)) target.searchParams.set('mac', mac);
     const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
     if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
     let upstream;
