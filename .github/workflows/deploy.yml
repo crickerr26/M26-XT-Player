@@ -15,18 +15,26 @@
 # with Edit and bulk-delete buttons that called endpoints the live server did
 # not have yet. Both are wired here so that cannot happen again.
 #
-# ONE-TIME SETUP — add these under Settings -> Secrets and variables -> Actions:
-#   CLOUDFLARE_API_TOKEN     (required for the app) Cloudflare -> My Profile ->
-#                            API Tokens -> Create Token -> "Edit Cloudflare
-#                            Workers" template. Nothing else needs that scope.
-#   CLOUDFLARE_ACCOUNT_ID    (only if the token can see more than one account)
-#                            Workers & Pages -> Account ID in the sidebar.
-#   RENDER_DEPLOY_HOOK_URL   (only if Render's own auto-deploy is off) Render ->
-#                            your service -> Settings -> Deploy Hook -> copy the
-#                            URL. It already contains its own key, so treat it
-#                            as a secret: anyone holding it can trigger a deploy.
+# ONE-TIME SETUP — add these under Settings -> Secrets and variables -> Actions.
+# For Cloudflare you need EITHER of the first two, not both; the hook is the
+# simpler one because the Worker project already holds its own build token.
 #
-# Without CLOUDFLARE_API_TOKEN the app job fails loudly, because that is the
+#   CLOUDFLARE_DEPLOY_HOOK_URL  Workers & Pages -> smarteriptv -> Settings ->
+#                               Deploy Hooks -> + -> branch main -> copy the URL.
+#   CLOUDFLARE_API_TOKEN        My Profile -> API Tokens -> Create Token ->
+#                               "Edit Cloudflare Workers" template. Use this if
+#                               the project's own build setup is broken rather
+#                               than merely idle — it bypasses it entirely.
+#   CLOUDFLARE_ACCOUNT_ID       (api-token route only, and only when that token
+#                               can see more than one account) Workers & Pages ->
+#                               Account ID in the sidebar.
+#   RENDER_DEPLOY_HOOK_URL      (only if Render's own auto-deploy is off) Render
+#                               -> your service -> Settings -> Deploy Hook.
+#
+# Every hook URL carries its own key, so treat them as secrets: anyone holding
+# one can trigger a deploy.
+#
+# With neither Cloudflare secret the app job fails loudly, because that is the
 # critical path. Without RENDER_DEPLOY_HOOK_URL the render job only WARNS and
 # skips — Render can equally well be deploying itself from GitHub, and a
 # permanently red job for a service that is already updating itself would just
@@ -75,19 +83,58 @@ jobs:
           echo "SW CACHE:      $(grep -o "CACHE = '[^']*'" sw.js)"
           echo "ADMIN_VERSION: $(grep -o "ADMIN_VERSION='[0-9.]*'" admin.html | head -1)"
 
+      # TWO WAYS TO DEPLOY, AND THE HOOK IS THE EASY ONE.
+      #
+      # The Worker project already has a working build setup of its own — repo
+      # connected, production branch main, watch paths *, deploy command
+      # `npx wrangler deploy`, and its own "smarteriptv build token". All of
+      # that is fine; it simply stopped being triggered. A Deploy Hook is a URL
+      # that triggers exactly that existing build, so nothing has to be
+      # recreated and no second API token has to exist anywhere.
+      #
+      # Preference order:
+      #   1. CLOUDFLARE_DEPLOY_HOOK_URL — pokes the project's own build.
+      #      Cloudflare then builds with the token it already holds.
+      #   2. CLOUDFLARE_API_TOKEN — this runner deploys directly with wrangler.
+      #      Independent of the dashboard integration, so it still works if the
+      #      project's build setup is broken rather than merely idle.
+      #
       # The `secrets` context is not available to a step-level `if`, so the
-      # check has to read the value through env and test it in the shell.
-      - name: Fail early if the API token is missing
+      # choice has to be made in a shell step and published as an output.
+      - name: Choose a deploy route
+        id: route
         env:
+          HOOK: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK_URL }}
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -z "$TOKEN" ]; then
-            echo "::error::CLOUDFLARE_API_TOKEN is not set. Add it under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+          if [ -n "$HOOK" ]; then
+            echo "Using the project's own Deploy Hook."
+            echo "mode=hook" >> "$GITHUB_OUTPUT"
+          elif [ -n "$TOKEN" ]; then
+            echo "No deploy hook set; deploying directly with wrangler."
+            echo "mode=wrangler" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::No way to deploy. Set ONE of these under Settings -> Secrets and variables -> Actions: CLOUDFLARE_DEPLOY_HOOK_URL (Workers & Pages -> smarteriptv -> Settings -> Deploy Hooks -> + , branch main) or CLOUDFLARE_API_TOKEN (My Profile -> API Tokens -> 'Edit Cloudflare Workers')."
             exit 1
           fi
-          echo "API token is present."
 
-      - name: Deploy
+      - name: Trigger the project's build (deploy hook)
+        if: steps.route.outputs.mode == 'hook'
+        env:
+          HOOK: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK_URL }}
+        run: |
+          CODE=$(curl -sS -X POST -o /tmp/cf.out -w '%{http_code}' "$HOOK") || {
+            echo "::error::Could not reach the Cloudflare deploy hook."; exit 1; }
+          echo "Cloudflare responded HTTP $CODE"
+          cat /tmp/cf.out || true
+          echo
+          case "$CODE" in
+            2*) echo "Build triggered. Cloudflare builds asynchronously — watch it under Workers & Pages -> smarteriptv -> Deployments." ;;
+            *)  echo "::error::Deploy hook returned HTTP $CODE. A 401/404 usually means the hook was deleted or regenerated — copy a fresh one from Settings -> Deploy Hooks."; exit 1 ;;
+          esac
+
+      - name: Deploy directly (wrangler)
+        if: steps.route.outputs.mode == 'wrangler'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
