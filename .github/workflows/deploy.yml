@@ -34,11 +34,11 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       # The repo's own checks (see CLAUDE.md) — there is no test suite, so this
       # is the whole safety net. A syntax error must not reach the live site.
