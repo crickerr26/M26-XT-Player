@@ -46,6 +46,21 @@
   .warn{margin-top:12px;padding:13px 14px;border-radius:12px;background:#fef7e0;border:1px solid #feefc3;color:#b06000;font-size:12.5px;line-height:1.5}
   .newcode{margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#e8f0fe,#e6f4ea);border:1px solid #cfe0d6}
   .bigcode{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:700;letter-spacing:8px;text-align:center;color:#0b57d0;text-indent:8px;padding:8px 0}
+  /* v17.5: line-type segmented control (Xtream / M3U) */
+  .seg{display:flex;gap:6px;background:#f1f3f4;border-radius:999px;padding:4px}
+  .segBtn{flex:1;border-radius:999px;padding:10px 12px;font-size:13px;background:transparent;color:var(--ink-soft);font-weight:600}
+  .segBtn.active{background:#fff;color:var(--g-blue);box-shadow:0 1px 3px rgba(60,64,67,.22)}
+  /* v17.5: bulk selection bar + row checkboxes */
+  .bulkbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 10px;padding:10px 12px;border-radius:14px;background:#e8f0fe;border:1px solid #c6dafc;font-size:13px;font-weight:600;color:#1557b0}
+  td.selcell,th.selcell{width:34px;padding-right:0}
+  input[type=checkbox]{width:17px;height:17px;accent-color:var(--g-blue);cursor:pointer;padding:0}
+  .k-xtream{background:#e8f0fe;color:#1557b0}
+  .k-m3u{background:#f3e8fd;color:#7627bb}
+  /* v17.5: edit dialog */
+  .modalWrap{display:none;position:fixed;inset:0;background:rgba(32,33,36,.5);z-index:50;align-items:center;justify-content:center;padding:16px}
+  .modalWrap.show{display:flex}
+  .modal{background:var(--surface);border-radius:20px;padding:22px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;box-shadow:0 8px 30px rgba(60,64,67,.3)}
+  .modal .primary,.modal .secondary{flex:1;width:auto}
 </style>
 </head>
 <body>
@@ -64,15 +79,25 @@
 
   <div class="card">
     <h2>Create / activate a code</h2>
-    <p class="muted" style="margin:0 0 10px">Fill in the IPTV login below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate a code a customer already gave you</b>.</p>
+    <p class="muted" style="margin:0 0 10px">Fill in the IPTV line below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate a code a customer already gave you</b>.</p>
+    <!-- v17.5: the two products the app supports. An Xtream line is URL + username + password; an
+         M3U / MAG line has no username at all — the customer's device MAC is the credential, bound
+         on the provider's panel — so only the portal address is stored. Before this the server
+         hard-required a username on both write paths, which made an M3U line impossible to sell. -->
+    <label>Line type</label>
+    <div class="seg" id="a_kindSeg">
+      <button type="button" class="segBtn active" data-kind="xtream">Xtream Code</button>
+      <button type="button" class="segBtn" data-kind="m3u">M3U Playlist (MAC)</button>
+    </div>
     <label>Customer's 8-digit code or MAC address <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate this code"</span></label>
     <input id="a_code" placeholder="e.g. 48207391 or 02:AB:CD:EF:12:34" style="text-transform:uppercase">
     <label>Portal URL</label>
     <input id="a_url" placeholder="http://yourserver.com:8080" autocomplete="off">
-    <div class="row">
+    <div class="row" id="a_credRow">
       <div><label>Username</label><input id="a_user" placeholder="username you created" autocomplete="off"></div>
       <div><label>Password</label><input id="a_pass" placeholder="password you created" autocomplete="off"></div>
     </div>
+    <p class="muted" id="a_macNote" style="display:none;margin:10px 0 0">An M3U / MAG line signs in by MAC address — there is no username or password. Bind the customer's MAC on your panel, then activate their code here with just the portal address.</p>
     <label>Valid for (days) — leave 0 for no expiry</label>
     <input id="a_days" inputmode="numeric" placeholder="0" value="0">
     <button class="primary" id="a_new">✨ Create a new activated code</button>
@@ -91,14 +116,53 @@
 
   <div class="card">
     <h2>All codes <button class="mini" id="refresh" style="float:right">Refresh</button></h2>
+    <!-- v17.5: bulk selection. Clearing out a batch of expired trials was one request per code, and
+         every round trip was another chance to half-finish the job. -->
+    <div class="bulkbar" id="bulkbar" style="display:none">
+      <span id="bulkCount">0 selected</span>
+      <span style="flex:1"></span>
+      <button class="mini" id="bulkNone">Clear selection</button>
+      <button class="mini danger" id="bulkDelete">Delete selected</button>
+    </div>
     <div id="list"><p class="muted">Enter your admin key, then Refresh.</p></div>
+  </div>
+</div>
+
+<!-- v17.5: EDIT. Re-activating through the form above overwrites the whole record, which wipes the
+     device list — so a customer whose password merely changed had every device sign in again and
+     count against the limit a second time. Editing changes only the fields supplied. -->
+<div class="modalWrap" id="editWrap">
+  <div class="modal">
+    <h2 style="margin:0 0 4px">Edit <code id="e_code"></code></h2>
+    <p class="muted" style="margin:0 0 8px">Devices, status and creation date are kept. Leave the password blank to keep the stored one.</p>
+    <label>Line type</label>
+    <div class="seg" id="e_kindSeg">
+      <button type="button" class="segBtn active" data-kind="xtream">Xtream Code</button>
+      <button type="button" class="segBtn" data-kind="m3u">M3U Playlist (MAC)</button>
+    </div>
+    <label>Portal URL</label>
+    <input id="e_url" placeholder="http://yourserver.com:8080" autocomplete="off">
+    <div class="row" id="e_credRow">
+      <div><label>Username</label><input id="e_user" autocomplete="off"></div>
+      <div><label>Password</label><input id="e_pass" placeholder="leave blank to keep current" autocomplete="off"></div>
+    </div>
+    <p class="muted" id="e_macNote" style="display:none;margin:10px 0 0">MAC line — no username or password is stored.</p>
+    <label>Valid for (days) — 0 = no expiry, blank = leave unchanged</label>
+    <input id="e_days" inputmode="numeric" placeholder="leave blank to keep current">
+    <div class="msg" id="e_msg"></div>
+    <div style="display:flex;gap:10px;margin-top:14px">
+      <button class="secondary" id="e_cancel" style="margin:0">Cancel</button>
+      <button class="primary" id="e_save" style="margin:0">Save changes</button>
+    </div>
   </div>
 </div>
 <script>
   var $=function(id){return document.getElementById(id)};
   /* Bumped on every deploy alongside APP_VERSION in index.html, so it is obvious at a glance
      whether this page is the current build or a stale cached/preview copy. */
-  var ADMIN_VERSION='12.6';
+  /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
+     badge that is itself stale tells you nothing, so the two numbers now move together. */
+  var ADMIN_VERSION='17.5';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   var DEFAULT_BASE='https://media26-transcoder-xutt.onrender.com';
   /* v10.4: consolidated onto ONE Render service. A stored URL still pointing at the retired
@@ -141,12 +205,37 @@
     return (r&&r.j&&r.j.error)||'Failed';
   }
 
+  /* ── v17.5: LINE TYPE ─────────────────────────────────────────────────────────────────────
+     Xtream = URL + username + password. M3U / MAG = URL only; the customer's device MAC is the
+     credential and is bound on the provider's own panel. Hiding the credential fields on M3U is
+     what makes the difference legible — leaving two empty boxes on screen just looks broken. */
+  function wireKindSeg(segId,rowId,noteId){
+    var seg=$(segId); if(!seg) return;
+    seg.addEventListener('click',function(e){
+      var b=e.target.closest('.segBtn'); if(!b) return;
+      seg.querySelectorAll('.segBtn').forEach(function(x){x.classList.toggle('active',x===b)});
+      var m3u=b.dataset.kind==='m3u';
+      if($(rowId))$(rowId).style.display=m3u?'none':'';
+      if($(noteId))$(noteId).style.display=m3u?'':'none';
+    });
+  }
+  function segKind(segId){var a=$(segId)&&$(segId).querySelector('.segBtn.active');return (a&&a.dataset.kind)||'xtream';}
+  function setSegKind(segId,rowId,noteId,kind){
+    var seg=$(segId); if(!seg) return;
+    var k=(kind==='m3u')?'m3u':'xtream';
+    seg.querySelectorAll('.segBtn').forEach(function(x){x.classList.toggle('active',x.dataset.kind===k)});
+    if($(rowId))$(rowId).style.display=(k==='m3u')?'none':'';
+    if($(noteId))$(noteId).style.display=(k==='m3u')?'':'none';
+  }
+  wireKindSeg('a_kindSeg','a_credRow','a_macNote');
+  wireKindSeg('e_kindSeg','e_credRow','e_macNote');
+
   $('a_go').onclick=function(){
     var m=$('a_msg'); m.className='msg'; m.textContent='Activating…';
     $('a_warn').style.display='none'; $('a_newbox').style.display='none';
     api('/api/admin/activate',{
       code:$('a_code').value, url:$('a_url').value, user:$('a_user').value,
-      pass:$('a_pass').value, days:Number($('a_days').value||0)
+      pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||0)
     }).then(function(r){
       if(r.j&&r.j.ok){
         m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).';
@@ -173,7 +262,7 @@
     $('a_newbox').style.display='none'; $('a_warn').style.display='none';
     api('/api/admin/create',{
       url:$('a_url').value, user:$('a_user').value,
-      pass:$('a_pass').value, days:Number($('a_days').value||0)
+      pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||0)
     }).then(function(r){
       if(r.j&&r.j.ok){
         m.className='msg ok'; m.textContent='✓ New code created and already active.';
@@ -211,28 +300,101 @@
 
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 
+  /* The list never returns stored passwords, so the edit dialog is filled from this cache for
+     everything else and simply leaves the password box blank. */
+  var LAST=[];
+  function lineKind(c){ return (c && (c.kind==='m3u'||c.kind==='xtream')) ? c.kind : (String(c&&c.user||'').trim()?'xtream':'m3u'); }
+
+  /* ── v17.5: BULK SELECTION ─────────────────────────────────────────────────────────────── */
+  function selected(){ return Array.prototype.slice.call(document.querySelectorAll('.rowsel:checked')).map(function(x){return x.dataset.code}); }
+  function paintBulk(){
+    var n=selected().length;
+    $('bulkbar').style.display=n?'flex':'none';
+    $('bulkCount').textContent=n+' selected';
+    var all=document.querySelectorAll('.rowsel'), head=$('selall');
+    if(head){ head.checked=(n>0&&n===all.length); head.indeterminate=(n>0&&n<all.length); }
+  }
+  window.paintBulk=paintBulk;
+  $('bulkNone').onclick=function(){ document.querySelectorAll('.rowsel').forEach(function(x){x.checked=false}); paintBulk(); };
+  $('bulkDelete').onclick=function(){
+    var codes=selected(); if(!codes.length) return;
+    if(!confirm('Delete '+codes.length+' code'+(codes.length===1?'':'s')+'? This cannot be undone.')) return;
+    var m=$('a_msg'); m.className='msg'; m.textContent='Deleting '+codes.length+'…';
+    /* One request for the whole batch — the server deletes them together, so this cannot stop
+       half-way and leave the table disagreeing with the store. */
+    api('/api/admin/update',{op:'delete',codes:codes}).then(function(r){
+      if(r.j&&r.j.ok){ m.className='msg ok'; m.textContent='✓ Deleted '+(r.j.deleted||codes.length)+' code'+((r.j.deleted||codes.length)===1?'':'s')+'.'; }
+      else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
+      loadList();
+    }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
+  };
+
+  /* ── v17.5: EDIT ───────────────────────────────────────────────────────────────────────── */
+  var editing='';
+  function openEdit(code){
+    var c=null; for(var i=0;i<LAST.length;i++) if(String(LAST[i].code)===String(code)) c=LAST[i];
+    if(!c) return;
+    editing=code;
+    $('e_code').textContent=code;
+    $('e_url').value=c.url||'';
+    $('e_user').value=c.user||'';
+    $('e_pass').value='';
+    $('e_days').value='';
+    $('e_msg').textContent=''; $('e_msg').className='msg';
+    setSegKind('e_kindSeg','e_credRow','e_macNote',lineKind(c));
+    $('editWrap').classList.add('show');
+    try{$('e_url').focus()}catch(e){}
+  }
+  window.openEdit=openEdit;
+  function closeEdit(){ $('editWrap').classList.remove('show'); editing=''; }
+  $('e_cancel').onclick=closeEdit;
+  $('editWrap').onclick=function(e){ if(e.target===$('editWrap')) closeEdit(); };
+  $('e_save').onclick=function(){
+    if(!editing) return;
+    var m=$('e_msg'); m.className='msg'; m.textContent='Saving…';
+    var body={op:'edit',code:editing,url:$('e_url').value,user:$('e_user').value,kind:segKind('e_kindSeg')};
+    /* Only send what was actually filled in: a blank password keeps the stored one, and a blank
+       days box leaves the existing expiry untouched. */
+    if(String($('e_pass').value||'').trim()!=='') body.pass=$('e_pass').value;
+    if(String($('e_days').value||'').trim()!=='') body.days=Number($('e_days').value||0);
+    api('/api/admin/update',body).then(function(r){
+      if(r.j&&r.j.ok){ m.className='msg ok'; m.textContent='✓ Saved.'; loadList(); setTimeout(closeEdit,700); }
+      else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
+    }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
+  };
+
   function loadList(){
     var key=$('key').value.trim();
     var box=$('list'); box.innerHTML='<p class="muted">Loading…</p>';
+    $('bulkbar').style.display='none';
     fetch(base()+'/api/admin/list?key='+encodeURIComponent(key)).then(function(r){return r.json()}).then(function(j){
       if(!j||j.error){ box.innerHTML='<p class="muted">'+esc((j&&j.error)||'Failed to load')+'</p>'; return; }
       if(!j.codes||!j.codes.length){ box.innerHTML='<p class="muted">No codes yet.</p>'; return; }
+      LAST=j.codes;
       var rows=j.codes.map(function(c){
         var st=c.status||'pending';
+        var k=lineKind(c);
         var when=c.createdAt?new Date(c.createdAt).toLocaleDateString():'';
         return '<tr>'+
+          '<td class="selcell"><input type="checkbox" class="rowsel" data-code="'+esc(c.code)+'" onchange="paintBulk()"></td>'+
           '<td><code class="copyable" title="Click to copy" onclick="copyCode(this,\''+c.code+'\')">'+esc(c.code)+'</code></td>'+
+          '<td><span class="pill k-'+k+'">'+(k==='m3u'?'M3U':'Xtream')+'</span></td>'+
           '<td><span class="pill s-'+esc(st)+'">'+esc(st)+'</span></td>'+
           '<td>'+(c.devices||0)+'/'+j.deviceLimit+'</td>'+
-          '<td class="muted" title="'+esc(c.url||'')+'">'+esc(c.user||'—')+'</td>'+
+          '<td class="muted" title="'+esc(c.url||'')+'">'+esc(c.user||(k==='m3u'?'by MAC':'—'))+'</td>'+
           '<td class="muted">'+esc(when)+'</td>'+
           '<td style="white-space:nowrap">'+
+            '<button class="mini" onclick="openEdit(\''+c.code+'\')">Edit</button>'+
             (st==='blocked'?'<button class="mini" onclick="act(\''+c.code+'\',\'unblock\')">Unblock</button>':'<button class="mini" onclick="act(\''+c.code+'\',\'block\')">Block</button>')+
             '<button class="mini" onclick="act(\''+c.code+'\',\'reset-devices\')">Reset devices</button>'+
             '<button class="mini danger" onclick="act(\''+c.code+'\',\'delete\')">Delete</button>'+
           '</td></tr>';
       }).join('');
-      box.innerHTML='<table><tr><th>Code</th><th>Status</th><th>Devices</th><th>User</th><th>Created</th><th></th></tr>'+rows+'</table>';
+      box.innerHTML='<table><tr>'+
+        '<th class="selcell"><input type="checkbox" id="selall"></th>'+
+        '<th>Code</th><th>Type</th><th>Status</th><th>Devices</th><th>User</th><th>Created</th><th></th></tr>'+rows+'</table>';
+      $('selall').onchange=function(){ var on=this.checked; document.querySelectorAll('.rowsel').forEach(function(x){x.checked=on}); paintBulk(); };
+      paintBulk();
     }).catch(function(e){ box.innerHTML='<p class="muted">'+esc(e.message)+'</p>'; });
   }
   $('refresh').onclick=loadList;

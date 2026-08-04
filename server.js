@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '12.9';
+const SERVER_BUILD = '13.0';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -106,6 +106,29 @@ function normalizeCode(raw) {
   const digits = s.replace(/\D/g, '');
   if (digits.length === 8) return digits;
   return null;
+}
+/* ── v13.0: TWO KINDS OF LINE ────────────────────────────────────────────────────────────────
+   An XTREAM line is portal URL + username + password. An M3U / MAG (Stalker) line has no username
+   at all — the customer's device MAC is the credential, bound on the provider's own panel — so the
+   portal address is the only thing to store.
+   Until now activate/create both hard-required a username, which made an M3U line impossible to
+   provision: the admin had nothing to type in the field and the request was rejected. Records
+   written before this have no `kind`, so it is inferred from whether a username was stored, and an
+   old dashboard that sends no `kind` keeps behaving exactly as it did. */
+function normalizeKind(raw, user) {
+  const k = String(raw || '').trim().toLowerCase();
+  if (k === 'm3u' || k === 'mac' || k === 'stalker' || k === 'mag') return 'm3u';
+  if (k === 'xtream' || k === 'xtreme') return 'xtream';
+  return String(user || '').trim() ? 'xtream' : 'm3u';
+}
+/* One validator for both write paths, so activate and create can never disagree about what a
+   usable line looks like. Returns an error string, or '' when the line is fine. */
+function validateLine(url, user, kind) {
+  if (!String(url || '').trim()) return 'Portal URL is required.';
+  if (kind !== 'm3u' && !String(user || '').trim()) {
+    return 'Username is required for an Xtream line. For an M3U / MAG line choose the M3U type — it signs in by MAC and has no username.';
+  }
+  return '';
 }
 /* Generate a guaranteed-unique, LOCALLY-ADMINISTERED MAC address (IEEE 802: first-octet bit 1 set,
    bit 0 clear) so it can never collide with a real vendor's hardware OUI — this is a virtual device
@@ -749,7 +772,11 @@ const server = http.createServer(async (req, res) => {
             devices.push(deviceId); lic.devices = devices;
           }
           lic.lastLogin = Date.now(); await licSet(code, lic);
-          return json(res, 200, { status: 'active', portalUrl: lic.url, username: lic.user, password: lic.pass, devices: (lic.devices || []).length, deviceLimit: DEVICE_LIMIT });
+          /* v13.0: `kind` tells the app which sign-in it is being handed. On an M3U/MAG line
+             username and password are empty by design, and the app completes the login with the
+             device's own MAC instead — without this field it could not tell that apart from a
+             half-filled Xtream record. */
+          return json(res, 200, { status: 'active', kind: normalizeKind(lic.kind, lic.user), portalUrl: lic.url, username: lic.user, password: lic.pass, devices: (lic.devices || []).length, deviceLimit: DEVICE_LIMIT });
         }
         return json(res, 200, { status: lic.status || 'pending' });
       }
@@ -767,11 +794,13 @@ const server = http.createServer(async (req, res) => {
         const url = String(body.url || '').trim();
         const user = String(body.user || '').trim();
         const pass = String(body.pass != null ? body.pass : '').trim();
-        if (!url || !user) return json(res, 400, { error: 'Portal URL and username are required.' });
+        const kind = normalizeKind(body.kind, user);
+        const bad = validateLine(url, user, kind);
+        if (bad) return json(res, 400, { error: bad });
         const days = Number(body.days || 0); // 0 = never expires
         const existing = await licGet(code);
         const lic = existing || { code, devices: [], createdAt: Date.now() };
-        lic.status = 'active'; lic.url = url; lic.user = user; lic.pass = pass;
+        lic.status = 'active'; lic.url = url; lic.user = user; lic.pass = pass; lic.kind = kind;
         lic.expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
         lic.activatedAt = Date.now();
         await licSet(code, lic);
@@ -791,7 +820,9 @@ const server = http.createServer(async (req, res) => {
         const url = String(body.url || '').trim();
         const user = String(body.user || '').trim();
         const pass = String(body.pass != null ? body.pass : '').trim();
-        if (!url || !user) return json(res, 400, { error: 'Portal URL and username are required.' });
+        const kind = normalizeKind(body.kind, user);
+        const bad = validateLine(url, user, kind);
+        if (bad) return json(res, 400, { error: bad });
         const days = Number(body.days || 0); // 0 = never expires
         let code = '';
         for (let tries = 0; tries < 20 && !code; tries++) {
@@ -801,7 +832,7 @@ const server = http.createServer(async (req, res) => {
         }
         if (!code) return json(res, 500, { error: 'Could not allocate a free code. Try again.' });
         const lic = {
-          code, status: 'active', url, user, pass,
+          code, status: 'active', url, user, pass, kind,
           devices: [], createdAt: Date.now(), activatedAt: Date.now(),
           expiresAt: days > 0 ? Date.now() + days * 86400000 : 0
         };
@@ -809,15 +840,55 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { ok: true, code, status: 'active', devices: 0, deviceLimit: DEVICE_LIMIT });
       }
 
-      // ADMIN: block / unblock / reset devices / delete a code.
+      // ADMIN: block / unblock / reset devices / edit / delete a code (one or many).
       if (u.pathname === '/api/admin/update') {
         const body = await parseJsonBody(req);
-        const code = normalizeCode(body.code);
         const op = String(body.op || '').trim();
+
+        /* v13.0: BULK DELETE. `codes` is an array; `code` stays supported so an older dashboard
+           keeps working. Deleting many one-request-at-a-time was the slow part of clearing out a
+           batch of expired trials, and each round trip is a separate chance to half-finish. */
+        if (op === 'delete') {
+          const raw = Array.isArray(body.codes) ? body.codes : [body.code];
+          const codes = [];
+          for (const c of raw) { const n = normalizeCode(c); if (n && codes.indexOf(n) < 0) codes.push(n); }
+          if (!codes.length) return json(res, 400, { error: 'Enter an 8-digit code or MAC address.' });
+          if (codes.length > 500) return json(res, 400, { error: 'Too many codes in one request (max 500).' });
+          for (const c of codes) await redis(['DEL', 'lic:' + c]);
+          return json(res, 200, { ok: true, deleted: codes.length, codes });
+        }
+
+        const code = normalizeCode(body.code);
         if (!code) return json(res, 400, { error: 'Enter an 8-digit code or MAC address.' });
-        if (op === 'delete') { await redis(['DEL', 'lic:' + code]); return json(res, 200, { ok: true, deleted: true }); }
         const lic = await licGet(code);
         if (!lic) return json(res, 404, { error: 'Code not found.' });
+
+        /* v13.0: EDIT. Until now a customer whose portal address or password changed had to be
+           re-activated through the activate form, which silently overwrites the whole record —
+           losing the device list, so every one of their devices had to sign in again and count
+           against the limit a second time. Editing changes only the fields supplied and leaves
+           devices, createdAt and status where they are. */
+        if (op === 'edit') {
+          const url = String(body.url != null ? body.url : lic.url || '').trim();
+          const user = String(body.user != null ? body.user : lic.user || '').trim();
+          const kind = normalizeKind(body.kind != null ? body.kind : lic.kind, user);
+          const bad = validateLine(url, user, kind);
+          if (bad) return json(res, 400, { error: bad });
+          lic.url = url; lic.user = user; lic.kind = kind;
+          /* An empty password field means "leave it alone" — /api/admin/list never returns the
+             stored password, so the dashboard cannot pre-fill it and a blank box must not wipe it. */
+          if (body.pass != null && String(body.pass).trim() !== '') lic.pass = String(body.pass).trim();
+          if (kind === 'm3u') lic.pass = '';
+          if (body.days != null && String(body.days) !== '') {
+            const days = Number(body.days || 0);
+            lic.expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
+          }
+          /* A code that was only ever pending becomes usable the moment it has a line bound. */
+          if (lic.status === 'pending' && lic.url) { lic.status = 'active'; lic.activatedAt = Date.now(); }
+          await licSet(code, lic);
+          return json(res, 200, { ok: true, status: lic.status, kind: lic.kind, devices: (lic.devices || []).length });
+        }
+
         if (op === 'block') lic.status = 'blocked';
         else if (op === 'unblock') lic.status = lic.url ? 'active' : 'pending';
         else if (op === 'reset-devices') lic.devices = [];

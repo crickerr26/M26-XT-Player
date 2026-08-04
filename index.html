@@ -1329,7 +1329,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.4';
+const APP_VERSION='17.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3836,9 +3836,12 @@ async function pollActivationOnce(){
   try{
     const {j}=await actApi('/api/activate',{code:code,deviceId:dev});
     const st=(j&&j.status)||'';
-    if(st==='active'&&j.portalUrl&&j.username){
+    /* v17.5: an M3U / MAG line activates with a portal address and NO username — the device MAC is
+       the credential. Requiring j.username here meant such a line polled forever after the seller
+       had already activated it. Accept it whenever this device holds a MAC to sign in with. */
+    if(st==='active'&&j.portalUrl&&(j.username||stalkerMac())){
       stopActPoll();actSetStatus('ok','Activated! Loading your playlist…');
-      try{await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}});}catch(e){actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
+      try{await login({creds:{portalUrl:j.portalUrl,username:j.username||'',password:j.password||''}});}catch(e){actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
     }else if(st==='blocked'){
       stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact your seller.');
     }else if(st==='expired'||st==='disabled'){
@@ -4714,11 +4717,12 @@ async function activateWithCode(code,opts){
   try{ j=(await actApi('/api/activate',{code:code,deviceId:deviceUid()})).j; }
   catch(e){ if(!silent)loginActMsg('bad','Could not reach the activation server. Check your connection and try again.'); return 'error'; }
   const st=(j&&j.status)||'';
-  if(st==='active'&&j.portalUrl&&j.username){
+  /* v17.5: same as the poll — a MAC-based M3U line carries no username. */
+  if(st==='active'&&j.portalUrl&&(j.username||stalkerMac())){
     setActCode(code);
     stopActPoll();
     loginActMsg('ok','Activated — loading your playlist…');
-    try{ await login({creds:{portalUrl:j.portalUrl,username:j.username,password:j.password}}); }
+    try{ await login({creds:{portalUrl:j.portalUrl,username:j.username||'',password:j.password||''}}); }
     catch(e){ loginActMsg('bad',(e&&e.message)||'Activated, but the playlist could not load.'); }
     return 'active';
   }
