@@ -1,0 +1,80 @@
+# Deploy the app to the Cloudflare Worker on every push to main.
+#
+# WHY THIS EXISTS: the Cloudflare dashboard's own Git integration ("Workers
+# Builds") stopped firing — five releases sat on main while the live site kept
+# serving an older build, and nothing about that was visible from GitHub,
+# because Workers Builds runs entirely on Cloudflare's side and reports nothing
+# back. This workflow moves the deploy into the repo, where a push either shows
+# a green check or a red one with a log you can read.
+#
+# ONE-TIME SETUP — add these under Settings -> Secrets and variables -> Actions:
+#   CLOUDFLARE_API_TOKEN   (required) Cloudflare -> My Profile -> API Tokens ->
+#                          Create Token -> use the "Edit Cloudflare Workers"
+#                          template. Nothing else needs that token's scope.
+#   CLOUDFLARE_ACCOUNT_ID  (only if the token can see more than one account)
+#                          Cloudflare dashboard -> Workers & Pages -> the
+#                          Account ID shown in the right-hand sidebar.
+#
+# Until CLOUDFLARE_API_TOKEN exists the job fails immediately and says so,
+# which is still better than the silent no-op it replaces.
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches: [main]
+  # lets you re-run a deploy from the Actions tab without pushing anything
+  workflow_dispatch:
+
+# A newer push supersedes one still deploying, rather than racing it.
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # The repo's own checks (see CLAUDE.md) — there is no test suite, so this
+      # is the whole safety net. A syntax error must not reach the live site.
+      - name: Syntax check
+        run: |
+          node --check portal.js
+          node --check _worker.js
+          node --check server.js
+          node --check sw.js
+          node -e "const fs=require('fs');for(const b of fs.readFileSync('index.html','utf8').match(/<script>([\s\S]*?)<\/script>/g))new Function(b.slice(8,-9));console.log('index.html inline scripts ok')"
+
+      # Printed before and after so the run log records exactly which build
+      # went out — the number the app shows on its splash and sign-in screens.
+      - name: Report version being deployed
+        run: |
+          echo "APP_VERSION: $(grep -o "APP_VERSION='[0-9.]*'" index.html | head -1)"
+          echo "SW CACHE:    $(grep -o "CACHE = '[^']*'" sw.js)"
+
+      # The `secrets` context is not available to a step-level `if`, so the
+      # check has to read the value through env and test it in the shell.
+      - name: Fail early if the API token is missing
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set. Add it under Settings -> Secrets and variables -> Actions, then re-run this workflow."
+            exit 1
+          fi
+          echo "API token is present."
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          # Uses wrangler.jsonc: Worker "smarteriptv", entry _worker.js, with
+          # the repo as static assets minus everything in .assetsignore.
+          command: deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
