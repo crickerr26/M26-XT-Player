@@ -645,25 +645,6 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 .conflictCard p{font-size:13px;color:var(--muted);line-height:1.5;margin-bottom:16px}
 .conflictActions{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
 @media(max-width:760px){.conflictCard{padding:18px}.conflictCard h3{font-size:17px}}
-.chooserModal{position:fixed;inset:0;z-index:420;display:none;align-items:flex-end;justify-content:center;padding:0;background:rgba(3,7,18,.72);backdrop-filter:blur(7px)}
-.chooserModal.show{display:flex}
-.chooserCard{width:min(460px,100%);background:var(--panel);border:1px solid var(--line);border-top-left-radius:22px;border-top-right-radius:22px;box-shadow:var(--shadow);padding:16px 16px calc(16px + env(safe-area-inset-bottom));animation:chooserUp .22s ease}
-@keyframes chooserUp{from{transform:translateY(24px);opacity:.4}to{transform:translateY(0);opacity:1}}
-.chooserHead{display:flex;align-items:center;gap:12px;padding:4px 4px 12px;border-bottom:1px solid var(--line);margin-bottom:8px}
-.chooserThumb{width:46px;height:46px;border-radius:12px;object-fit:cover;background:rgba(255,255,255,.08);flex-shrink:0}
-.chooserHeadText{min-width:0}.chooserHeadText h3{font-size:16px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.chooserHeadText p{font-size:12px;color:var(--muted);margin-top:2px}
-.chooserList{display:flex;flex-direction:column;gap:4px;max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.chooserRow{display:flex;align-items:center;gap:12px;width:100%;padding:10px;border-radius:14px;background:transparent;border:1px solid transparent;text-align:left;color:var(--ink)}
-.chooserRow:hover{background:var(--panel2)}
-.chooserRow.sel{background:rgba(56,189,248,.16);border-color:var(--blue)}
-.chooserIcon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;font-weight:900;font-size:13px;flex-shrink:0;box-shadow:0 6px 16px rgba(0,0,0,.28)}
-.chooserMeta{min-width:0;display:flex;flex-direction:column}
-.chooserMeta b{font-size:14px;font-weight:800;display:flex;align-items:center;gap:6px}
-.chooserMeta b em{font-style:normal;font-size:10px;font-weight:800;color:#04111e;background:linear-gradient(135deg,var(--blue),var(--green));padding:2px 6px;border-radius:6px}
-.chooserMeta small{font-size:11px;color:var(--muted);margin-top:2px}
-.chooserActions{display:flex;gap:8px;justify-content:flex-end;padding-top:12px;margin-top:6px;border-top:1px solid var(--line)}
-.chooserActions .pillbtn{min-width:110px}
-.chooserActions .pillbtn:disabled{opacity:.45}
 .gestureHint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);z-index:7;background:rgba(3,7,18,.82);color:#fff;font-weight:800;font-size:15px;padding:12px 18px;border-radius:14px;pointer-events:none;letter-spacing:.3px;box-shadow:0 10px 30px rgba(0,0,0,.4);backdrop-filter:blur(6px)}
 /* v70: the SAME bar + scrubber design shows on Live, Movies and Series. On live the scrubber
    is a non-draggable LIVE indicator and the rewind/forward skips are hidden (a live feed has no
@@ -1325,19 +1306,6 @@ body.login-dark .login,body.dark .login{background:
     </div>
   </div>
 </div>
-<div class="chooserModal" id="chooserModal">
-  <div class="chooserCard">
-    <div class="chooserHead">
-      <img id="chooserThumb" class="chooserThumb" src="" alt="">
-      <div class="chooserHeadText"><h3 id="chooserTitle">Open with</h3><p id="chooserSub">Choose which player opens this channel</p></div>
-    </div>
-    <div class="chooserList" id="chooserList"></div>
-    <div class="chooserActions">
-      <button class="pillbtn" id="chooserOnce" disabled>Just once</button>
-      <button class="pillbtn primary" id="chooserAlways" disabled>Always</button>
-    </div>
-  </div>
-</div>
 <div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto: Movies and Series open in VLC (it plays MKV/HEVC that the browser can't); Live TV uses the built-in player (VLC drops live channels mid-view). Pick a specific app to force a whole category to it. The per-row VLC and KMPlayer buttons launch any single title on demand.</p></div><div class="field nativeField"><label>M26 Player 2 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in M26 Player 2. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
@@ -1532,13 +1500,14 @@ const CHOOSER_KEY='media26-chooser-default-v1';
    Movies only (Live and Series keep asking until they get their own default). A type with a
    saved default never shows the popup again — it opens straight in that player. */
 const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
-function chooserDefaults(){try{const o=JSON.parse(store.getItem(CHOOSER_TYPES_KEY)||'{}');return(o&&typeof o==='object')?o:{}}catch(e){return{}}}
-function chooserDefault(type){return chooserDefaults()[type]||''}
-function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try{store.setItem(CHOOSER_TYPES_KEY,JSON.stringify(o))}catch(e){}}
+/* v18.9: chooserDefaults()/chooserDefault()/setChooserDefault() removed — they read and wrote
+   this key for the player chooser, which was already unreachable, and none of the three had a
+   caller. clearChooserDefaults() stays: "Reset player choice" in Stream Tools still clears the
+   key so a default saved by an older build cannot outlive it. */
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.8';
+const APP_VERSION='18.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2809,7 +2778,7 @@ function renderEpisodeGrid(){
   $('sectionSub').textContent=ev.eps.length.toLocaleString()+' episodes';
   g.classList.remove('gridview');
   let html='<div class="epBar"><button class="epBack" type="button" data-epback="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>All series</button><span class="epBarName">'+esc(ev.name)+'</span></div>';
-  html+=ev.eps.map((ep,i)=>{const active=S.current&&keyOf(S.current)===keyOf(ep);const logo=logoOf(ep)||ev.logo;return `<div class="card ${active?'active':''}" data-ep="${i}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(ep.name)}</div><div class="cmeta">${esc((ep.container_extension||'mp4').toUpperCase())}</div></div><div class="rowActions"><button class="qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button><button class="qp qp-km" type="button" data-kmep="${i}" title="Open in KMPlayer" aria-label="Open in KMPlayer">${playerLogo('km')}</button></div></div>`}).join('');
+  html+=ev.eps.map((ep,i)=>{const active=S.current&&keyOf(S.current)===keyOf(ep);const logo=logoOf(ep)||ev.logo;return `<div class="card ${active?'active':''}" data-ep="${i}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(ep.name)}</div><div class="cmeta">${esc((ep.container_extension||'mp4').toUpperCase())}</div></div><div class="rowActions">${epPlayerButtons(i)}</div></div>`}).join('');
   g.innerHTML=html;
   updateViewToggle();
 }
@@ -2832,11 +2801,18 @@ function renderGrid(){
 }
 function tabLoading(){return S.tab==='live'?!!S.loadingLive:S.tab==='vod'?!!S.loadingVod:!!S.loadingSeries}
 /* v7.4: VLC logo for the quick-launch button (self-contained SVG — white traffic-cone). */
-function playerLogo(mode){
-  if(mode==='vlc')return'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><g fill="#fff"><path d="M16 4.5l2 6h-4z"/><path d="M13.4 12h5.2l2.9 8.8a1.2 1.2 0 0 1-1.14 1.6H11.64A1.2 1.2 0 0 1 10.5 20.8z"/><rect x="8.7" y="22.6" width="14.6" height="3" rx="1.3"/></g></svg>';
-  if(mode==='km')return'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M11.5 7.5v17L24.5 16z"/></svg>';
-  return mode.toUpperCase();
-}
+/* v18.9: one button, built from the registry entry, so a player's icon/label/target can never
+   drift from where it is allowed to run. */
+function playerBtn(mode,attr,extraClass){const d=playerDef(mode);if(!d)return'';
+  return '<button class="qp '+(extraClass?extraClass+' ':'')+d.btnClass+'" type="button" '+attr+' title="'+esc(d.title)+'" aria-label="'+esc(d.title)+'">'+d.icon+'</button>';}
+/* Episode rows carry the same external buttons as a normal row, tagged with the episode INDEX
+   instead of a key. One generic pair of data attributes replaces the old per-player
+   data-vlcep/data-kmep, so a new player needs no new handler branch. */
+function epPlayerButtons(i,extraClass){return rowExternals().map(m=>playerBtn(m,'data-epmode="'+m+'" data-epidx="'+i+'"',extraClass)).join('');}
+/* The external players that get a per-row quick-launch button on this device. `row:true` is what
+   puts a player on a row; `platforms` is what keeps it off a device that cannot run it. Live keeps
+   its VLC button on purpose (v6.5) — it is an explicit one-off launch, not a category default. */
+function rowExternals(){return playersFor().filter(m=>PLAYERS[m].kind==='external'&&PLAYERS[m].row);}
 /* v87: per-row quick-launch player buttons (replace the up/down reorder arrows). Tapping one opens
    the channel/movie straight in that app — no popup.
    v10.8 (owner request): show BOTH VLC and KMPlayer logos on every row (Live / Movies), and on each
@@ -2848,10 +2824,11 @@ function rowPlayerButtons(key,type){
      row were VLC and KMPlayer, so the quickest tap always left the app; the built-in player was
      reachable only by tapping the title text, which is not discoverable. The external players
      stay, one tap away, but they are no longer the only visible option. */
-  return '<button class="qp qp-here" type="button" data-play="basic" data-key="'+key+'" title="Play here in the app" aria-label="Play here in the app">'+
-         '<svg class="qpico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg></button>'+
-         '<button class="qp qp-vlc" type="button" data-play="vlc" data-key="'+key+'" title="Open in VLC" aria-label="Open in VLC">'+playerLogo('vlc')+'</button>'+
-         '<button class="qp qp-km" type="button" data-play="km" data-key="'+key+'" title="Open in KMPlayer" aria-label="Open in KMPlayer">'+playerLogo('km')+'</button>';
+  /* v18.9: built from the registry. A player whose `platforms` excludes this device is no longer
+     drawn at all — which is what removes the KMPlayer button from a computer, where it had no
+     launch URL and silently opened VLC instead. */
+  return playerBtn('basic','data-play="basic" data-key="'+key+'"')+
+         rowExternals().map(m=>playerBtn(m,'data-play="'+m+'" data-key="'+key+'"')).join('');
 }
 function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
@@ -2864,11 +2841,11 @@ async function openEpisodePicker(x){load(true,'Loading episodes...');try{/* v12.
     :await getJson('get_series_info','&series_id='+encodeURIComponent(idOf(x)));const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url||ep._stalkerCmd);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
 /* v7.4: each episode row = tap the row to play in the Media26 built-in player (fast, optimistic
    start), plus a VLC button to open that episode in VLC. */
-$('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div><button class="epvlc qp qp-vlc" type="button" data-vlcep="${i}" title="Open in VLC" aria-label="Open in VLC">${playerLogo('vlc')}</button><button class="epvlc qp qp-km" type="button" data-kmep="${i}" title="Open in KMPlayer" aria-label="Open in KMPlayer">${playerLogo('km')}</button></div>`).join('');
+$('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div>${epPlayerButtons(i,'epvlc')}</div>`).join('');
 $('episodeSheet').classList.add('show');
 /* remember this series' episodes so the list under the player shows ONLY this series */
 S.episodeView={name:nameOf(x),key:keyOf(x),logo:logoOf(x),eps};renderGrid();
-$('episodeList').onclick=e=>{const vb=e.target.closest('[data-vlcep]');if(vb){e.stopPropagation();const ep=eps[Number(vb.dataset.vlcep)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,'vlc',true);return}const kb=e.target.closest('[data-kmep]');if(kb){e.stopPropagation();const ep=eps[Number(kb.dataset.kmep)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,'km',true);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
+$('episodeList').onclick=e=>{const xb=e.target.closest('[data-epmode]');if(xb){e.stopPropagation();const ep=eps[Number(xb.dataset.epidx)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,xb.dataset.epmode,true);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
 /* v3.5: Movie/Series details popup — opens when the poster is tapped. Pulls the rich metadata
    (director, cast, release date, rating, genre, plot) from the Xtream get_vod_info /
    get_series_info endpoints and shows it over a blurred poster backdrop. */
@@ -3140,9 +3117,76 @@ function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'aut
    named one-tap target (free build first, Pro as fallback); iOS gets Infuse and nPlayer via
    their URL schemes. The packageless Android chooser ('exo') still surfaces EVERY other
    installed player (Just Player, Kodi, mpv, ...) so nothing is locked out. */
-const EXTERNAL_MODES=['exo','vlc','mx','km'];
-function isExternalMode(m){return EXTERNAL_MODES.includes(m)}
-function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX Player';if(mode==='km')return'KMPlayer';if(mode==='basic')return'M26 Player 2';if(mode==='exo')return deviceKind()==='android'?'your player':'VLC';return'browser'}
+/* ═══════════════ v18.9: ONE PLAYER REGISTRY ═══════════════════════════════════════════════
+   Which players exist, where they run, what they are called, what their button looks like and
+   how their launch URL is built used to live in EIGHT places that all had to agree:
+   EXTERNAL_MODES, playerLabel(), playerLogo(), PICON, playerOptions(), rowPlayerButtons(),
+   playItemExternal()'s per-device branches and _extMap. They did not agree, and the
+   disagreements were the bugs:
+
+     • KMPlayer had no desktop launch URL, but rowPlayerButtons() drew its button on every
+       device — and playItemExternal()'s desktop branch ran BEFORE it looked at the mode, so a
+       desktop KM tap copied the link, said "Open in VLC" and fired vlc://. The KM button on a
+       computer opened VLC.
+     • playerOptions() knew KM was iOS-only while playItemExternal() happily launched
+       com.kmplayer on Android. Two answers to one question, and the one users could actually
+       reach was the undocumented one.
+
+   A player is now declared ONCE, here. `platforms` is the single source of truth for where its
+   button may appear, and it is the same list the launcher reads — so a player can never be
+   offered somewhere it cannot run. To add a player, add a key; nothing else needs touching. */
+const PLAYERS={
+  basic:{
+    label:'M26 Player 2', kind:'internal',
+    platforms:['android','ios','desktop'],
+    icon:'<svg class="qpico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>',
+    btnClass:'qp-here', title:'Play here in the app'
+  },
+  vlc:{
+    label:'VLC', kind:'external',
+    platforms:['android','ios','desktop'],
+    icon:'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><g fill="#fff"><path d="M16 4.5l2 6h-4z"/><path d="M13.4 12h5.2l2.9 8.8a1.2 1.2 0 0 1-1.14 1.6H11.64A1.2 1.2 0 0 1 10.5 20.8z"/><rect x="8.7" y="22.6" width="14.6" height="3" rx="1.3"/></g></svg>',
+    btnClass:'qp-vlc', title:'Open in VLC', extBtn:'extVlc', row:true,
+    url:{android:(u,t)=>androidIntentUrl(u,'org.videolan.vlc',t), ios:u=>iosVlcUrl(u), desktop:u=>vlcDesktopUrl(u)}
+  },
+  km:{
+    /* iOS + Android only. KMPlayer registers no desktop protocol handler, so it is absent from
+       `platforms` and therefore never drawn or launched there — which is the whole fix. */
+    label:'KMPlayer', kind:'external',
+    platforms:['android','ios'],
+    icon:'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M11.5 7.5v17L24.5 16z"/></svg>',
+    btnClass:'qp-km', title:'Open in KMPlayer', extBtn:'extKm', row:true,
+    url:{android:(u,t)=>androidIntentUrl(u,'com.kmplayer',t), ios:u=>iosKmUrl(u)},
+    /* the iOS scheme is undocumented — copy the link so there is always a manual path */
+    copyOnLaunch:['ios'],
+    note:'If it opens without the video: tap the menu/+ button → "Open URL" or "Network Stream" → paste'
+  },
+  mx:{
+    label:'MX Player', kind:'external',
+    platforms:['android'],
+    icon:'MX', btnClass:'qp-mx', title:'Open in MX Player', extBtn:'extMx',
+    /* free build first; the Pro package is only tried when the first demonstrably opened nothing */
+    url:{android:(u,t)=>[androidIntentUrl(u,'com.mxtech.videoplayer.ad',t),androidIntentUrl(u,'com.mxtech.videoplayer.pro',t)]}
+  },
+  exo:{
+    label:'your player', kind:'external',
+    platforms:['android'],
+    icon:'APP', btnClass:'qp-exo', title:'Pick any installed player', extBtn:'extExo',
+    /* packageless VIEW intent — Android shows its own chooser with every installed player */
+    url:{android:(u,t)=>androidIntentUrl(u,'',t)}
+  }
+};
+function playerDef(mode){return PLAYERS[mode==='browser'?'basic':mode]||null}
+function playerRuns(mode,device){const d=playerDef(mode);return !!(d&&d.platforms.includes(device||deviceKind()))}
+/* Every player that can actually run on THIS device, in registry order. The row buttons, the
+   overlay buttons and the launcher all read this one list. */
+function playersFor(device){const d=device||deviceKind();return Object.keys(PLAYERS).filter(m=>PLAYERS[m].platforms.includes(d))}
+const EXTERNAL_MODES=Object.keys(PLAYERS).filter(m=>PLAYERS[m].kind==='external');
+function isExternalMode(m){const d=playerDef(m);return !!(d&&d.kind==='external')}
+function playerLabel(mode){const d=playerDef(mode);if(!d)return'browser';
+  /* 'exo' is the packageless Android chooser — on anything else the label would be a lie */
+  if(mode==='exo')return deviceKind()==='android'?'your player':'VLC';
+  return d.label}
 /* v23: live streams handed to VLC/external apps now use HLS (.m3u8) instead of raw .ts.
    A raw .ts stream is ONE long HTTP connection — any server hiccup or timeout kills it
    and the player goes black after a few minutes with no way to recover. HLS is fetched
@@ -3271,9 +3315,11 @@ async function playItemExternal(x,mode,armed){
   /* v57: the player was ALREADY chosen in the popup, so the preview must not show a menu of
      other players (that was the "player choosing option on preview" the owner didn't want).
      Show only the retry button for the CHOSEN app; "Play here instead" and "Copy link" stay. */
-  const _extMap={vlc:'extVlc',mx:'extMx',exo:'extExo',km:'extKm'};
-  ['extVlc','extMx','extExo','extKm'].forEach(id=>{const b=$(id);if(b)b.style.display='none'});
-  const _showBtn=$(_extMap[mode]||'extVlc');if(_showBtn)_showBtn.style.display='';
+  /* v18.9: the retry button for the chosen app comes from the registry (extBtn), and every
+     OTHER external button is hidden — including any that belongs to a player this device
+     cannot run. */
+  EXTERNAL_MODES.forEach(m=>{const id=PLAYERS[m].extBtn;const b=id&&$(id);if(b)b.style.display='none'});
+  const _showBtn=$((playerDef(mode)&&playerDef(mode).extBtn)||'extVlc');if(_showBtn)_showBtn.style.display='';
   /* v84: the player was already chosen in the popup — the preview must NOT look like a second
      chooser. Hide "Play here instead" and "Copy link"; keep only the single "Open in <app>"
      as a quiet retry in case iOS needs a confirming tap. */
@@ -3293,6 +3339,27 @@ async function playItemExternal(x,mode,armed){
       ? 'Your portal would not issue a link for “'+title+'”: '+(S.stalkerLastError||'it returned no link')+'. Tap again to retry. (v'+APP_VERSION+')'
       : 'This title has no playable stream address, so there is nothing to send to '+label+'. Reload the playlist from Settings, or pick another title. (v'+APP_VERSION+')';
     $('netStatus').textContent='No link';$('miniMeta').textContent='No link';
+    return;
+  }
+  /* ── v18.9: A PLAYER IS NEVER LAUNCHED ON A DEVICE IT DOES NOT RUN ON ──────────────────────
+     The desktop branch below opens VLC unconditionally, because VLC is the only desktop target
+     there has ever been. That was fine while only VLC could reach it — but the KMPlayer row
+     button was drawn on every device, so a desktop KM tap fell into this branch and got VLC:
+     the link copied, the panel titled "Open in VLC", and vlc:// fired. The user asked for one
+     player and silently got another.
+     The registry now says where each player runs (PLAYERS[mode].platforms) and rowPlayerButtons
+     no longer draws an unsupported one — but a stale overlay button, a saved per-category
+     default from an older build, or a future caller can still ask. Answer honestly instead of
+     substituting a different app. */
+  if(!playerRuns(mode,d)){
+    $('extActions').classList.remove('hidden');
+    if($('extBrowser'))$('extBrowser').style.display='';
+    $('stateTitle').textContent=playerLabel(mode)+' is not available on this device';
+    $('stateText').textContent=playerLabel(mode)+' has no way to be opened from a '+
+      (d==='desktop'?'computer':d==='ios'?'iPhone or iPad':'Android device')+
+      ' browser, so there is nothing to hand it. Tap "Play here instead" to watch in the built-in player'+
+      (playersFor().filter(m=>PLAYERS[m].kind==='external').length?', or pick '+playersFor().filter(m=>PLAYERS[m].kind==='external').map(m=>PLAYERS[m].label).join(' / ')+'.':'.');
+    $('netStatus').textContent='Not available';$('miniMeta').textContent='Not available';
     return;
   }
   if(d==='desktop'){
@@ -3342,26 +3409,26 @@ async function playItemExternal(x,mode,armed){
     /* v41: MX Player fires the free build first; if it never opens (page still visible after
        2.6s) the chain tries the Pro package. That second intent only fires when the FIRST one
        demonstrably launched nothing, so it can never open a rival player mid-stream. */
-    chain=mode==='vlc'
-      ?[androidIntentUrl(u,'org.videolan.vlc',title)]
-      :mode==='mx'
-      ?[androidIntentUrl(u,'com.mxtech.videoplayer.ad',title),androidIntentUrl(u,'com.mxtech.videoplayer.pro',title)]
-      :mode==='km'
-      ?[androidIntentUrl(u,'com.kmplayer',title)]
-      :[androidIntentUrl(u,'',title)];
+    /* v18.9: the packages and their order now live in PLAYERS[mode].url.android. A builder may
+       return one URL or an array (MX's free-then-Pro pair), so normalise to an array here. */
+    const _mk=(playerDef(mode).url||{}).android;
+    chain=[].concat(_mk?_mk(u,title):androidIntentUrl(u,'',title));
   }else{
-    chain=mode==='km'?[iosKmUrl(u)]
-      :[iosVlcUrl(u)];
+    const _mk=(playerDef(mode).url||{}).ios;
+    chain=[].concat(_mk?_mk(u,title):iosVlcUrl(u));
   }
   chain=chain.filter(Boolean);
   /* v12.4: KMPlayer's iOS URL scheme is undocumented — the scheme-replace form above is the best
      known launch URL, but it isn't guaranteed on every KMPlayer build. As a safety net (same
      pattern already used for desktop VLC), copy the raw stream link to the clipboard on launch so
      the user has a manual "paste it in" path if the app opens without the video. */
-  const kmIos=(mode==='km'&&d==='ios');
-  if(kmIos){try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(function(){})}catch(e){}}
-  $('stateText').textContent=kmIos
-    ?'Opening KMPlayer with "'+title+'". If it opens without the video: tap the menu/+ button → "Open URL" or "Network Stream" → paste — the link is already copied to your clipboard.'
+  /* v18.9: `copyOnLaunch` in the registry marks the device/player pairs whose scheme is
+     best-effort (KMPlayer on iOS is undocumented) — the raw link is copied so there is always a
+     manual "paste it in" path. Declared with the player instead of tested for by name here. */
+  const copied=(playerDef(mode).copyOnLaunch||[]).includes(d);
+  if(copied){try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(function(){})}catch(e){}}
+  $('stateText').textContent=copied
+    ?'Opening '+label+' with "'+title+'". '+(playerDef(mode).note||'If it opens without the video, use its "Open URL" / "Network Stream" option and paste')+' — the link is already copied to your clipboard.'
     :(d==='android'&&mode!=='vlc')
     ?'Android will ask which app should play "'+title+'" — choose VLC or Media26 Player and tap "Always" to remember your choice.'
     :'Launching '+label+' with "'+title+'". If no player app opens, use the buttons below.';
@@ -3928,113 +3995,23 @@ async function routePlayback(x,mode,fromAlternative){
   }
   await playItemBasic(x);
 }
-/* v50: instant feedback the moment a channel is tapped — channel logo/thumbnail + animated
-   loading bar in the preview area, shown while the chooser is open. Does not commit "recent"
-   (playItemPreview/Basic do that once playback actually starts). */
-function prePreview(x){
-  S.current=x;
-  if($('extActions'))$('extActions').classList.add('hidden');
-  const thumb=logoOf(x);
-  /* v83: fill the preview area with the clicked movie's poster while the chooser is open, so the
-     user sees exactly what they tapped. The <video> poster is cleared automatically once real
-     playback begins. */
-  const v=$('video');try{if(v){if(thumb)v.poster=thumb;else v.removeAttribute('poster');}}catch(e){}
-  const pbx=$('playerBox');if(pbx)pbx.classList.toggle('posterPreview',!!thumb);
-  /* the poster now fills the preview, so the small centred thumbnail would be redundant */
-  if(thumb){$('stateThumb').classList.add('hidden')}else{$('stateThumb').classList.add('hidden')}
-  $('stateTitle').textContent=nameOf(x);
-  $('stateText').textContent=typeOf(x)==='live'?'Live channel':'Preparing…';
-  if($('stateProgress'))$('stateProgress').classList.remove('hidden');
-  $('overlay').style.display='grid';
-  $('netStatus').textContent='Loading';$('miniMeta').textContent='Loading';
-}
-/* resume the CURRENT channel in the current/last player without re-opening the chooser */
+/* ── v18.9: the player-chooser cluster was removed here ────────────────────────────────────
+   prePreview(), PICON, playerOptions(), showPlayerChooser() and chooserResolve() were all
+   unreachable. showPlayerChooser() had no call site anywhere, so #chooserModal could never be
+   shown — which in turn made chooserResolve() (wired to its two buttons) and playerOptions()
+   (its only caller) dead with it. prePreview() had no call site of its own.
+   resumeCurrent() is NOT dead and is kept below: the conflict modal's "Log out other device &
+   watch here" button calls it.
+   That mattered beyond the dead weight: playerOptions() was the ONLY place that recorded which
+   players run on which device, and nothing read it, while the buttons users could actually reach
+   used a different and contradictory set. That knowledge now lives in PLAYERS (see the registry
+   above), where the launcher and the buttons both read it.
+   A per-tap chooser can come back at any time by rendering playersFor() and calling
+   routePlayback() — the registry gives it the device matrix this version never had. */
+/* Resume the CURRENT channel in the current/last player. Called by the account-conflict modal's
+   "Log out other device & watch here": on a 1-connection line the newest connection claims the
+   slot, so simply reconnecting here drops the other device. */
 function resumeCurrent(){if(S.current)routePlayback(S.current,store.getItem(CHOOSER_KEY)||resolvedPlayer(typeOf(S.current))||'browser',false)}
-/* v50: app-style icons for the chooser rows (self-contained, no external images) */
-const PICON={
-  browser:{bg:'linear-gradient(135deg,#38bdf8,#2dd4bf)',t:'M26'},
-  basic:{bg:'linear-gradient(135deg,#64748b,#334155)',t:'BAS'},
-  vlc:{bg:'linear-gradient(135deg,#ff8f1c,#e85d04)',t:'VLC'},
-  mx:{bg:'linear-gradient(135deg,#2563eb,#1e40af)',t:'MX'},
-  exo:{bg:'linear-gradient(135deg,#22c55e,#15803d)',t:'APP'},
-  infuse:{bg:'linear-gradient(135deg,#a78bfa,#7c3aed)',t:'INF'},
-  nplayer:{bg:'linear-gradient(135deg,#14b8a6,#0f766e)',t:'nP'}
-};
-function playerOptions(type){
-  const d=deviceKind();
-  const isVod=type==='vod'||type==='series';
-  const basic={mode:'basic',name:'M26 Player 2',desc:'Built-in — identifies the stream, then plays it'};
-  let ext;
-  if(d==='android')ext=[{mode:'vlc',name:'VLC',desc:'External app'},{mode:'mx',name:'MX Player',desc:'External app'},{mode:'exo',name:'Other app…',desc:'Pick any installed player'}];
-  else if(d==='ios')ext=[{mode:'vlc',name:'VLC',desc:'External app'},{mode:'km',name:'KMPlayer',desc:'External app'}];
-  else ext=[{mode:'vlc',name:'VLC',desc:'Desktop app'}];
-  /* v83 (owner request): for MOVIES/SERIES recommend an external player — they often use codecs
-     the browser can't decode, so the app player fails. VLC is the recommendation everywhere (it
-     has its own MKV/HEVC decoder and reliably accepts a handed-off URL on both iOS and Android;
-     KMPlayer is offered too). For LIVE the Basic built-in player is the recommendation. The
-     recommended option is put first and pre-selected in the popup. */
-  if(isVod){
-    const recMode='vlc';
-    ext.forEach(o=>{if(o.mode===recMode){o.rec=true;o.desc='Best for movies — plays every format'}});
-    ext.sort((a,b)=>(b.rec?1:0)-(a.rec?1:0));
-    return [...ext,basic];
-  }
-  /* v88: no VLC for Live — it drops live channels mid-view */
-  if(type==='live')ext=ext.filter(o=>o.mode!=='vlc');
-  basic.rec=true;
-  return [basic,...ext];
-}
-let _chooserItem=null,_chooserPick=null;
-function showPlayerChooser(x){
-  _chooserItem=x;_chooserPick=null;
-  const list=$('chooserList');if(!list)return;list.innerHTML='';
-  const thumb=logoOf(x),ct=$('chooserThumb');
-  if(ct){ct.src=thumb||'';ct.style.display=thumb?'':'none'}
-  $('chooserTitle').textContent='Open '+nameOf(x);
-  $('chooserSub').textContent='Choose which player opens this channel';
-  $('chooserOnce').disabled=true;$('chooserAlways').disabled=true;
-  /* v86: pre-select this type's saved player (from Player-per-category) if set, else the
-     recommended one. 'browser' maps back to the Basic option. */
-  let saved=(S.playerModes&&S.playerModes[typeOf(x)])||'';if(saved==='browser')saved='basic';if(saved==='auto'||saved==='exo')saved='';
-  const opts=playerOptions(typeOf(x));
-  let preIdx=opts.findIndex(o=>o.mode===saved);
-  if(preIdx<0)preIdx=opts.findIndex(o=>o.rec);
-  if(preIdx<0)preIdx=0;
-  opts.forEach((op,idx)=>{
-    const ic=PICON[op.mode]||PICON.browser;
-    const row=document.createElement('button');
-    row.className='chooserRow';row.dataset.mode=op.mode;
-    row.innerHTML='<span class="chooserIcon" style="background:'+ic.bg+'">'+ic.t+'</span>'
-      +'<span class="chooserMeta"><b>'+esc(op.name)+(op.rec?' <em>Recommended</em>':'')+'</b><small>'+esc(op.desc||'')+'</small></span>';
-    row.onclick=()=>{_chooserPick=op.mode;Array.prototype.forEach.call(list.children,c=>c.classList.toggle('sel',c===row));$('chooserOnce').disabled=false;$('chooserAlways').disabled=false};
-    list.appendChild(row);
-    if(idx===preIdx)row.click();
-  });
-  $('chooserModal').classList.add('show');
-}
-function chooserResolve(save){
-  const x=_chooserItem,mode=_chooserPick||'browser';
-  $('chooserModal').classList.remove('show');
-  /* v86: "Always" saves the player for THIS content type into the SAME "Player per category"
-     setting the Stream-tools dropdown uses — so that type stops asking AND the dropdown reflects
-     it. "Just once" plays now and asks again next time. */
-  if(save&&x){
-    const t=typeOf(x),pmVal=(mode==='basic'?'browser':mode);
-    S.playerModes[t]=pmVal;try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}
-    const sel=$(t==='live'?'modeLive':t==='vod'?'modeVod':'modeSeries');
-    if(sel){if(!sel.querySelector('option[value="'+pmVal+'"]')){const o=document.createElement('option');o.value=pmVal;o.textContent=playerLabel(mode);sel.appendChild(o)}sel.value=pmVal;}
-    toast('Always using '+playerLabel(mode)+' for '+(t==='live'?LIVE_LABEL:t==='vod'?VOD_LABEL:'Series'));
-  }
-  if(!x)return;
-  /* v64: route external players through the normal handoff, which honours the connection-slot
-     release gate. v59 launched VLC instantly from this tap and skipped that gate — on a
-     single-connection line VLC then opened before the app's slot was freed, so the provider
-     killed it after a few seconds ("plays then disappears"). The gate is what made VLC
-     reliable before, so it's back. The previous stream is still torn down when the popup opens
-     (below), so much of the release time elapses WHILE choosing and the gate is usually
-     instant; only a very fast pick shows the brief "Open in VLC" confirm. */
-  routePlayback(x,mode,false);
-}
 /* =================== v49: built-in player - full rewrite =================== */
 /* The old engine accumulated ~40 versions of layered watchdogs (stall timers,
    chronic-burst counters, gentle-resume budgets, MSE recovery storms) that
@@ -5997,8 +5974,8 @@ document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fs
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;S.episodeView=null;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;S.episodeView=null;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{
   /* episode-view (a single series' episodes shown under the player) */
   const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
-  const ve=e.target.closest('[data-vlcep]');if(ve){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(ve.dataset.vlcep)];if(ep)playItemExternal(ep,'vlc',true);return}
-  const ke=e.target.closest('[data-kmep]');if(ke){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(ke.dataset.kmep)];if(ep)playItemExternal(ep,'km',true);return}
+  /* v18.9: one branch for every external player — the mode travels on the button (see epPlayerButtons) */
+  const xe=e.target.closest('[data-epmode]');if(xe){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(xe.dataset.epidx)];if(ep)playItemExternal(ep,xe.dataset.epmode,true);return}
   const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
   const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
@@ -6381,10 +6358,6 @@ if($('conflictClose'))$('conflictClose').onclick=function(){$('conflictModal').c
    the current channel HERE (on a 1-connection line, the newest connection claims the slot and
    the provider drops the other device). Skips the chooser so it resumes in the same player. */
 if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').classList.remove('show');$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Taking over';$('stateText').textContent='Logging out the other device and reconnecting here...';resumeCurrent()};
-/* v50: player chooser (Android-style) + Stream Tools reset */
-if($('chooserOnce'))$('chooserOnce').onclick=function(){chooserResolve(false)};
-if($('chooserAlways'))$('chooserAlways').onclick=function(){chooserResolve(true)};
-if($('chooserModal'))$('chooserModal').onclick=function(e){if(e.target.id==='chooserModal')$('chooserModal').classList.remove('show')};
 if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes={live:'auto',vod:'auto',series:'auto'};try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}clearChooserDefaults();['modeLive','modeVod','modeSeries'].forEach(id=>{const s=$(id);if(s)s.value='auto'});$('nativeSheet').classList.remove('show');toast('The player chooser will ask again')};
 restore();renderAll();warmTranscoder();keepTranscoderWarm();
 /* v16.3: mint and show the activation code as soon as the sign-in screen is up, so the MAC and the
