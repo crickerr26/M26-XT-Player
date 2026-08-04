@@ -1415,7 +1415,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.4';
+const APP_VERSION='18.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1837,6 +1837,32 @@ async function login(opts){
   let pl=false;
   try{ pl=await loadPlaylistSource(); }
   catch(e){ plErr=e; pl=false; }
+  /* ── v18.5: THE RELAY IS NOT OPTIONAL HERE, SO WAIT FOR IT AND TRY AGAIN ──────────────────
+     `edge-blocked` means both egresses were turned away before the portal's own code saw the
+     request — and on a portal fronted by Cloudflare the first egress is refused permanently, by
+     design, so the ONLY thing that can succeed is the relay. The overwhelmingly common reason it
+     did not is that it was still booting: it sleeps on a free plan and takes thirty to sixty
+     seconds to come up, while the whole sign-in gave it a few.
+     So do the obvious thing rather than hand the customer a "tap again" they should not have to
+     perform: wake it, WAIT for it, and re-run the sign-in once. Only on this one reason, only
+     once, and only after the first egress has already failed — so a working sign-in never spends
+     a second here. If the relay never answers, that is a real and different fault and the message
+     below names it instead of blaming a security layer. */
+  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&!(opts&&opts._relayRetry)&&transcoderBase()){
+    const ready=await awaitRelayReady(sec=>{
+      const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…';
+      load(true,t);
+      if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+    },75000);
+    if(ready){
+      load(true,'Backup connection ready — signing you in…');
+      portalClearCooldown();
+      return await login(Object.assign({},opts||{},{_relayRetry:true,
+        creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
+    }
+    /* It never came up. Say so — this is the app's own service failing, not the provider's. */
+    throw Error('Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC. Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
+  }
   if(pl){
     /* The playlist IS the session — no player_api call at all on this path, so a rate-limiting
        panel never sees a second request. Account metadata simply isn't available here. */
@@ -1870,6 +1896,24 @@ async function login(opts){
         toast('Connected — '+res.live.length+' channels loaded');
         return;
       }catch(se){
+        /* v18.5: an EDGE refusal on the MAG handshake is the same story as above — the portal's
+           front door refused where we came from, and the relay is the only other address we have.
+           Wake it and run the whole sign-in again once rather than reporting a wait for the
+           customer to serve. Any other MAG failure is the portal's own answer and stands. */
+        if(se&&se.edge&&!(opts&&opts._relayRetry)&&transcoderBase()){
+          const ready=await awaitRelayReady(sec=>{
+            const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…';
+            load(true,t);
+            if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+          },75000);
+          if(ready){
+            load(true,'Backup connection ready — signing you in…');
+            portalClearCooldown();
+            return await login(Object.assign({},opts||{},{_relayRetry:true,
+              creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
+          }
+          throw Error('Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC ('+macFmt(stalkerMac())+'). Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
+        }
         /* A MAG failure is authoritative here (we know it is not Xtream/M3U). Report exactly what
            the portal said — "busy, wait a minute", "MAC not registered", etc. — never the generic
            credentials line. */
@@ -2778,6 +2822,35 @@ function warmTranscoder(){
   const base=transcoderBase();if(!base)return;
   const now=Date.now();if(now-_lastWarm<60000)return;_lastWarm=now;
   try{fetch(base+'/health',{mode:'no-cors',cache:'no-store'}).catch(()=>{})}catch(e){}
+}
+/* ── v18.5: WAIT FOR THE SECOND EGRESS INSTEAD OF FAILING WITHOUT IT ────────────────────────
+   When a portal sits behind Cloudflare it refuses this app's Worker outright, and the relay is
+   then not a fallback — it is the only way in. warmTranscoder() above only POKES it and returns;
+   nothing ever waited for the poke to land, so a sign-in that needed the relay raced a container
+   that takes thirty to sixty seconds to boot and lost, then reported a security layer turning the
+   request away. That sentence is true of the first egress and says nothing about the second.
+   This polls /health until the service answers as itself, reporting the wait as progress. It is
+   only ever called once the first egress has already been refused, so the time is not being spent
+   on a sign-in that had another option. */
+async function awaitRelayReady(onProgress,budgetMs){
+  const base=transcoderBase();
+  if(!base)return false;
+  const url=base.replace(/\/+$/,'')+'/health';
+  const until=Date.now()+(budgetMs||75000);
+  _lastWarm=Date.now();   /* this IS the warm-up; do not let warmTranscoder throttle it away */
+  for(let attempt=0;Date.now()<until;attempt++){
+    if(typeof onProgress==='function'){
+      try{onProgress(Math.max(0,Math.ceil((until-Date.now())/1000)))}catch(e){}
+    }
+    try{
+      const r=await fetch(url,{cache:'no-store'});
+      /* 502/503/504 is the gateway in front of a container that is still starting. Anything the
+         service answers for itself — even an error — means it is up and can relay. */
+      if(r&&r.status&&r.status<500)return true;
+    }catch(e){}
+    await new Promise(r=>setTimeout(r,attempt<3?2000:4000));
+  }
+  return false;
 }
 /* Which tabs are worth waking the transcoder for. Movies and Series always are — MKV/HEVC has to
    be re-wrapped for any browser. Live is worth it exactly when this device cannot decode a raw

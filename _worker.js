@@ -350,7 +350,16 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 /* Render answers 502/503/504 while an instance boots; a network error reads the same way. None of
    these is the relay saying no — it is the relay not being there yet. */
 function relayWaking(status) { return !status || status === 502 || status === 503 || status === 504; }
-const RELAY_WAKE_BACKOFF_MS = [0, 2500, 6000];
+/* v18.5: LONG ENOUGH FOR THE THING WE ARE ACTUALLY WAITING FOR. v18.0 allowed 0+2500+6000 — about
+   eight and a half seconds — to wake a free-plan container whose documented cold start is thirty to
+   sixty. So the second egress was declared dead before it had finished booting, every single time
+   it had been asleep, and a portal that refuses Cloudflare (which is the ONLY reason this relay is
+   being used) had no route left at all. The sign-in then reported a security layer turning the
+   request away, which is true of the first egress and says nothing about the second.
+   Waiting here is cheap and correct: the origin has ALREADY refused, so there is nothing else to
+   try and nothing to race. A booting container answers 502/503 immediately, so these retries cost
+   almost nothing until the one that succeeds. ~45s total, which covers a normal cold start. */
+const RELAY_WAKE_BACKOFF_MS = [0, 3000, 6000, 9000, 12000, 15000];
 /* How many playlist candidates are worth pushing through the relay once the portal's own edge has
    turned this worker away. The relay reaches the same portal, so these still count against its
    limiter — enough to find the endpoint shape, not enough to look like a sweep. */
