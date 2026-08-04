@@ -370,19 +370,20 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @keyframes hcIconFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
 @keyframes hcShine{0%,100%{left:-60%}46%,54%{left:118%}}
 @keyframes homeBrandPulse{0%,100%{box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08)}50%{box-shadow:0 12px 54px rgba(56,189,248,.5),inset 0 0 0 1px rgba(255,255,255,.18)}}
-/* v16.4: a provider with no series section has two catalogues, not three — Live TV and Video Club.
-   Everything that names or lays out the Series tab keys off this one class on <body>, so the tab,
-   its home card, its stat tile and its per-category player picker all disappear together, and the
-   grids that held three columns close up to two instead of leaving a hole. */
+/* v16.8: a provider with no series section still has THREE catalogues on screen — Live TV, Movies
+   and Series — because "is there a Series section here?" is a question the user asks of the app,
+   and a tab that vanishes answers it by leaving no trace to read. Hiding it also made the shelf
+   silently change shape between providers. So the tab stays, greyed and inert, showing the 0 it
+   actually has. Everything keys off this one class on <body>, so the tab, its home card, its stat
+   tile and its per-category player picker all dim together and the grids keep their three columns. */
 body.noSeries .hc-series,
 body.noSeries .cp-tab[data-cattab="series"],
 body.noSeries .tab[data-tab="series"],
-body.noSeries .pm-series,
-body.noSeries .stat-series{display:none!important}
-body.noSeries .side .tabs{grid-template-columns:repeat(2,1fr)}
+body.noSeries .pm-series{opacity:.38;filter:grayscale(1);pointer-events:none}
+body.noSeries .hc-series{box-shadow:none}
+body.noSeries .stat-series{opacity:.38;filter:grayscale(1)}
 @media(min-width:720px){
   .home-cards{grid-template-columns:repeat(3,1fr)}
-  body.noSeries .home-cards{grid-template-columns:repeat(2,1fr)}
   .home-card{flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:210px;gap:16px}
   .hc-arrow{position:absolute;right:18px;top:18px}
 }
@@ -799,10 +800,10 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <aside class="panel side" id="side">
       <div class="tabs">
         <button class="tab active" data-tab="live">Live TV</button>
-        <button class="tab" data-tab="vod">Video Club</button>
+        <button class="tab" data-tab="vod">Movies</button>
         <button class="tab" data-tab="series">Series</button>
       </div>
-      <div class="searchbox"><input id="search" placeholder="Search Live TV and Video Club..." autocomplete="off"></div>
+      <div class="searchbox"><input id="search" placeholder="Search Live TV, Movies and Series..." autocomplete="off"></div>
       <div class="cats" id="cats"></div>
     </aside>
     <main class="main">
@@ -867,7 +868,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </main>
     <aside class="panel info">
       <div class="hero"><h3 id="infoTitle">Welcome</h3><p id="infoText">This mode plays streams inside the preview area using native video, HLS, MPEG-TS, proxy, and transcoder paths.</p></div>
-      <div class="stats"><div class="stat"><strong id="liveCount">0</strong><span>LIVE TV</span></div><div class="stat"><strong id="vodCount">0</strong><span>VIDEO CLUB</span></div><div class="stat stat-series"><strong id="seriesCount">0</strong><span>SERIES</span></div></div>
+      <div class="stats"><div class="stat"><strong id="liveCount">0</strong><span>LIVE TV</span></div><div class="stat"><strong id="vodCount">0</strong><span>MOVIES</span></div><div class="stat stat-series"><strong id="seriesCount">0</strong><span>SERIES</span></div></div>
       <div class="details" id="details">Tip: on phones, turn sideways after video starts for a clean full-screen layout.</div>
     </aside>
   </div>
@@ -901,13 +902,13 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       <button class="home-card hc-vod" data-go="vod">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg></span>
-        <span class="hc-txt"><b>Video Club</b><small><i id="homeVodCount">—</i> titles</small></span>
+        <span class="hc-txt"><b>Movies</b><small><i id="homeVodCount">—</i> movies</small></span>
         <span class="hc-arrow">→</span>
       </button>
       <button class="home-card hc-series" data-go="series">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></span>
-        <span class="hc-txt"><b>Series</b><small><i id="homeSeriesCount">—</i> shows</small></span>
+        <span class="hc-txt"><b>Series</b><small><i id="homeSeriesCount">—</i> series</small></span>
         <span class="hc-arrow">→</span>
       </button>
     </div>
@@ -928,7 +929,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </div>
     <div class="cp-tabs" id="catTabs">
       <button class="cp-tab" type="button" data-cattab="live">Live TV</button>
-      <button class="cp-tab" type="button" data-cattab="vod">Video Club</button>
+      <button class="cp-tab" type="button" data-cattab="vod">Movies</button>
       <button class="cp-tab" type="button" data-cattab="series">Series</button>
     </div>
     <div class="cp-searchwrap">
@@ -1079,7 +1080,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span id="pmVodLabel">Video Club</span><select id="modeVod"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto: Video Club titles open in VLC (it plays MKV/HEVC that the browser can't); Live TV uses the built-in player (VLC drops live channels mid-view). Pick a specific app to force a whole category to it. The per-row VLC and KMPlayer buttons launch any single title on demand.</p></div><div class="field nativeField"><label>M26 Player 2 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in M26 Player 2. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto: Movies and Series open in VLC (it plays MKV/HEVC that the browser can't); Live TV uses the built-in player (VLC drops live channels mid-view). Pick a specific app to force a whole category to it. The per-row VLC and KMPlayer buttons launch any single title on demand.</p></div><div class="field nativeField"><label>M26 Player 2 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in M26 Player 2. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -1243,7 +1244,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='16.7';
+const APP_VERSION='16.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1695,25 +1696,24 @@ function showHome(){applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpa
    Tapping a category then drops into that category's channel grid. */
 const CATPAGE_META={
   live:{label:'Live TV',unit:'channels',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg>'},
-  vod:{label:'Video Club',unit:'titles',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg>'},
-  series:{label:'Series',unit:'shows',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg>'}
+  vod:{label:'Movies',unit:'movies',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg>'},
+  series:{label:'Series',unit:'series',icon:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg>'}
 };
-/* ── v16.4: ONE OWNER FOR THE CATALOGUE NAMES AND THE SERIES TAB ──────────────────────────
-   NAMING. The two catalogues are called Live TV and Video Club everywhere now, on every kind of
-   source — Xtream, Stalker/MAG and playlist alike. Before this the same shelf was "Movies" on a
-   portal and "Video Club" on a playlist purely because of how the account happened to be
-   provisioned, which is a distinction no customer can see or cares about.
+/* ── v16.8: ONE OWNER FOR THE CATALOGUE NAMES AND THE SERIES TAB ──────────────────────────
+   NAMING. The three catalogues are Live TV, Movies and Series, on every kind of source — Xtream,
+   Stalker/MAG and playlist alike. "Video Club" was an internal name for the on-demand shelf that
+   meant nothing to a customer looking for a film; the shelf holds movies, so it says Movies.
 
-   SERIES. The tab is shown until the catalogue has actually come back EMPTY, then hidden. Plenty
-   of providers have no series section at all — tv.stream4k.cc answers series get_categories with
-   `false` — and a third tab that can never fill is a dead end the user keeps re-checking. It
-   deliberately stays put while the fetch is still in flight, so it never blinks out and back on a
-   normal login, and it reappears by itself if a provider later starts serving shows.
+   SERIES. The tab is ALWAYS on screen. It stays live while the catalogue is still being fetched,
+   and once the answer comes back empty it greys out and reads 0 rather than disappearing — a tab
+   that vanishes leaves the user with no way to tell "this provider has no shows" apart from "this
+   app lost the tab", and it made the shelf change shape between providers. It un-greys by itself
+   if a provider later starts serving shows.
 
    The names appear in seven places (home cards, category-page tabs and heading, sidebar tabs,
    section title, search placeholder, stat tiles, the Stream Tools player picker). They used to be
    that many separate literals; setting them from here means none can be left behind. */
-const LIVE_LABEL='Live TV',VOD_LABEL='Video Club';
+const LIVE_LABEL='Live TV',VOD_LABEL='Movies';
 function vodLabel(){return VOD_LABEL;}
 function seriesAvailable(){
   if(S.series&&S.series.length)return true;
@@ -1725,21 +1725,28 @@ function applyCatalogUi(){
   const hasSeries=seriesAvailable();
   CATPAGE_META.live.label=LIVE_LABEL;
   CATPAGE_META.vod.label=VOD_LABEL;
-  /* A session left sitting on Series when it turns out to be empty has to be moved, or the user
-     is looking at an empty grid with no tab left to leave by. */
+  /* A session left sitting on Series when it turns out to be empty has to be moved — the greyed
+     tab cannot be tapped back out of, so the grid would be a dead end. */
   if(!hasSeries&&S.tab==='series')S.tab='vod';
   try{document.body.classList.toggle('noSeries',!hasSeries);}catch(e){}
+  /* An empty Series tab says so on its face. "Series (0)" is the whole answer to "does this
+     provider have shows?", which is otherwise only discoverable by opening the tab and finding
+     nothing there. While the fetch is still running hasSeries is true, so it reads plain "Series"
+     and never flashes a 0 it is about to contradict. */
+  const seriesLabel=hasSeries?'Series':'Series (0)';
   const txt=(el,s)=>{if(el&&el.textContent!==s)el.textContent=s;};
   txt(document.querySelector('.home-card.hc-live .hc-txt b'),LIVE_LABEL);
   txt(document.querySelector('.home-card.hc-vod .hc-txt b'),VOD_LABEL);
   txt(document.querySelector('.cp-tab[data-cattab="live"]'),LIVE_LABEL);
   txt(document.querySelector('.cp-tab[data-cattab="vod"]'),VOD_LABEL);
+  txt(document.querySelector('.cp-tab[data-cattab="series"]'),seriesLabel);
   txt(document.querySelector('.tab[data-tab="live"]'),LIVE_LABEL);
   txt(document.querySelector('.tab[data-tab="vod"]'),VOD_LABEL);
+  txt(document.querySelector('.tab[data-tab="series"]'),seriesLabel);
   txt($('pmVodLabel'),VOD_LABEL);
   txt(document.querySelector('.stats .stat:nth-child(1) span'),'LIVE TV');
-  txt(document.querySelector('.stats .stat:nth-child(2) span'),'VIDEO CLUB');
-  /* The idle-player hint names the tabs, so it has to name the ones that are actually there. */
+  txt(document.querySelector('.stats .stat:nth-child(2) span'),'MOVIES');
+  /* The idle-player hint names the tabs, so it has to name the ones that are actually usable. */
   const st=$('stateText');
   if(st&&/^(Login, pick |Pick Live TV)/.test(st.textContent||''))
     st.textContent='Pick '+LIVE_LABEL+', '+VOD_LABEL+(hasSeries?' or Series':'')+', then tap play.';
@@ -1750,7 +1757,7 @@ const CP_GRID='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke
 function showCategories(tab,restore){
   S.tab=tab;
   /* Runs before the page is built rather than after, so a jump to a Series tab this provider does
-     not have lands on Video Club instead of drawing an empty page first. */
+     not have lands on Movies instead of drawing an empty page first. */
   applyCatalogUi();
   tab=S.tab;
   if(!restore)S.catQ='';
@@ -1886,7 +1893,7 @@ function fullPlaylistCatalog(){
       if(/json/.test((r.headers.get('content-type')||'').toLowerCase()))return null;
       const text=await r.text();
       if(!Media26Portal.looksLikeM3U(text))return null;
-      return foldM3uSeriesIntoVod(Media26Portal.parseM3U(text));
+      return Media26Portal.parseM3U(text);
     }catch(e){return null}
   })().then(p=>{
     /* Only a SUCCESS is cached. A failed attempt must be retryable, because the empty-tab screen
@@ -1910,15 +1917,8 @@ async function loadTypeFromFullPlaylist(type){
   renderAll();updateHomeCounts&&updateHomeCounts();
 }
 async function loadType(type){
-  /* v16.3: a playlist source has no Series tab — its shows live in Video Club. Answering here
-     also stops the live-only fallback below from going off and re-fetching a series catalogue
-     from the panel's own API to fill a tab that is no longer on screen. */
-  if(type==='series'&&S.source==='m3u'){
-    S.series=[];S.seriesCats=[];S.loadedSeries=true;S.loadingSeries=false;
-    renderAll();updateHomeCounts&&updateHomeCounts();
-    return;
-  }
-  /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it. */
+  /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it —
+     Series included (v16.8; v16.3 short-circuited Series to empty here for playlist sources). */
   if(S.source==='m3u'&&S.m3u){
     const p=S.m3u;
     if(type==='live'){S.liveCats=p.liveCats;S.live=p.live;S.loadedLive=true;S.loadingLive=false;}
@@ -2055,34 +2055,20 @@ async function fetchPlaylistViaFunction(base,user,pass){
   const text=await r.text();
   return {text,url:r.headers.get('x-m26-source')||base};
 }
-/* ── v16.3: A PLAYLIST SOURCE IS LIVE TV + VIDEO CLUB. NO SERIES TAB. ─────────────────────
-   "Series" in an M3U is a guess: the parser infers it from group names and episode-looking
-   filenames, because a playlist has no series endpoint to ask. That guess put a third of a
-   playlist's on-demand content behind a tab most playlist users never opened, and split shows
-   away from the films they sit next to on the provider's own panel.
-   So the shows are folded into Video Club instead of being dropped — every title stays reachable,
-   and tapping a show still opens its episode picker, because that is driven by _m3uEpisodes on
-   the entry rather than by which bucket it came out of. Xtream and Stalker portals are untouched:
-   they have real per-series endpoints and keep their Series tab. */
-function foldM3uSeriesIntoVod(parsed){
-  if(!parsed||!Array.isArray(parsed.series)||!parsed.series.length)return parsed;
-  const cats=Array.isArray(parsed.vodCats)?parsed.vodCats:(parsed.vodCats=[]);
-  const seen=new Set(cats.map(c=>String(c&&c.category_id)));
-  for(const c of (parsed.seriesCats||[])){
-    const id=String(c&&c.category_id);
-    if(!seen.has(id)){seen.add(id);cats.push(c);}
-  }
-  cats.sort((a,b)=>String((a&&a.category_name)||'').localeCompare(String((b&&b.category_name)||'')));
-  parsed.vod=(parsed.vod||[]).concat(parsed.series);
-  parsed.series=[];parsed.seriesCats=[];
-  return parsed;
-}
+/* ── v16.8: A PLAYLIST SOURCE HAS ALL THREE SHELVES. ──────────────────────────────────────
+   v16.3 folded a playlist's shows into the on-demand shelf and dropped the Series tab, on the
+   grounds that "series" in an M3U is inferred from group names rather than read from a real
+   endpoint. The inference is imperfect, but burying every show among the films is worse: on a
+   playlist with thousands of on-demand entries the shows became unfindable, and the tab the user
+   went looking for them in was not there. Keep the parser's three buckets as it produces them —
+   Live TV, Movies, Series — for playlists exactly as for Xtream and Stalker. Tapping a show opens
+   its episode picker either way; that is driven by _m3uEpisodes on the entry, not by the bucket. */
 async function loadPlaylistSource(){
   if(typeof Media26Portal==='undefined')return false;
   const adopt=(text,srcUrl)=>{
     if(!text||!Media26Portal.looksLikeM3U(text))return false;
     let parsed=null;
-    try{ parsed=foldM3uSeriesIntoVod(Media26Portal.parseM3U(text)); }catch(e){ parsed=null; }
+    try{ parsed=Media26Portal.parseM3U(text); }catch(e){ parsed=null; }
     if(!parsed||!parsed.total)return false;
     S.source='m3u'; S.m3u=parsed; S.playlistUrl=srcUrl;
     return true;
@@ -2673,7 +2659,7 @@ async function streamDoctor(){
   }
 }
 function openVlcForCurrent(){const u=nativeAppUrl(S.current);if(!u)return;location.href=vlcUrl(u);setTimeout(()=>{try{navigator.clipboard&&navigator.clipboard.writeText(u).catch(()=>{})}catch{}},250)}
-function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live TV or Video Club and tap an item.');try{if(transcoderBase()){testTranscoder()}else{setTStatus('idle','No transcoder URL set')}}catch(e){}}
+function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live TV, Movies or Series and tap an item.');try{if(transcoderBase()){testTranscoder()}else{setTStatus('idle','No transcoder URL set')}}catch(e){}}
 function openRawStream(){if(S.current)routePlayback(S.current,'browser',false)}
 function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pause, Rewind, Forward and the scrubber for live;
    keep only Mute, PiP, Fullscreen. Movies/Series keep full controls. v55: also toggle a
@@ -3521,7 +3507,7 @@ function fail(msg){
 }
 function seekBy(sec){
   const v=$('video');
-  if(!S.current||typeOf(S.current)==='live'){toast('Seek is available for Video Club titles, not live channels');return}
+  if(!S.current||typeOf(S.current)==='live'){toast('Seek is available for Movies and Series, not live channels');return}
   /* v52: fall back to the seekable range when duration isn't a finite number (streamed VOD),
      and record the seek so the stall watchdog treats the buffering that follows as "seeking",
      not "dead stream" — the watchdog reloading was what snapped the movie back to the start. */
@@ -4587,7 +4573,7 @@ paintLoginMac();
 async function adoptPlaylistText(text,label){
   if(typeof Media26Portal==='undefined')throw Error('Playlist reader is still loading — try again in a moment.');
   if(!Media26Portal.looksLikeM3U(text))throw Error('That does not look like an M3U playlist. It should start with #EXTM3U and contain #EXTINF lines.');
-  const parsed=foldM3uSeriesIntoVod(Media26Portal.parseM3U(text));
+  const parsed=Media26Portal.parseM3U(text);
   if(!parsed||!parsed.total)throw Error('That playlist parsed to zero channels — it may be truncated or an error page saved as a file.');
   S.source='m3u';S.m3u=parsed;S.playlistUrl=label||'imported';
   S.user='';S.pass='';resetFullCatalog();
