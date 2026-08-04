@@ -80,12 +80,34 @@
       .trim() || String(name || '');
   }
 
+  /* v18.4: AN ENTRY'S ID COMES FROM WHAT IT IS, NOT FROM WHERE IT SAT IN THE FILE.
+     These ids used to be a running counter — m3u_1, m3u_2 … — restarted at zero on every parse.
+     That is safe only while exactly one document is ever parsed. The app now reads two (the
+     compact sign-in playlist and the full catalogue) and merges them, and a counter makes the
+     fifth line of one document collide with the fifth line of the other: two DIFFERENT titles
+     carrying one id. Everything that resolves a tap back to a title goes through that id
+     (findByKey), so the collision plays the wrong programme — and favourites and Recently Played,
+     which are stored by the same key, attach to the wrong title too.
+     Derived from the stream address instead, an id is stable across documents, across refreshes
+     and across sessions, and two different streams cannot share one. Two independent hashes are
+     combined so the 64-bit result does not collide across a catalogue of tens of thousands. */
+  function stableId(prefix, seed) {
+    const s = String(seed || '');
+    let h1 = 5381, h2 = 52711;
+    for (let i = 0; i < s.length; i++) {
+      const c = s.charCodeAt(i);
+      h1 = ((h1 * 33) ^ c) >>> 0;
+      h2 = ((h2 * 33) ^ (c + i)) >>> 0;
+    }
+    return prefix + h1.toString(36) + h2.toString(36);
+  }
+
   function parseM3U(text) {
     const lines = String(text || '').split(/\r?\n/);
     const buckets = { live: [], vod: [], series: [] };
     const catMaps = { live: new Map(), vod: new Map(), series: new Map() };
     const seriesIndex = new Map();
-    let pending = null, seq = 0;
+    let pending = null;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i].trim();
@@ -119,7 +141,7 @@
         let show = seriesIndex.get(key);
         if (!show) {
           show = {
-            _type: 'series', series_id: 'm3u_s' + (++seq), name: title,
+            _type: 'series', series_id: stableId('m3u_s', catId + '|' + title.toLowerCase()), name: title,
             cover: pending.logo, stream_icon: pending.logo,
             category_id: catId, category_name: group,
             _m3uEpisodes: []
@@ -128,7 +150,7 @@
           buckets.series.push(show);
         }
         show._m3uEpisodes.push({
-          _type: 'series', episode_id: 'm3u_e' + (++seq), title: pending.name, name: pending.name,
+          _type: 'series', episode_id: stableId('m3u_e', url), title: pending.name, name: pending.name,
           direct_source: url, container_extension: extOf(url) || 'mp4',
           stream_icon: pending.logo || show.cover, category_id: catId
         });
@@ -142,7 +164,7 @@
 
       buckets[type].push({
         _type: type,
-        stream_id: 'm3u_' + (++seq),
+        stream_id: stableId('m3u_', url),
         name: pending.name,
         stream_icon: pending.logo,
         category_id: catId,
