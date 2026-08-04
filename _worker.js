@@ -268,8 +268,22 @@ function playlistCandidates(base, user, pass, variant, mac) {
   const u = encodeURIComponent(user || ''), p = encodeURIComponent(pass || '');
   /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
   if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
-  /* No username at all: the MAC IS the identity. */
-  if (!user) return mac ? macPlaylistCandidates(b, mac) : [b];
+  /* No username at all: the MAC IS the identity.
+     v19.1.0: this returned before the variant==='full' branch below ever ran, so a MAC-only line
+     asking for the FULL catalogue was handed the same candidate list as the login — led by the
+     compact `output=ts` document it already had. The follow-up request therefore re-fetched the
+     document that was short in the first place, merged nothing, and Movies/Series stayed exactly
+     as they were. v18.3 fixed the client-side guard for MAC lines (fullPlaylistCatalog) but this
+     side still discarded the variant, which is why that fix did not show up for them. */
+  if (!user) {
+    if (!mac) return [b];
+    const macList = macPlaylistCandidates(b, mac);
+    if (variant === 'full') {
+      const full = macList.filter(x => !/[?&]output=ts(&|$)/i.test(x));
+      return full.length ? full : macList;
+    }
+    return macList;
+  }
   /* v13.9: the FULL-CATALOGUE variant, asked for separately and only once the user is already
      signed in and watching. Login still leads with the compact live-oriented document (below) —
      that ordering is what made logins reliable and must not change. But when that document turns

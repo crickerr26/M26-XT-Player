@@ -347,6 +347,28 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .hc-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .hc-txt b{font-size:22px;font-weight:900;letter-spacing:-.3px}
 .hc-txt small{font-size:13px;opacity:.92;font-weight:700}.hc-txt small i{font-style:normal;font-weight:900}
+/* ── v19.1.0: per-category fetch status ────────────────────────────────────────────────────────
+   A card says what it is doing while it does it: "loading…" (with a live count against the
+   portal's own total where it reports one) and then "load completed". The bar underneath runs a
+   determinate fill when the total is known and a sweeping indeterminate one when it is not, so
+   there is never a stretch where the app looks idle but is still fetching. */
+.hc-state{font-style:normal;font-size:11.5px;font-weight:800;letter-spacing:.2px;line-height:1.25;
+  opacity:0;max-height:0;overflow:hidden;transform:translateY(-2px);
+  transition:opacity .22s ease,max-height .22s ease,transform .22s ease}
+.home-card.loading .hc-state,.home-card.done .hc-state{opacity:.95;max-height:18px;transform:none;margin-top:1px}
+.home-card.done .hc-state{opacity:.8}
+.home-card.done .hc-state::before{content:'✓ ';font-weight:900}
+.hc-bar{position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:0 0 20px 20px;
+  background:rgba(255,255,255,.2);overflow:hidden;opacity:0;transition:opacity .3s ease;pointer-events:none}
+.home-card.loading .hc-bar{opacity:1}
+.hc-bar>i{display:block;height:100%;width:42%;border-radius:inherit;
+  background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.95),rgba(255,255,255,0));
+  animation:hcSweep 1.25s cubic-bezier(.45,.05,.55,.95) infinite}
+/* determinate: the portal told us how many titles there are, so show real progress */
+.hc-bar.determinate>i{animation:none;width:0;background:rgba(255,255,255,.95);
+  box-shadow:0 0 10px rgba(255,255,255,.55);transition:width .35s cubic-bezier(.4,0,.2,1)}
+@keyframes hcSweep{0%{transform:translateX(-115%)}100%{transform:translateX(340%)}}
+@media(prefers-reduced-motion:reduce){.hc-bar>i{animation-duration:2.6s}}
 .hc-arrow{font-size:24px;font-weight:900;opacity:.85;flex-shrink:0;transition:transform .18s ease}
 @media(hover:hover){.home-card:hover .hc-arrow{transform:translateX(5px)}}
 .hc-shine{position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.3),transparent);transform:skewX(-18deg);animation:hcShine 5s ease-in-out infinite;pointer-events:none}
@@ -1071,20 +1093,23 @@ body.login-dark .login,body.dark .login{background:
       <button class="home-card hc-live" data-go="live">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg></span>
-        <span class="hc-txt"><b>Live TV</b><small><i id="homeLiveCount">—</i> channels</small></span>
+        <span class="hc-txt"><b>Live TV</b><small><i id="homeLiveCount">—</i> channels</small><em class="hc-state" id="homeLiveState"></em></span>
         <span class="hc-arrow">→</span>
+        <span class="hc-bar" id="homeLiveBar"><i></i></span>
       </button>
       <button class="home-card hc-vod" data-go="vod">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg></span>
-        <span class="hc-txt"><b>Movies</b><small><i id="homeVodCount">—</i> movies</small></span>
+        <span class="hc-txt"><b>Movies</b><small><i id="homeVodCount">—</i> movies</small><em class="hc-state" id="homeVodState"></em></span>
         <span class="hc-arrow">→</span>
+        <span class="hc-bar" id="homeVodBar"><i></i></span>
       </button>
       <button class="home-card hc-series" data-go="series">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></span>
-        <span class="hc-txt"><b>Series</b><small><i id="homeSeriesCount">—</i> series</small></span>
+        <span class="hc-txt"><b>Series</b><small><i id="homeSeriesCount">—</i> series</small><em class="hc-state" id="homeSeriesState"></em></span>
         <span class="hc-arrow">→</span>
+        <span class="hc-bar" id="homeSeriesBar"><i></i></span>
       </button>
     </div>
     <button class="home-exit" id="homeExit">Log out</button>
@@ -1507,7 +1532,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.0.1';
+const APP_VERSION='19.1.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1584,7 +1609,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},transFast:false,quality:'auto',source:'xtream',m3u:null};
+const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -2107,7 +2132,35 @@ async function login(opts){
 /* v13.9: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
    the app is mid-fetch reads as "this account has no movies", which is the wrong answer and the
    one thing the user cannot tell apart from a real failure. */
-function updateHomeCounts(){const n=(v,busy)=>(busy&&!v)?'…':(v||0).toLocaleString();if($('homeLiveCount'))$('homeLiveCount').textContent=n(S.live.length,S.loadingLive);if($('homeVodCount'))$('homeVodCount').textContent=n(S.vod.length,S.loadingVod);if($('homeSeriesCount'))$('homeSeriesCount').textContent=n(S.series.length,S.loadingSeries);}
+/* v19.1.0: each Home card now reports its OWN fetch state — the count, "loading…"/"load completed"
+   underneath it, and a progress bar. Determinate where the source reports a total (a MAG portal's
+   total_items), an indeterminate sweep otherwise, because "we are still working, we just cannot
+   say how much is left" is a different thing from "nothing is happening" and the card should not
+   render them identically. */
+function updateHomeCounts(){
+  const paint=(type,countId,stateId,barId,cardSel)=>{
+    const arr=type==='live'?S.live:type==='vod'?S.vod:S.series;
+    const busy=type==='live'?S.loadingLive:type==='vod'?S.loadingVod:S.loadingSeries;
+    const loaded=type==='live'?S.loadedLive:type==='vod'?S.loadedVod:S.loadedSeries;
+    const n=(arr&&arr.length)||0;
+    const cEl=$(countId);if(cEl)cEl.textContent=(busy&&!n)?'…':n.toLocaleString();
+    const card=document.querySelector(cardSel),sEl=$(stateId),bEl=$(barId);
+    if(card){card.classList.toggle('loading',!!busy);card.classList.toggle('done',!busy&&!!loaded);}
+    const pr=(S.progress&&S.progress[type])||{done:0,total:0};
+    if(sEl)sEl.textContent=busy
+      ?(pr.total>0?'loading... '+Math.min(pr.done,pr.total).toLocaleString()+' / '+pr.total.toLocaleString():'loading...')
+      :(loaded?'load completed':'');
+    if(bEl){
+      const fill=bEl.firstElementChild;
+      const det=!!(busy&&pr.total>0);
+      bEl.classList.toggle('determinate',det);
+      if(fill)fill.style.width=det?Math.max(4,Math.min(100,Math.round(pr.done/pr.total*100)))+'%':'';
+    }
+  };
+  paint('live','homeLiveCount','homeLiveState','homeLiveBar','.hc-live');
+  paint('vod','homeVodCount','homeVodState','homeVodBar','.hc-vod');
+  paint('series','homeSeriesCount','homeSeriesState','homeSeriesBar','.hc-series');
+}
 function showHome(){applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
    (All / Favorites / Recently Played + every category with its count + a favorite star).
@@ -2740,8 +2793,22 @@ async function refreshAll(){
   load(true,'Loading your channels…');
   await loadType('live');
   load(false);
-  Promise.all([loadType('vod'),loadType('series')]).catch(()=>{});
+  /* v19.1.0: a MAG portal rate-limits, and asking it for Movies and Series AT THE SAME TIME is
+     what made a refused page — and with it a truncated or entirely empty catalogue — routine.
+     There they are loaded one after the other. Every other source still loads both at once. */
+  if(S.source==='stalker'){(async()=>{try{await loadType('vod')}catch(e){}try{await loadType('series')}catch(e){}})();}
+  else Promise.all([loadType('vod'),loadType('series')]).catch(()=>{});
 }
+/* v19.1.0: per-tab fetch progress, so the Home cards can show a real bar instead of a spinner.
+   `total` is the portal's own total_items where it reports one; 0 means "unknown", which the UI
+   renders as an indeterminate sweep. */
+function setProgress(type,done,total){
+  if(!S.progress)S.progress={live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}};
+  const p=S.progress[type];if(!p)return;
+  p.done=Number(done)||0;
+  if(Number(total)>0)p.total=Number(total);
+}
+function resetProgress(type){if(S.progress&&S.progress[type]){S.progress[type].done=0;S.progress[type].total=0;}}
 /* v16.2: a tab shows a sliding progress bar while ITS catalogue is still being fetched, so Live,
    Movies and Series each signal "still loading" independently — the same cue as the category
    rows. Driven straight off the per-type loading flags, so it appears and clears on its own. */
@@ -5268,22 +5335,56 @@ async function stalkerLogin(base,mac,creds){
    cap: a catalogue can run to thousands of titles, and these portals sit behind rate limiters
    that punish a burst of requests. Each page is merged and rendered as it lands, so the tab
    fills progressively instead of staying blank until the very last request returns. */
-const STALKER_MAX_PAGES=40;
+/* v19.1.0: was 40. A Ministra/Stalker listing returns max_page_items=14 by default, so a ceiling
+   of 40 pages capped EVERY catalogue at 40 x 14 = 560 titles — which is exactly the "560 movies"
+   a full library was reporting, on a portal holding thousands. The loop below now stops on the
+   portal's own total_items (or on a short page), so this is a runaway guard and nothing else; it
+   is reached only by a portal that never signals an end. */
+const STALKER_MAX_PAGES=600;
+/* v19.1.0: THIS LOOP USED TO STOP LONG BEFORE THE CATALOGUE ENDED, in three separate ways, and
+   each one presented as "only half my library loaded":
+
+     1. `if(!total||…)break` — a portal that does not report total_items (plenty do not, and some
+        report it only on the first page) made `total` 0, so the loop broke after PAGE ONE. Fourteen
+        titles out of thousands.
+     2. `catch(e){break}` — one transient refusal on any page threw away every page after it and
+        returned quietly, as though the catalogue had ended there. Movies and Series were being
+        fetched simultaneously against a rate-limited portal, so this was routine, and it is why
+        Series could land on exactly zero.
+     3. `p<=STALKER_MAX_PAGES` at 40 — with the default 14 items per page, a hard cap of 560.
+
+   Now: the portal's own total_items ends the loop when it gives one, a short page ends it when it
+   does not, a failed page is retried once before giving up, and whatever HAS been collected is
+   always returned rather than discarded. onPage additionally reports the known total so the Home
+   cards can show real progress instead of a spinner. */
 async function stalkerPaged(kind,params,onPage){
   const st=S.stalker;if(!st)return [];
   const out=[];
+  let known=0;
   for(let p=1;p<=STALKER_MAX_PAGES;p++){
-    let r=null;
-    try{ r=await stalkerJson(st.endpoint,st.mac,st.token,Object.assign({type:kind,action:'get_ordered_list',p:String(p),JsHttpRequest:'1-xml'},params)); }
-    catch(e){ break; }
+    let r=null,failed=false;
+    for(let attempt=0;attempt<2;attempt++){
+      try{
+        r=await stalkerJson(st.endpoint,st.mac,st.token,Object.assign({type:kind,action:'get_ordered_list',p:String(p),JsHttpRequest:'1-xml'},params));
+        failed=false;break;
+      }catch(e){
+        failed=true;
+        /* an edge refusal is not transient — retrying only lengthens the cooldown */
+        if(e&&e.edge)break;
+      }
+    }
+    /* keep what we already have: a partial catalogue beats an empty one */
+    if(failed)break;
     const js=r&&r.js;
     const data=(js&&(js.data||js))||[];
     if(!Array.isArray(data)||!data.length)break;
     out.push(...data);
-    if(onPage)try{onPage(out);}catch(e){}
     const total=Number(js&&js.total_items)||0;
-    const per=Number(js&&js.max_page_items)||data.length;
-    if(!total||!per||p*per>=total)break;
+    const per=Number(js&&js.max_page_items)||0;
+    if(total>known)known=total;
+    if(onPage)try{onPage(out,known);}catch(e){}
+    if(total&&out.length>=total)break;      /* the portal told us how big it is */
+    if(per&&data.length<per)break;          /* a short page is the last page */
   }
   return out;
 }
@@ -5299,7 +5400,8 @@ async function stalkerLoadVod(){
   const st=S.stalker;if(!st)return;
   const catRes=await stalkerJson(st.endpoint,st.mac,st.token,{type:'vod',action:'get_categories',JsHttpRequest:'1-xml'}).catch(()=>null);
   const byId=new Map();((catRes&&catRes.js)||[]).forEach(c=>byId.set(String(c.id),c.title||c.name||VOD_LABEL));
-  const adopt=(list)=>{
+  const adopt=(list,total)=>{
+    setProgress('vod',list.length,total);
     S.vod=list.map((it,i)=>({
       _type:'vod',
       stream_id:'stv'+String(it.id||i),
@@ -5327,7 +5429,8 @@ async function stalkerLoadSeries(){
   const st=S.stalker;if(!st)return;
   const catRes=await stalkerJson(st.endpoint,st.mac,st.token,{type:'series',action:'get_categories',JsHttpRequest:'1-xml'}).catch(()=>null);
   const byId=new Map();((catRes&&catRes.js)||[]).forEach(c=>byId.set(String(c.id),c.title||c.name||'Series'));
-  const adopt=(list)=>{
+  const adopt=(list,total)=>{
+    setProgress('series',list.length,total);
     S.series=list.map((it,i)=>{
       const cmd=Media26Portal.stalkerStreamCmd(it);
       /* A Stalker season carries its episode NUMBERS in `series`; each one is played by
