@@ -659,6 +659,17 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 /* ── QR scanner overlay (Load from another device → Scan) ───────────────────── */
 /* redesigned login actions */
 .loginLead{margin:14px 0 4px!important;font-size:13.5px;line-height:1.55;color:#66758c}
+/* v17.4: TWO SIGN-IN FAMILIES, TWO TABS. An Xtream line is identified by an activation code and
+   signs in with a username and password; an M3U/MAG line is identified by the device MAC, which
+   the seller binds on their panel. Showing both identifiers stacked in one block meant every
+   customer had to be told which of the two their seller wanted, and sent the wrong one about half
+   the time. One tab per product, each showing only its own identifier and only the routes that
+   belong to it. */
+.loginTabs{display:flex;gap:6px;background:#eaf0f7;border:1px solid rgba(20,50,90,.1);border-radius:14px;padding:5px;margin:14px 0 2px}
+.loginTab{flex:1;min-width:0;height:42px;border:0;border-radius:10px;background:transparent;color:#5b6b85;font-size:13.5px;font-weight:850;letter-spacing:.2px;cursor:pointer;white-space:nowrap;transition:background .18s ease,color .18s ease,box-shadow .18s ease}
+.loginTab.active{background:#fff;color:#12203a;box-shadow:0 2px 8px rgba(20,50,90,.14)}
+.loginTab:active{transform:scale(.97)}
+.loginPane[hidden]{display:none}
 .loginActions{display:flex;flex-direction:column;gap:11px;margin-top:16px}
 /* v8.5: softer, lighter cards to match the light login card (was too bright/dark before) */
 .loginAction{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:15px 15px;border-radius:16px;border:1px solid rgba(20,50,90,.1);background:#eef2f8;color:#1b2740;cursor:pointer;transition:transform .15s ease,box-shadow .15s ease}
@@ -715,6 +726,8 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   .login-card{padding:16px;border-radius:20px}
   .login-card h2{font-size:19px}
   .loginLead{margin:10px 0 2px!important;font-size:12.5px;line-height:1.45}
+  .loginTabs{margin:10px 0 2px;padding:4px;border-radius:12px;gap:4px}
+  .loginTab{height:36px;font-size:12.5px;border-radius:9px}
   .loginActions{gap:8px;margin-top:12px}
   .loginAction{padding:10px 12px;gap:11px;border-radius:14px}
   .loginAction .la-ic{width:34px;height:34px;border-radius:10px}
@@ -970,47 +983,89 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
         </button>
       </div>
     </div>
-    <p class="loginLead">Send both of these to your IPTV seller. They set up your account and give you back a username and password — sign in with those below.</p>
-    <!-- v16.3: MAC ADDRESS AND ACTIVATION CODE, BOTH ON SCREEN AT ONCE. They were two separate
-         places before — the MAC in its own card here, the code behind a "Get an activation code"
-         sheet — so a customer had to be told which of the two their seller wanted, and half of
-         them sent the wrong one. One block, one line each, one Send button that carries both.
-         Each row is editable: a seller who issues their own MAC or code can have it typed over. -->
-    <div class="idBlock" id="macBlock">
-      <div class="idRow">
-        <label for="macCodeBox">MAC Address</label>
-        <div class="idLine">
-          <input class="idVal" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text" aria-label="Device MAC address">
-          <button class="idBtn" id="macCopy" type="button" aria-label="Copy MAC address" title="Copy MAC address">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 4h8A1.5 1.5 0 0 1 14.5 5.5V6"/></svg>
-          </button>
-          <button class="idBtn" id="macRenew" type="button" aria-label="Renew MAC address" title="Renew MAC — issues a brand-new MAC for this device">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5v5h-5"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="idRow">
-        <label for="actCodeBox">Activation Code</label>
-        <div class="idLine">
-          <input class="idVal" id="actCodeBox" inputmode="numeric" maxlength="9" placeholder="————————" autocomplete="off" spellcheck="false" aria-label="Activation code">
-          <button class="idBtn" id="actCopy" type="button" aria-label="Copy activation code" title="Copy activation code">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 4h8A1.5 1.5 0 0 1 14.5 5.5V6"/></svg>
-          </button>
-          <button class="idBtn" id="actRenew" type="button" aria-label="Renew activation code" title="Renew code — issues a brand-new activation code">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5v5h-5"/></svg>
-          </button>
-        </div>
-      </div>
-      <button class="idSend" id="idSendWa" type="button">
-        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
-        Send both to my IPTV seller
-      </button>
-      <div class="err" id="loginActCodeErr"></div>
+    <p class="loginLead" id="loginLead">Send your activation code to your IPTV seller. They set up your account and give you back a username and password — sign in with those below.</p>
+    <!-- v17.4: ONE TAB PER PRODUCT. An Xtream line is identified by an ACTIVATION CODE and signs in
+         with a username and password. An M3U / MAG line is identified by this device's MAC ADDRESS,
+         which the seller binds on their own panel. v16.3 put both identifiers in one stacked block
+         on the grounds that a customer could then send whichever the seller asked for — but the
+         opposite happened: with both on screen and nothing saying which belonged to what, sellers
+         were sent the wrong one about half the time. Each tab now shows ONE identifier, one Send
+         button carrying exactly that identifier, and only the sign-in routes that belong to it. -->
+    <div class="loginTabs" id="loginTabs" role="tablist">
+      <button class="loginTab active" id="tabXtream" type="button" role="tab" aria-selected="true" aria-controls="paneXtream" data-logintab="xtream">Xtream Code</button>
+      <button class="loginTab" id="tabM3u" type="button" role="tab" aria-selected="false" aria-controls="paneM3u" data-logintab="m3u">M3U Playlist</button>
     </div>
-    <!-- v16.3: THE ONLY SIGN-IN ROUTE THE FLOW ACTUALLY USES IS FIRST AND PRIMARY. The seller is
-         given the MAC and code above, hands back a username and password, and this is where they
-         go. "Load playlist with MAC address" was removed outright: it promised a second, no-login
-         way in that the seller never sets up, so every customer who tried it hit a dead end. -->
+
+    <!-- ── XTREAM CODE ───────────────────────────────────────────────────────────────────── -->
+    <div class="loginPane" id="paneXtream" role="tabpanel" aria-labelledby="tabXtream">
+      <div class="idBlock">
+        <div class="idRow">
+          <label for="actCodeBox">Activation Code</label>
+          <div class="idLine">
+            <input class="idVal" id="actCodeBox" inputmode="numeric" maxlength="9" placeholder="————————" autocomplete="off" spellcheck="false" aria-label="Activation code">
+            <button class="idBtn" id="actCopy" type="button" aria-label="Copy activation code" title="Copy activation code">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 4h8A1.5 1.5 0 0 1 14.5 5.5V6"/></svg>
+            </button>
+            <button class="idBtn" id="actRenew" type="button" aria-label="Renew activation code" title="Renew code — issues a brand-new activation code">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5v5h-5"/></svg>
+            </button>
+          </div>
+        </div>
+        <button class="idSend" id="idSendWa" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
+          Send activation code to my seller
+        </button>
+        <div class="err" id="loginActCodeErr"></div>
+      </div>
+      <div class="loginActions">
+        <button class="loginAction primary" id="xtreamActBtn" type="button">
+          <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg></span>
+          <span class="la-tx"><b>Login with Username &amp; Password</b><small>Sign in with what your seller gave you</small></span>
+          <span class="la-ch">›</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ── M3U PLAYLIST ──────────────────────────────────────────────────────────────────── -->
+    <div class="loginPane" id="paneM3u" role="tabpanel" aria-labelledby="tabM3u" hidden>
+      <div class="idBlock" id="macBlock">
+        <div class="idRow">
+          <label for="macCodeBox">MAC Address</label>
+          <div class="idLine">
+            <input class="idVal" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text" aria-label="Device MAC address">
+            <button class="idBtn" id="macCopy" type="button" aria-label="Copy MAC address" title="Copy MAC address">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 4h8A1.5 1.5 0 0 1 14.5 5.5V6"/></svg>
+            </button>
+            <button class="idBtn" id="macRenew" type="button" aria-label="Renew MAC address" title="Renew MAC — issues a brand-new MAC for this device">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5v5h-5"/></svg>
+            </button>
+          </div>
+        </div>
+        <button class="idSend" id="macSendWa" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
+          Send MAC address to my seller
+        </button>
+        <div class="err" id="loginMacErr"></div>
+      </div>
+      <div class="loginActions">
+        <!-- v17.4: the MAC route is back, because it is the whole point of this tab. v16.3 removed
+             it on the grounds that a seller always issues a username and password afterwards — true
+             for Xtream, not for a MAG/Stalker line, where the MAC IS the credential and there is
+             never anything else to type. -->
+        <button class="loginAction primary" id="macConnectBtn" type="button">
+          <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M7 21h10M12 17v4"/><path d="M6 9h4M6 12h7"/></svg></span>
+          <span class="la-tx"><b>Connect with this MAC</b><small>Once your seller has activated the MAC above</small></span>
+          <span class="la-ch">›</span>
+        </button>
+        <button class="loginAction" id="importM3uBtn" type="button">
+          <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg></span>
+          <span class="la-tx"><b>Open or paste an M3U playlist</b><small>Works even when your provider blocks the app</small></span>
+          <span class="la-ch">›</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Routes that belong to neither product sit below both tabs. -->
     <div class="loginActions">
       <!-- v17.0: the way back in after an explicit sign-out. Hidden unless this device actually has
            a session to resume (saved credentials or an activation code), so a brand-new user never
@@ -1020,23 +1075,14 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
         <span class="la-tx"><b>Login</b><small id="resumeLoginSub">Connect to your playlist</small></span>
         <span class="la-ch">›</span>
       </button>
-      <button class="loginAction primary" id="xtreamActBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg></span>
-        <span class="la-tx"><b>Login with Username &amp; Password</b><small>Sign in with what your seller gave you</small></span>
-        <span class="la-ch">›</span>
-      </button>
       <button class="loginAction" id="loginPairBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/><path d="M9 11l2.2 2.2L15 9.5"/></svg></span>
         <span class="la-tx"><b>Load from another device</b><small>Scan a QR code or paste a share code</small></span>
         <span class="la-ch">›</span>
       </button>
-      <!-- v15.1: the one route a provider's firewall cannot block, because no server of ours is
-           involved. The phone's own connection fetches nothing — the user brings the playlist. -->
-      <button class="loginAction" id="importM3uBtn" type="button">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg></span>
-        <span class="la-tx"><b>Open or paste an M3U playlist</b><small>Works even when your provider blocks the app</small></span>
-        <span class="la-ch">›</span>
-      </button>
+      <!-- v17.4: "Open or paste an M3U playlist" moved into the M3U tab, where it belongs. It is
+           still the one route a provider's firewall cannot block, because no server of ours is
+           involved — the phone fetches nothing, the user brings the playlist. -->
     </div>
     <div class="err" id="err"></div>
     <!-- v8.5: manual portal/username/password are no longer shown; kept hidden so activation
@@ -1173,9 +1219,20 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Login</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
 </div></div>
-<!-- v16.3: "Load playlist with MAC address" is removed. The seller binds the MAC and then issues a
-     username and password for it — there is no MAC-only playlist for this app to fetch, so the
-     route only ever produced "the portal did not return a playlist for this MAC". -->
+<!-- v17.4: MAC sign-in, restored for the M3U tab. v16.3 removed it because an Xtream seller always
+     issues a username and password after binding the MAC, making the route a dead end there. On a
+     MAG / Stalker line that is not true: the MAC IS the credential, the portal hands the device its
+     own playlist, and there is never a username to type. login() already accepts a portal URL with
+     no username or password as long as the device holds a MAC, so this form only has to collect
+     the address. -->
+<div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
+  <div class="episodeHead"><h3>Connect with this MAC</h3><button class="iconbtn" id="macSheetClose">×</button></div>
+  <p class="nativeText">Your seller binds the MAC below to a line on their panel. Once they have, enter the portal address they gave you — a MAC line needs no username or password.</p>
+  <div class="field nativeField"><label>Portal URL</label><input id="macPortalUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url" autocapitalize="none" spellcheck="false"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>MAC address (this device)</label><input id="macSheetMac" readonly aria-label="This device's MAC address"></div>
+  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="macGo" type="button" style="width:100%">Connect</button></div>
+  <div class="err" id="macErr" style="min-height:0"></div>
+</div></div>
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
   <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider that blocks our servers cannot block this. Your phone's own connection is never blocked.</p>
@@ -1272,7 +1329,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.3';
+const APP_VERSION='17.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3885,15 +3942,82 @@ async function resumeLogin(){
 }
 /* One message carries BOTH values. Sending only the MAC (or only the code) was the most common
    reason an activation stalled — the seller had half of what they needed and had to ask. */
-function sendIdsToWhatsApp(){
+/* v17.4: ONE IDENTIFIER PER MESSAGE. The combined "send both" message was written when both values
+   sat in one block, and it made the seller pick — which is the choice this tab split exists to
+   remove. Each tab now sends exactly the identifier it is about, and asks for exactly what that
+   product hands back: an Xtream seller returns a username and password, a MAG/M3U seller returns a
+   portal address and binds the MAC. */
+function sendIdsToWhatsApp(kind){
   const mac=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
   const code=actCodeGet(false);
-  const msg='Hi, please set up my Media26 XT Player.'
-    +'\nMAC Address: '+mac
-    +(/^\d{8}$/.test(code)?('\nActivation Code: '+code):'')
-    +'\n\nPlease send me back the server URL, username and password.';
+  let msg;
+  if(kind==='mac'){
+    msg='Hi, please set up my Media26 XT Player on an M3U / MAG line.'
+      +'\nMAC Address: '+mac
+      +'\n\nPlease activate this MAC and send me back the portal address.';
+  }else{
+    msg='Hi, please set up my Media26 XT Player on an Xtream line.'
+      +(/^\d{8}$/.test(code)?('\nActivation Code: '+code):'')
+      +'\n\nPlease send me back the server URL, username and password.';
+  }
   const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
   try{window.open(url,'_blank');}catch(err){location.href=url;}
+}
+/* ── v17.4: LOGIN TAB (Xtream Code / M3U Playlist) ─────────────────────────────────────────
+   The choice is remembered, because a customer on a MAG line has no use for the Xtream tab and
+   should not have to re-pick it on every launch. */
+const LOGIN_TAB_KEY='m26-login-tab-v1';
+const LOGIN_LEADS={
+  xtream:'Send your activation code to your IPTV seller. They set up your account and give you back a username and password — sign in with those below.',
+  m3u:'Send your MAC address to your IPTV seller. They bind it to a line on their panel, then give you back the portal address — a MAC line needs no username or password.'
+};
+function loginTab(){try{const t=store.getItem(LOGIN_TAB_KEY);return t==='m3u'?'m3u':'xtream'}catch(e){return 'xtream'}}
+function setLoginTab(t,persist){
+  const tab=(t==='m3u')?'m3u':'xtream';
+  if(persist!==false){try{store.setItem(LOGIN_TAB_KEY,tab)}catch(e){}}
+  document.querySelectorAll('.loginTab').forEach(b=>{
+    const on=b.dataset.logintab===tab;
+    b.classList.toggle('active',on);
+    b.setAttribute('aria-selected',on?'true':'false');
+  });
+  const px=$('paneXtream'),pm=$('paneM3u');
+  if(px)px.hidden=(tab!=='xtream');
+  if(pm)pm.hidden=(tab!=='m3u');
+  const lead=$('loginLead');if(lead)lead.textContent=LOGIN_LEADS[tab];
+  /* Each tab owns its own message line, so a stale error from the other one never lingers. */
+  const e1=$('err');if(e1)e1.textContent='';
+}
+/* ── v17.4: MAC SIGN-IN (M3U / MAG lines) ─────────────────────────────────────────────────── */
+function openMacSheet(){
+  if($('macErr'))$('macErr').textContent='';
+  const box=$('macSheetMac');
+  if(box)box.value=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
+  const u=$('macPortalUrl');
+  /* Pre-fill the address already in use, so a reconnect is one tap. */
+  if(u&&!u.value){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c&&c.url)u.value=c.url;}catch(e){}}
+  $('macSheet').classList.add('show');
+  try{u&&u.focus();}catch(e){}
+}
+async function submitMacLogin(){
+  const url=(($('macPortalUrl')&&$('macPortalUrl').value)||'').trim();
+  if($('macErr'))$('macErr').textContent='';
+  if(!url){if($('macErr'))$('macErr').textContent='Enter the portal address your seller gave you.';return;}
+  if(!stalkerMac()){if($('macErr'))$('macErr').textContent='This device has no MAC yet — reopen the M3U tab and let it generate one.';return;}
+  const btn=$('macGo');if(btn)btn.disabled=true;
+  if($('macErr'))$('macErr').textContent='Connecting…';
+  try{
+    /* No username or password: login() accepts that whenever the device holds a MAC, and the
+       playlist fetch carries the MAC on both of its passes. */
+    await login({creds:{portalUrl:url,username:'',password:''}});
+    if($('login')&&$('login').classList.contains('hidden')){
+      if($('macErr'))$('macErr').textContent='';
+      $('macSheet').classList.remove('show');
+    }else{
+      if($('macErr'))$('macErr').textContent=($('err')&&$('err').textContent)||'Could not connect with this MAC.';
+    }
+  }catch(e){
+    if($('macErr'))$('macErr').textContent=(e&&e.message)||'Could not connect with this MAC.';
+  }finally{ if(btn)btn.disabled=false; }
 }
 /* ── STALKER / MINISTRA (MAG PORTAL) MAC AUTHENTICATION ──────────────────────────────
    Real Smart-STB-style device auth, matching how Stalker/Ministra panels (Infomir MAG,
@@ -4557,6 +4681,10 @@ async function submitXtreamLogin(){
         setTimeout(()=>{
           $('xtreamSheet').classList.remove('show');
           if($('err'))$('err').textContent=msg;
+          /* v17.4: the MAC now lives on the M3U tab, so switching there is part of putting it back
+             in front of the user — highlighting a block inside a hidden pane would show nothing.
+             Not persisted: this is a nudge for this moment, not a change of the user's choice. */
+          setLoginTab('m3u',false);
           const b=$('macBlock');
           if(b){b.classList.add('needsAction');try{b.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}}
         },2600);
@@ -4617,7 +4745,16 @@ if($('loginShareBtn'))$('loginShareBtn').onclick=()=>{
 /* Login-screen refresh: re-check activation and reload to pick up the latest app version. */
 if($('loginRefresh'))$('loginRefresh').onclick=()=>{try{toast('Refreshing…');}catch(e){}setTimeout(()=>{try{location.reload();}catch(e){}},250);};
 /* ── The identity block: MAC + activation code, both live on the sign-in card ─────────── */
-if($('idSendWa'))$('idSendWa').onclick=sendIdsToWhatsApp;
+if($('idSendWa'))$('idSendWa').onclick=()=>sendIdsToWhatsApp('code');
+if($('macSendWa'))$('macSendWa').onclick=()=>sendIdsToWhatsApp('mac');
+/* v17.4: login tab wiring. setLoginTab runs once at startup from the remembered choice. */
+document.querySelectorAll('.loginTab').forEach(b=>{b.onclick=()=>setLoginTab(b.dataset.logintab);});
+if($('macConnectBtn'))$('macConnectBtn').onclick=openMacSheet;
+if($('macSheetClose'))$('macSheetClose').onclick=()=>$('macSheet').classList.remove('show');
+if($('macGo'))$('macGo').onclick=submitMacLogin;
+if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet')$('macSheet').classList.remove('show');};
+if($('macPortalUrl'))$('macPortalUrl').onkeydown=e=>{if(e.key==='Enter')submitMacLogin();};
+setLoginTab(loginTab(),false);
 if($('actCopy'))$('actCopy').onclick=()=>{
   const c=actCodeGet(false);
   if(!/^\d{8}$/.test(c)){toast('Still getting your activation code — try again in a second.');return;}
