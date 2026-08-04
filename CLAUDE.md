@@ -29,8 +29,27 @@ a user's screenshot tells you which build they are actually running — another
 reason it must be truthful.
 
 **Not part of the release bump:** `package.json` `version` and `server.js`
-`SERVER_BUILD` track the Render transcoder service, which deploys on its own
-cycle. Only touch `SERVER_BUILD` when `server.js` behaviour changes.
+`SERVER_BUILD` track the Render transcoder service. Only touch `SERVER_BUILD`
+when `server.js` behaviour changes — but when you do, say so in the summary:
+Render is a *separate deploy* from Cloudflare, and a release that changes both
+is only half-live until both have gone out. `admin.html` has its own
+`ADMIN_VERSION`; keep it equal to `APP_VERSION`.
+
+## Deploying
+
+`.github/workflows/deploy.yml` runs on every push to `main`:
+
+- **cloudflare** — syntax-checks, prints the versions going out, then
+  `wrangler deploy` (needs the `CLOUDFLARE_API_TOKEN` secret).
+- **render** — POSTs the `RENDER_DEPLOY_HOOK_URL` secret, but *only* when one of
+  `server.js`, `package.json`, `package-lock.json`, `Dockerfile`, `render.yaml`
+  or `image_482ee8.png` changed. Render cold-starts on every deploy, so an
+  app-only release must not trigger it. Add a file to that list in the workflow
+  if the service starts being built from it.
+
+Cloudflare's own dashboard Git integration ("Workers Builds") silently stopped
+firing once and shipped nothing for five releases with no signal anywhere — if
+the live site is behind `main`, check the Actions tab first, not the code.
 
 **Commit message** starts with the new version and a plain-language summary of
 what the user gets, e.g.
