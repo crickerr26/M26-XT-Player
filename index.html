@@ -1393,7 +1393,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.9';
+const APP_VERSION='18.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1777,9 +1777,31 @@ async function login(opts){
      a MAC; the playlist fetch already carries the MAC either way. */
   if(!S.url)throw Error('Enter the portal URL your provider gave you.');
   if((!S.user||!S.pass)&&!stalkerMac())throw Error('Enter either a username and password, or the MAC address your provider activated.');
-  /* Do not touch a portal that has just told us it is throttling — a further attempt only
-     restarts its timer. Count down instead, so waiting is visible rather than guesswork. */
-  {const w=rateLimitLeft();if(w)throw Error('This portal is still rate-limiting this connection. Wait '+w+' more second'+(w===1?'':'s')+' before signing in again — trying now only restarts its timer.');}
+  /* v18.0: ONE SIGN-IN, ONE OUTCOME. Both waiting rooms this function used to have — the portal
+     rate-limit below and the request governor's cooldown (see portalGate) — used to end the
+     sign-in with a countdown and ask the customer to come back and press the button again. That
+     is the app handing its own bookkeeping to the person least able to do anything with it, and
+     pressing the button again is precisely what re-starts the timer. Serve the wait here instead:
+     hold, show what is being waited for, then carry on into the sign-in that was asked for. */
+  portalBeginAttempt(sec=>{
+    const t='Your portal asked us to wait — retrying in '+sec+'s…';
+    load(true,t);
+    if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+  });
+  /* v17.9's transcoder warm-up runs when the sign-in FORM opens. Fire it again here for the paths
+     that never open that form (a pair code, an activation code, the relaunch reconnect) so the
+     second egress is booting while the first one is being tried, not after it has failed. */
+  try{warmTranscoder();}catch(e){}
+  {
+    let w=rateLimitLeft();
+    while(w>0){
+      const t='Your portal is throttling connections — waiting '+w+'s, then signing you in…';
+      load(true,t);
+      if($('xtreamErr')&&$('xtreamSheet')&&$('xtreamSheet').classList.contains('show'))$('xtreamErr').textContent=t;
+      await new Promise(r=>setTimeout(r,Math.min(1000,w*1000)));
+      w=rateLimitLeft();
+    }
+  }
   load(true,'Connecting...');S.source='xtream';S.m3u=null;resetFullCatalog();
   /* v13.2: THE PLAYLIST LEADS. Until now login opened with player_api.php and only fell back to
      the M3U playlist once that failed — but fetchJsonChain sweeps five relay candidates across
@@ -1811,8 +1833,13 @@ async function login(opts){
        perfectly valid. A MAG host has a real handshake, and stalkerLogin has its own transcoder
        egress fallback for exactly the 1015 case, so attempting it here is the right move and it
        reports the true reason (busy / not registered) instead of blaming the credentials. */
+    /* v18.0: `edge-blocked` joins the list, and now actually arrives (err.reason is set at last).
+       It is the single most important entry: it means neither egress reached the portal's own
+       code, so nothing about this line has been judged yet and the MAC handshake — which has its
+       own second egress and its own relays — is exactly the right next move. Falling through to
+       "check the username and password" on this reason is the bug the customer kept hitting. */
     const _plReason=(plErr&&(plErr.reason||''))||'';
-    const _tryMag=plErr&&(plErr.stalker||_plReason==='no-playlist'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&stalkerMac();
+    const _tryMag=plErr&&(plErr.stalker||_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&stalkerMac();
     if(_tryMag){
       try{
         const mac=stalkerMac();
@@ -1869,7 +1896,7 @@ async function login(opts){
     ?{kind:'xtream',name:S.user,url:S.url,user:S.user,pass:S.pass,mac:stalkerMac(),source:hostOf(S.url)}
     :{kind:'mac',name:macFmt(stalkerMac())||hostOf(S.url),url:S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
   $('login').classList.add('hidden');showHome();keepTranscoderWarm();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast('Playlist loaded')}
-  catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{load(false)}
+  catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{portalEndAttempt();load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
 /* v13.9: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
@@ -2223,6 +2250,11 @@ async function fetchPlaylistViaFunction(base,user,pass){
     const err=new Error(
       (j&&j.reason==='rate-limited')?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
       :(j&&j.reason==='rejected')?'The portal rejected these details — check the username and password.'
+      /* v18.0: an edge block is NOT a rejection, and must never read like one. Nothing the customer
+         typed was ever looked at — the portal's own code did not see the request. The app has one
+         more route to try (the MAC handshake, which login() now reaches on this reason), so this
+         message is only ever the fallback for when that route has also been exhausted. */
+      :(j&&j.reason==='edge-blocked')?'A security layer in front of this portal turned the request away before the portal itself saw it — so your username, password and MAC were never actually checked. This is usually short-lived. Try again in a moment.'
       :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal. It signs devices in by MAC address, not by username and password — there is no username login to use here. Opening "Connect via MAC Address" for you…'
       /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
          Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
@@ -2235,6 +2267,10 @@ async function fetchPlaylistViaFunction(base,user,pass){
           +'. Your username and password are not the issue. Check the portal address with your provider, or try again shortly.')
       :'The portal did not return a playlist for these details. Check the URL, username and password.'+detail);
     err.attempts=attempts;
+    /* v18.0: carry the worker's verdict, not just its prose. login() has always meant to branch on
+       this (`plErr.reason`) but it was never set, so the whole reason-driven half of that decision
+       was dead code and the MAG fallback fired only when the ENGLISH happened to contain a keyword. */
+    err.reason=(j&&j.reason)||'';
     if(j&&j.reason==='stalker-portal')err.stalker=true;
     throw err;
   }
@@ -4363,19 +4399,21 @@ function stalkerFailMessage(e){
        wrong. The app cannot know what the seller bound, so it must not claim a match. It knows
        something narrower and true: whether this MAC was typed in from the seller or minted here.
        Only the first is evidence, and even then only that the two were once the same. */
+    /* v18.0: do not put the wait on the customer. The app serves the quiet period itself now, so
+       "tap again in 39 seconds" was both a chore and misleading — tapping again immediately is
+       fine, the sign-in simply holds until the window closes and then goes. Say that. */
     return 'The security layer in front of your portal turned this request away before it reached the portal itself. '
-      +'This is usually short-lived throttling, so '
-      +(left?('tap Load my playlist again in about '+left+' seconds. '):'tap Load my playlist again to retry. ')
+      +'Nothing about your subscription was checked. This is usually short-lived throttling, so tap Load my playlist again — '
+      +(left?('the app will hold for the last '+left+' seconds of the quiet period and then sign you in by itself. '):'it will wait out the quiet period for you and then sign you in. ')
       +(macIsAuto()
         ?('If it keeps happening, check the MAC: this device is sending '+mac+', which it generated itself — if your seller\'s panel shows a different one, type theirs into the MAC field and try again.')
         :('The MAC being sent is '+mac+'.'));
   }
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
     return tail('The portal refused this MAC — '+mac+'. Ask your provider to confirm THIS exact MAC is bound to an active subscription on THIS portal address (a MAC activated on a different portal will not work here).'+detail);
-  /* v16.0: the app's own cooldown is holding requests back — that is this app being careful, not
-     the provider refusing anything, and it needs to read that way. */
-  if(e&&e.cooling)
-    return 'Pausing for '+e.cooling+' more second'+(e.cooling===1?'':'s')+' before contacting your portal again. Its security layer pushed back a moment ago, and the fastest way through is to stop knocking and retry — nothing is wrong with your MAC ('+mac+') or your subscription.';
+  /* v18.0: there is no "cooling" message any more. The app's own cooldown is now WAITED OUT by
+     portalGate() and never reported, because a countdown is bookkeeping, not an answer — see the
+     governor. Anything that reaches here is the portal, or an edge, having actually spoken. */
   if(st===429||/rate-limit/i.test(raw))
     return tail('Your portal is throttling connections right now — HTTP 429.'+detail+' That is a limit on how often it will answer, not a problem with your account. Wait about a minute and tap Load playlist again. (MAC on this device: '+mac+')');
   if(st===530||/\b5\d\d\b/.test(raw))
@@ -4472,7 +4510,45 @@ let _portalNextAt=0,_portalCoolUntil=0,_portalRelay=0;
 function portalCooldownLeft(){const ms=_portalCoolUntil-Date.now();return ms>0?Math.ceil(ms/1000):0}
 function portalCooldown(sec){_portalCoolUntil=Math.max(_portalCoolUntil,Date.now()+((sec||45)*1000))}
 function portalClearCooldown(){_portalCoolUntil=0}
+/* ── v18.0: THE COOLDOWN IS THE APP'S JOB TO SERVE, NOT THE CUSTOMER'S ──────────────────────
+   v16.0 set a 45-second cooldown after an edge refusal and then REFUSED every request inside it,
+   throwing an error the user read as a failure: "Pausing for 39 more seconds before contacting
+   your portal again." That is the app describing its own bookkeeping. It is not something a
+   customer can act on, it appears on a sign-in where the seller has registered everything
+   correctly, and — worst of all — the only thing it invites them to do is tap again, which lands
+   them on the same countdown.
+
+   The waiting was right; announcing it as an error was not. The gate now SERVES the cooldown
+   itself: a request issued inside the window is held until the window closes and then sent, so
+   the portal still gets its quiet period and the sign-in still completes, just later. The wait is
+   reported as progress (portalWaitNotify) rather than as a verdict.
+
+   The budget is what keeps this honest. One user-initiated sign-in may spend up to PORTAL_WAIT_
+   BUDGET_MS waiting — enough to absorb a full cooldown once. Past that the gate stops holding and
+   lets requests through, because a customer who has already waited out the window is owed the
+   portal's real answer, not a second countdown. */
+const PORTAL_WAIT_BUDGET_MS=50000;
+let _portalWaitBudget=0,_portalWaitNotify=null;
+function portalBeginAttempt(notify){_portalWaitBudget=PORTAL_WAIT_BUDGET_MS;_portalWaitNotify=(typeof notify==='function')?notify:null;}
+/* Closing the attempt takes the budget away with it. Holding is for a SIGN-IN, where the customer
+   is already watching a progress line and the alternative is a dead end — never for a tap on a
+   channel, which must either resolve or fail now. Leaving the budget armed would have let a
+   cooldown set during sign-in silently stall the first title someone opened. */
+function portalEndAttempt(){_portalWaitNotify=null;_portalWaitBudget=0;}
 async function portalGate(){
+  const left=_portalCoolUntil-Date.now();
+  if(left>0&&_portalWaitBudget>0){
+    const until=Date.now()+Math.min(left,_portalWaitBudget);
+    _portalWaitBudget-=(until-Date.now());
+    for(;;){
+      const ms=until-Date.now();
+      if(ms<=0)break;
+      if(_portalWaitNotify){try{_portalWaitNotify(Math.ceil(ms/1000))}catch(e){}}
+      await new Promise(r=>setTimeout(r,Math.min(1000,ms)));
+    }
+    /* Served in full — the window is spent, so nothing downstream should keep counting it. */
+    if(Date.now()>=_portalCoolUntil)_portalCoolUntil=0;
+  }
   const now=Date.now(),wait=Math.max(0,_portalNextAt-now);
   _portalNextAt=Math.max(now,_portalNextAt)+PORTAL_GAP_MS;
   if(wait)await new Promise(r=>setTimeout(r,wait));
@@ -4498,11 +4574,9 @@ function isEdgeRefusal(status,body){
   return status===403&&(/<html/i.test(b)||b.length>400);
 }
 async function stalkerJson(endpoint,mac,token,params){
-  const left=portalCooldownLeft();
-  if(left){
-    const e=new Error('The portal’s security layer is refusing this connection. Waiting '+left+'s before trying again — knocking during that window is what keeps it shut.');
-    e.status=429;e.cooling=left;throw e;
-  }
+  /* v18.0: no pre-check and no cooling error. portalGate() below holds the request for whatever
+     is left of the cooldown and then sends it, so the quiet period is still observed and the
+     caller still gets a real answer from the portal instead of a countdown. */
   const u=endpoint+(endpoint.indexOf('?')>=0?'&':'?')+Media26Portal.stalkerQuery(params);
   const relays=stalkerRelays(u,mac,token);
   /* start with whichever relay last got through */
@@ -4514,6 +4588,14 @@ async function stalkerJson(endpoint,mac,token,params){
     let r;
     try{ r=await fetch(relays[i],{headers:{'Accept':'application/json'}}); }
     catch(e){ last=Object.assign(new Error((e&&e.message)||'Could not reach the portal'),{status:0}); continue; }
+    /* v18.0: 502/503/504 from one of our OWN relays is the free-plan transcoder cold-starting, not
+       the portal refusing anything — and that relay is the second egress, the one route that gets
+       through a portal whose edge blocks Cloudflare. Writing it off after a single knock is what
+       left a correctly-registered line with no way in at all. Give it one chance to finish waking. */
+    if(r.status===502||r.status===503||r.status===504){
+      await new Promise(res=>setTimeout(res,3000));
+      try{ const again=await fetch(relays[i],{headers:{'Accept':'application/json'}}); if(again)r=again; }catch(e){}
+    }
     if(r.ok){_portalRelay=i;portalClearCooldown();return stalkerParse(await r.text().catch(()=>''))}
     const body=await r.text().catch(()=>'');
     last=new Error('Portal returned HTTP '+r.status);
@@ -4629,17 +4711,14 @@ async function stalkerHandshake(base,mac,creds){
          tells apart a real API rate-limit from a Cloudflare/anti-bot challenge page blocking the
          request before it ever reaches the portal's own code. */
       if(e&&(e.status===429||e.status===403)){
-        /* v16.0: leave the message alone when this app is the one holding back (e.cooling), and
-           do not blame the MAC when it was an EDGE that answered — portal.php never saw the
+        /* Do not blame the MAC when it was an EDGE that answered — portal.php never saw the
            request, so it cannot have had an opinion about which MAC sent it. */
-        if(!e.cooling){
-          const detail=e.detail?(' Portal said: "'+e.detail+'"'):'';
-          e.message=e.edge
-            ?('A security layer in front of this portal turned the request away before the portal saw it.'+detail)
-            :(e.status===429
-              ?'This portal is rate-limiting connection attempts. Wait a minute, then try Connect again.'
-              :'This portal refused the connection (403) — the MAC may not be bound to your subscription yet.')+detail;
-        }
+        const detail=e.detail?(' Portal said: "'+e.detail+'"'):'';
+        e.message=e.edge
+          ?('A security layer in front of this portal turned the request away before the portal saw it.'+detail)
+          :(e.status===429
+            ?'This portal is rate-limiting connection attempts. Wait a minute, then try Connect again.'
+            :'This portal refused the connection (403) — the MAC may not be bound to your subscription yet.')+detail;
         throw e;
       }
     }
@@ -4647,18 +4726,26 @@ async function stalkerHandshake(base,mac,creds){
   throw lastErr||new Error('Could not reach that portal');
 }
 async function stalkerLogin(base,mac,creds){
-  mac=Media26Portal.normaliseMac(mac)||stalkerMac();
-  /* Carry whatever username/password the customer entered, so a login/password Ministra line
-     authenticates (do_auth) inside the handshake. A MAC-only line simply never needs them. */
-  creds=creds||{user:(S.user||''),pass:(S.pass||'')};
-  const {endpoint,token}=await stalkerHandshake(base,mac,creds);
-  const genresRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_genres',JsHttpRequest:'1-xml'}).catch(()=>null);
-  const genres=(genresRes&&genresRes.js)||[];
-  const chRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_all_channels',JsHttpRequest:'1-xml'});
-  const chList=(chRes&&chRes.js&&(chRes.js.data||chRes.js))||[];
-  if(!Array.isArray(chList)||!chList.length)throw new Error('The portal accepted this MAC but returned no channels — ask your provider to confirm it is bound to an active subscription (and, if the line uses a username and password, that those are correct).');
-  const norm=Media26Portal.stalkerChannelsToApp(chList,genres);
-  return {base,mac,endpoint,token,live:norm.live,liveCats:norm.liveCats};
+  /* This is a sign-in, so it is entitled to hold for a cooldown rather than fail on one. login()
+     has usually opened the attempt already; the silent reconnect on relaunch has not, and gets its
+     own here — closed again on the way out so the budget can never outlive the sign-in and stall a
+     later tap on a channel. */
+  const ownsAttempt=!_portalWaitBudget;
+  if(ownsAttempt)portalBeginAttempt(_portalWaitNotify);
+  try{
+    mac=Media26Portal.normaliseMac(mac)||stalkerMac();
+    /* Carry whatever username/password the customer entered, so a login/password Ministra line
+       authenticates (do_auth) inside the handshake. A MAC-only line simply never needs them. */
+    creds=creds||{user:(S.user||''),pass:(S.pass||'')};
+    const {endpoint,token}=await stalkerHandshake(base,mac,creds);
+    const genresRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_genres',JsHttpRequest:'1-xml'}).catch(()=>null);
+    const genres=(genresRes&&genresRes.js)||[];
+    const chRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_all_channels',JsHttpRequest:'1-xml'});
+    const chList=(chRes&&chRes.js&&(chRes.js.data||chRes.js))||[];
+    if(!Array.isArray(chList)||!chList.length)throw new Error('The portal accepted this MAC but returned no channels — ask your provider to confirm it is bound to an active subscription (and, if the line uses a username and password, that those are correct).');
+    const norm=Media26Portal.stalkerChannelsToApp(chList,genres);
+    return {base,mac,endpoint,token,live:norm.live,liveCats:norm.liveCats};
+  }finally{ if(ownsAttempt)portalEndAttempt(); }
 }
 /* ── STALKER VOD & SERIES ────────────────────────────────────────────────────────────
    Live TV arrives in one get_all_channels call, but a MAG portal serves movies and series
@@ -4831,8 +4918,8 @@ async function stalkerResolve(x){
       if(e&&e.detail&&!e.edge)lastErr+=' — “'+e.detail+'”';
       /* The edge refused this, not the portal. Trying the next command shape sends another
          request into the same closed door and lengthens the cooldown. Stop here. */
-      if(e&&(e.edge||e.cooling)){
-        if(e.edge)lastErr='a security layer in front of the portal turned the request away (HTTP '+(e.status||'?')+'). This is usually short-lived — wait a few seconds and tap again';
+      if(e&&e.edge){
+        lastErr='a security layer in front of the portal turned the request away (HTTP '+(e.status||'?')+'). This is usually short-lived — wait a few seconds and tap again';
         break;
       }
       /* An expired token is the portal's own answer and is worth exactly one renewal. */
@@ -4841,7 +4928,7 @@ async function stalkerResolve(x){
         try{
           const hs=await stalkerHandshake(S.url,st.mac);
           if(hs&&hs.token){S.stalker.endpoint=st.endpoint=hs.endpoint||st.endpoint;S.stalker.token=st.token=hs.token;i--;continue}
-        }catch(he){ if(he&&(he.edge||he.cooling)){lastErr=(he&&he.message)||lastErr;break} }
+        }catch(he){ if(he&&he.edge){lastErr=(he&&he.message)||lastErr;break} }
       }
       continue;
     }
@@ -4859,7 +4946,7 @@ async function stalkerResolve(x){
       try{
         const hs=await stalkerHandshake(S.url,st.mac);
         if(hs&&hs.token){S.stalker.endpoint=st.endpoint=hs.endpoint||st.endpoint;S.stalker.token=st.token=hs.token;i--;continue}
-      }catch(he){ if(he&&(he.edge||he.cooling)){lastErr=(he&&he.message)||lastErr;break} }
+      }catch(he){ if(he&&he.edge){lastErr=(he&&he.message)||lastErr;break} }
     }
   }
   S.stalkerLastError=lastErr;

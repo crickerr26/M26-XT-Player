@@ -336,19 +336,61 @@ function edgeRefused(status) {
 /* Re-issue a request through the transcoder service, which sits on ordinary hosting with IPs
    unrelated to Cloudflare's. Its /proxy already speaks the MAG dialect (stb=1&mac=), so the MAC
    pass survives the detour intact. Best-effort: any failure returns null and the caller keeps its
-   original verdict. */
-async function viaRelay(env, target, useMac, mac) {
+   original verdict.
+
+   v18.0: WAKE IT, THEN RETRY IT. This is the app's only second egress, and it runs on a free plan
+   that puts the instance to sleep after ~15 minutes idle. A sleeping instance answers the first
+   request with a 502/503 holding page (or nothing) for the 30-60s it takes to boot — so the retry
+   that exists precisely to rescue a Cloudflare-fronted portal was itself arriving at a service
+   that was not up, one single time, and giving up. That is why a correctly-registered line could
+   fail at sign-in: BOTH egresses were refused, one by the portal's edge and one by its own host
+   still starting. The wake ping now goes out the moment a login begins, and a cold answer is
+   retried instead of counted as a failure. */
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+/* Render answers 502/503/504 while an instance boots; a network error reads the same way. None of
+   these is the relay saying no — it is the relay not being there yet. */
+function relayWaking(status) { return !status || status === 502 || status === 503 || status === 504; }
+const RELAY_WAKE_BACKOFF_MS = [0, 2500, 6000];
+/* How many playlist candidates are worth pushing through the relay once the portal's own edge has
+   turned this worker away. The relay reaches the same portal, so these still count against its
+   limiter — enough to find the endpoint shape, not enough to look like a sweep. */
+const RELAY_CANDIDATE_BUDGET = 6;
+
+/* Fire-and-forget: start the boot while the worker is still walking the portal's own endpoints, so
+   the relay has a head start measured in seconds rather than starting from cold when first needed. */
+function wakeRelay(env, state) {
   try {
     const base = transcoderOrigin(env);
-    if (!/^https?:\/\//i.test(base)) return null;
-    let relay = base.replace(/\/+$/, '') + '/proxy?url=' + encodeURIComponent(target.href);
-    if (useMac && mac) relay += '&stb=1&mac=' + encodeURIComponent(mac);
-    return await fetch(relay, {
-      method: 'GET',
-      headers: { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' },
-      redirect: 'follow'
-    });
-  } catch (e) { return null; }
+    if (!/^https?:\/\//i.test(base)) { state.dead = true; return; }
+    fetch(base.replace(/\/+$/, '') + '/health', { method: 'GET' })
+      .then(r => { if (r && r.ok) state.awake = true; })
+      .catch(() => {});
+  } catch (e) {}
+}
+
+async function viaRelay(env, target, useMac, mac, state) {
+  const st = state || {};
+  if (st.dead) return null;                       /* already established it is not coming up */
+  const base = transcoderOrigin(env);
+  if (!/^https?:\/\//i.test(base)) { st.dead = true; return null; }
+  let relay = base.replace(/\/+$/, '') + '/proxy?url=' + encodeURIComponent(target.href);
+  if (useMac && mac) relay += '&stb=1&mac=' + encodeURIComponent(mac);
+  const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
+  /* Only the first use pays for the cold start. Once the relay has answered as itself — or has
+     been written off — every later candidate gets a single attempt, so a login never spends the
+     wake budget more than once. */
+  const plan = st.awake ? [0] : RELAY_WAKE_BACKOFF_MS;
+  let last = null;
+  for (let i = 0; i < plan.length; i++) {
+    if (plan[i]) await sleep(plan[i]);
+    let r = null;
+    try { r = await fetch(relay, { method: 'GET', headers, redirect: 'follow' }); }
+    catch (e) { r = null; }
+    if (r && !relayWaking(r.status)) { st.awake = true; return r; }
+    last = r;
+  }
+  st.dead = true;
+  return last;
 }
 
 async function handlePlaylist(request, env) {
@@ -383,59 +425,25 @@ async function handlePlaylist(request, env) {
   const variant = String(body.variant || '').trim().toLowerCase();
   const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant, mac);
   const attempts = [];
-  let sawStalker = false, rejected = 0, limited = 0;
+  let sawStalker = false, rejected = 0, limited = 0, blocked = 0;
+  /* Shared across every candidate in this login: whether the portal's edge has already turned this
+     worker away, and what state the second egress is in. */
+  const relay = { awake: false, dead: false, originBlocked: false, spent: 0, exhausted: false };
+  wakeRelay(env, relay);
+
+  /* Stop walking candidates when there is provably nothing left to learn from another request:
+     the portal's edge has refused this worker AND the relay is not coming up (so every remaining
+     candidate would fetch the same challenge page), or the relay's candidate budget is spent. In
+     both cases the next useful step is the diagnostic probe, not twenty-odd more knocks — and
+     those knocks are what push a portal that was merely throttling into refusing outright. */
+  const exhausted = () => relay.exhausted || (relay.originBlocked && relay.dead);
 
   const label = (target, useMac) =>
     target.pathname + (target.search ? '?…' : '') + (useMac ? ' +stb' : (mac ? ' +mac' : ''));
 
-  /* One candidate, one pass. Returns a Response on success, null to keep going. */
-  const attempt = async (candidate, useMac) => {
-    let target;
-    try { target = new URL(candidate); } catch { return null; }
-    if (PRIVATE_HOST.test(target.hostname)) return null;   /* a redirect target could differ from base */
-    /* v14.4: the MAC rides along on the FIRST pass too. A panel that does not bind lines to a
-       MAC simply ignores an unknown query parameter, so this costs nothing there — while a panel
-       that checks `mac=` on the query string now authorises on request number one instead of
-       request number six. That matters more than tidiness here: these portals rate-limit hard,
-       and every wasted request is what pushes a legitimate sign-in into a 429 it cannot escape.
-       The second pass is now only about the OTHER way panels check — the MAG cookie and set-top
-       User-Agent — rather than about the MAC being present at all. */
-    if (mac) target.searchParams.set('mac', mac);
-    const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
-    if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
-    let upstream;
-    try {
-      upstream = await fetch(target.href, { method: 'GET', headers, redirect: 'follow' });
-    } catch (e) {
-      attempts.push({ endpoint: label(target, useMac), error: String((e && e.message) || e).slice(0, 120) });
-      return null;
-    }
-    /* v15.3: SECOND EGRESS. A 403/429/503 here is very often not the panel refusing the account
-       but the panel's EDGE refusing where the request came from — this worker runs on Cloudflare,
-       and a portal behind Cloudflare routinely blocks that on the very first request, which is
-       why waiting never clears it. The transcoder service runs on ordinary hosting with entirely
-       different IPs and already relays these exact requests (server.js /proxy, MAG headers and
-       all), so the same attempt is simply a different visitor. Retry there before giving up. */
-    if (edgeRefused(upstream.status)) {
-      const relayed = await viaRelay(env, target, useMac, mac);
-      if (relayed && relayed.ok) {
-        attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: 'edge refused; succeeded via relay' });
-        upstream = relayed;
-      } else {
-        attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: relayed ? 'relay also ' + relayed.status : 'relay unreachable' });
-        if (upstream.status === 429) limited = 429;
-        else if (upstream.status === 401 || upstream.status === 403) rejected = upstream.status;
-        return null;
-      }
-    } else if (!upstream.ok) {
-      attempts.push({ endpoint: label(target, useMac), status: upstream.status });
-      /* 429 is the panel throttling: stop everything, more requests only make it worse.
-         401/403 is a rejection of THIS pass — on a MAC-locked line that is exactly what the
-         credentials-only pass is supposed to get, so it must not end the whole login any more. */
-      if (upstream.status === 429) limited = 429;
-      else if (upstream.status === 401 || upstream.status === 403) rejected = upstream.status;
-      return null;
-    }
+  /* Read and validate whatever answered — the portal directly or the relay standing in for it.
+     Split out so both routes through attempt() judge the body by exactly the same rules. */
+  const finish = async (upstream, target, useMac) => {
     let text = '', truncated = false;
     try {
       const read = await readCapped(upstream, MAX_PLAYLIST_BYTES);
@@ -471,20 +479,100 @@ async function handlePlaylist(request, env) {
     return new Response(text, { status: 200, headers: headersOut });
   };
 
+  /* One candidate, one pass. Returns a Response on success, null to keep going. */
+  const attempt = async (candidate, useMac) => {
+    let target;
+    try { target = new URL(candidate); } catch { return null; }
+    if (PRIVATE_HOST.test(target.hostname)) return null;   /* a redirect target could differ from base */
+    /* v14.4: the MAC rides along on the FIRST pass too. A panel that does not bind lines to a
+       MAC simply ignores an unknown query parameter, so this costs nothing there — while a panel
+       that checks `mac=` on the query string now authorises on request number one instead of
+       request number six. That matters more than tidiness here: these portals rate-limit hard,
+       and every wasted request is what pushes a legitimate sign-in into a 429 it cannot escape.
+       The second pass is now only about the OTHER way panels check — the MAG cookie and set-top
+       User-Agent — rather than about the MAC being present at all. */
+    if (mac) target.searchParams.set('mac', mac);
+    const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
+    if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
+    let upstream;
+    /* v18.0: once this portal's edge has turned the worker away, it will turn away every
+       remaining candidate too — and each one raises the counter that keeps the door shut. Send
+       the rest straight out through the other egress instead of knocking again from an address
+       that has already been refused. */
+    if (relay.originBlocked && !relay.dead) {
+      /* The relay reaches the SAME portal from a different address — so the request count still
+         lands on the portal, and walking all 14 candidates through it is the very burst that
+         convinces a rate limiter it is under attack. A handful is enough to find the endpoint
+         shape this panel serves; past that the probe below gives a better answer than more
+         guessing would. */
+      if (relay.spent >= RELAY_CANDIDATE_BUDGET) { relay.exhausted = true; return null; }
+      relay.spent++;
+      upstream = await viaRelay(env, target, useMac, mac, relay);
+      if (!upstream || !upstream.ok) {
+        attempts.push({ endpoint: label(target, useMac), status: (upstream && upstream.status) || 0, note: 'via relay' });
+        if (upstream && upstream.status === 429) limited = 429;
+        return null;
+      }
+      return await finish(upstream, target, useMac);
+    }
+    try {
+      upstream = await fetch(target.href, { method: 'GET', headers, redirect: 'follow' });
+    } catch (e) {
+      attempts.push({ endpoint: label(target, useMac), error: String((e && e.message) || e).slice(0, 120) });
+      return null;
+    }
+    /* v15.3: SECOND EGRESS. A 403/429/503 here is very often not the panel refusing the account
+       but the panel's EDGE refusing where the request came from — this worker runs on Cloudflare,
+       and a portal behind Cloudflare routinely blocks that on the very first request, which is
+       why waiting never clears it. The transcoder service runs on ordinary hosting with entirely
+       different IPs and already relays these exact requests (server.js /proxy, MAG headers and
+       all), so the same attempt is simply a different visitor. Retry there before giving up. */
+    if (edgeRefused(upstream.status)) {
+      relay.originBlocked = true;
+      const relayed = await viaRelay(env, target, useMac, mac, relay);
+      if (relayed && relayed.ok) {
+        attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: 'edge refused; succeeded via relay' });
+        upstream = relayed;
+      } else {
+        attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: relayed ? 'relay also ' + relayed.status : 'relay unreachable' });
+        /* v18.0: THIS IS NOT A REJECTION OF THE ACCOUNT. A 403 or 503 from an edge means the
+           portal's own code never saw the request, so it can have had no opinion about the
+           username, the password or the MAC — and reporting it as `rejected` is what put "check
+           the username and password" in front of customers whose details were exactly right.
+           Only the portal answering for itself (below) can reject credentials. A 429 keeps its
+           own reason because "wait, it is throttling" is both true and more specific. */
+        if (upstream.status === 429) limited = 429;
+        else blocked = upstream.status;
+        return null;
+      }
+    } else if (!upstream.ok) {
+      attempts.push({ endpoint: label(target, useMac), status: upstream.status });
+      /* 429 is the panel throttling: stop everything, more requests only make it worse.
+         401/403 is a rejection of THIS pass — on a MAC-locked line that is exactly what the
+         credentials-only pass is supposed to get, so it must not end the whole login any more. */
+      if (upstream.status === 429) limited = 429;
+      else if (upstream.status === 401 || upstream.status === 403) rejected = upstream.status;
+      return null;
+    }
+    return await finish(upstream, target, useMac);
+  };
+
   /* Pass 1: credentials only — identical to what has always worked, same endpoints, same order,
      same request count for any panel that answers. */
   for (const candidate of candidates) {
     const ok = await attempt(candidate, false);
     if (ok) return ok;
     if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
+    if (exhausted()) break;
   }
   /* Pass 2: the same endpoints again, now carrying the device MAC. Only reached when pass 1
      produced nothing, so a working login never spends these requests. */
-  if (mac) {
+  if (mac && !exhausted()) {
     for (const candidate of candidates) {
       const ok = await attempt(candidate, true);
       if (ok) return ok;
       if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
+      if (exhausted()) break;
     }
   }
   if (rejected) return corsJson(200, { ok: false, status: rejected, attempts, reason: 'rejected' });
@@ -496,12 +584,19 @@ async function handlePlaylist(request, env) {
      stalker_portal…". Asked on purpose and read for what it is, the very same response instead
      tells us this is a MAG portal and the app can switch to the MAC handshake. */
   try {
-    const probe = await fetch(baseUrl.origin + '/', {
-      method: 'GET',
-      headers: { 'user-agent': PLAYER_UA, 'accept': 'text/html,*/*' },
-      redirect: 'follow'
-    });
-    const probeBody = (await readCapped(probe, 256 * 1024)).text;
+    /* v18.0: take the probe down the route that is still open. Asking from Cloudflare after the
+       edge has already refused this worker returns the challenge page every time, so the one
+       question this request exists to answer — "is this a MAG portal?" — went unanswered on
+       exactly the portals where knowing it matters most. */
+    const probeTarget = new URL(baseUrl.origin + '/');
+    const probe = (relay.originBlocked && !relay.dead)
+      ? await viaRelay(env, probeTarget, false, mac, relay)
+      : await fetch(probeTarget.href, {
+          method: 'GET',
+          headers: { 'user-agent': PLAYER_UA, 'accept': 'text/html,*/*' },
+          redirect: 'follow'
+        });
+    const probeBody = probe ? (await readCapped(probe, 256 * 1024)).text : '';
     if (looksLikeStalkerPortal(probeBody)) sawStalker = true;
     else if (/^\s*(<!doctype\s+html|<html\b)/i.test(probeBody)) {
       attempts.push({
@@ -514,6 +609,10 @@ async function handlePlaylist(request, env) {
   }
 
   if (sawStalker) return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
+  /* v18.0: both egresses were turned away before the portal answered for itself. Said plainly,
+     this is the one verdict the app can act on — it means retry, and it means the MAC handshake
+     is still worth trying, not that anybody's details are wrong. */
+  if (blocked) return corsJson(200, { ok: false, status: blocked, attempts, reason: 'edge-blocked' });
   return corsJson(200, { ok: false, reason: 'no-playlist', attempts });
 }
 
