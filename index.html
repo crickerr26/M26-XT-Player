@@ -1507,7 +1507,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.9';
+const APP_VERSION='19.0.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2939,7 +2939,21 @@ function directUrl(x,ext){if(!S.url||!S.user||!S.pass)return '';const type=typeO
    preserved now (a movie is never rewritten to /live/), and `file(ext)` gives the same stream
    under any other container so Movies/Series get their HLS remux too. Still returns null for a
    plain CDN link, which is left completely alone. */
-function xtreamForms(raw){
+/* v19.0: `type` is the content type of the ITEM this URL belongs to, and it decides the section
+   when the URL itself does not name one.
+   The legacy extensionless Xtream form — http://host:8080/user/pass/421107 — carries no section,
+   and this function used to assume 'live' for it. Every derived URL is built on that section, so
+   a MOVIE or an EPISODE whose playlist prints the legacy form came back as
+   .../live/user/pass/421107.mkv. Panels serve movies at /movie/ and episodes at /series/, so that
+   address is not the title: the external handoff (VLC, KMPlayer) got it and had exactly one URL
+   to try, so it opened and played nothing, and the built-in player wasted its first three attempts
+   on it before its own directUrl() fallbacks — which compute the section from the item — reached
+   the real address.
+   That is the same failure v16.9 set out to fix. v16.9 corrected the missing EXTENSION and left
+   the section assumed, which is why the symptom survived on Movies and Series.
+   Callers that genuinely mean live (plan()'s live branch) pass 'live'; omitting the argument keeps
+   the old assumption, so no caller can silently change meaning. */
+function xtreamForms(raw,type){
   const s=String(raw||'');
   let m=/^(https?:\/\/[^/]+)\/(live|movie|series)\/([^/?#]+)\/([^/?#]+)\/(\d+)(?:\.([a-z0-9]{2,4}))?(?:$|\?)/i.exec(s);
   let host,section,user,pass,id,ext;
@@ -2947,7 +2961,7 @@ function xtreamForms(raw){
   else{
     m=/^(https?:\/\/[^/]+)\/(?!live\/|movie\/|series\/)([^/?#]+)\/([^/?#]+)\/(\d+)(?:\.([a-z0-9]{2,4}))?(?:$|\?)/i.exec(s);
     if(!m)return null;
-    host=m[1];section='live';user=m[2];pass=m[3];id=m[4];ext=(m[5]||'').toLowerCase();
+    host=m[1];section=(type==='vod'?'movie':type==='series'?'series':'live');user=m[2];pass=m[3];id=m[4];ext=(m[5]||'').toLowerCase();
   }
   const base=host+'/'+section+'/'+user+'/'+pass+'/'+id;
   return {section:section,ext:ext,base:base,ts:base+'.ts',m3u8:base+'.m3u8',
@@ -3214,7 +3228,9 @@ function playerLabel(mode){const d=playerDef(mode);if(!d)return'browser';
 function externalStreamUrl(x){
   const direct=String(x.direct_source||x.stream_url||'').trim();
   if(!direct)return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'));
-  let f=null;try{f=xtreamForms(direct)}catch(e){f=null}
+  /* v19.0: the item's own type decides the section for a legacy extensionless link — without it a
+     movie was handed to VLC/KMPlayer as .../live/... and never played. */
+  let f=null;try{f=xtreamForms(direct,typeOf(x))}catch(e){f=null}
   if(!f||f.ext)return direct;   /* not Xtream-shaped, or already carries its extension */
   return typeOf(x)==='live'?f.ts:f.file(x.container_extension||'mp4');
 }
@@ -3769,7 +3785,7 @@ function plan(x){
     /* v14.0: same canonical Xtream forms as playItemBasic — .ts first (mpegts/VLC's format), then
        .m3u8 (native Safari decode). A panel that gates the legacy extensionless link still serves
        both of these, which is the difference between a playlist channel playing and not. */
-    const alt=isM3u8?null:xtreamForms(raw);
+    const alt=isM3u8?null:xtreamForms(raw,'live');
     if(alt){
       if(tsOk){add('mpegts','Panel TS',blocked(alt.ts)?proxyUrl(alt.ts):alt.ts);add('mpegts','Panel TS Relay',proxyUrl(alt.ts));}
       add('hls','Panel HLS',blocked(alt.m3u8)?proxyUrl(alt.m3u8):alt.m3u8);
@@ -3867,7 +3883,9 @@ function plan(x){
        external handoff does — .../user/pass/421107 is a redirect shim the panel may refuse while
        serving .../movie/user/pass/421107.mkv perfectly well. */
     let direct=String(x.direct_source||x.stream_url||'').trim();
-    if(direct){try{const _f=xtreamForms(direct);if(_f&&!_f.ext)direct=_f.file(orig||'mp4');}catch(e){}}
+    /* v19.0: pass the item's type, so a movie/episode on the legacy extensionless form resolves to
+       /movie/ or /series/ instead of /live/ — this is the built-in player's first three attempts. */
+    if(direct){try{const _f=xtreamForms(direct,type);if(_f&&!_f.ext)direct=_f.file(orig||'mp4');}catch(e){}}
     const preferred=orig||'mp4',preferredUrl=directUrl(x,preferred);
     const rawMkv=directUrl(x,'mkv');
     const rawMp4=directUrl(x,'mp4');

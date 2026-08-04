@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.0';
+const SERVER_BUILD = '13.1';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -544,6 +544,24 @@ function parseJsonBody(req) {
  
 const PRIVATE_HOST = /^(localhost$|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[::1?\]|\[f[cd])/i;
 
+/* v13.1: /proxy has always refused a private-network target; /hls did not, and /hls is the route
+   that hands a URL to ffmpeg. On the hosted service ACCESS_TOKEN is deliberately unset (see
+   render.yaml and the README, so the app works the moment its URL is pasted in), and authorized()
+   returns true whenever it is unset — so /hls?url=http://169.254.169.254/… was an unauthenticated
+   request that made the server fetch its own cloud metadata endpoint. It is not a blind hole
+   either: when ffmpeg cannot demux what came back, the 504 returns the tail of its log, which can
+   carry fragments of the response.
+   Self-hosting is the one legitimate reason to point the transcoder at a private address — a VPS
+   or docker install streaming from a LAN source, which the README documents — so this refuses by
+   default and takes ALLOW_PRIVATE_TARGETS=1 to opt back in, rather than removing the ability. */
+const ALLOW_PRIVATE_TARGETS = /^(1|true|yes)$/i.test(String(process.env.ALLOW_PRIVATE_TARGETS || ''));
+function targetAllowed(raw) {
+  let t; try { t = new URL(String(raw || '')); } catch (e) { return false; }
+  if (!/^https?:$/.test(t.protocol)) return false;
+  if (ALLOW_PRIVATE_TARGETS) return true;
+  return !PRIVATE_HOST.test(t.hostname);
+}
+
 function relayFetch(target, req, res, hops) {
   let t;
   try { t = new URL(target); } catch (e) { return json(res, 400, { error: 'Bad redirect target' }); }
@@ -942,6 +960,8 @@ const server = http.createServer(async (req, res) => {
       const profile = u.searchParams.get('profile') || 'mobile';
       console.log(`[hls] request profile=${profile} url=${String(source || '').slice(0, 160)}`);
       if (!source || !/^https?:\/\//i.test(source)) return json(res, 400, { error: 'Missing url' });
+      /* v13.1: same refusal /proxy already makes — a private-network target never reaches ffmpeg. */
+      if (!targetAllowed(source)) return json(res, 403, { error: 'Target host not allowed' });
       const session = await start(source, profile);
       /* Give a cold/slow free server more room to emit the first segment before declaring failure
          (copy-mode VOD is quick once ffmpeg can read the source; a re-encode needs longer). If the
