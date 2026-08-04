@@ -1415,7 +1415,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.5';
+const APP_VERSION='18.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1912,12 +1912,24 @@ async function login(opts){
             return await login(Object.assign({},opts||{},{_relayRetry:true,
               creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
           }
-          throw Error('Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC ('+macFmt(stalkerMac())+'). Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
+          /* Same rule as below: on a credentials line this is still only the MAC route failing,
+             and player_api has its own relay candidates that have not been tried yet. */
+          if(!(S.user&&S.pass))throw Error('Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC ('+macFmt(stalkerMac())+'). Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
         }
-        /* A MAG failure is authoritative here (we know it is not Xtream/M3U). Report exactly what
-           the portal said — "busy, wait a minute", "MAC not registered", etc. — never the generic
-           credentials line. */
-        throw Error(stalkerFailMessage(se));
+        /* ── v18.6: A MAC VERDICT IS ONLY THE ANSWER ON A LINE THAT IS SOLD BY MAC ────────────
+           The MAG handshake is a GUESS made after the playlist step failed — it is attempted on
+           any unclear failure, including on lines that are plainly Xtream Code and have a
+           username and password. Its error was then thrown as the final answer, which did two
+           damaging things at once: it reported a MAC/device verdict for an account where the MAC
+           is not what authorises anything, and by throwing it skipped player_api.php entirely, so
+           the credentials route the line ACTUALLY uses was never tried at all.
+           That is the reported failure exactly: an ACTIVE Xtream line, MAC matching the seller's
+           panel character for character, told "the portal blocked this device".
+           When credentials were supplied they are the line's real identity, so a MAG failure is
+           only a discarded guess: keep it for diagnostics and carry on to the Xtream API below.
+           A MAC-only line has no other identity, so there the MAG answer IS the answer. */
+        if(S.user&&S.pass){ S.stalkerLastError=(se&&se.message)||''; }
+        else throw Error(stalkerFailMessage(se));
       }
     }
     /* A definite rejection (rate-limit / bad credentials) is the panel's final answer; asking
@@ -4963,7 +4975,17 @@ function stalkerProfileProblem(js){
   if(status===2||/authentication request/i.test(msg))
     return {state:'not-provisioned',said:msg||'Authentication request',
       message:'This portal does not know this MAC. Send your provider this exact MAC and ask them to add it to your subscription on this portal address.'};
-  if(status===1)
+  /* v18.6: A BARE status:1 IS NOT A BLOCK, AND MUST NOT BE ANNOUNCED AS ONE.
+     This used to declare "The portal blocked this device" on status===1 alone. A portal that is
+     actually blocking a device says so — that is what block_msg and msg are for, and the two
+     real replies this function was written from both carried one. A status:1 with NOTHING
+     alongside it is a bare acknowledgement, and plenty of Ministra builds answer get_profile that
+     way on a perfectly good line. Declaring it a block ended the sign-in on the spot with the one
+     verdict guaranteed to send the customer to their provider about a device the provider can see
+     is fine — exactly what happened on an ACTIVE line whose MAC matched the panel character for
+     character. If the portal said nothing, we have learned nothing: return null and let
+     get_all_channels be the test, which is how the do_auth path already reasons. */
+  if(status===1&&(msg||said))
     return {state:'blocked',said:msg+(said?' — '+said:''),
       message:'The portal blocked this device'+(msg?': "'+msg+'"':'')+'.'+(said?' '+said:'')};
   return null;
