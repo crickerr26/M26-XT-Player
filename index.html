@@ -836,6 +836,123 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 .qrScanClose{width:38px;height:38px;border-radius:50%;border:0;background:rgba(0,0,0,.5);color:#fff;font-size:22px;line-height:1;cursor:pointer}
 .qrScanHint{position:absolute;left:0;right:0;bottom:calc(38px + env(safe-area-inset-bottom,0));text-align:center;color:#fff;font-size:14px;padding:0 24px;z-index:2;text-shadow:0 1px 4px rgba(0,0,0,.8)}
 .qrScanActions{position:absolute;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom,0));display:flex;justify-content:center;gap:12px;z-index:2}
+
+/* ══ v18.8 · SIGN-IN, REDESIGNED ═══════════════════════════════════════════════════════════
+   Written as a layer over the rules above rather than edits into them: the originals are one
+   long minified run, and a self-contained block is both safer to review and trivial to lift out
+   if any of it is not wanted. No class or id changes, so every handler still binds.
+
+   The design problem: this screen carries four unrelated jobs at once — say what the app is,
+   list the lines you already have, hand you an identifier to send your seller, and offer three
+   ways in. Everything was the same weight, so nothing led, and the one control most people
+   actually want (the identifier, to send to a seller) looked like a disabled text field.
+
+   The fixes are ordinary typographic discipline: ONE accent colour with real hierarchy, a card
+   that reads as a single surface with a lit top edge, generous vertical rhythm, and size and
+   weight used to rank things rather than boxes and borders. The identifier becomes the hero —
+   tabular, letter-spaced, unmistakably a code to be read aloud or copied. Actions become one
+   confident primary and quieter secondaries. Everything respects light and dark. */
+
+.login{padding:22px 16px;padding-top:max(22px,env(safe-area-inset-top));padding-bottom:max(28px,env(safe-area-inset-bottom));
+  background:
+    radial-gradient(1100px 620px at 12% -8%,rgba(56,189,248,.20),transparent 60%),
+    radial-gradient(900px 560px at 92% 6%,rgba(167,139,250,.17),transparent 58%),
+    radial-gradient(800px 500px at 50% 108%,rgba(45,212,191,.14),transparent 60%),
+    linear-gradient(168deg,#f4f7fc 0%,#e9eef7 55%,#e3e9f4 100%)}
+body.login-dark .login,body.dark .login{background:
+    radial-gradient(1100px 620px at 12% -8%,rgba(56,189,248,.16),transparent 60%),
+    radial-gradient(900px 560px at 92% 6%,rgba(167,139,250,.14),transparent 58%),
+    linear-gradient(168deg,#0a1424,#070f1c 60%,#060c17)}
+
+.login-card{width:min(452px,100%);padding:26px 22px 24px;border-radius:28px;
+  background:linear-gradient(180deg,rgba(255,255,255,.97),rgba(248,251,255,.94));
+  border:1px solid rgba(255,255,255,.9);
+  box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 26px 60px -18px rgba(15,32,60,.30),0 4px 14px rgba(15,32,60,.07);
+  position:relative;overflow:hidden}
+/* A single lit edge across the top — the one place the accent is allowed to be loud. */
+.login-card::before{content:"";position:absolute;top:0;left:12%;right:12%;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,#38bdf8,#2dd4bf,#a78bfa,transparent);opacity:.95}
+
+.login-card .logo{width:52px;height:52px;border-radius:16px;font-size:19px;letter-spacing:-.5px;
+  box-shadow:0 10px 24px -6px rgba(56,189,248,.55),0 0 0 1px rgba(255,255,255,.6) inset}
+.login-card h2{font-size:22px;font-weight:900;letter-spacing:-.5px;line-height:1.15;margin-top:11px;color:#0f1e36}
+.login-head{align-items:flex-start;gap:12px}
+.login-headbtns{gap:7px}
+.loginRefresh{width:38px;height:38px;border-radius:12px;background:rgba(18,42,74,.045);
+  border:1px solid rgba(18,42,74,.10);color:#4a6b90}
+@media(hover:hover){.loginRefresh:hover{background:rgba(18,42,74,.09);color:#24557f}}
+
+/* Section rhythm: each block gets air above it rather than a rule between. */
+.userBlock{margin-top:20px}
+.userHead b{font-size:11px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:#7286a3}
+.addHead{margin-top:20px;font-size:11px;font-weight:900;letter-spacing:1.1px;text-transform:uppercase;color:#7286a3}
+.loginLead{font-size:12.5px;line-height:1.55;color:#5c708c;margin:8px 0 16px}
+
+/* Tabs as a true segmented control: one recessed track, one raised active pill. */
+.loginTabs{gap:4px;padding:4px;border-radius:14px;background:rgba(18,42,74,.055);
+  border:1px solid rgba(18,42,74,.07);box-shadow:0 1px 2px rgba(15,32,60,.04) inset}
+.loginTab{height:40px;border-radius:11px;font-size:13px;font-weight:850;color:#65799a}
+.loginTab.active{background:#fff;color:#0f2a4a;
+  box-shadow:0 2px 8px -1px rgba(15,32,60,.16),0 0 0 1px rgba(15,32,60,.05)}
+
+/* THE IDENTIFIER IS THE HERO. It is the thing the customer has come here to read out or copy,
+   and it used to look like a field that had been greyed out. Tabular figures, wide tracking,
+   and a surface that reads as a plate rather than an input. */
+.idBlock{margin-top:16px;padding:15px 14px 14px;border-radius:18px;
+  background:linear-gradient(180deg,rgba(56,189,248,.09),rgba(45,212,191,.06));
+  border:1px solid rgba(56,189,248,.24)}
+.idRow label{font-size:10.5px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#3f7fae}
+.idLine{margin-top:8px;gap:7px}
+.idVal{font-size:20px;font-weight:900;letter-spacing:2.2px;color:#0e2740;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;
+  background:rgba(255,255,255,.94);border:1px solid rgba(56,189,248,.30);border-radius:13px;
+  padding:12px 13px;box-shadow:0 1px 3px rgba(15,32,60,.05) inset}
+.idVal:focus{outline:0;border-color:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.20)}
+.idBtn{width:42px;height:46px;border-radius:13px;background:rgba(255,255,255,.94);
+  border:1px solid rgba(56,189,248,.26);color:#2f7fb8}
+@media(hover:hover){.idBtn:hover{background:#fff;color:#1d6fa5}}
+.idBtn:active{transform:scale(.93)}
+/* The send button is WhatsApp's job, so it wears WhatsApp's colour and nothing else does. */
+.idSend{margin-top:11px;height:46px;border-radius:14px;font-size:13.5px;font-weight:850;
+  background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;border:0;
+  box-shadow:0 10px 22px -10px rgba(18,140,126,.85)}
+.idSend:active{transform:scale(.985)}
+
+/* One confident primary, quieter secondaries beneath it. */
+.loginActions{margin-top:14px;gap:9px}
+.loginAction{padding:13px 14px;border-radius:16px;background:rgba(18,42,74,.04);
+  border:1px solid rgba(18,42,74,.09);transition:transform .14s ease,background .18s ease,box-shadow .18s ease}
+.loginAction:active{transform:scale(.985)}
+.loginAction.primary{background:linear-gradient(135deg,#0ea5e9,#22c3b4);border:0;color:#03121f;
+  box-shadow:0 14px 30px -12px rgba(14,165,233,.95)}
+.loginAction.primary .la-tx b{color:#02121e}
+.loginAction.primary .la-tx small{color:rgba(3,18,31,.72)}
+.loginAction.primary .la-ic{background:rgba(255,255,255,.28);color:#03121f}
+.loginAction.primary .la-ch{color:rgba(3,18,31,.6)}
+.la-ic{width:38px;height:38px;border-radius:12px}
+.la-tx b{font-size:14px;font-weight:850;letter-spacing:-.1px}
+.la-tx small{font-size:11.5px;line-height:1.4}
+
+.versionBadge.login-version{opacity:.55;font-weight:800;letter-spacing:.4px}
+.devVersion{color:#8ea3c2}
+
+@media(max-width:420px){
+  .login-card{padding:22px 17px 20px;border-radius:24px}
+  .login-card h2{font-size:20px}
+  .idVal{font-size:18px;letter-spacing:1.8px;padding:11px}
+  .idBtn{width:40px;height:44px}
+}
+
+/* ── The Cancel on the connecting overlay ───────────────────────────────────────────────────
+   Deliberately quiet. It is an escape hatch, not an invitation: the common case is that the
+   automatic connection is the right one and should be allowed to finish. */
+.m26cancel{margin-top:20px;height:40px;padding:0 18px;border-radius:13px;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.17);
+  color:#cddcf0;font-size:12.5px;font-weight:800;letter-spacing:.2px;cursor:pointer;
+  transition:background .18s ease,transform .14s ease,color .18s ease}
+.m26cancel[hidden]{display:none}
+@media(hover:hover){.m26cancel:hover{background:rgba(255,255,255,.14);color:#fff}}
+.m26cancel:active{transform:scale(.96)}
 </style>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#09111f">
@@ -1231,6 +1348,12 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   </div>
   <div class="m26text" id="loaderText">Loading…</div>
   <div class="m26bar"><span></span></div>
+  <!-- v18.8: a way out of an automatic connection. A device that already holds an Xtream line
+       signs itself in on launch, which is right for the person who wants that line — and a trap
+       for the person who has come back to add an M3U playlist, because the sign-in screen they
+       need is behind a connect they never asked for and cannot stop. Shown only while a sign-in
+       is actually running, never during ordinary loading. -->
+  <button class="m26cancel" id="loaderCancel" type="button" hidden>Cancel and choose another line</button>
 </div></div>
 <div class="episodeSheet" id="settingsSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Player settings</h3><button class="iconbtn" id="settingsClose">×</button></div>
   <div class="setSection"><label class="setLabel">Colour mode</label>
@@ -1415,7 +1538,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='18.7';
+const APP_VERSION='18.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1505,7 +1628,40 @@ function armToastUndo(fn,ms){
   t.onclick=()=>{clear();try{fn();}catch(e){}};
   t._u=setTimeout(clear,ms||6000);
 }
-function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg}
+/* ── v18.8: A SIGN-IN CAN BE CALLED OFF ─────────────────────────────────────────────────────
+   The loader is used for two different things: ordinary loading, which is over in a moment and
+   has nothing to cancel, and CONNECTING, which can run for a minute (waking the relay, waiting
+   out a portal's quiet period) and which the app may have started by itself on launch. Only the
+   second gets a Cancel, and _signInBusy is what tells them apart.
+   Cancelling is not just hiding the overlay. The attempt still in flight must not be allowed to
+   finish and sign the customer in anyway, so every sign-in carries a token and checks it before
+   it commits; and the automatic reconnect must not immediately restart, so cancelling marks the
+   device signed out exactly as the Logout button does. */
+let _signInBusy=false,_signInSeq=0,_signInCancelled=false;
+function beginSignIn(){_signInCancelled=false;_signInBusy=true;return ++_signInSeq;}
+function endSignIn(){_signInBusy=false;paintLoaderCancel();}
+function signInCancelled(tok){return _signInCancelled||tok!==_signInSeq;}
+function paintLoaderCancel(){
+  const b=$('loaderCancel');
+  if(b)b.hidden=!(_signInBusy&&$('loader')&&$('loader').classList.contains('show'));
+}
+function cancelSignIn(){
+  if(!_signInBusy)return;
+  _signInCancelled=true;_signInSeq++;_signInBusy=false;
+  /* Same state a deliberate Logout leaves behind, so the launch reconnect does not simply fire
+     again the moment this returns. Signing in again clears it (login() calls setSignedOut(false)). */
+  try{setSignedOut(true)}catch(e){}
+  try{if(typeof stopActPoll==='function')stopActPoll()}catch(e){}
+  try{portalEndAttempt()}catch(e){}
+  try{portalClearCooldown()}catch(e){}
+  load(false);
+  try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}
+  try{signInMsg('','')}catch(e){}
+  if($('err'))$('err').textContent='';
+  if($('login'))$('login').classList.remove('hidden');
+  toast('Stopped. Pick how you want to sign in.');
+}
+function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg;paintLoaderCancel();}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function normalize(raw){let u=String(raw||'').trim();if(!u)return'';if(!/^https?:\/\//i.test(u))u='http://'+u;const x=new URL(u);x.hash='';x.search='';return x.href.replace(/\/+$/,'')}
 function mobile(){return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent||'')||innerWidth<800||('ontouchstart'in window&&innerWidth<980)}
@@ -1784,6 +1940,10 @@ async function importFromCode(raw){
 function openPairSheet(prefill){if($('pairErr'))$('pairErr').textContent='';if($('pairCodeBox'))$('pairCodeBox').value=prefill||'';$('pairSheet').classList.add('show');setTimeout(()=>{try{$('pairCodeBox').focus()}catch(e){}},60);}
 async function login(opts){
   $('err').textContent='';
+  /* v18.8: this attempt's identity. Cancel bumps the sequence, so an attempt still inside an
+     await finds itself stale at every commit point below and quietly stands down instead of
+     signing the customer into a line they just cancelled. */
+  const _tok=beginSignIn();
   /* v17.0: reaching login() at all means the user is signing in — by the Login button, the
      username/password sheet, a pair code or an imported playlist. Any of those ends the signed-out
      state, so the automatic paths are live again on the next launch. */
@@ -1889,6 +2049,7 @@ async function login(opts){
       try{
         const mac=stalkerMac();
         const res=await stalkerLogin(S.url,mac);
+        if(signInCancelled(_tok))return;
         adoptStalkerSession(res);
         toast('Connected — '+res.live.length+' channels loaded');
         return;
@@ -1969,8 +2130,9 @@ async function login(opts){
   rememberProfile((S.user&&S.pass)
     ?{kind:'xtream',name:S.user,url:S.url,user:S.user,pass:S.pass,mac:stalkerMac(),source:hostOf(S.url)}
     :{kind:'mac',name:macFmt(stalkerMac())||hostOf(S.url),url:S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
+  if(signInCancelled(_tok))return;
   $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast(sourceLabel()+' loaded — '+S.live.length.toLocaleString()+' channels')}
-  catch(e){if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{portalEndAttempt();load(false)}
+  catch(e){if(signInCancelled(_tok))return;if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{portalEndAttempt();endSignIn();load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
 /* v13.9: a tab that is still being fetched shows "…", not "0". A hard zero on the Home card while
@@ -5753,6 +5915,7 @@ if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[d
 /* v90: categories page interactions */
 if($('catBack'))$('catBack').onclick=()=>showHome();
 /* One button, three lists: it refreshes whichever tab is open. */
+if($('loaderCancel'))$('loaderCancel').onclick=()=>cancelSignIn();
 if($('catRefresh'))$('catRefresh').onclick=async()=>{
   const b=$('catRefresh');if(b)b.classList.add('busy');
   try{ await refreshTab(S.tab||'live'); }finally{ if(b)b.classList.remove('busy'); }
@@ -6269,18 +6432,23 @@ maybeStartActivationWatch();
   let saved=null;try{saved=JSON.parse(localStorage.getItem('m26_stk')||'null');}catch(e){}
   if(!saved||!saved.url)return;
   (async function(){
+    /* v18.8: this reconnect does not go through login(), so it needs its own token and its own
+       loader state — otherwise it is the one automatic connect Cancel could not stop. */
+    const _tok=beginSignIn();
+    load(true,'Connecting…');
     try{
       /* v16.2: pass any saved username/password so a login/password Ministra line re-authenticates
          on launch, and keep them in state for the same reason. MAC-only lines carry none. */
       if(saved.user)S.user=saved.user;if(saved.pass!=null)S.pass=saved.pass;
       const res=await stalkerLogin(saved.url,saved.mac,{user:saved.user||'',pass:saved.pass||''});
+      if(signInCancelled(_tok))return;
       S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
       S.source='stalker';S.m3u=null;S.url=res.base;S.user=saved.user||'';S.pass=saved.pass||'';
       S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
       S.vod=[];S.vodCats=[];S.loadedVod=true;S.series=[];S.seriesCats=[];S.loadedSeries=true;
-      $('login').classList.add('hidden');showHome();keepTranscoderWarm();
+      $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();
       renderAll();updateHomeCounts();
-    }catch(e){}
+    }catch(e){}finally{endSignIn();load(false);}
   })();
 }catch(e){}})();
 /* v10.5: pick up the admin's activation the moment the user returns to the app. If it's still on
