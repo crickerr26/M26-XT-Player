@@ -1244,7 +1244,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='16.8';
+const APP_VERSION='16.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1344,6 +1344,12 @@ function blocked(u){try{if(IS_NATIVE)return false;const x=new URL(u);return loca
    stream URL came back out of the wrapper as a real-looking relay URL that can only 404, and
    those dead routes were tried ahead of the one link that works. */
 function proxyUrl(u){return u?PROXY+encodeURIComponent(u):''}
+/* v16.9: guard the shared HLS relay the same way proxyUrl() guards itself. Concatenating an empty
+   url still yields a truthy "…/live-hls?url=" string, which plan()'s add() happily queued — so
+   every directUrl() that came back empty (a playlist or MAC line, which has no panel stream id to
+   build one from) contributed a dead attempt the player then had to time out on before reaching
+   anything real. */
+function liveHlsUrl(u){return u?LIVE_HLS+encodeURIComponent(u):''}
 function accountUrl(){return `${S.url}/player_api.php?username=${encodeURIComponent(S.user)}&password=${encodeURIComponent(S.pass)}`}
 function apiUrl(action,extra=''){return `${accountUrl()}&action=${action}${extra}`}
 /* v24: multi-proxy fallback chain. The old code depended on ONE worker proxy —
@@ -2363,7 +2369,10 @@ async function testTranscoder(){
 function browserSafeExt(ext){return ['mp4','m4v','m3u8','mp4a'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function mkvLike(ext){return ['mkv','avi','wmv','flv','mov','divx','xvid'].includes(String(ext||'').replace(/^\./,'').toLowerCase())}
 function fastestLiveUrl(ch){return directUrl(ch,'m3u8')}
-function nativeAppUrl(ch){if(!ch)return '';const direct=String(ch.direct_source||ch.stream_url||'').trim();if(direct)return direct;const type=typeOf(ch);const ext=type==='live'?'ts':(ch.container_extension||'mp4');return directUrl(ch,ext)}
+/* v16.9: one owner for "what URL does a native app get" — externalStreamUrl, which canonicalises
+   a gated extensionless panel link. This used to be a second, subtly different copy, so the VLC
+   button and the VLC entry in the player chooser could hand over two different URLs. */
+function nativeAppUrl(ch){return ch?externalStreamUrl(ch):''}
 function vlcUrl(u){const ua=navigator.userAgent||'',enc=encodeURIComponent(u);if(/iphone|ipad|ipod/i.test(ua))return'vlc-x-callback://x-callback-url/stream?url='+enc;if(/android/i.test(ua)){try{const x=new URL(u);return`intent://${x.host}${x.pathname}${x.search}#Intent;scheme=${x.protocol.replace(':','')};package=org.videolan.vlc;type=video/*;end`}catch{}}return'vlc://x-callback-url/stream?url='+enc}
 /* --- v18: device + category aware external player routing.
    ExoPlayer and VLC are native apps, so the page hands the ORIGINAL stream URL to them
@@ -2414,7 +2423,24 @@ function playerLabel(mode){if(mode==='vlc')return'VLC';if(mode==='mx')return'MX 
    others — after v45 external players stopped opening anything. Live external handoff is
    back to the proven raw .ts. Live-stream resilience is the BUILT-IN player's job (v43
    persistent resume); external apps get the format the panel demonstrably serves. */
-function externalStreamUrl(x){const direct=String(x.direct_source||x.stream_url||'').trim();if(direct)return direct;return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'))}
+/* v16.9: HAND AN EXTERNAL PLAYER A LINK THE PANEL WILL ACTUALLY SERVE.
+   A playlist prints whatever URL form the panel chose, and the most common is the legacy
+   EXTENSIONLESS one — http://host:8080/user/pass/421107. That form is a redirect shim the panel
+   is entitled to gate (its "511 Network Authentication Required"), while the very same stream is
+   served at .../movie/user/pass/421107.mkv and .../live/user/pass/421107.ts. xtreamForms() has
+   derived those canonical siblings since v14.0, but ONLY the built-in player's plan() ever used
+   them: every external handoff — VLC, KMPlayer, the app chooser, the transcoder input — passed
+   the shim through untouched. That is the reported bug exactly: VLC opens, gets the gate, and
+   plays nothing, which reads to the user as "VLC is broken".
+   Only an extensionless Xtream-shaped link is rewritten. One that already names its container is
+   the panel's own working form and is left alone, and a plain CDN link never matches at all. */
+function externalStreamUrl(x){
+  const direct=String(x.direct_source||x.stream_url||'').trim();
+  if(!direct)return typeOf(x)==='live'?directUrl(x,'ts'):directUrl(x,String(x.container_extension||'mp4'));
+  let f=null;try{f=xtreamForms(direct)}catch(e){f=null}
+  if(!f||f.ext)return direct;   /* not Xtream-shaped, or already carries its extension */
+  return typeOf(x)==='live'?f.ts:f.file(x.container_extension||'mp4');
+}
 /* v13.2: the timeout is a parameter now. 8s is right for the small probes this serves (the
    stream doctor's playlist check), but a full IPTV M3U is tens of megabytes and never finished
    inside 8s — the playlist fallback passes a realistic budget instead. */
@@ -2998,7 +3024,7 @@ function plan(x){
         add('hls','Direct HLS',m3u8);
         if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
       }
-      add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+      add('hls','Relay',liveHlsUrl(ts));
     }else{
       /* https page can't touch the http origin (mixed content) — but the CORS proxy is https
          and streams bodies through, so the VLC-style continuous TS still works via one hop */
@@ -3006,7 +3032,7 @@ function plan(x){
         /* 4K on Apple: native Safari HLS through the same-origin rewriting proxy comes first */
         add('native','Proxy HLS 4K',proxyUrl(m3u8));
         add('hls','Proxy HLS',proxyUrl(m3u8));
-        add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+        add('hls','Relay',liveHlsUrl(ts));
         if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
       }else{
         if(tsOk)add('mpegts','TS Proxy',proxyUrl(ts));
@@ -3014,12 +3040,16 @@ function plan(x){
            shared third-party relay. On iPhone (no MSE) this is the primary live path: native
            Safari HLS, playlist + segments all on this origin, no rate-limited middleman. */
         add('hls','Proxy HLS',proxyUrl(m3u8));
-        add('hls','Relay',LIVE_HLS+encodeURIComponent(ts));
+        add('hls','Relay',liveHlsUrl(ts));
       }
     }
   }else{
     /* VOD / Series */
-    const direct=String(x.direct_source||x.stream_url||'').trim();
+    /* v16.9: canonicalise a gated extensionless panel link here too, for the same reason the
+       external handoff does — .../user/pass/421107 is a redirect shim the panel may refuse while
+       serving .../movie/user/pass/421107.mkv perfectly well. */
+    let direct=String(x.direct_source||x.stream_url||'').trim();
+    if(direct){try{const _f=xtreamForms(direct);if(_f&&!_f.ext)direct=_f.file(orig||'mp4');}catch(e){}}
     const preferred=orig||'mp4',preferredUrl=directUrl(x,preferred);
     const rawMkv=directUrl(x,'mkv');
     const rawMp4=directUrl(x,'mp4');
@@ -3028,14 +3058,29 @@ function plan(x){
     /* For MKV on mobile: transcoder and relay are the ONLY options that work.
        Push them first unconditionally — don't waste time on native attempts */
     if(isMob&&isMkv){
-      addTrans('MKV',rawMkv,true);                                      /* transcoder first if set */
-      add('hls','MKV Relay',LIVE_HLS+encodeURIComponent(rawMkv),true); /* relay re-muxes MKV→HLS */
-      add('hls','MKV Relay MP4',LIVE_HLS+encodeURIComponent(rawMp4));
-      add('hls','MKV Relay M3U8',LIVE_HLS+encodeURIComponent(rawM3u8));
+      /* v16.9: A PLAYLIST TITLE'S OWN LINK LEADS. rawMkv/rawMp4/rawM3u8 all come from directUrl(),
+         which rebuilds an Xtream address out of the panel's numeric stream id — and a playlist
+         entry has no such id (parseM3U labels it "m3u_7"). So on an M3U source every one of them
+         is either empty (no credentials were used, e.g. a MAC line or an imported .m3u) or a
+         fabricated address the panel 404s, and the entry's REAL url appeared exactly once, last,
+         behind the shared rate-limited relay — never natively, never through our own /proxy. That
+         is why a playlist movie would not play in the built-in player.
+         The transcoder leads because it is the one route that is not on Cloudflare: v16.6 measured
+         this provider's stream node answering Cloudflare egress with "error code: 1003 / 403"
+         while ordinary hosting fetched the same link with HTTP 200, and both /proxy and the shared
+         relay are Cloudflare Workers. */
+      if(direct){
+        addTrans('MKV',direct);
+        add('hls','Direct Relay',liveHlsUrl(direct));
+        add('native','Direct Proxy',proxyUrl(direct));
+      }
+      add('hls','MKV Relay',liveHlsUrl(rawMkv));       /* relay re-muxes MKV→HLS */
+      addTrans('MKV',rawMkv);
+      add('hls','MKV Relay MP4',liveHlsUrl(rawMp4));
+      add('hls','MKV Relay M3U8',liveHlsUrl(rawM3u8));
       add('native','MP4 Fallback',rawMp4);
       add('native','MP4 Proxy',proxyUrl(rawMp4));
       addTrans('MP4',rawMp4);
-      if(direct)add('hls','Direct Relay',LIVE_HLS+encodeURIComponent(direct));
     }else if(isMob){
       /* Non-MKV mobile VOD. v49: the transcoder is no longer FIRST for
          browser-safe formats — it re-encodes everything to 854p on a small
@@ -3054,7 +3099,7 @@ function plan(x){
       add('hls','HLS',W(rawM3u8));
       add('native','MP4 Proxy',proxyUrl(rawMp4));
       add('hls','HLS Proxy',proxyUrl(rawM3u8));
-      add('hls','Relay MP4',LIVE_HLS+encodeURIComponent(rawMp4));
+      add('hls','Relay MP4',liveHlsUrl(rawMp4));
       if(!browserSafeExt(preferred)){addTrans(preferred.toUpperCase(),preferredUrl,true);addTrans('MP4',rawMp4);}
       else addTrans('Preview',rawFirst);
     }else{
