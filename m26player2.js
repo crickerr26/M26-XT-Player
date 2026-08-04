@@ -193,8 +193,13 @@
     if (live) {
       /* A transport stream is one continuous connection with no playlist polling — the fastest
          start and the way VLC reads a channel — so it leads wherever a TS decoder exists. Without
-         one (an iPhone has no Media Source Extensions) nothing in the browser can decode a raw
-         transport stream at all, and the panel's HLS form is the only thing that can play. */
+         one nothing in the browser can decode a raw transport stream at all, and the panel's HLS
+         form is the only thing that can play.
+         v18.2: that used to read "an iPhone has no Media Source Extensions", which stopped being
+         true at iOS 17.1 — ManagedMediaSource is one, mpegts.js 1.8 uses it, and c.mpegts asks the
+         library rather than the user agent. An iPhone on a current OS now decodes a raw .ts in the
+         inbuilt player like every other device, which is what removes the transcoder from the
+         critical path for live TV. Older iPhones still report false here and keep the HLS form. */
       var tsFirst = c.mpegts && !(c.apple && D.looks4k(item));
       var ts = [], hls = [];
       if (forms) { ts.push(forms.ts); hls.push(forms.m3u8); }
@@ -250,8 +255,32 @@
      "Playing" is decided by the element, not the engine, so every engine agrees on what it means. */
   var Engines = {};
 
+  /* ── v18.2: THE ONE LINE THAT DECIDES WHETHER AN IPHONE CAN PLAY ANYTHING IN-APP ────────────
+     iOS 17.1+ has no plain MediaSource. What it has is ManagedMediaSource, and WebKit attaches one
+     ONLY to an element whose remote playback is disabled — AirPlay and a managed source cannot
+     coexist, so with AirPlay left on the attach simply throws and the decoder dies before it has
+     read a byte. The element in index.html is authored `x-webkit-airplay="allow"`, which opts in.
+     The previous engine knew this and turned it off (see the old tryPlans path), and so does the
+     in-app Matroska player — but M26 Player 2, which replaced that engine, never did. So on every
+     iPhone hls.js and mpegts.js reported themselves supported, started, and immediately failed,
+     and every title fell through to the transcoder: the inbuilt player could not play at all, and
+     a raw .ts live channel had nothing left to fall back to.
+     Set per engine rather than once on the element, because it is a genuine trade: a media-source
+     engine needs AirPlay off, while native playback can keep it on and should. */
+  function remotePlayback(video, allow) {
+    if (!video) return;
+    try {
+      video.disableRemotePlayback = !allow;
+      if (allow) { video.removeAttribute('disableremoteplayback'); video.setAttribute('x-webkit-airplay', 'allow'); }
+      else       { video.setAttribute('disableremoteplayback', ''); video.removeAttribute('x-webkit-airplay'); }
+    } catch (e) {}
+  }
+  /* Engines that drive a MediaSource/ManagedMediaSource themselves. */
+  function needsManagedSource(video) { remotePlayback(video, false); }
+
   Engines.native = {
-    start: function (ctx) { ctx.video.src = ctx.url; ctx.video.load(); },
+    /* Plain file or native HLS: the element fetches for itself, so AirPlay stays available. */
+    start: function (ctx) { remotePlayback(ctx.video, true); ctx.video.src = ctx.url; ctx.video.load(); },
     stop:  function (ctx) { try { ctx.video.removeAttribute('src'); ctx.video.load(); } catch (e) {} }
   };
 
@@ -259,6 +288,7 @@
     start: function (ctx) {
       var Hls = global.Hls;
       if (!Hls || !Hls.isSupported()) return Engines.native.start(ctx);
+      needsManagedSource(ctx.video);
       var h = new Hls({
         enableWorker: true, lowLatencyMode: false, liveSyncDurationCount: 3,
         startFragPrefetch: true, maxBufferLength: 30, startLevel: -1,
@@ -284,6 +314,7 @@
     start: function (ctx) {
       var mpegts = global.mpegts;
       if (!mpegts || !mpegts.isSupported()) return ctx.fail('this device has no transport-stream decoder');
+      needsManagedSource(ctx.video);
       /* A small initial stash lets the first packets decode as they arrive rather than waiting for
          a full buffer — that is what makes a channel open quickly. VOD keeps a larger one. */
       var p = mpegts.createPlayer(
@@ -315,6 +346,10 @@
   Engines.matroska = {
     start: function (ctx) {
       if (!global.Media26Mkv || !global.Media26Mkv.supported()) return ctx.fail('this device has no in-app Matroska decoder');
+      /* mkv.js sets disableRemotePlayback itself once it knows the source is managed, but it does
+         not clear the element's x-webkit-airplay attribute — do the whole switch here so every
+         media-source engine leaves the element in the same known state. */
+      needsManagedSource(ctx.video);
       global.Media26Mkv.play(ctx.video, ctx.url, {
         onInfo: function (info) {
           if (!ctx.alive() || !info) return;
