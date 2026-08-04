@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>Media26 — Admin</title>
+<style>
+  /* Google Material (light) theme */
+  :root{--g-blue:#1a73e8;--g-blue-d:#1557b0;--g-red:#ea4335;--g-yellow:#fbbc04;--g-green:#34a853;
+        --bg:#f0f4f9;--surface:#fff;--ink:#1f1f1f;--ink-soft:#5f6368;--line:#dadce0;color-scheme:light}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Google Sans","Product Sans",Roboto,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 16px 64px}
+  h1{font-size:22px;font-weight:700;margin:0 0 2px;letter-spacing:-.3px}
+  .sub{color:var(--ink-soft);font-size:13px;margin:2px 0 20px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 1px 2px rgba(60,64,67,.08)}
+  .card h2{font-size:15px;font-weight:600;margin:0 0 12px;color:var(--ink)}
+  label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:12px 0 6px}
+  input{width:100%;background:#fff;border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:13px 14px;font-size:15px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+  input:focus{outline:none;border-color:var(--g-blue);box-shadow:0 0 0 3px rgba(26,115,232,.15)}
+  .row{display:flex;gap:12px;flex-wrap:wrap}.row>div{flex:1;min-width:140px}
+  button{cursor:pointer;border:0;border-radius:999px;font-weight:600;font-size:14px;padding:12px 20px;font-family:inherit;transition:box-shadow .15s,background .15s,transform .1s}
+  button:active{transform:scale(.98)}
+  .primary{background:var(--g-blue);color:#fff;width:100%;margin-top:16px;padding:14px;box-shadow:0 1px 2px rgba(60,64,67,.3)}
+  .primary:hover{background:var(--g-blue-d);box-shadow:0 1px 3px rgba(60,64,67,.4)}
+  .msg{margin-top:14px;font-size:13.5px;min-height:18px;line-height:1.4}
+  .ok{color:var(--g-green)}.bad{color:var(--g-red)}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
+  th,td{text-align:left;padding:10px 8px;border-bottom:1px solid #eceff2;vertical-align:middle}
+  th{color:var(--ink-soft);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.3px}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600}
+  .s-active{background:#e6f4ea;color:#137333}
+  .s-pending{background:#fef7e0;color:#b06000}
+  .s-blocked,.s-expired,.s-disabled{background:#fce8e6;color:#c5221f}
+  .mini{padding:6px 12px;font-size:12px;border-radius:999px;background:#f1f3f4;color:#3c4043;margin:0 3px 3px 0;font-weight:500}
+  .mini:hover{background:#e8eaed}
+  .mini.danger{background:#fce8e6;color:#c5221f}
+  .muted{color:var(--ink-soft);font-size:12.5px}
+  code{background:#f1f3f4;padding:2px 8px;border-radius:6px;color:#0b57d0;font-size:13px;font-family:"Roboto Mono",ui-monospace,monospace;font-weight:600}
+  code.copyable{cursor:pointer}
+  code.copyable:hover{background:#e8f0fe}
+  .secondary{background:#e8f0fe;color:var(--g-blue);width:100%;margin-top:10px;padding:13px}
+  .secondary:hover{background:#d6e4fd}
+  .verbadge{display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 10px;border-radius:999px;background:#e8f0fe;border:1px solid #c6dafc;color:#1557b0;font-size:11px;font-weight:700}
+  .warn{margin-top:12px;padding:13px 14px;border-radius:12px;background:#fef7e0;border:1px solid #feefc3;color:#b06000;font-size:12.5px;line-height:1.5}
+  .newcode{margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#e8f0fe,#e6f4ea);border:1px solid #cfe0d6}
+  .bigcode{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:700;letter-spacing:8px;text-align:center;color:#0b57d0;text-indent:8px;padding:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Media26 — Admin <span class="verbadge" id="adminVer"></span></h1>
+  <p class="sub">Create a code to hand to a customer, or activate a code a customer already gave you.</p>
+
+  <div class="card">
+    <h2>Server &amp; key</h2>
+    <label>Transcoder URL</label>
+    <input id="base" placeholder="https://your-transcoder.onrender.com" autocomplete="off">
+    <label>Admin key</label>
+    <input id="key" type="password" placeholder="Your ADMIN_KEY" autocomplete="off">
+    <p class="muted" style="margin-top:8px">Both are stored only in this browser. The key must match <code>ADMIN_KEY</code> set on the server. <span id="conn" class="muted"></span></p>
+  </div>
+
+  <div class="card">
+    <h2>Create / activate a code</h2>
+    <p class="muted" style="margin:0 0 10px">Fill in the IPTV login below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate a code a customer already gave you</b>.</p>
+    <label>Customer's 8-digit code or MAC address <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate this code"</span></label>
+    <input id="a_code" placeholder="e.g. 48207391 or 02:AB:CD:EF:12:34" style="text-transform:uppercase">
+    <label>Portal URL</label>
+    <input id="a_url" placeholder="http://yourserver.com:8080" autocomplete="off">
+    <div class="row">
+      <div><label>Username</label><input id="a_user" placeholder="username you created" autocomplete="off"></div>
+      <div><label>Password</label><input id="a_pass" placeholder="password you created" autocomplete="off"></div>
+    </div>
+    <label>Valid for (days) — leave 0 for no expiry</label>
+    <input id="a_days" inputmode="numeric" placeholder="0" value="0">
+    <button class="primary" id="a_new">✨ Create a new activated code</button>
+    <button class="secondary" id="a_go">Activate a code the customer gave me</button>
+    <div class="msg" id="a_msg"></div>
+    <div class="warn" id="a_warn" style="display:none"></div>
+    <div class="newcode" id="a_newbox" style="display:none">
+      <p class="muted" style="margin:0">Give this code to the customer — it is already active. They open the app, type it, and the channels load.</p>
+      <div class="bigcode" id="a_newcode">— — — —</div>
+      <div style="display:flex;gap:8px">
+        <button class="mini" id="a_copy">Copy code</button>
+        <button class="mini" id="a_wa">Send on WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>All codes <button class="mini" id="refresh" style="float:right">Refresh</button></h2>
+    <div id="list"><p class="muted">Enter your admin key, then Refresh.</p></div>
+  </div>
+</div>
+<script>
+  var $=function(id){return document.getElementById(id)};
+  /* Bumped on every deploy alongside APP_VERSION in index.html, so it is obvious at a glance
+     whether this page is the current build or a stale cached/preview copy. */
+  var ADMIN_VERSION='12.6';
+  $('adminVer').textContent='v'+ADMIN_VERSION;
+  var DEFAULT_BASE='https://media26-transcoder-xutt.onrender.com';
+  /* v10.4: consolidated onto ONE Render service. A stored URL still pointing at the retired
+     service is migrated here, otherwise this dashboard would keep writing activation codes to a
+     server the app no longer reads from — which is exactly how codes came back "not recognised". */
+  try{ var sb=localStorage.getItem('m26_admin_base')||''; if(/media26-transcoder-mlxq\.onrender\.com/i.test(sb)) localStorage.setItem('m26_admin_base',DEFAULT_BASE); }catch(e){}
+  try{ $('key').value = localStorage.getItem('m26_admin_key')||''; }catch(e){}
+  try{ $('base').value = localStorage.getItem('m26_admin_base')||DEFAULT_BASE; }catch(e){ $('base').value=DEFAULT_BASE; }
+  $('key').addEventListener('input',function(){ try{localStorage.setItem('m26_admin_key',$('key').value)}catch(e){} });
+  $('base').addEventListener('input',function(){ try{localStorage.setItem('m26_admin_base',$('base').value)}catch(e){} checkConn(); });
+  function base(){ return String($('base').value||DEFAULT_BASE).trim().replace(/\/+$/,''); }
+
+  function checkConn(){
+    var c=$('conn'); c.textContent='';
+    fetch(base()+'/health').then(function(r){return r.json()}).then(function(j){
+      if(j&&j.ok){ var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]'; c.textContent = (j.activation ? '• Connected, activation ON.' : '• Connected, but activation is OFF (set the Upstash keys on the server).')+b; c.style.color = j.activation?'#4fe0a5':'#ffd25a'; }
+      else { c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; }
+    }).catch(function(){ c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; });
+  }
+
+  function api(path, body){
+    var key = $('key').value.trim();
+    return fetch(base()+path, {
+      method:'POST',
+      headers:{'content-type':'application/json','x-admin-key':key},
+      body:JSON.stringify(body||{})
+    }).then(function(r){ return r.json().then(function(j){ return {status:r.status, j:j}; }); });
+  }
+
+  /* Show the finished code big, with Copy / WhatsApp, after EITHER path — creating a new code or
+     activating one a customer supplied. The admin's job always ends the same way: hand over a code. */
+  function showShareCode(code){
+    $('a_code').value=code;
+    $('a_newcode').textContent=String(code).replace(/(\d{4})(\d{4})/,'$1 $2');
+    $('a_newbox').style.display='block';
+  }
+  function serverErr(r){
+    /* A 404 here means this transcoder is still running an older build of server.js. */
+    if(r&&r.status===404) return 'This transcoder is running an older build and does not have this feature yet. Redeploy the service on Render, then try again.';
+    return (r&&r.j&&r.j.error)||'Failed';
+  }
+
+  $('a_go').onclick=function(){
+    var m=$('a_msg'); m.className='msg'; m.textContent='Activating…';
+    $('a_warn').style.display='none'; $('a_newbox').style.display='none';
+    api('/api/admin/activate',{
+      code:$('a_code').value, url:$('a_url').value, user:$('a_user').value,
+      pass:$('a_pass').value, days:Number($('a_days').value||0)
+    }).then(function(r){
+      if(r.j&&r.j.ok){
+        m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).';
+        showShareCode(r.j.code);
+        /* No customer had ever registered this code, so nobody is waiting on it. Almost always a
+           mistyped digit: the customer's real code is still sitting pending in the table below. */
+        if(r.j.created){
+          $('a_warn').innerHTML='⚠️ <b>No customer was waiting on '+r.j.code+'.</b> This code did not exist, so a brand-new one was created and nobody\'s app is signed in by it.<br><br>'+
+            'If you meant to activate a code a customer sent you, <b>check the digits</b> — their real code is still showing as <b>pending</b> in the table below. '+
+            'Either re-activate using the exact pending code, or just send the customer the code shown above.';
+          $('a_warn').style.display='block';
+        }
+        loadList();
+      }
+      else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
+    }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
+  };
+
+  /* Mint a brand-new code that is active the moment it is created. Use this when selling a
+     subscription to someone who has not opened the app yet — there is no customer code to ask
+     for, so the server allocates a unique one and binds this login to it. */
+  $('a_new').onclick=function(){
+    var m=$('a_msg'); m.className='msg'; m.textContent='Creating…';
+    $('a_newbox').style.display='none'; $('a_warn').style.display='none';
+    api('/api/admin/create',{
+      url:$('a_url').value, user:$('a_user').value,
+      pass:$('a_pass').value, days:Number($('a_days').value||0)
+    }).then(function(r){
+      if(r.j&&r.j.ok){
+        m.className='msg ok'; m.textContent='✓ New code created and already active.';
+        showShareCode(r.j.code);
+        loadList();
+      } else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
+    }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
+  };
+  function flashCopy(btn, text, done){
+    try{ navigator.clipboard.writeText(text); }
+    catch(e){ try{ var t=document.createElement('textarea'); t.value=text; document.body.appendChild(t); t.select(); document.execCommand('copy'); document.body.removeChild(t); }catch(_){} }
+    var old=btn.textContent; btn.textContent=done; setTimeout(function(){ btn.textContent=old; },1000);
+  }
+  /* The code field holds either an 8-digit numeric code or a MAC address (colons + hex letters) —
+     only strip stray characters for the numeric case, never mangle a MAC's colons/letters. */
+  function shareableCode(){
+    var v=String($('a_code').value||'').trim();
+    var digits=v.replace(/\D/g,'');
+    return digits.length===8 ? digits : v.toUpperCase();
+  }
+  $('a_copy').onclick=function(){ flashCopy(this, shareableCode(), 'Copied!'); };
+  $('a_wa').onclick=function(){
+    var c=shareableCode();
+    var t='Your Media26 activation code: '+c+'\n\nOpen the Media26 app and either type this in "Have an activation code?" (numeric codes) or use "Connect via MAC Address" → Check Activation (device IDs) — your channels will load automatically.';
+    window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
+  };
+  function copyCode(el, code){ flashCopy(el, code, 'Copied!'); }
+  window.copyCode=copyCode;
+
+  function act(code, op){
+    if(op==='delete' && !confirm('Delete code '+code+'? This cannot be undone.')) return;
+    api('/api/admin/update',{code:code, op:op}).then(function(){ loadList(); });
+  }
+  window.act=act;
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+
+  function loadList(){
+    var key=$('key').value.trim();
+    var box=$('list'); box.innerHTML='<p class="muted">Loading…</p>';
+    fetch(base()+'/api/admin/list?key='+encodeURIComponent(key)).then(function(r){return r.json()}).then(function(j){
+      if(!j||j.error){ box.innerHTML='<p class="muted">'+esc((j&&j.error)||'Failed to load')+'</p>'; return; }
+      if(!j.codes||!j.codes.length){ box.innerHTML='<p class="muted">No codes yet.</p>'; return; }
+      var rows=j.codes.map(function(c){
+        var st=c.status||'pending';
+        var when=c.createdAt?new Date(c.createdAt).toLocaleDateString():'';
+        return '<tr>'+
+          '<td><code class="copyable" title="Click to copy" onclick="copyCode(this,\''+c.code+'\')">'+esc(c.code)+'</code></td>'+
+          '<td><span class="pill s-'+esc(st)+'">'+esc(st)+'</span></td>'+
+          '<td>'+(c.devices||0)+'/'+j.deviceLimit+'</td>'+
+          '<td class="muted" title="'+esc(c.url||'')+'">'+esc(c.user||'—')+'</td>'+
+          '<td class="muted">'+esc(when)+'</td>'+
+          '<td style="white-space:nowrap">'+
+            (st==='blocked'?'<button class="mini" onclick="act(\''+c.code+'\',\'unblock\')">Unblock</button>':'<button class="mini" onclick="act(\''+c.code+'\',\'block\')">Block</button>')+
+            '<button class="mini" onclick="act(\''+c.code+'\',\'reset-devices\')">Reset devices</button>'+
+            '<button class="mini danger" onclick="act(\''+c.code+'\',\'delete\')">Delete</button>'+
+          '</td></tr>';
+      }).join('');
+      box.innerHTML='<table><tr><th>Code</th><th>Status</th><th>Devices</th><th>User</th><th>Created</th><th></th></tr>'+rows+'</table>';
+    }).catch(function(e){ box.innerHTML='<p class="muted">'+esc(e.message)+'</p>'; });
+  }
+  $('refresh').onclick=loadList;
+  checkConn();
+</script>
+</body>
+</html>

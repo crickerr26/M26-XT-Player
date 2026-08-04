@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: media26-transcoder
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # "free" deploys with no card and works out of the box (it sleeps when idle,
+    # so the first play after a pause takes a few seconds to wake). Change to
+    # "starter" for an always-on instance with more CPU = smoother transcoding.
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8080
+      # CORS open so the hosted web app can talk to it. Leave as "*".
+      - key: CORS_ORIGIN
+        value: "*"
+      # PUBLIC_BASE_URL is intentionally omitted: the server auto-derives its
+      # own https URL from the request headers Render sets, so nothing to fill
+      # in after deploy. Set it only if you put a custom domain in front.
+      # ACCESS_TOKEN is intentionally omitted so the app works the moment you
+      # paste the URL (no token to copy). Add one later in the Render dashboard
+      # if you want to lock the transcoder to yourself.
