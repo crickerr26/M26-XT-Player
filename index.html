@@ -1003,6 +1003,14 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
          go. "Load playlist with MAC address" was removed outright: it promised a second, no-login
          way in that the seller never sets up, so every customer who tried it hit a dead end. -->
     <div class="loginActions">
+      <!-- v17.0: the way back in after an explicit sign-out. Hidden unless this device actually has
+           a session to resume (saved credentials or an activation code), so a brand-new user never
+           sees a Login button that has nothing to log in to. -->
+      <button class="loginAction primary" id="resumeLoginBtn" type="button" style="display:none">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg></span>
+        <span class="la-tx"><b>Login</b><small id="resumeLoginSub">Connect to your playlist</small></span>
+        <span class="la-ch">›</span>
+      </button>
       <button class="loginAction primary" id="xtreamActBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg></span>
         <span class="la-tx"><b>Login with Username &amp; Password</b><small>Sign in with what your seller gave you</small></span>
@@ -1210,6 +1218,17 @@ const _relayOverride=(k,def)=>{try{const qs=new URLSearchParams(location.search)
 const PROXY=_relayOverride('proxy',/^https?:$/.test(location.protocol)?location.origin+'/proxy?url=':'https://smarter-iptv-proxy.gz-inzi84.workers.dev/proxy?url=');
 const LIVE_HLS=_relayOverride('livehls','https://smartertv-secure.gz-inzi84.workers.dev/live-hls?url=');
 const KEY='smarter-fresh-v1';
+/* v17.0: SIGNING OUT HAS TO STICK. Three separate paths connected this app with no user action —
+   saved credentials on launch, an activation code resolved silently on launch, and the activation
+   poll that runs while the sign-in screen is up and calls login() the moment the server answers
+   "active". Logging out cleared the saved credentials but left the activation code, so the poll
+   simply signed the device straight back in: the sign-in screen appeared for a second or two and
+   then the playlist loaded again, which is indistinguishable from logout being broken.
+   This flag records "the user deliberately signed out". While it is set, every automatic path
+   stands down and the only way back in is the Login button. Tapping Login clears it. */
+const SIGNED_OUT='m26-signed-out';
+function signedOut(){try{return store.getItem(SIGNED_OUT)==='1'}catch(e){return false}}
+function setSignedOut(v){try{v?store.setItem(SIGNED_OUT,'1'):store.removeItem(SIGNED_OUT)}catch(e){}}
 const FAV='smarter-fresh-favs-v1';
 const FAVCAT='smarter-fresh-favcats-v1';
 const ORDER='smarter-fresh-order-v1';
@@ -1244,7 +1263,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='16.9';
+const APP_VERSION='17.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1602,6 +1621,10 @@ async function importFromCode(raw){
 function openPairSheet(prefill){if($('pairErr'))$('pairErr').textContent='';if($('pairCodeBox'))$('pairCodeBox').value=prefill||'';$('pairSheet').classList.add('show');setTimeout(()=>{try{$('pairCodeBox').focus()}catch(e){}},60);}
 async function login(opts){
   $('err').textContent='';
+  /* v17.0: reaching login() at all means the user is signing in — by the Login button, the
+     username/password sheet, a pair code or an imported playlist. Any of those ends the signed-out
+     state, so the automatic paths are live again on the next launch. */
+  setSignedOut(false);
   try{
   /* Activation logs in with credentials passed directly (opts.creds) so they're never shown in the
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
@@ -3674,7 +3697,13 @@ function downloadCurrent(){
   document.body.appendChild(a);a.click();a.remove();
   toast('Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
-$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));$('logoutBtn').onclick=()=>{cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden');maybeStartActivationWatch()};
+$('loginBtn').onclick=login;$('refreshBtn').onclick=()=>refreshAll().then(()=>toast('Updated')).catch(e=>toast(e.message));
+/* v17.0: signing out ends the SESSION and keeps the identity, so the Login button has something to
+   resume — that is the whole point of the button. The saved credentials are no longer wiped here;
+   the signed-out flag is what stops every automatic path instead. (The activation code was never
+   cleared by logout anyway, so a device that could be signed back in by a tap already could.) */
+$('logoutBtn').onclick=()=>{cleanup();setSignedOut(true);try{localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
+if($('resumeLoginBtn'))$('resumeLoginBtn').onclick=resumeLogin;
 /* v4.1: share-profile wiring */
 if($('shareOpenBtn'))$('shareOpenBtn').onclick=()=>openShare();
 if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove('show');
@@ -3721,6 +3750,8 @@ function stopActPoll(){if(_actPoll){clearInterval(_actPoll);_actPoll=0;}}
 function actSetStatus(kind,text){try{loginActMsg(kind,text);}catch(e){}}
 async function pollActivationOnce(){
   if(_actBusy)return;const code=actCodeGet(false);const dev=deviceUid();if(!/^\d{8}$/.test(code))return;
+  /* v17.0: a poll already in flight when the user signs out must not complete into a login. */
+  if(signedOut()){stopActPoll();return;}
   /* v16.3: the watch now runs from the sign-in screen itself rather than from a sheet the user
      opened deliberately, so it has to stop itself once that screen is gone. */
   const _lg=$('login');if(_lg&&_lg.classList.contains('hidden')){stopActPoll();return;}
@@ -3782,7 +3813,55 @@ async function beginActivationWatch(){
 function maybeStartActivationWatch(){
   const lg=$('login');
   if(!lg||lg.classList.contains('hidden')){stopActPoll();return;}
+  /* v17.0: after a deliberate sign-out the watch must not run — its whole purpose is to sign the
+     device in the moment the server says "active", which is exactly what the user just undid. The
+     code is still minted and shown, because the seller may still need it; it is only the polling
+     and the automatic login behind it that stand down until Login is tapped. */
+  if(signedOut()){
+    stopActPoll();
+    paintResumeLogin();
+    ensureActCode().catch(()=>{});
+    actSetStatus('','Signed out. Tap Login to connect again.');
+    return;
+  }
   beginActivationWatch();
+}
+/* v17.0: is there anything for a Login tap to actually resume? Saved credentials first (what the
+   user last signed in with), then this device's activation code (the seller-driven flow). */
+function canResumeSession(){
+  try{const c=JSON.parse(store.getItem(KEY)||'null');if(c&&c.url&&((c.user&&c.pass)||stalkerMac()))return 'creds';}catch(e){}
+  try{const code=actCodeGet(false);if(/^\d{8}$/.test(code))return 'code';}catch(e){}
+  return '';
+}
+function paintResumeLogin(){
+  const b=$('resumeLoginBtn');if(!b)return;
+  const how=signedOut()?canResumeSession():'';
+  b.style.display=how?'':'none';
+  const sub=$('resumeLoginSub');
+  if(sub)sub.textContent=how==='creds'?'Reconnect with your saved sign-in':'Connect using your activation code';
+  /* Only one action can read as THE one to press. While Login is up it takes the primary styling
+     from "Login with Username & Password", which is the route for someone who has no session yet. */
+  const x=$('xtreamActBtn');if(x)x.classList.toggle('primary',!how);
+}
+async function resumeLogin(){
+  const how=canResumeSession();
+  setSignedOut(false);
+  paintResumeLogin();
+  if(!how){maybeStartActivationWatch();return;}
+  try{
+    if(how==='creds'){
+      const c=JSON.parse(store.getItem(KEY)||'null')||{};
+      $('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||'';
+      await login();
+    }else{
+      await activateWithCode(actCodeGet(false),{});
+    }
+  }catch(e){
+    /* A failed attempt leaves the user signed in-intent but not connected: keep the flag cleared so
+       the normal automatic paths resume, and say what went wrong on the sign-in card. */
+    if($('err'))$('err').textContent=(e&&e.message)||'Could not sign in.';
+    paintResumeLogin();
+  }
 }
 /* One message carries BOTH values. Sending only the MAC (or only the code) was the most common
    reason an activation stalled — the seller had half of what they needed and had to ask. */
@@ -4620,6 +4699,8 @@ async function adoptPlaylistText(text,label){
   if(!Media26Portal.looksLikeM3U(text))throw Error('That does not look like an M3U playlist. It should start with #EXTM3U and contain #EXTINF lines.');
   const parsed=Media26Portal.parseM3U(text);
   if(!parsed||!parsed.total)throw Error('That playlist parsed to zero channels — it may be truncated or an error page saved as a file.');
+  /* v17.0: importing a playlist is an explicit sign-in too, and it never goes through login(). */
+  setSignedOut(false);
   S.source='m3u';S.m3u=parsed;S.playlistUrl=label||'imported';
   S.user='';S.pass='';resetFullCatalog();
   await loadType('live');await loadType('vod');await loadType('series');
@@ -4766,7 +4847,9 @@ if($('catList'))$('catList').addEventListener('click',e=>{
   if(sr){const x=findByKey(sr.dataset.skey);if(x){if($('catpage'))$('catpage').classList.add('hidden');playItem(x);}return}
   const b=e.target.closest('.cp-cat');if(!b)return;openCategory(b.dataset.cat);
 });
-if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY)}catch(e){}$('login').classList.remove('hidden');maybeStartActivationWatch()};
+/* v17.0: same as the in-app Log out — end the session, keep the identity, and let the flag stop
+   every automatic reconnect until Login is tapped. */
+if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();setSignedOut(true);$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))backToCategories();else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
 $('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(vlcUrl(u));toast('VLC link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ M26 Player 2 ready — MKV plays here in the app':'⚠️ M26 Player 2 '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
@@ -5196,11 +5279,15 @@ maybeStartActivationWatch();
    activates through the server (counts as another device on the same account, within the limit). */
 (function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]a=(\d{8})/);if(m&&m[1]){const code=m[1];try{if(typeof setActCode==='function')setActCode(code);}catch(e){}try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}setTimeout(()=>{try{paintActCode(code);maybeStartActivationWatch();}catch(e){}},250);}}catch(e){}})();
 /* v6.4: STAY LOGGED IN. If credentials are already saved, connect automatically on launch so the
-   login screen only appears for a brand-new user or after an explicit Exit/logout (which clears the
-   saved credentials). Skips when a deep-link pairing code is present — that flow loads its own list. */
+   login screen only appears for a brand-new user or after an explicit Exit/logout.
+   Skips when a deep-link pairing code is present — that flow loads its own list.
+   v17.0: and skips entirely after a deliberate sign-out. This is the path that made logging out
+   look broken on a relaunch: the credentials were still on disk, so the app reconnected before the
+   sign-in screen had finished drawing. Signed out means signed out until Login is tapped. */
 (function(){try{
   const hasDeepLink=/[#?&][pa]=/.test(String(location.hash||'')+String(location.search||''));
   if(hasDeepLink)return;
+  if(signedOut()){paintResumeLogin();return;}
   const c=JSON.parse(store.getItem(KEY)||'null');
   if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();return;}
   /* v9.9: no saved playlist yet, but this device already holds an 8-digit code → resolve it
