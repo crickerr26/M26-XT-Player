@@ -209,10 +209,27 @@
   /* ── Stalker / Ministra (MAG portal) ──────────────────────────────────────────────────────── */
 
   /* MAG boxes are identified by a MAC in Infomir's range. A portal ties the subscription to that
-     MAC, which is why sellers ask for one instead of a username. */
+     MAC, which is why sellers ask for one instead of a username.
+     v17.8: DRAWN FROM THE CRYPTO GENERATOR, NOT Math.random(). This is the identifier a seller
+     BINDS a line to, so across a customer base it has to be independent per device — two customers
+     handed the same MAC means the seller binds two subscriptions to one address, and neither of
+     them can be told apart afterwards. Math.random() carries no independence guarantee at all: the
+     spec allows any algorithm, and engines that seed from the clock can hand near-identical
+     sequences to devices that first open the app within the same moment of each other — which is
+     exactly what a batch of customers installing on the day a service launches looks like. The
+     device id and the activation code have used crypto.getRandomValues since they were written;
+     this was the one identifier that still did not, and it is the one that matters most.
+     The 00:1A:79 prefix is kept: it is Infomir's OUI, and Stalker/MAG portals check for it.
+     Falls back to Math.random() only where the crypto API is genuinely absent. */
   function randomMac() {
-    const h = () => ('0' + Math.floor(Math.random() * 256).toString(16)).slice(-2).toUpperCase();
-    return '00:1A:79:' + h() + ':' + h() + ':' + h();
+    let b = null;
+    try {
+      const c = (typeof globalThis !== 'undefined') && (globalThis.crypto || global.crypto);
+      if (c && c.getRandomValues) { b = new Uint8Array(3); c.getRandomValues(b); }
+    } catch (e) { b = null; }
+    if (!b) b = [0, 0, 0].map(() => Math.floor(Math.random() * 256));
+    const h = i => ('0' + b[i].toString(16)).slice(-2).toUpperCase();
+    return '00:1A:79:' + h(0) + ':' + h(1) + ':' + h(2);
   }
   function normaliseMac(mac) {
     const hex = String(mac || '').replace(/[^0-9a-f]/gi, '').toUpperCase().slice(0, 12);

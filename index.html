@@ -1385,7 +1385,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.7';
+const APP_VERSION='17.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4542,7 +4542,11 @@ function stalkerDevice(mac){
   const key='m26_stkdev_'+String(mac||'').toUpperCase();
   let d=null;try{d=JSON.parse(localStorage.getItem(key)||'null');}catch(e){}
   if(!d||!d.sn||!d.deviceId){
-    const hex=n=>{let s='';while(s.length<n)s+=Math.floor(Math.random()*16).toString(16);return s.slice(0,n).toUpperCase();};
+    /* v17.8: crypto-quality, for the same reason as the MAC — a Stalker portal identifies the box
+       by this serial and device id alongside the MAC, so two customers must never be issued the
+       same pair. Falls back only where the crypto API is absent. */
+    const hex=n=>{let s='';try{const a=new Uint8Array(Math.ceil(n/2));crypto.getRandomValues(a);s=Array.from(a).map(x=>('0'+x.toString(16)).slice(-2)).join('');}catch(e){s='';}
+      while(s.length<n)s+=Math.floor(Math.random()*16).toString(16);return s.slice(0,n).toUpperCase();};
     d={sn:hex(13),deviceId:hex(64)};
     try{localStorage.setItem(key,JSON.stringify(d));}catch(e){}
   }
