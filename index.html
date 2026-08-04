@@ -573,6 +573,11 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 .splash-ring{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(47,211,242,.35);border-top-color:#2fd3f2;animation:xtSpin 1.6s linear infinite}
 .splash-title{font-size:24px;font-weight:900;color:#eef6ff;letter-spacing:-.3px;animation:xtRise .8s ease .45s both}
 .splash-dev{font-size:11px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:#7a9bc8;animation:xtRise .8s ease .7s both}
+/* v17.1: the build number on the splash, under the developer credit. It is the first thing on
+   screen every launch, so a screenshot of it answers "which build is this device actually running"
+   without asking anyone to sign in first. Rises just after the credit, dimmer so it reads as a
+   footnote to the name rather than competing with it. */
+.splash-ver{font-size:11px;font-weight:800;letter-spacing:1.4px;color:#5c7aa4;margin-top:-6px;animation:xtRise .8s ease .82s both}
 .splash-bar{width:190px;height:3px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:10px;animation:xtRise .8s ease .9s both}
 .splash-bar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#2fd3f2,#2dd4bf);box-shadow:0 0 16px rgba(47,211,242,.7);animation:xtFill 1.7s ease .9s forwards}
 @keyframes xtPop{0%{transform:scale(.25);opacity:0;filter:blur(14px)}55%{transform:scale(1.07);filter:blur(0)}100%{transform:scale(1);opacity:1}}
@@ -580,7 +585,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 @keyframes xtSpin{to{transform:rotate(360deg)}}
 @keyframes xtRise{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:translateY(0)}}
 @keyframes xtFill{to{width:100%}}
-@media(prefers-reduced-motion:reduce){.splash-logo,.splash-xt,.splash-ring,.splash-title,.splash-dev,.splash-bar,.splash-bar i{animation:none!important}.splash-bar i{width:100%}}
+@media(prefers-reduced-motion:reduce){.splash-logo,.splash-xt,.splash-ring,.splash-title,.splash-dev,.splash-ver,.splash-bar,.splash-bar i{animation:none!important}.splash-bar i{width:100%}}
 
 /* --- v27 mobile header: everything on ONE row, small fonts, tiny byline --- */
 .byline{font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap}
@@ -779,6 +784,10 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <div class="splash-logo"><span class="splash-ring"></span><img src="image_482ee8.png" alt="26 Logo" style="width: 72px; height: 72px; object-fit: contain; position: relative; z-index: 2; animation: xtGlow 2.2s ease-in-out infinite;"></div>
     <div class="splash-title">Media26 XT Player</div>
     <div class="splash-dev">Developed by Inzi Rishi</div>
+    <!-- v17.1: filled from APP_VERSION at startup. Left empty in the markup on purpose — a
+         hard-coded placeholder here would be a version number that is silently wrong the moment
+         the next release ships, which is exactly what this line exists to prevent. -->
+    <div class="splash-ver" id="splashVersion"></div>
     <div class="splash-bar"><i></i></div>
   </div>
 </div>
@@ -1263,7 +1272,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.0';
+const APP_VERSION='17.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4913,6 +4922,9 @@ if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').cla
   /* version line under the developer credit on the login page — always reflects APP_VERSION,
      so it stays present and correct on every deployment. */
   if($('appVersionLine'))$('appVersionLine').textContent='Version v'+APP_VERSION;
+  /* v17.1: and the same line under the credit on the splash, painted from the same constant so
+     the two can never disagree. */
+  if($('splashVersion'))$('splashVersion').textContent='Version v'+APP_VERSION;
 })();
 if($('pwToggle'))$('pwToggle').onclick=()=>{const inp=$('pass'),show=inp.type==='password';inp.type=show?'text':'password';$('pwToggle').innerHTML=show?ICONS.eyeOff:ICONS.eye};
 /* ===================== v69: on-bar Quality picker =====================
