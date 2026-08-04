@@ -1075,7 +1075,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       <div class="loginActions">
         <button class="loginAction primary" id="xtreamActBtn" type="button">
           <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.6 3.1-6.4 7-6.4s7 2.8 7 6.4"/></svg></span>
-          <span class="la-tx"><b>Login with Username &amp; Password</b><small>Sign in with what your seller gave you</small></span>
+          <span class="la-tx"><b>Enter my server details</b><small>Server URL, username and password</small></span>
           <span class="la-ch">›</span>
         </button>
       </div>
@@ -1103,13 +1103,14 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
         <div class="err" id="loginMacErr"></div>
       </div>
       <div class="loginActions">
-        <!-- v17.4: the MAC route is back, because it is the whole point of this tab. v16.3 removed
-             it on the grounds that a seller always issues a username and password afterwards — true
-             for Xtream, not for a MAG/Stalker line, where the MAC IS the credential and there is
-             never anything else to type. -->
+        <!-- v17.7: this opens the SAME form as the Xtream tab. Binding a MAC and being issued a
+             username and password are not two products — on most panels they are two halves of one
+             sign-up, which is why a form that had only a URL and a MAC left customers on this tab
+             with credentials and nowhere to type them. The MAC is still sent on every attempt, so a
+             line that authorises on the MAC alone needs nothing more than the address. -->
         <button class="loginAction primary" id="macConnectBtn" type="button">
           <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M7 21h10M12 17v4"/><path d="M6 9h4M6 12h7"/></svg></span>
-          <span class="la-tx"><b>Connect with this MAC</b><small>Once your seller has activated the MAC above</small></span>
+          <span class="la-tx"><b>Enter my server details</b><small>Once your seller has bound the MAC above</small></span>
           <span class="la-ch">›</span>
         </button>
         <button class="loginAction" id="importM3uBtn" type="button">
@@ -1265,28 +1266,28 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 </div>
 <!-- v16.3: the "Get activated" sheet is gone. The code it used to hold is on the sign-in card
      itself now, next to the MAC, so there is nothing left for a sheet to reveal. -->
+<!-- ── v17.7: ONE SIGN-IN FORM ──────────────────────────────────────────────────────────────
+     There were two, and which one a customer opened was decided by which tab they were on —
+     which is decided by which identifier their SELLER asked for. Those are different questions,
+     and splitting the form on the first one broke the commonest flow there is: the seller asks
+     for the MAC, binds it on their panel, and hands back a SERVER URL, USERNAME and PASSWORD.
+     A customer who did that arrives on the M3U tab (they were asked for a MAC) and opens a form
+     with no username or password field — so the details they were given have nowhere to go. It
+     then failed and told them to check a username and password it had never collected.
+
+     One form. Server URL, username, password, and the device MAC underneath — sent with every
+     attempt, so a MAC-bound line authorises whether or not a username came with it. Leave the
+     username and password empty and it is a MAC-only sign-in, exactly as before. Both tabs open
+     this, because after the seller replies there is only one thing left to do. -->
 <div class="episodeSheet" id="xtreamSheet"><div class="episodePanel nativePanel">
-  <div class="episodeHead"><h3>Login with Username &amp; Password</h3><button class="iconbtn" id="xtreamClose">×</button></div>
-  <p class="nativeText">Enter the portal URL, username and password your provider gave you.</p>
-  <div class="field nativeField"><label>Portal URL</label><input id="xtreamUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url"></div>
+  <div class="episodeHead"><h3>Connect to your IPTV server</h3><button class="iconbtn" id="xtreamClose">×</button></div>
+  <p class="nativeText">Enter what your seller sent back. Most lines come with a server URL, a username and a password — type all three. If yours was set up on the MAC alone, fill in just the server URL and leave the rest empty.</p>
+  <div class="field nativeField"><label>Server URL</label><input id="xtreamUrl" placeholder="http://tv.example.cc" autocomplete="url" inputmode="url" autocapitalize="none" spellcheck="false"></div>
   <div class="field nativeField" style="margin-top:10px"><label>Username</label><input id="xtreamUser" placeholder="Username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
-  <div class="field nativeField" style="margin-top:10px"><label>Password</label><input id="xtreamPass" type="password" placeholder="Password" autocomplete="current-password"></div>
-  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Login</button></div>
+  <div class="field nativeField" style="margin-top:10px"><label>Password</label><input id="xtreamPass" type="text" placeholder="Password" autocomplete="current-password" autocapitalize="none" spellcheck="false"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>This device's MAC — sent automatically</label><input id="xtreamMac" readonly aria-label="This device's MAC address"></div>
+  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Load my playlist</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
-</div></div>
-<!-- v17.4: MAC sign-in, restored for the M3U tab. v16.3 removed it because an Xtream seller always
-     issues a username and password after binding the MAC, making the route a dead end there. On a
-     MAG / Stalker line that is not true: the MAC IS the credential, the portal hands the device its
-     own playlist, and there is never a username to type. login() already accepts a portal URL with
-     no username or password as long as the device holds a MAC, so this form only has to collect
-     the address. -->
-<div class="episodeSheet" id="macSheet"><div class="episodePanel nativePanel">
-  <div class="episodeHead"><h3>Connect with this MAC</h3><button class="iconbtn" id="macSheetClose">×</button></div>
-  <p class="nativeText">Your seller binds the MAC below to a line on their panel. Once they have, enter the portal address they gave you — a MAC line needs no username or password.</p>
-  <div class="field nativeField"><label>Portal URL</label><input id="macPortalUrl" placeholder="http://yourprovider.com" autocomplete="url" inputmode="url" autocapitalize="none" spellcheck="false"></div>
-  <div class="field nativeField" style="margin-top:10px"><label>MAC address (this device)</label><input id="macSheetMac" readonly aria-label="This device's MAC address"></div>
-  <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="macGo" type="button" style="width:100%">Connect</button></div>
-  <div class="err" id="macErr" style="min-height:0"></div>
 </div></div>
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
@@ -1384,7 +1385,7 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.6';
+const APP_VERSION='17.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4226,7 +4227,11 @@ function sendIdsToWhatsApp(kind){
 const LOGIN_TAB_KEY='m26-login-tab-v1';
 const LOGIN_LEADS={
   xtream:'Send your activation code to your IPTV seller. They set up your account and give you back a username and password — sign in with those below.',
-  m3u:'Send your MAC address to your IPTV seller. They bind it to a line on their panel, then give you back the portal address — a MAC line needs no username or password.'
+  /* v17.7: the old wording promised "a MAC line needs no username or password". On a pure MAG line
+     that is true, but the panels these sellers actually run bind the MAC and then issue a username
+     and password as well — so a customer who had been given all three read this as "you were sent
+     the wrong thing" and went looking for a form that did not exist. Say what really comes back. */
+  m3u:'Send your MAC address to your IPTV seller. They bind it to a line on their panel and send back the server address — usually with a username and password too. Enter whatever they gave you below.'
 };
 function loginTab(){try{const t=store.getItem(LOGIN_TAB_KEY);return t==='m3u'?'m3u':'xtream'}catch(e){return 'xtream'}}
 function setLoginTab(t,persist){
@@ -4244,38 +4249,10 @@ function setLoginTab(t,persist){
   /* Each tab owns its own message line, so a stale error from the other one never lingers. */
   const e1=$('err');if(e1)e1.textContent='';
 }
-/* ── v17.4: MAC SIGN-IN (M3U / MAG lines) ─────────────────────────────────────────────────── */
-function openMacSheet(){
-  if($('macErr'))$('macErr').textContent='';
-  const box=$('macSheetMac');
-  if(box)box.value=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
-  const u=$('macPortalUrl');
-  /* Pre-fill the address already in use, so a reconnect is one tap. */
-  if(u&&!u.value){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c&&c.url)u.value=c.url;}catch(e){}}
-  $('macSheet').classList.add('show');
-  try{u&&u.focus();}catch(e){}
-}
-async function submitMacLogin(){
-  const url=(($('macPortalUrl')&&$('macPortalUrl').value)||'').trim();
-  if($('macErr'))$('macErr').textContent='';
-  if(!url){if($('macErr'))$('macErr').textContent='Enter the portal address your seller gave you.';return;}
-  if(!stalkerMac()){if($('macErr'))$('macErr').textContent='This device has no MAC yet — reopen the M3U tab and let it generate one.';return;}
-  const btn=$('macGo');if(btn)btn.disabled=true;
-  if($('macErr'))$('macErr').textContent='Connecting…';
-  try{
-    /* No username or password: login() accepts that whenever the device holds a MAC, and the
-       playlist fetch carries the MAC on both of its passes. */
-    await login({creds:{portalUrl:url,username:'',password:''}});
-    if($('login')&&$('login').classList.contains('hidden')){
-      if($('macErr'))$('macErr').textContent='';
-      $('macSheet').classList.remove('show');
-    }else{
-      if($('macErr'))$('macErr').textContent=($('err')&&$('err').textContent)||'Could not connect with this MAC.';
-    }
-  }catch(e){
-    if($('macErr'))$('macErr').textContent=(e&&e.message)||'Could not connect with this MAC.';
-  }finally{ if(btn)btn.disabled=false; }
-}
+/* v17.7: both tabs now open the one sign-in form. The M3U tab's button used to open a
+   MAC-and-URL-only form, which is the wrong form for the flow that button leads to: the seller
+   binds the MAC and replies with a username and password, and there was nowhere to type them. */
+function openMacSheet(){ openXtreamSheet(); }
 /* ── STALKER / MINISTRA (MAG PORTAL) MAC AUTHENTICATION ──────────────────────────────
    Real Smart-STB-style device auth, matching how Stalker/Ministra panels (Infomir MAG,
    Smart STB, Eagle, Star, Smart4K) actually work: this device generates and displays a
@@ -4916,15 +4893,28 @@ function commitLoginMac(){
    of relying on the background #err text, which can sit behind the open sheet. */
 function openXtreamSheet(){
   if($('xtreamErr'))$('xtreamErr').textContent='';
+  /* The MAC is shown, not asked for: it rides along with every attempt, and seeing it here is how
+     a customer whose seller bound a MAC knows this form covers their line too. */
+  const m=$('xtreamMac');
+  if(m)m.value=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
+  /* Pre-fill the server already in use, so a reconnect or a password change is one field. */
+  const u=$('xtreamUrl');
+  if(u&&!u.value){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c&&c.url)u.value=c.url;}catch(e){}}
   $('xtreamSheet').classList.add('show');
-  try{$('xtreamUrl').focus();}catch(e){}
+  try{(u&&!u.value?u:($('xtreamUser')&&!$('xtreamUser').value?$('xtreamUser'):u)).focus();}catch(e){}
 }
 async function submitXtreamLogin(){
   const url=(($('xtreamUrl')&&$('xtreamUrl').value)||'').trim();
   const user=(($('xtreamUser')&&$('xtreamUser').value)||'').trim();
   const pass=(($('xtreamPass')&&$('xtreamPass').value)||'');
   if($('xtreamErr'))$('xtreamErr').textContent='';
-  if(!url||!user||!pass){if($('xtreamErr'))$('xtreamErr').textContent='Fill in the portal URL, username and password.';return;}
+  /* v17.7: THE SERVER URL IS THE ONLY REQUIRED FIELD. Demanding all three turned the one form
+     that works into a form a MAC-only customer could not submit at all — and login() has accepted
+     a URL with no username since v15.0, precisely because a MAG line has no username to give. */
+  if(!url){if($('xtreamErr'))$('xtreamErr').textContent='Enter the server URL your seller gave you.';return;}
+  if((!user||!pass)&&!stalkerMac()){
+    if($('xtreamErr'))$('xtreamErr').textContent='Enter the username and password your seller gave you.';return;
+  }
   const btn=$('xtreamGo');if(btn)btn.disabled=true;
   if($('xtreamErr'))$('xtreamErr').textContent='Connecting…';
   try{
@@ -4933,7 +4923,14 @@ async function submitXtreamLogin(){
       if($('xtreamErr'))$('xtreamErr').textContent='';
       $('xtreamSheet').classList.remove('show');
     }else{
-      const msg=($('err')&&$('err').textContent)||'Could not connect. Check your details and try again.';
+      let msg=($('err')&&$('err').textContent)||'Could not connect. Check your details and try again.';
+      /* v17.7: never blame details that were never given. The MAC-only route reached the same
+         "check the username and password" line that the credential route uses, on a form that had
+         no username field on it — advice the customer could not act on, about a field they were
+         never asked to fill. Say what actually happened to the thing they DID supply. */
+      if(!user&&!pass&&/username and password|check the username/i.test(msg)){
+        msg='This server would not issue a playlist for MAC '+macFmt(stalkerMac())+'. Either your seller has not finished binding it, or this line needs the username and password they were given — add them above and try again.';
+      }
       if($('xtreamErr'))$('xtreamErr').textContent=msg;
       /* The seller hasn't activated this device's MAC yet. Close the form and put the MAC —
          which lives on the login screen — back in front of the user, since sending it to the
@@ -5011,11 +5008,9 @@ if($('idSendWa'))$('idSendWa').onclick=()=>sendIdsToWhatsApp('code');
 if($('macSendWa'))$('macSendWa').onclick=()=>sendIdsToWhatsApp('mac');
 /* v17.4: login tab wiring. setLoginTab runs once at startup from the remembered choice. */
 document.querySelectorAll('.loginTab').forEach(b=>{b.onclick=()=>setLoginTab(b.dataset.logintab);});
+/* v17.7: the separate MAC sheet and its four handlers are gone with it — both tabs open the one
+   sign-in form now. */
 if($('macConnectBtn'))$('macConnectBtn').onclick=openMacSheet;
-if($('macSheetClose'))$('macSheetClose').onclick=()=>$('macSheet').classList.remove('show');
-if($('macGo'))$('macGo').onclick=submitMacLogin;
-if($('macSheet'))$('macSheet').onclick=e=>{if(e.target.id==='macSheet')$('macSheet').classList.remove('show');};
-if($('macPortalUrl'))$('macPortalUrl').onkeydown=e=>{if(e.key==='Enter')submitMacLogin();};
 setLoginTab(loginTab(),false);
 if($('actCopy'))$('actCopy').onclick=()=>{
   const c=actCodeGet(false);
@@ -5110,10 +5105,6 @@ paintLoginMac();
    staying here (no saved session, or the last one was logged out of) would otherwise show no users
    at all until something else happened to repaint. */
 paintProfiles();
-/* v16.3: openMacSheet()/submitMacLogin() are gone with the sheet they drove. A MAC-only sign-in
-   only works on a portal that serves a playlist to a bare MAC, which is not how this app's sellers
-   provision anyone — they bind the MAC and hand back a username and password, so the route was a
-   dead end dressed up as a choice. Sign-in is Login with Username & Password. */
 /* v15.1: adopt a playlist the USER supplies — a picked .m3u file or pasted text. No fetch, no
    relay, no portal round-trip, so a provider whose edge refuses our servers is irrelevant here.
    The parsed result is the same shape every other login path produces, so Live/Movies/Series,
