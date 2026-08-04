@@ -1272,12 +1272,23 @@ function setChooserDefault(type,mode){const o=chooserDefaults();o[type]=mode;try
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='17.1';
+const APP_VERSION='17.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
    http or unsupported browsers. */
-if('serviceWorker'in navigator){try{addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}catch(e){}}
+/* v17.2: updateViaCache:'none'. Without it the registration uses the default 'imports', which
+   fetches sw.js itself THROUGH THE HTTP CACHE — so an installed app can keep running the previous
+   service worker, and therefore the previous CACHE bucket, for up to 24 hours after a deploy. That
+   is a stale app that no amount of reloading fixes, because the thing deciding what to serve is
+   itself the stale copy. 'none' makes the browser always revalidate the worker script against the
+   network. reg.update() then asks for that check explicitly on every launch rather than waiting
+   for the browser to get around to it. */
+if('serviceWorker'in navigator){try{addEventListener('load',()=>{
+  navigator.serviceWorker.register('sw.js',{updateViaCache:'none'})
+    .then(function(reg){try{reg.update()}catch(e){}})
+    .catch(()=>{});
+})}catch(e){}}
 /* v7.0: FORCE-UPDATE a stale installed app — fetch the live index.html, read APP_VERSION, and if a
    NEWER build is deployed drop caches and reload to it.
    v7.5 (CRASH FIX): the earlier version could reload-LOOP ("A problem repeatedly occurred") when the
@@ -5392,7 +5403,9 @@ maybeStartActivationWatch();
 (function(){
   var byId=function(id){return document.getElementById(id)};
   var wrap=byId('a2hs'),hint=byId('a2hsHint'),yes=byId('a2hsYes'),no=byId('a2hsNo');
-  if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){navigator.serviceWorker.register('sw.js').catch(function(){})}
+  /* v17.2: the app registered the worker twice, and THIS copy used the default updateViaCache, so
+     it re-registered the same scope with the cache-permitting option and undid the fix above.
+     One registration, one place — the one at the top of the app, which already runs on load. */
   /* already installed / running as the app — never ask again */
   var standalone=(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true;
   if(standalone)return;
