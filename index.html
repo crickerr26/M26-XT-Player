@@ -906,10 +906,14 @@ body.login-dark .login,body.dark .login{background:
   border:1px solid rgba(56,189,248,.24)}
 .idRow label{font-size:10.5px;font-weight:900;letter-spacing:1.2px;text-transform:uppercase;color:#3f7fae}
 .idLine{margin-top:8px;gap:7px}
-.idVal{font-size:20px;font-weight:900;letter-spacing:2.2px;color:#0e2740;
+/* v19.2: was 20px/2.2px letter-spacing, sized for the 8-digit activation code that shares this
+   class. A 17-character MAC address (00:1A:79:00:00:00) never fit in that width and was cut off
+   mid-string — the one thing on this screen a customer must be able to read in full and copy
+   correctly. Sized down to fit both without truncating on a real phone width. */
+.idVal{font-size:15px;font-weight:900;letter-spacing:.6px;color:#0e2740;
   font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1;
   background:rgba(255,255,255,.94);border:1px solid rgba(56,189,248,.30);border-radius:13px;
-  padding:12px 13px;box-shadow:0 1px 3px rgba(15,32,60,.05) inset}
+  padding:12px 8px;box-shadow:0 1px 3px rgba(15,32,60,.05) inset}
 .idVal:focus{outline:0;border-color:#38bdf8;box-shadow:0 0 0 4px rgba(56,189,248,.20)}
 .idBtn{width:42px;height:46px;border-radius:13px;background:rgba(255,255,255,.94);
   border:1px solid rgba(56,189,248,.26);color:#2f7fb8}
@@ -942,7 +946,7 @@ body.login-dark .login,body.dark .login{background:
 @media(max-width:420px){
   .login-card{padding:22px 17px 20px;border-radius:24px}
   .login-card h2{font-size:20px}
-  .idVal{font-size:18px;letter-spacing:1.8px;padding:11px}
+  .idVal{font-size:11px;letter-spacing:.2px;padding:11px 5px}
   .idBtn{width:40px;height:44px}
 }
 
@@ -1183,7 +1187,9 @@ body.login-dark .login,body.dark .login{background:
          as before. The heading appears only once there are users, so the tabs read as "add another
          one" rather than as the only way in. -->
     <div class="addHead" id="addHead" style="display:none">Add another line</div>
-    <p class="loginLead" id="loginLead">Send your activation code to your IPTV seller. They set up your account and give you back a username and password — sign in with those below.</p>
+    <!-- v19.2: the per-tab explainer paragraph (id="loginLead") is gone — the tabs, labels and
+         buttons below already say what each field is for. setLoginTab() still computes
+         LOGIN_LEADS[tab] but writing it is a no-op now that $('loginLead') doesn't exist. -->
     <!-- v17.4: ONE TAB PER PRODUCT. An Xtream line is identified by an ACTIVATION CODE and signs in
          with a username and password. An M3U / MAG line is identified by this device's MAC ADDRESS,
          which the seller binds on their own panel. v16.3 put both identifiers in one stacked block
@@ -1211,10 +1217,6 @@ body.login-dark .login,body.dark .login{background:
             </button>
           </div>
         </div>
-        <button class="idSend" id="idSendWa" type="button">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
-          Send activation code to my seller
-        </button>
         <div class="err" id="loginActCodeErr"></div>
       </div>
       <div class="loginActions">
@@ -1241,10 +1243,6 @@ body.login-dark .login,body.dark .login{background:
             </button>
           </div>
         </div>
-        <button class="idSend" id="macSendWa" type="button">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
-          Send MAC address to my seller
-        </button>
         <div class="err" id="loginMacErr"></div>
       </div>
       <div class="loginActions">
@@ -1268,17 +1266,19 @@ body.login-dark .login,body.dark .login{background:
 
     <!-- Routes that belong to neither product sit below both tabs. -->
     <div class="loginActions">
-      <!-- v17.0: the way back in after an explicit sign-out. Hidden unless this device actually has
-           a session to resume (saved credentials or an activation code), so a brand-new user never
-           sees a Login button that has nothing to log in to. -->
-      <button class="loginAction primary" id="resumeLoginBtn" type="button" style="display:none">
-        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg></span>
-        <span class="la-tx"><b>Login</b><small id="resumeLoginSub">Connect to your playlist</small></span>
-        <span class="la-ch">›</span>
-      </button>
       <button class="loginAction" id="loginPairBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/><path d="M9 11l2.2 2.2L15 9.5"/></svg></span>
         <span class="la-tx"><b>Load from another device</b><small>Scan a QR code or paste a share code</small></span>
+        <span class="la-ch">›</span>
+      </button>
+      <!-- v19.2: THE explicit connect action, moved to the very end of the card and no longer
+           gated to "after an explicit sign-out" — nothing on this screen signs a returning device
+           in by itself anymore (see the launch IIFEs near the bottom of the script), so this is now
+           the one and only way back into an already-configured line. Still hidden when there is
+           nothing to resume (a brand-new device has no session yet to log into). -->
+      <button class="loginAction primary" id="resumeLoginBtn" type="button" style="display:none">
+        <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/><path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg></span>
+        <span class="la-tx"><b>Login</b><small id="resumeLoginSub">Connect to your playlist</small></span>
         <span class="la-ch">›</span>
       </button>
       <!-- v17.4: "Open or paste an M3U playlist" moved into the M3U tab, where it belongs. It is
@@ -1537,7 +1537,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.1.3';
+const APP_VERSION='19.2.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4571,7 +4571,6 @@ if($('loginPairBtn'))$('loginPairBtn').onclick=()=>openPairSheet('');
    The customer gets an 8-digit code, sends it to the admin on WhatsApp, and the admin binds the
    real IPTV login to that code on the server. The app then polls and logs in silently — the
    customer never sees the username/password. Same code works on up to the server's device limit. */
-const ADMIN_WA='14164744994';
 function licenseBase(){try{const b=(typeof transcoderBase==='function'&&transcoderBase())||DEFAULT_TRANSCODER;return String(b||'').replace(/\/+$/,'');}catch(e){return DEFAULT_TRANSCODER;}}
 function deviceUid(){
   let id;try{id=localStorage.getItem('m26_did');}catch(e){}
@@ -4686,10 +4685,16 @@ function maybeStartActivationWatch(){
   }
   beginActivationWatch();
 }
-/* v17.0: is there anything for a Login tap to actually resume? Saved credentials first (what the
-   user last signed in with), then this device's activation code (the seller-driven flow). */
+/* v17.0: is there anything for a Login tap to actually resume? Saved Xtream credentials first
+   (what the user last signed in with), then a saved MAG/Stalker line, then this device's
+   activation code (the seller-driven flow).
+   v19.2: this used to answer only for Xtream creds — a MAC-only MAG line had no representation
+   here at all and could only reconnect through the silent launch IIFE that has now been removed
+   (see the bottom of the script), so without the 'mac' branch a MAG line lost its way back in
+   entirely once auto-connect stopped. */
 function canResumeSession(){
   try{const c=JSON.parse(store.getItem(KEY)||'null');if(c&&c.url&&((c.user&&c.pass)||stalkerMac()))return 'creds';}catch(e){}
+  try{const stk=JSON.parse(localStorage.getItem('m26_stk')||'null');if(stk&&stk.url)return 'mac';}catch(e){}
   try{const code=actCodeGet(false);if(/^\d{8}$/.test(code))return 'code';}catch(e){}
   return '';
 }
@@ -4703,11 +4708,14 @@ function paintResumeLogin(){
      whichever line happens to be in KEY, which on a two-line device is a coin toss. It stays only
      for the activation-code route, which no user row can represent (there are no credentials to
      name yet — the seller has not issued them). */
-  const how=signedOut()?canResumeSession():'';
-  const covered=(how==='creds'&&profiles().length>0);
+  /* v19.2: no longer gated on signedOut(). Nothing auto-connects on launch anymore (see the launch
+     IIFEs near the bottom of the script), so whether there is something to resume — not whether
+     the user previously tapped Log out — is what decides if this button shows. */
+  const how=canResumeSession();
+  const covered=(how==='creds'||how==='mac')&&profiles().length>0;
   b.style.display=(how&&!covered)?'':'none';
   const sub=$('resumeLoginSub');
-  if(sub)sub.textContent=how==='creds'?'Reconnect with your saved sign-in':'Connect using your activation code';
+  if(sub)sub.textContent=how==='creds'?'Reconnect with your saved sign-in':how==='mac'?'Reconnect using your saved MAC line':'Connect using your activation code';
   /* Only one action can read as THE one to press. While Login is up it takes the primary styling
      from "Login with Username & Password", which is the route for someone who has no session yet. */
   const x=$('xtreamActBtn');if(x)x.classList.toggle('primary',!(how&&!covered)&&!profiles().length);
@@ -4875,6 +4883,19 @@ async function resumeLogin(){
       const c=JSON.parse(store.getItem(KEY)||'null')||{};
       $('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||'';
       await login();
+    }else if(how==='mac'){
+      /* v19.2: replaces the silent Stalker/MAG auto-resume IIFE that used to run on every launch —
+         same handshake, same session tokens are short-lived so it re-authenticates rather than
+         trusting a cached one, now behind the Login tap instead of before it. */
+      const stk=JSON.parse(localStorage.getItem('m26_stk')||'null')||{};
+      const _tok=beginSignIn();
+      load(true,'Connecting…');
+      try{
+        if(stk.user)S.user=stk.user;if(stk.pass!=null)S.pass=stk.pass;
+        const res=await stalkerLogin(stk.url,stk.mac,{user:stk.user||'',pass:stk.pass||''});
+        if(signInCancelled(_tok))return;
+        adoptStalkerSession(res);
+      }finally{endSignIn();load(false);}
     }else{
       await activateWithCode(actCodeGet(false),{});
     }
@@ -4884,29 +4905,6 @@ async function resumeLogin(){
     if($('err'))$('err').textContent=(e&&e.message)||'Could not sign in.';
     paintResumeLogin();
   }
-}
-/* One message carries BOTH values. Sending only the MAC (or only the code) was the most common
-   reason an activation stalled — the seller had half of what they needed and had to ask. */
-/* v17.4: ONE IDENTIFIER PER MESSAGE. The combined "send both" message was written when both values
-   sat in one block, and it made the seller pick — which is the choice this tab split exists to
-   remove. Each tab now sends exactly the identifier it is about, and asks for exactly what that
-   product hands back: an Xtream seller returns a username and password, a MAG/M3U seller returns a
-   portal address and binds the MAC. */
-function sendIdsToWhatsApp(kind){
-  const mac=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
-  const code=actCodeGet(false);
-  let msg;
-  if(kind==='mac'){
-    msg='Hi, please set up my Media26 XT Player on an M3U / MAG line.'
-      +'\nMAC Address: '+mac
-      +'\n\nPlease activate this MAC and send me back the portal address.';
-  }else{
-    msg='Hi, please set up my Media26 XT Player on an Xtream line.'
-      +(/^\d{8}$/.test(code)?('\nActivation Code: '+code):'')
-      +'\n\nPlease send me back the server URL, username and password.';
-  }
-  const url='https://wa.me/'+ADMIN_WA+'?text='+encodeURIComponent(msg);
-  try{window.open(url,'_blank');}catch(err){location.href=url;}
 }
 /* ── v17.4: LOGIN TAB (Xtream Code / M3U Playlist) ─────────────────────────────────────────
    The choice is remembered, because a customer on a MAG line has no use for the Xtream tab and
@@ -5692,8 +5690,6 @@ function commitLoginMac(){
   if($('macCodeBox'))$('macCodeBox').value=mac;
   return mac;
 }
-/* v16.3: sendMacToWhatsApp() is replaced by sendIdsToWhatsApp(), which sends the MAC and the
-   activation code together — see the identity block on the sign-in card. */
 /* ── MANUAL XTREAM LOGIN (portal URL + username + password) ─────────────────────────
    For users who already have full Xtream credentials from their provider — a straight
    shot at the existing login(), which already handles the Xtream/M3U handshake, saving
@@ -5863,9 +5859,6 @@ if($('loginShareBtn'))$('loginShareBtn').onclick=()=>{
 };
 /* Login-screen refresh: re-check activation and reload to pick up the latest app version. */
 if($('loginRefresh'))$('loginRefresh').onclick=()=>{try{toast('Refreshing…');}catch(e){}setTimeout(()=>{try{location.reload();}catch(e){}},250);};
-/* ── The identity block: MAC + activation code, both live on the sign-in card ─────────── */
-if($('idSendWa'))$('idSendWa').onclick=()=>sendIdsToWhatsApp('code');
-if($('macSendWa'))$('macSendWa').onclick=()=>sendIdsToWhatsApp('mac');
 /* v17.4: login tab wiring. setLoginTab runs once at startup from the remembered choice. */
 document.querySelectorAll('.loginTab').forEach(b=>{b.onclick=()=>setLoginTab(b.dataset.logintab);});
 /* v17.7: the separate MAC sheet and its four handlers are gone with it — both tabs open the one
@@ -6574,58 +6567,29 @@ maybeStartActivationWatch();
 /* Shared via an activation-code QR (origin/#a=12345678): the receiving device adopts that code and
    activates through the server (counts as another device on the same account, within the limit). */
 (function(){try{const h=String(location.hash||'')+String(location.search||'');const m=h.match(/[#?&]a=(\d{8})/);if(m&&m[1]){const code=m[1];try{if(typeof setActCode==='function')setActCode(code);}catch(e){}try{if(location.hash)history.replaceState(null,'',location.pathname+location.search);}catch(e){}setTimeout(()=>{try{paintActCode(code);maybeStartActivationWatch();}catch(e){}},250);}}catch(e){}})();
-/* v6.4: STAY LOGGED IN. If credentials are already saved, connect automatically on launch so the
-   login screen only appears for a brand-new user or after an explicit Exit/logout.
-   Skips when a deep-link pairing code is present — that flow loads its own list.
-   v17.0: and skips entirely after a deliberate sign-out. This is the path that made logging out
-   look broken on a relaunch: the credentials were still on disk, so the app reconnected before the
-   sign-in screen had finished drawing. Signed out means signed out until Login is tapped. */
+/* v19.2: NO AUTO-CONNECT ON LAUNCH. This used to sign a returning device straight in whenever it
+   already held credentials, an activation code, or a saved MAG/Stalker line — the sign-in screen
+   appeared only for a brand-new user or after an explicit sign-out. That is no longer the product:
+   every launch now lands on the sign-in screen and stays there until Login/Connect is tapped.
+   canResumeSession()/paintResumeLogin() decide whether that button (and the Users list) has
+   something to offer; resumeLogin() does the actual connecting — for all three cases (Xtream
+   creds, a saved MAC/Stalker line, a pending activation code) — once the user taps it.
+   Skips when a deep-link pairing code is present — that flow loads its own list. */
 (function(){try{
   const hasDeepLink=/[#?&][pa]=/.test(String(location.hash||'')+String(location.search||''));
   if(hasDeepLink)return;
-  if(signedOut()){paintResumeLogin();return;}
-  const c=JSON.parse(store.getItem(KEY)||'null');
-  if(c&&c.url&&c.user&&c.pass){$('url').value=c.url;$('user').value=c.user;$('pass').value=c.pass;if($('login'))$('login').classList.add('hidden');login();return;}
-  /* v9.9: no saved playlist yet, but this device already holds an 8-digit code → resolve it
-     silently on launch. If the admin has already activated it we sign straight in and the login
-     screen is never shown; if it is still pending we keep polling, so the moment the admin
-     activates the code this device logs itself in with no user action. */
+  paintResumeLogin();
+  if(signedOut())return;
+  /* v9.9: no saved playlist yet, but this device already holds an 8-digit code → keep polling in
+     the background for the seller's activation, same as before — this is waiting for a first-time
+     setup to complete, not resuming a session that already worked, so it stays automatic. Once the
+     code resolves, activateWithCode signs in silently exactly as it always has. */
   (async function(){
     try{
       const code=(typeof actCodeGet==='function')?actCodeGet(false):'';
       if(!/^\d{8}$/.test(code))return;
       await activateWithCode(code,{silent:true});
     }catch(e){}
-  })();
-}catch(e){}})();
-/* Auto-resume for a device that already connected via a Stalker/MAG portal: re-run the same
-   handshake silently on launch (session tokens are short-lived, so this re-authenticates rather
-   than trusting a cached one) using the same persistent MAC, and sign straight into the last
-   portal URL used. Independent of the numeric-code / saved-Xtream-creds flows above. */
-(function(){try{
-  const hasDeepLink=/[#?&][pa]=/.test(String(location.hash||'')+String(location.search||''));
-  if(hasDeepLink)return;
-  if($('login')&&$('login').classList.contains('hidden'))return;   /* already signed in above */
-  let saved=null;try{saved=JSON.parse(localStorage.getItem('m26_stk')||'null');}catch(e){}
-  if(!saved||!saved.url)return;
-  (async function(){
-    /* v18.8: this reconnect does not go through login(), so it needs its own token and its own
-       loader state — otherwise it is the one automatic connect Cancel could not stop. */
-    const _tok=beginSignIn();
-    load(true,'Connecting…');
-    try{
-      /* v16.2: pass any saved username/password so a login/password Ministra line re-authenticates
-         on launch, and keep them in state for the same reason. MAC-only lines carry none. */
-      if(saved.user)S.user=saved.user;if(saved.pass!=null)S.pass=saved.pass;
-      const res=await stalkerLogin(saved.url,saved.mac,{user:saved.user||'',pass:saved.pass||''});
-      if(signInCancelled(_tok))return;
-      S.stalker={endpoint:res.endpoint,mac:res.mac,token:res.token};
-      S.source='stalker';S.m3u=null;S.url=res.base;S.user=saved.user||'';S.pass=saved.pass||'';
-      S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
-      S.vod=[];S.vodCats=[];S.loadedVod=true;S.series=[];S.seriesCats=[];S.loadedSeries=true;
-      $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();
-      renderAll();updateHomeCounts();
-    }catch(e){}finally{endSignIn();load(false);}
   })();
 }catch(e){}})();
 /* v10.5: pick up the admin's activation the moment the user returns to the app. If it's still on
