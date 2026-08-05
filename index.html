@@ -1539,7 +1539,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.5.0';
+const APP_VERSION='19.6.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3290,7 +3290,9 @@ const PLAYERS={
        `platforms` and therefore never drawn or launched there — which is the whole fix. */
     label:'KMPlayer', kind:'external',
     platforms:['android','ios'],
-    icon:'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M11.5 7.5v17L24.5 16z"/></svg>',
+    /* the real KMPlayer mark: a white bowtie (two triangles, apex to apex) on the app's purple
+       gradient — not a generic play triangle, so the button reads as KMPlayer at a glance. */
+    icon:'<svg class="qpico" viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M8 9L16 16L8 23Z M24 9L16 16L24 23Z"/></svg>',
     btnClass:'qp-km', title:'Open in KMPlayer', extBtn:'extKm', row:true,
     url:{android:(u,t)=>androidIntentUrl(u,'com.kmplayer',t), ios:u=>iosKmUrl(u)},
     /* the iOS scheme is undocumented — copy the link so there is always a manual path */
