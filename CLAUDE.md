@@ -68,10 +68,11 @@ Single-page app, no build step — the deployed files are the source files.
 - `mkv.js`, `mpegts.min.js` — in-app Matroska and MPEG-TS engines.
 - `m26player2.js` (`M26Player2`, labelled "Player 1" in the UI) — the inbuilt player: probes a
   stream's real bytes and picks a decoder (native/hls.js/mpegts.js/mkv.js) from the evidence.
-- `player2.js` (`M26PlayerTwo`, labelled "Player 2") — a second, independent inbuilt player with
-  no shared code path with the above: always sends the title through the transcoder and plays the
-  resulting HLS. `playItemBasic()` in index.html falls back to it automatically when Player 1
-  gives up, for every category (Live/Movies/Series) and both portal types alike.
+
+Player choice, app-wide: Player 1 (in-app) and KMPlayer (external) are the only two players —
+VLC, MX Player and the packageless Android "App chooser" were removed (owner request) and must
+not be reintroduced. `PLAYERS` in index.html is the single registry; KMPlayer has no desktop
+target (registers no protocol handler there), so desktop only ever offers Player 1.
 
 Keep `_worker.js` and `server.js` in step where they implement the same thing
 (both expose `/proxy`, and both must send the player User-Agent upstream).
