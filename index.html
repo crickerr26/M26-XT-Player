@@ -1525,7 +1525,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.8.1';
+const APP_VERSION='19.9.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1922,6 +1922,13 @@ async function importFromCode(raw){
   await login();
 }
 function openPairSheet(prefill){if($('pairErr'))$('pairErr').textContent='';if($('pairCodeBox'))$('pairCodeBox').value=prefill||'';$('pairSheet').classList.add('show');setTimeout(()=>{try{$('pairCodeBox').focus()}catch(e){}},60);}
+/* v19.9: a portal whose edge blocks BOTH of the app's servers gets more than one automatic
+   chance to clear before the customer is handed a manual fallback — a single relay-wake-and-
+   retry was giving up too early on a host that stays blocked for a couple of minutes rather than
+   a few seconds. Each retry costs little once the relay is actually awake (awaitRelayReady
+   returns fast for a warm service), so raising this doesn't mean three separate 75-second waits
+   in the common case — only the genuinely stubborn ones spend the extra attempts. */
+const MAX_RELAY_ATTEMPTS=3;
 async function login(opts){
   $('err').textContent='';
   /* v18.8: this attempt's identity. Cancel bumps the sequence, so an attempt still inside an
@@ -1950,15 +1957,12 @@ async function login(opts){
      pressing the button again is precisely what re-starts the timer. Serve the wait here instead:
      hold, show what is being waited for, then carry on into the sign-in that was asked for. */
   portalBeginAttempt(sec=>{
-    /* v19.8.1: this wait means every route this app has to the portal (its own relay, that same
+    /* v19.9: this wait means every route this app has to the portal (its own relay, that same
        relay presenting a browser User-Agent, and the transcoder's separate relay on entirely
-       different hosting) was refused before the portal's own code ever saw the request — a block
-       on the MAC line's address, not a rate the app can out-wait quickly. If a username/password
-       line for the same account is already saved, say so: that sign-in goes through get.php
-       instead, a route this cooldown has nothing to do with, and it works right now. */
-    let alt='';
-    try{ if(stalkerMac()&&profiles().some(p=>p.kind==='xtream'))alt=' If you also have a username and password for this account, tap Cancel and sign in with that instead — it uses a different route.'; }catch(e){}
-    const t='Your portal asked us to wait — retrying in '+sec+'s…'+alt;
+       different hosting) was refused before the portal's own code ever saw the request. login()
+       now retries this automatically up to MAX_RELAY_ATTEMPTS times once the relay is confirmed
+       awake — this countdown is that retry happening, not a dead end the customer has to act on. */
+    const t='Your portal asked us to wait — retrying in '+sec+'s…';
     load(true,t);signInMsg(t,'working');
   });
   /* v17.9's transcoder warm-up runs when the sign-in FORM opens. Fire it again here for the paths
@@ -2010,7 +2014,7 @@ async function login(opts){
      actually signs in through, and it costs the relay path nothing: if it fails we fall into
      exactly the wait that used to run immediately. A customer on a Cloudflare-fronted MAG portal
      stops staring at a 75-second countdown before the app tries the thing that works. */
-  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&!(opts&&opts._relayRetry)&&stalkerMac()){
+  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&((opts&&opts._relayAttempt)||0)<MAX_RELAY_ATTEMPTS&&stalkerMac()){
     try{
       const t='Your portal blocks our main route — signing in with your MAC instead…';
       load(true,t);signInMsg(t,'working');
@@ -2025,17 +2029,18 @@ async function login(opts){
       S.stalkerLastError=(se&&se.message)||'';
     }
   }
-  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&!(opts&&opts._relayRetry)&&transcoderBase()){
+  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&((opts&&opts._relayAttempt)||0)<MAX_RELAY_ATTEMPTS&&transcoderBase()){
+    const attemptN=((opts&&opts._relayAttempt)||0)+1;
     const ready=await awaitRelayReady(sec=>{
       if(signInCancelled(_tok))return false;   /* v19.1.1: Cancel actually cancels */
-      const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…';
+      const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…'+(attemptN>1?(' (attempt '+attemptN+' of '+MAX_RELAY_ATTEMPTS+')'):'');
       load(true,t);signInMsg(t,'working');
     },75000);
     if(signInCancelled(_tok))return;
     if(ready){
       load(true,'Backup connection ready — signing you in…');
       portalClearCooldown();
-      return await login(Object.assign({},opts||{},{_relayRetry:true,
+      return await login(Object.assign({},opts||{},{_relayAttempt:attemptN,
         creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
     }
     /* v19.1.1: name the MAC route's own verdict when it was tried and refused — "the relay is not
@@ -2081,17 +2086,19 @@ async function login(opts){
       }catch(se){
         /* v18.5: an EDGE refusal on the MAG handshake is the same story as above — the portal's
            front door refused where we came from, and the relay is the only other address we have.
-           Wake it and run the whole sign-in again once rather than reporting a wait for the
-           customer to serve. Any other MAG failure is the portal's own answer and stands. */
-        if(se&&se.edge&&!(opts&&opts._relayRetry)&&transcoderBase()){
+           Wake it and run the whole sign-in again rather than reporting a wait for the customer to
+           serve — v19.9: up to MAX_RELAY_ATTEMPTS times, not just once, since a host that stays
+           blocked for a couple of minutes needs more than a single retry to clear on its own. */
+        if(se&&se.edge&&((opts&&opts._relayAttempt)||0)<MAX_RELAY_ATTEMPTS&&transcoderBase()){
+          const attemptN=((opts&&opts._relayAttempt)||0)+1;
           const ready=await awaitRelayReady(sec=>{
-            const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…';
+            const t='Your portal blocks our main route — bringing up the backup connection ('+sec+'s)…'+(attemptN>1?(' (attempt '+attemptN+' of '+MAX_RELAY_ATTEMPTS+')'):'');
             load(true,t);signInMsg(t,'working');
           },75000);
           if(ready){
             load(true,'Backup connection ready — signing you in…');
             portalClearCooldown();
-            return await login(Object.assign({},opts||{},{_relayRetry:true,
+            return await login(Object.assign({},opts||{},{_relayAttempt:attemptN,
               creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
           }
           /* A MAC-only line has no other route to try — say so outright. A credentials line falls
