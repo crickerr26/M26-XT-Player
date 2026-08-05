@@ -78,10 +78,15 @@ identifiers that remain (`PROFILE_KINDS.xtream`, server.js `normalizeKind`) are 
 backward compatibility with data already stored under that name — they mean "signed in with
 username/password", not "uses the Xtream API".
 
-Player choice, app-wide: Player 1 (in-app, `m26player2.js`) is the **only** player — KMPlayer,
-VLC, MX Player and the packageless Android "App chooser" were all removed (owner request) and
-must not be reintroduced. `PLAYERS` in index.html is the single registry (one entry, `basic`);
-there is no per-category player chooser and no external-app handoff any more.
+Player choice, app-wide: Player 1 (in-app, `m26player2.js`) and VLC (external) are the two
+players — KMPlayer, MX Player and the packageless Android "App chooser" stay removed (owner
+request) and must not be reintroduced; VLC came back by later owner request (v19.8) after being
+removed alongside KMPlayer in v19.5. `PLAYERS` in index.html is the single registry (`basic` +
+`vlc`); VLC runs on every platform (android/ios/desktop, unlike KMPlayer which had no desktop
+target), launches via `androidIntentUrl`/`iosVlcUrl`/`vlcDesktopUrl`, and appears both as a
+per-row button (Movies/Series/Live) and a per-category default in Stream Tools for Movies and
+Series only — Live TV never defaults to VLC (it drops live channels mid-view), so Live only gets
+the row button.
 
 Keep `_worker.js` and `server.js` in step where they implement the same thing
 (both expose `/proxy`, and both must send the player User-Agent upstream).
