@@ -1532,7 +1532,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.1.1';
+const APP_VERSION='19.1.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1976,6 +1976,10 @@ async function login(opts){
       w=rateLimitLeft();
     }
   }
+  /* v19.1.2: a verdict belongs to the attempt that produced it. Without this clear, a MAC refusal
+     from an earlier attempt would be thrown as the answer to a later one that never reached the
+     handshake at all. */
+  S.stalkerLastErr=null;S.stalkerLastError='';
   load(true,'Connecting...');S.source='xtream';S.m3u=null;resetFullCatalog();
   /* v13.2: THE PLAYLIST LEADS. Until now login opened with player_api.php and only fell back to
      the M3U playlist once that failed — but fetchJsonChain sweeps five relay candidates across
@@ -2112,7 +2116,11 @@ async function login(opts){
            When credentials were supplied they are the line's real identity, so a MAG failure is
            only a discarded guess: keep it for diagnostics and carry on to the Xtream API below.
            A MAC-only line has no other identity, so there the MAG answer IS the answer. */
-        if(S.user&&S.pass){ S.stalkerLastError=(se&&se.message)||''; }
+        /* v19.1.2: keep the ERROR, not just its sentence. stalkerFailMessage() reads its status,
+           its `profile` verdict and the portal's own words to say what was actually refused — none
+           of which survives being flattened to a string, and all of which is needed if this turns
+           out to be the last word (see the final throw below). */
+        if(S.user&&S.pass){ S.stalkerLastError=(se&&se.message)||''; S.stalkerLastErr=se; }
         else throw Error(stalkerFailMessage(se));
       }
     }
@@ -2124,6 +2132,14 @@ async function login(opts){
       if(e&&/rate-limit/i.test(e.message||''))throw e;
       info=null;
     }
+    /* ── v19.1.2: REPORT THE ROUTE THAT WAS ACTUALLY TRIED LAST ───────────────────────────────
+       Reaching here means every route failed. The message thrown was whatever the PLAYLIST PROBE
+       said — the first thing attempted — even when the MAC handshake ran after it and came back
+       with the portal's own verdict. On a MAG portal that is exactly backwards: the probe's
+       sentence is "this is a MAG portal, it signs in by MAC", which is no longer news by the time
+       the MAC has been tried and refused, and it buries the one answer that says why.
+       When the handshake produced a verdict, that verdict is the answer. */
+    if(!info&&S.stalkerLastErr)throw Error(stalkerFailMessage(S.stalkerLastErr));
     if(!info)throw Error((plErr&&plErr.message)||'Could not sign in. Check the URL, username and password — or paste the M3U link your provider gave you.');
   }
 
@@ -2624,7 +2640,14 @@ async function fetchPlaylistViaFunction(base,user,pass){
          more route to try (the MAC handshake, which login() now reaches on this reason), so this
          message is only ever the fallback for when that route has also been exhausted. */
       :(j&&j.reason==='edge-blocked')?'A security layer in front of this portal turned the request away before the portal itself saw it — so your username, password and MAC were never actually checked. This is usually short-lived. Try again in a moment.'
-      :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal. It signs devices in by MAC address, not by username and password — there is no username login to use here. Opening "Connect via MAC Address" for you…'
+      /* v19.1.2: this used to end 'Opening "Connect via MAC Address" for you…'. There has been no
+         separate MAC screen since v17.7 merged the two forms — openMacSheet() opens the very form
+         the customer is already looking at — so the sentence promised a thing that visibly never
+         happened, on a form whose MAC box was already filled in. It is also only ever READ when
+         the MAC handshake that follows has itself failed (login() throws the handshake's verdict
+         in preference to this, see the final throw there), so a promise to try the MAC is exactly
+         wrong: by then it has been tried. Describe the portal and stop. */
+      :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal — it signs devices in by their MAC address, not by a username and password. The MAC on this device is being used to sign in.'
       /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
          Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
          the panel behind it is down or its DNS is broken. Telling someone to re-check a username
