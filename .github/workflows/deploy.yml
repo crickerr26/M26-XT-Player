@@ -124,8 +124,19 @@ jobs:
             echo "Using the project's own Deploy Hook."
             echo "mode=hook" >> "$GITHUB_OUTPUT"
           else
-            echo "::error::No way to deploy. Set ONE of these under Settings -> Secrets and variables -> Actions: CLOUDFLARE_DEPLOY_HOOK_URL (Workers & Pages -> smarteriptv -> Settings -> Deploy Hooks -> + , branch main) or CLOUDFLARE_API_TOKEN (My Profile -> API Tokens -> 'Edit Cloudflare Workers')."
-            exit 1
+            # NEITHER SECRET IS SET — AND THAT IS A VALID SETUP, NOT A FAILURE.
+            # The Worker has Cloudflare's own Git integration connected (Workers &
+            # Pages -> smarteriptv -> Settings -> Build), which builds and deploys
+            # every push to main by itself. When that is the single deployer, this
+            # job has nothing to do and must not fail the run for it — it used to
+            # `exit 1` here, which would have turned every push red the moment the
+            # redundant deploy hook was removed.
+            # Note this is the ONE arrangement where a failed deploy is invisible
+            # from GitHub: Cloudflare reports build results only on its own
+            # Deployments page. Setting CLOUDFLARE_API_TOKEN moves deployment into
+            # this job, where a failure is red and visible.
+            echo "::notice::No CLOUDFLARE_API_TOKEN or CLOUDFLARE_DEPLOY_HOOK_URL set — assuming Cloudflare's Git integration deploys this repo on push. Syntax checks ran and passed; this job did NOT deploy anything. Check Workers & Pages -> smarteriptv -> Deployments to confirm the build landed, or set CLOUDFLARE_API_TOKEN to deploy from here and have failures show up red in Actions."
+            echo "mode=none" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Trigger the project's build (deploy hook)
