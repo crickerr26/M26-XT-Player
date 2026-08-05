@@ -1440,6 +1440,11 @@ body.login-dark .login,body.dark .login{background:
   </div>
   <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Load my playlist</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
+  <!-- v19.3.1: shown only when the portal's own edge is what refused the request (see the
+       display-toggle in submitXtreamLogin below) — retrying the same server route asks the same
+       blocked address again. This opens the RAW playlist link on the customer's own connection
+       instead, which the block cannot reach because it never leaves this device. -->
+  <button class="pillbtn" id="xtreamOpenDirect" type="button" style="width:100%;margin-top:8px;display:none">Open my playlist directly on this device instead</button>
 </div></div>
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
@@ -1538,7 +1543,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.3.0';
+const APP_VERSION='19.3.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5773,6 +5778,7 @@ function commitLoginMac(){
    of relying on the background #err text, which can sit behind the open sheet. */
 function openXtreamSheet(showMac){
   if($('xtreamErr'))$('xtreamErr').textContent='';
+  if($('xtreamOpenDirect'))$('xtreamOpenDirect').style.display='none';
   /* v19.1.3: the MAC box is only shown when this sheet was opened from the M3U tab. It still rides
      along with every sign-in attempt either way (see commitSheetMac / submitXtreamLogin) — an
      Xtream-code line just never needed the customer to see or edit it. */
@@ -5832,6 +5838,7 @@ async function submitXtreamLogin(){
   const user=(($('xtreamUser')&&$('xtreamUser').value)||'').trim();
   const pass=(($('xtreamPass')&&$('xtreamPass').value)||'');
   if($('xtreamErr'))$('xtreamErr').textContent='';
+  if($('xtreamOpenDirect'))$('xtreamOpenDirect').style.display='none';
   /* v17.7: THE SERVER URL IS THE ONLY REQUIRED FIELD. Demanding all three turned the one form
      that works into a form a MAC-only customer could not submit at all — and login() has accepted
      a URL with no username since v15.0, precisely because a MAG line has no username to give. */
@@ -5862,6 +5869,12 @@ async function submitXtreamLogin(){
         msg='This server would not issue a playlist for MAC '+macFmt(stalkerMac())+'. Either your seller has not finished binding it, or this line needs the username and password they were given — add them above and try again.';
       }
       signInMsg(msg,'error');
+      /* v19.3.1: an edge/WAF block is refusing OUR SERVERS, not this account — retrying the same
+         server route just asks the same blocked address again, which is why "tap Load my playlist
+         again" can repeat identically. The one route that is not subject to it is the customer's
+         own connection, so surface it directly instead of leaving them stuck on a loop. */
+      const dBtn=$('xtreamOpenDirect');
+      if(dBtn)dBtn.style.display=/security layer in front of (your|this) portal/i.test(msg)?'':'none';
       /* The seller hasn't activated this device's MAC yet. Close the form and put the MAC —
          which lives on the login screen — back in front of the user, since sending it to the
          seller is the one action that unblocks them. */
@@ -6130,6 +6143,15 @@ if($('xtreamActBtn'))$('xtreamActBtn').onclick=()=>openXtreamSheet(false);
 if($('xtreamClose'))$('xtreamClose').onclick=()=>$('xtreamSheet').classList.remove('show');
 if($('xtreamGo'))$('xtreamGo').onclick=submitXtreamLogin;
 if($('xtreamPass'))$('xtreamPass').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitXtreamLogin();}});
+/* v19.3.1: builds the same raw playlist link the M3U-import flow does, from whatever is currently
+   typed in this sheet, and opens it as a plain navigation — never fetched by this page, so it
+   carries no CORS/mixed-content restriction and never touches our servers at all. That is what
+   lets it through an edge block that is specifically refusing our servers, not this account. */
+if($('xtreamOpenDirect'))$('xtreamOpenDirect').onclick=()=>{
+  const url=devicePlaylistUrl();
+  if(!url){signInMsg('Could not build that link — check the server URL above.','error');return;}
+  try{window.open(url,'_blank');}catch(e){location.href=url;}
+};
 /* v17.9: the MAC field behaves like the one on the sign-in card — upper-cased as it is typed, and
    committed on blur so a corrected MAC is already in force before the button is even pressed. */
 if($('xtreamMac')){
