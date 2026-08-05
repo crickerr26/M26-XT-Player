@@ -162,13 +162,18 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='19.3.2';
+  var ADMIN_VERSION='19.4.0';
   $('adminVer').textContent='v'+ADMIN_VERSION;
-  var DEFAULT_BASE='https://media26-transcoder-xutt.onrender.com';
-  /* v10.4: consolidated onto ONE Render service. A stored URL still pointing at the retired
-     service is migrated here, otherwise this dashboard would keep writing activation codes to a
-     server the app no longer reads from — which is exactly how codes came back "not recognised". */
-  try{ var sb=localStorage.getItem('m26_admin_base')||''; if(/media26-transcoder-mlxq\.onrender\.com/i.test(sb)) localStorage.setItem('m26_admin_base',DEFAULT_BASE); }catch(e){}
+  var DEFAULT_BASE='https://media26-transcoder-mlxq.onrender.com';
+  /* v10.4 migrated a stored URL still pointing at "xutt" (that generation's retired service) to
+     "mlxq" — otherwise this dashboard would keep writing activation codes to a server the app no
+     longer reads from, which is exactly how codes came back "not recognised".
+     v19.4.0: the service was recreated AGAIN at some point after v10.4 shipped, and the Render
+     dashboard confirms "mlxq" is the one actually live and auto-deploying today — "xutt" is now
+     the dead one. v10.4's migration was pointed at the wrong service for who knows how long,
+     actively rewriting a correctly-set "mlxq" back to a dead host on every single page load. This
+     reverses it: a stored URL still on "xutt" is what gets migrated forward now, not "mlxq". */
+  try{ var sb=localStorage.getItem('m26_admin_base')||''; if(/media26-transcoder-xutt\.onrender\.com/i.test(sb)) localStorage.setItem('m26_admin_base',DEFAULT_BASE); }catch(e){}
   try{ $('key').value = localStorage.getItem('m26_admin_key')||''; }catch(e){}
   try{ $('base').value = localStorage.getItem('m26_admin_base')||DEFAULT_BASE; }catch(e){ $('base').value=DEFAULT_BASE; }
   $('key').addEventListener('input',function(){ try{localStorage.setItem('m26_admin_key',$('key').value)}catch(e){} });
