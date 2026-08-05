@@ -1525,7 +1525,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.8.0';
+const APP_VERSION='19.8.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1950,7 +1950,15 @@ async function login(opts){
      pressing the button again is precisely what re-starts the timer. Serve the wait here instead:
      hold, show what is being waited for, then carry on into the sign-in that was asked for. */
   portalBeginAttempt(sec=>{
-    const t='Your portal asked us to wait — retrying in '+sec+'s…';
+    /* v19.8.1: this wait means every route this app has to the portal (its own relay, that same
+       relay presenting a browser User-Agent, and the transcoder's separate relay on entirely
+       different hosting) was refused before the portal's own code ever saw the request — a block
+       on the MAC line's address, not a rate the app can out-wait quickly. If a username/password
+       line for the same account is already saved, say so: that sign-in goes through get.php
+       instead, a route this cooldown has nothing to do with, and it works right now. */
+    let alt='';
+    try{ if(stalkerMac()&&profiles().some(p=>p.kind==='xtream'))alt=' If you also have a username and password for this account, tap Cancel and sign in with that instead — it uses a different route.'; }catch(e){}
+    const t='Your portal asked us to wait — retrying in '+sec+'s…'+alt;
     load(true,t);signInMsg(t,'working');
   });
   /* v17.9's transcoder warm-up runs when the sign-in FORM opens. Fire it again here for the paths
@@ -2086,8 +2094,9 @@ async function login(opts){
             return await login(Object.assign({},opts||{},{_relayRetry:true,
               creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
           }
-          /* Same rule as below: on a credentials line this is still only the MAC route failing,
-             and player_api has its own relay candidates that have not been tried yet. */
+          /* A MAC-only line has no other route to try — say so outright. A credentials line falls
+             through to the MAG verdict below instead (v19.6: there is no Xtream API fallback left
+             to carry on to any more). */
           if(!(S.user&&S.pass))throw Error('Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC ('+macFmt(stalkerMac())+'). Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
         }
         /* v19.6: the MAG handshake is the ONLY other route left once the playlist step has
