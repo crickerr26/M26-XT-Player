@@ -59,7 +59,7 @@ what the user gets, e.g.
 
 Single-page app, no build step — the deployed files are the source files.
 
-- `index.html` — the entire app (UI, player engines, Xtream/playlist loading).
+- `index.html` — the entire app (UI, player engine, M3U/playlist loading).
 - `portal.js` — `Media26Portal`: M3U parsing/classification, Stalker/MAG helpers.
 - `_worker.js` — Cloudflare Pages Function: `/proxy` CORS relay, `/api/playlist`
   server-side playlist login, `/transcoder/*` pass-through.
@@ -69,10 +69,19 @@ Single-page app, no build step — the deployed files are the source files.
 - `m26player2.js` (`M26Player2`, labelled "Player 1" in the UI) — the inbuilt player: probes a
   stream's real bytes and picks a decoder (native/hls.js/mpegts.js/mkv.js) from the evidence.
 
-Player choice, app-wide: Player 1 (in-app) and KMPlayer (external) are the only two players —
-VLC, MX Player and the packageless Android "App chooser" were removed (owner request) and must
-not be reintroduced. `PLAYERS` in index.html is the single registry; KMPlayer has no desktop
-target (registers no protocol handler there), so desktop only ever offers Player 1.
+v19.6 (owner request): the Xtream Codes API (player_api.php — categories, VOD/series info,
+account status) was removed entirely. The app is M3U-only now: sign-in always resolves through
+the panel's `get.php` playlist endpoint (server URL + username + password, which the app builds
+into an M3U URL — labelled "Server Login" in the UI) or a MAC-bound Stalker/MAG line, or a raw
+M3U URL/file pasted directly. Do not reintroduce `player_api.php` calls. The `xtream`/`'xtream'`
+identifiers that remain (`PROFILE_KINDS.xtream`, server.js `normalizeKind`) are kept only for
+backward compatibility with data already stored under that name — they mean "signed in with
+username/password", not "uses the Xtream API".
+
+Player choice, app-wide: Player 1 (in-app, `m26player2.js`) is the **only** player — KMPlayer,
+VLC, MX Player and the packageless Android "App chooser" were all removed (owner request) and
+must not be reintroduced. `PLAYERS` in index.html is the single registry (one entry, `basic`);
+there is no per-category player chooser and no external-app handoff any more.
 
 Keep `_worker.js` and `server.js` in step where they implement the same thing
 (both expose `/proxy`, and both must send the player User-Agent upstream).

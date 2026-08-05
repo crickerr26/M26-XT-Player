@@ -108,11 +108,13 @@ function normalizeCode(raw) {
   return null;
 }
 /* ── v13.0: TWO KINDS OF LINE ────────────────────────────────────────────────────────────────
-   An XTREAM line is portal URL + username + password. An M3U / MAG (Stalker) line has no username
-   at all — the customer's device MAC is the credential, bound on the provider's own panel — so the
+   A 'xtream'-kind line is portal URL + username + password (the app turns this into an M3U/
+   get.php URL — the name is kept internally for compatibility with codes already stored, the app
+   never calls Xtream's player_api.php). An 'm3u'-kind (MAC / Stalker) line has no username at all
+   — the customer's device MAC is the credential, bound on the provider's own panel — so the
    portal address is the only thing to store.
-   Until now activate/create both hard-required a username, which made an M3U line impossible to
-   provision: the admin had nothing to type in the field and the request was rejected. Records
+   Until now activate/create both hard-required a username, which made a MAC-only line impossible
+   to provision: the admin had nothing to type in the field and the request was rejected. Records
    written before this have no `kind`, so it is inferred from whether a username was stored, and an
    old dashboard that sends no `kind` keeps behaving exactly as it did. */
 function normalizeKind(raw, user) {
@@ -126,7 +128,7 @@ function normalizeKind(raw, user) {
 function validateLine(url, user, kind) {
   if (!String(url || '').trim()) return 'Portal URL is required.';
   if (kind !== 'm3u' && !String(user || '').trim()) {
-    return 'Username is required for an Xtream line. For an M3U / MAG line choose the M3U type — it signs in by MAC and has no username.';
+    return 'Username is required for a username/password line. For a MAC-only line choose that type — it signs in by MAC and has no username.';
   }
   return '';
 }

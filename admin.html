@@ -46,7 +46,7 @@
   .warn{margin-top:12px;padding:13px 14px;border-radius:12px;background:#fef7e0;border:1px solid #feefc3;color:#b06000;font-size:12.5px;line-height:1.5}
   .newcode{margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,#e8f0fe,#e6f4ea);border:1px solid #cfe0d6}
   .bigcode{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:700;letter-spacing:8px;text-align:center;color:#0b57d0;text-indent:8px;padding:8px 0}
-  /* v17.5: line-type segmented control (Xtream / M3U) */
+  /* v17.5: line-type segmented control (username+password / MAC-only) */
   .seg{display:flex;gap:6px;background:#f1f3f4;border-radius:999px;padding:4px}
   .segBtn{flex:1;border-radius:999px;padding:10px 12px;font-size:13px;background:transparent;color:var(--ink-soft);font-weight:600}
   .segBtn.active{background:#fff;color:var(--g-blue);box-shadow:0 1px 3px rgba(60,64,67,.22)}
@@ -80,14 +80,15 @@
   <div class="card">
     <h2>Create / activate a code</h2>
     <p class="muted" style="margin:0 0 10px">Fill in the IPTV line below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate a code a customer already gave you</b>.</p>
-    <!-- v17.5: the two products the app supports. An Xtream line is URL + username + password; an
-         M3U / MAG line has no username at all — the customer's device MAC is the credential, bound
-         on the provider's panel — so only the portal address is stored. Before this the server
-         hard-required a username on both write paths, which made an M3U line impossible to sell. -->
+    <!-- v19.6: the app is M3U-only now (no Xtream API calls) — but a line still signs in either
+         by URL + username + password (which the app turns into an M3U/get.php URL) or by device
+         MAC alone (bound on the provider's panel, no username or password). The 'xtream' data-kind
+         value is kept internally for compatibility with codes already stored server-side; only the
+         label changes. -->
     <label>Line type</label>
     <div class="seg" id="a_kindSeg">
-      <button type="button" class="segBtn active" data-kind="xtream">Xtream Code</button>
-      <button type="button" class="segBtn" data-kind="m3u">M3U Playlist (MAC)</button>
+      <button type="button" class="segBtn active" data-kind="xtream">Username &amp; Password</button>
+      <button type="button" class="segBtn" data-kind="m3u">MAC Address Only</button>
     </div>
     <label>Customer's 8-digit code or MAC address <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate this code"</span></label>
     <input id="a_code" placeholder="e.g. 48207391 or 02:AB:CD:EF:12:34" style="text-transform:uppercase">
@@ -137,8 +138,8 @@
     <p class="muted" style="margin:0 0 8px">Devices, status and creation date are kept. Leave the password blank to keep the stored one.</p>
     <label>Line type</label>
     <div class="seg" id="e_kindSeg">
-      <button type="button" class="segBtn active" data-kind="xtream">Xtream Code</button>
-      <button type="button" class="segBtn" data-kind="m3u">M3U Playlist (MAC)</button>
+      <button type="button" class="segBtn active" data-kind="xtream">Username &amp; Password</button>
+      <button type="button" class="segBtn" data-kind="m3u">MAC Address Only</button>
     </div>
     <label>Portal URL</label>
     <input id="e_url" placeholder="http://yourserver.com:8080" autocomplete="off">
@@ -162,7 +163,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='19.6.0';
+  var ADMIN_VERSION='19.7.0';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   var DEFAULT_BASE='https://media26-transcoder-mlxq.onrender.com';
   /* v10.4 migrated a stored URL still pointing at "xutt" (that generation's retired service) to
@@ -211,8 +212,9 @@
   }
 
   /* ── v17.5: LINE TYPE ─────────────────────────────────────────────────────────────────────
-     Xtream = URL + username + password. M3U / MAG = URL only; the customer's device MAC is the
-     credential and is bound on the provider's own panel. Hiding the credential fields on M3U is
+     'xtream' kind = URL + username + password (the app turns this into an M3U/get.php URL — no
+     Xtream API call is made). 'm3u' kind = URL only; the customer's device MAC is the credential
+     and is bound on the provider's own panel. Hiding the credential fields on the MAC-only kind is
      what makes the difference legible — leaving two empty boxes on screen just looks broken. */
   function wireKindSeg(segId,rowId,noteId){
     var seg=$(segId); if(!seg) return;
@@ -383,7 +385,7 @@
         return '<tr>'+
           '<td class="selcell"><input type="checkbox" class="rowsel" data-code="'+esc(c.code)+'" onchange="paintBulk()"></td>'+
           '<td><code class="copyable" title="Click to copy" onclick="copyCode(this,\''+c.code+'\')">'+esc(c.code)+'</code></td>'+
-          '<td><span class="pill k-'+k+'">'+(k==='m3u'?'M3U':'Xtream')+'</span></td>'+
+          '<td><span class="pill k-'+k+'">'+(k==='m3u'?'MAC':'Login')+'</span></td>'+
           '<td><span class="pill s-'+esc(st)+'">'+esc(st)+'</span></td>'+
           '<td>'+(c.devices||0)+'/'+j.deviceLimit+'</td>'+
           '<td class="muted" title="'+esc(c.url||'')+'">'+esc(c.user||(k==='m3u'?'by MAC':'—'))+'</td>'+
