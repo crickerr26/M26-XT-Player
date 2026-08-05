@@ -698,7 +698,7 @@
   function stop() { if (live) { try { live.stop(); } catch (e) {} live = null; } }
 
   global.M26Player2 = {
-    name: 'M26 Player 2',
+    name: 'Player 1',
     configure: configure,
     play: play,
     stop: stop,

@@ -13,6 +13,7 @@
 <script src="mkv.js"></script>
 <script src="portal.js"></script>
 <script src="m26player2.js"></script>
+<script src="player2.js"></script>
 <script src="mpegts.min.js"></script>
 <script>
 /* v15.7: load the CDN copy of an engine by CHECKING WHETHER IT IS ACTUALLY THERE, not by waiting
@@ -1331,7 +1332,7 @@ body.login-dark .login,body.dark .login{background:
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="browser">M26 Player 2 (plays MKV in-app)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto: Movies and Series open in VLC (it plays MKV/HEVC that the browser can't); Live TV uses the built-in player (VLC drops live channels mid-view). Pick a specific app to force a whole category to it. The per-row VLC and KMPlayer buttons launch any single title on demand.</p></div><div class="field nativeField"><label>M26 Player 2 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in M26 Player 2. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"><option value="auto">Auto</option><option value="browser">Player 1 (plays MKV in-app)</option><option value="player2">Player 2 (always converts, most reliable)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"><option value="auto">Auto</option><option value="browser">Player 1 (plays MKV in-app)</option><option value="player2">Player 2 (always converts, most reliable)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"><option value="auto">Auto</option><option value="browser">Player 1 (plays MKV in-app)</option><option value="player2">Player 2 (always converts, most reliable)</option><option value="exo">App chooser (VLC / KMPlayer)</option><option value="vlc">VLC</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto: every category plays in Player 1 first; if a title's audio or video codec can't be decoded in-app, Player 2 takes over automatically and converts it through the transcoder — no app switch, no re-tapping. Pick a specific app to force a whole category to it. The per-row VLC and KMPlayer buttons launch any single title on demand.</p></div><div class="field nativeField"><label>Player 1 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in Player 1, and Player 2 needs it for everything — it's what makes Player 2 able to play a title Player 1 can't. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeVlc">Copy VLC Link</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -1371,7 +1372,7 @@ body.login-dark .login,body.dark .login{background:
       <div class="eqBand"><span>Mid</span><input type="range" id="eqMid" min="-12" max="12" step="1" value="0"><b id="eqMidV">0</b></div>
       <div class="eqBand"><span>Treble</span><input type="range" id="eqTreble" min="-12" max="12" step="1" value="0"><b id="eqTrebleV">0</b></div>
     </div>
-    <p class="nativeText" id="eqNote" style="margin-top:8px">Colour mode and equalizer apply instantly to M26 Player 2.</p>
+    <p class="nativeText" id="eqNote" style="margin-top:8px">Colour mode and equalizer apply instantly, in Player 1 or Player 2.</p>
   </div>
   <div class="setSection"><label class="setLabel">Share profile</label>
     <p class="nativeText" style="margin:2px 0 8px">Set up Media26 on another device without typing anything. Scan the code (or type it) on the other phone and its playlist loads automatically.</p>
@@ -1537,7 +1538,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.2.0';
+const APP_VERSION='19.3.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3285,10 +3286,21 @@ function resolvedPlayer(type){const m=(S.playerModes&&S.playerModes[type])||'aut
    offered somewhere it cannot run. To add a player, add a key; nothing else needs touching. */
 const PLAYERS={
   basic:{
-    label:'M26 Player 2', kind:'internal',
+    label:'Player 1', kind:'internal',
     platforms:['android','ios','desktop'],
     icon:'<svg class="qpico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>',
     btnClass:'qp-here', title:'Play here in the app'
+  },
+  player2:{
+    /* v19.3: the second, independent in-app engine (player2.js/M26PlayerTwo) — always converts
+       the source through the transcoder rather than trying to decode it as sent, so it is the one
+       route this device's own codec support can never rule out. playItemBasic() already falls
+       back to it automatically when Player 1 gives up; this entry is what lets a category be
+       pinned to it directly, or a single title be opened in it on demand. */
+    label:'Player 2', kind:'internal',
+    platforms:['android','ios','desktop'],
+    icon:'<svg class="qpico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>',
+    btnClass:'qp-here', title:'Play here via the transcoder (most reliable, needs a transcoder configured)'
   },
   vlc:{
     label:'VLC', kind:'external',
@@ -3706,10 +3718,14 @@ function liveFailMessage(transErr){
    preview panel shows while it runs. playItemBasic() keeps its name so every existing caller —
    routePlayback, "Play here instead", the per-row play button — is untouched. */
 let _playerConfigured=false;
+/* v19.3: ONE deps object, TWO engines. Player 1 (M26Player2/m26player2.js) and Player 2
+   (M26PlayerTwo/player2.js) are independent implementations — different files, no shared code
+   path — but they read the same app helpers, so there is exactly one place that can drift out of
+   sync with the rest of the app instead of two. */
 function configureInbuiltPlayer(){
   if(_playerConfigured)return true;
   if(typeof M26Player2==='undefined')return false;
-  M26Player2.configure({
+  const deps={
     video:()=>$('video'),
     /* cleanup() bumps S.seq on every new request; the engine compares against it so a stale
        attempt still inside an await can never touch the element after a newer tap. */
@@ -3731,7 +3747,9 @@ function configureInbuiltPlayer(){
     noRouteReason:x=>(x&&x._stalkerCmd)
       ?('your portal would not issue a link for this title — '+(S.stalkerLastError||'it returned no link'))
       :'this title has no playable stream address in the current playlist'
-  });
+  };
+  M26Player2.configure(deps);
+  if(typeof M26PlayerTwo!=='undefined')M26PlayerTwo.configure(deps);
   _playerConfigured=true;return true;
 }
 /* Shown when every route this device can decode has been tried. It names the real reason rather
@@ -3760,13 +3778,46 @@ function playbackFailed(x,live,why){
     if($('extCopy'))$('extCopy').style.display='';
   }
 }
+/* v19.3: the state→UI mapping is shared between Player 1 and Player 2 so a switch between them is
+   invisible to the viewer — same loading label, same "Reconnecting", same everything. Only
+   onFailed differs per attempt, so it is passed in rather than hard-coded here. */
+function playerStateHooks(engineName,clearSpin,onFailed){
+  return {
+    onState:(state,detail)=>{
+      if(state==='playing'){
+        clearSpin();$('overlay').style.display='none';
+        $('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';
+        if($('playBtn'))$('playBtn').innerHTML=ICONS.pause;
+      }else if(state==='probing'){
+        /* the identify step — a fraction of a second, and it is why a dead route no longer costs
+           the user most of a minute */
+        $('netStatus').textContent='Checking stream';$('miniMeta').textContent='Checking';
+      }else if(state==='loading'){
+        /* v17.6: NAME THE ROUTE BEING TRIED. Until now the panel said only "Loading" from the
+           first tap to the final give-up, so a stream that was working through the candidate list
+           and one that was stuck looked identical — which is why "nothing plays" arrives with
+           nothing to act on. The label says which address is in hand (the provider's own link,
+           the panel's derived form, our relay, the transcoder), so a screenshot of a stall now
+           identifies the route that stalled. */
+        $('netStatus').textContent=detail?'Trying '+detail:('Starting '+engineName);
+        $('miniMeta').textContent='Loading';
+      }else if(state==='recovering'){
+        $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
+      }else if(state==='switching'){
+        $('netStatus').textContent='Switching to a steadier stream';
+      }
+    },
+    onLevels:()=>{applySavedQuality();refreshQualityUI();},
+    onFailed:onFailed
+  };
+}
 async function playItemBasic(x){
   /* A MAG/Stalker title is a portal command, not a URL — exchange it for a real link first. */
   if(x&&x._stalkerCmd)await stalkerResolve(x);
   setCurrentItem(x);cleanup();
   const v=$('video'),live=typeOf(x)==='live',thumb=logoOf(x);
   $('extActions').classList.add('hidden');
-  if(!configureInbuiltPlayer()){playbackFailed(x,live,'M26 Player 2 did not load — check your connection and reopen the app');return}
+  if(!configureInbuiltPlayer()){playbackFailed(x,live,'Player 1 did not load — check your connection and reopen the app');return}
   let spinTimer=null;
   const showLoading=()=>{
     spinTimer=null;
@@ -3790,35 +3841,56 @@ async function playItemBasic(x){
     $('overlay').style.display='none';
     spinTimer=setTimeout(showLoading,900);
   }
+  /* v19.3: PLAYER 1 FAILS INTO PLAYER 2, AUTOMATICALLY. Player 1 (m26player2.js) already tries
+     every route this device's own decoders can play; when it truly gives up, that used to be the
+     end of it — external apps, one tap away, but the app itself was done trying. Player 2
+     (player2.js) is a second, independent engine built around the one thing Player 1 cannot do
+     for itself: hand the title to the transcoder and play back whatever comes out, which no
+     source format or codec can defeat as long as the transcoder is reachable. Trying it here,
+     before showing the "couldn't play this" screen, is what "the user never sees one player fail"
+     actually means — a failure the viewer notices should be rare enough that it means BOTH engines
+     struck out, not that the first one did. */
+  const tryPlayerTwo=why1=>{
+    if(typeof M26PlayerTwo==='undefined'){playbackFailed(x,live,why1);return}
+    showLoading();$('stateText').textContent='Switching to Player 2…';
+    $('netStatus').textContent=M26PlayerTwo.name;
+    M26PlayerTwo.play(x,playerStateHooks(M26PlayerTwo.name,clearSpin,why2=>{
+      clearSpin();playbackFailed(x,live,why2||why1);
+    }));
+  };
   $('netStatus').textContent=M26Player2.name;
-  M26Player2.play(x,{
-    onState:(state,detail)=>{
-      if(state==='playing'){
-        clearSpin();$('overlay').style.display='none';
-        $('netStatus').textContent='Playing';$('miniMeta').textContent='Playing';
-        if($('playBtn'))$('playBtn').innerHTML=ICONS.pause;
-      }else if(state==='probing'){
-        /* the identify step — a fraction of a second, and it is why a dead route no longer costs
-           the user most of a minute */
-        $('netStatus').textContent='Checking stream';$('miniMeta').textContent='Checking';
-      }else if(state==='loading'){
-        /* v17.6: NAME THE ROUTE BEING TRIED. Until now the panel said only "Loading" from the
-           first tap to the final give-up, so a stream that was working through the candidate list
-           and one that was stuck looked identical — which is why "nothing plays" arrives with
-           nothing to act on. The label says which address is in hand (the provider's own link,
-           the panel's derived form, our relay, the transcoder), so a screenshot of a stall now
-           identifies the route that stalled. */
-        if(detail)$('netStatus').textContent='Trying '+detail;
-        $('miniMeta').textContent='Loading';
-      }else if(state==='recovering'){
-        $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
-      }else if(state==='switching'){
-        $('netStatus').textContent='Switching to a steadier stream';
-      }
-    },
-    onLevels:()=>{applySavedQuality();refreshQualityUI();},
-    onFailed:why=>{clearSpin();playbackFailed(x,live,why);}
-  });
+  M26Player2.play(x,playerStateHooks(M26Player2.name,clearSpin,why=>tryPlayerTwo(why)));
+}
+/* v19.3: Player 2, chosen deliberately rather than reached as a fallback — the per-category
+   picker in Stream Tools, or "Play here instead" once Player 1 has already been forced elsewhere.
+   A forced choice is not automatically softened by trying the other engine on failure; that
+   silent swap is what playItemBasic() above does when NEITHER player was explicitly asked for. */
+async function playItemPlayerTwo(x){
+  if(x&&x._stalkerCmd)await stalkerResolve(x);
+  setCurrentItem(x);cleanup();
+  const v=$('video'),live=typeOf(x)==='live',thumb=logoOf(x);
+  $('extActions').classList.add('hidden');
+  if(!configureInbuiltPlayer()||typeof M26PlayerTwo==='undefined'){playbackFailed(x,live,'Player 2 did not load — check your connection and reopen the app');return}
+  let spinTimer=null;
+  const showLoading=()=>{
+    spinTimer=null;
+    if($('stateThumb')){if(live&&thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden')}else{$('stateThumb').classList.add('hidden')}}
+    if($('stateProgress'))$('stateProgress').classList.remove('hidden');
+    $('stateTitle').textContent='Loading';$('stateText').textContent=nameOf(x);
+    $('overlay').style.display='grid';$('miniMeta').textContent='Loading';
+  };
+  const clearSpin=()=>{if(spinTimer){clearTimeout(spinTimer);spinTimer=null}};
+  v.muted=false;
+  if(live){showLoading();}
+  else{
+    try{if(thumb)v.poster=thumb;else v.removeAttribute('poster')}catch(e){}
+    const pb=$('playerBox');if(pb)pb.classList.toggle('posterPreview',!!thumb);
+    if($('stateThumb'))$('stateThumb').classList.add('hidden');
+    $('overlay').style.display='none';
+    spinTimer=setTimeout(showLoading,900);
+  }
+  $('netStatus').textContent=M26PlayerTwo.name;
+  M26PlayerTwo.play(x,playerStateHooks(M26PlayerTwo.name,clearSpin,why=>{clearSpin();playbackFailed(x,live,why);}));
 }
 /* The transcoder profile that matches the chosen ceiling. 'original' means never downscale. */
 function qualityProfile(){const q=S.quality||'auto';if(q==='720')return'hd720';if(q==='1080'||q==='auto')return'hd1080';return''}
@@ -4117,6 +4189,7 @@ async function playItem(item,fromAlternative=false){
   let mode;
   if(pm==='vlc'||pm==='km'||pm==='mx'){mode=pm;}                    /* explicit external app */
   else if(pm==='browser'||pm==='basic'){mode='basic';}             /* explicit built-in (legacy) */
+  else if(pm==='player2'){mode='player2';}                         /* explicit: force Player 2 */
   else if(t==='live'){mode='basic';}                               /* live → built-in */
   /* v11.2: Movies and Series come back to the built-in player. v10.9 sent them to VLC because the
      web player could not decode MKV/HEVC on iPhone — v11.1's in-app Matroska remuxer removed that
@@ -4145,6 +4218,7 @@ async function routePlayback(x,mode,fromAlternative){
        popup tap's activation. Live keeps the gate for reliability. */
     await playItemExternal(x,mode,typeOf(x)!=='live');return;
   }
+  if(mode==='player2'){await playItemPlayerTwo(x);return;}
   await playItemBasic(x);
 }
 /* ── v18.9: the player-chooser cluster was removed here ────────────────────────────────────
@@ -6141,11 +6215,11 @@ if($('catList'))$('catList').addEventListener('click',e=>{
    every automatic reconnect until Login is tapped. */
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();setSignedOut(true);$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if($('catpage'))backToCategories();else $('side').classList.toggle('open')};$('themeBtn').onclick=()=>document.body.classList.toggle('light');$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();openRawStream()};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
-$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u){toast('No stream link for this title yet — open it once, then copy.');return}/* v18.4: on a computer the useful thing to copy is the STREAM address, because the way you get it into desktop VLC is Media > Open Network Stream and paste. A vlc:// scheme link cannot be pasted there — it is only meaningful as something to click — so copying one was handing the user a string that does nothing in the box they were told to paste it into. On a phone the scheme link IS the useful one: tapping it launches VLC. */const desktop=deviceKind()==='desktop';const link=desktop?u:vlcUrl(u);try{navigator.clipboard&&navigator.clipboard.writeText(link)}catch(e){}toast(desktop?'Stream link copied — in VLC: Media > Open Network Stream, paste, Play':'VLC link copied');};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ M26 Player 2 ready — MKV plays here in the app':'⚠️ M26 Player 2 '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
+$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeVlc').onclick=()=>{const u=nativeAppUrl(S.current);if(!u){toast('No stream link for this title yet — open it once, then copy.');return}/* v18.4: on a computer the useful thing to copy is the STREAM address, because the way you get it into desktop VLC is Media > Open Network Stream and paste. A vlc:// scheme link cannot be pasted there — it is only meaningful as something to click — so copying one was handing the user a string that does nothing in the box they were told to paste it into. On a phone the scheme link IS the useful one: tapping it launches VLC. */const desktop=deviceKind()==='desktop';const link=desktop?u:vlcUrl(u);try{navigator.clipboard&&navigator.clipboard.writeText(link)}catch(e){}toast(desktop?'Stream link copied — in VLC: Media > Open Network Stream, paste, Play':'VLC link copied');};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Player 1 ready — MKV plays here in the app':'⚠️ Player 1 '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
    toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
    always shows the muted icon the user can tap to turn sound on. */
-if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,m==='browser'?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extKm'))$('extKm').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'km',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
+if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extBtn'))$('extBtn').onclick=()=>{if(!S.current){toast('Pick a channel first');return}const m=resolvedPlayer(typeOf(S.current));playItemExternal(S.current,(m==='browser'||m==='player2')?(deviceKind()==='android'?'exo':'vlc'):m)};if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extExo'))$('extExo').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'exo',true)};if($('extMx'))$('extMx').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'mx',true)};if($('extKm'))$('extKm').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'km',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
    for live TV keep the clean auto-hide after 1.8s. */
 /* v79: consistent auto-hiding controls (like Infuse). Tap the video to reveal them; they fade
    out together after a few seconds of no interaction while playing, and stay up while paused or
@@ -6509,13 +6583,13 @@ applyColour(savedColour());updateVolPct();
     var icon='▶',title='',text='',actions='';
     if(d==='ios'){
       icon='▶';
-      title='M26 Player 2 ready';
-      text='Channels play right here in the app \u2014 VLC-style buffering over one steady connection, no extra app needed. If a channel uses a codec the iPhone can\u2019t decode (HEVC/Dolby), VLC plays everything.';
+      title='Player 1 ready';
+      text='Channels play right here in the app \u2014 VLC-style buffering over one steady connection, no extra app needed. If a channel uses a codec the iPhone can\u2019t decode (HEVC/Dolby), Player 2 automatically converts it and keeps playing; VLC stays available too.';
       actions=link('Get VLC (optional)',STORE.vlcIOS,false);
     }else if(d==='android'){
       icon='▶';
-      title='M26 Player 2 ready';
-      text='Channels play right here in the app \u2014 VLC-style buffering over one steady connection, no extra app needed. VLC or MX Player stay available as optional backups in Stream Tools.';
+      title='Player 1 ready';
+      text='Channels play right here in the app \u2014 VLC-style buffering over one steady connection, no extra app needed. Player 2 automatically takes over if a title needs converting; VLC or MX Player stay available as optional backups in Stream Tools.';
       actions=link('Get VLC (optional)',STORE.vlcAndroid,false)+link('Get MX Player',STORE.mxAndroid,false);
     }else if(d==='tv'){
       icon='📺';

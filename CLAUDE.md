@@ -66,6 +66,12 @@ Single-page app, no build step — the deployed files are the source files.
 - `server.js` — Render service: ffmpeg transcoder + its own `/proxy` relay.
 - `sw.js` — network-first service worker for the app shell.
 - `mkv.js`, `mpegts.min.js` — in-app Matroska and MPEG-TS engines.
+- `m26player2.js` (`M26Player2`, labelled "Player 1" in the UI) — the inbuilt player: probes a
+  stream's real bytes and picks a decoder (native/hls.js/mpegts.js/mkv.js) from the evidence.
+- `player2.js` (`M26PlayerTwo`, labelled "Player 2") — a second, independent inbuilt player with
+  no shared code path with the above: always sends the title through the transcoder and plays the
+  resulting HLS. `playItemBasic()` in index.html falls back to it automatically when Player 1
+  gives up, for every category (Live/Movies/Series) and both portal types alike.
 
 Keep `_worker.js` and `server.js` in step where they implement the same thing
 (both expose `/proxy`, and both must send the player User-Agent upstream).
