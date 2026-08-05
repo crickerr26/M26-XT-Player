@@ -107,12 +107,22 @@ jobs:
           HOOK: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK_URL }}
           TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
-          if [ -n "$HOOK" ]; then
+          # PREFER WRANGLER. The hook only ASKS Cloudflare to build: it answers
+          # {"status":"queued"} and reports nothing afterwards, so this job goes
+          # green whether the build then succeeds, fails, or never runs. That is
+          # the exact failure this workflow was written to end — and it recurred:
+          # v19.1.2 was queued at 00:04 and the live site was still serving an
+          # older build minutes later, with a green check here the whole time.
+          # wrangler uploads the assets itself, in this job, and a failure turns
+          # this step red. So when a token exists it wins; the hook stays as the
+          # fallback for when it does not.
+          if [ -n "$TOKEN" ]; then
+            echo "Deploying directly with wrangler (synchronous — a failure fails this job)."
+            echo "mode=wrangler" >> "$GITHUB_OUTPUT"
+          elif [ -n "$HOOK" ]; then
+            echo "::warning::No CLOUDFLARE_API_TOKEN set, falling back to the deploy hook. The hook only QUEUES a build on Cloudflare's side and reports nothing back, so a green check here does NOT mean the new version is live. Add CLOUDFLARE_API_TOKEN (My Profile -> API Tokens -> 'Edit Cloudflare Workers') to make deploys verifiable."
             echo "Using the project's own Deploy Hook."
             echo "mode=hook" >> "$GITHUB_OUTPUT"
-          elif [ -n "$TOKEN" ]; then
-            echo "No deploy hook set; deploying directly with wrangler."
-            echo "mode=wrangler" >> "$GITHUB_OUTPUT"
           else
             echo "::error::No way to deploy. Set ONE of these under Settings -> Secrets and variables -> Actions: CLOUDFLARE_DEPLOY_HOOK_URL (Workers & Pages -> smarteriptv -> Settings -> Deploy Hooks -> + , branch main) or CLOUDFLARE_API_TOKEN (My Profile -> API Tokens -> 'Edit Cloudflare Workers')."
             exit 1
