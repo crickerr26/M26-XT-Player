@@ -1543,7 +1543,7 @@ const CHOOSER_TYPES_KEY='m26-chooser-types-v1';
 function clearChooserDefaults(){try{store.removeItem(CHOOSER_TYPES_KEY);store.removeItem(CHOOSER_KEY)}catch(e){}}
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.3.1';
+const APP_VERSION='19.3.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2964,7 +2964,17 @@ function rowPlayerButtons(key,type){
   return playerBtn('basic','data-play="basic" data-key="'+key+'"')+
          rowExternals().map(m=>playerBtn(m,'data-play="'+m+'" data-key="'+key+'"')).join('');
 }
-function findByKey(k){return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k)}
+/* v19.3.2: keyOf() is "type:id", so which array to search is already encoded in the key — no
+   need to concatenate all three lists (potentially thousands of items each) on every single tap
+   just to hand .find() a bigger haystack. A large Movies catalog made this the most expensive
+   line in the whole tap-to-play path; scoping it to the one relevant array is both correct and
+   the fast path. */
+function findByKey(k){
+  const t=String(k||'').split(':',1)[0];
+  const arr=t==='live'?S.live:t==='vod'?S.vod:t==='series'?S.series:null;
+  if(arr)return arr.find(x=>keyOf(x)===k);
+  return [...S.live,...S.vod,...S.series].find(x=>keyOf(x)===k);
+}
 function flattenEpisodes(data){const out=[];const walk=v=>{if(!v)return;if(Array.isArray(v)){v.forEach(walk);return}if(typeof v==='object'){const hasStream=('id'in v)||('stream_id'in v)||('episode_num'in v)||('container_extension'in v)||('direct_source'in v)||('title'in v);if(hasStream)out.push(v);else Object.values(v).forEach(walk)}};walk(data);return out}
 async function openEpisodePicker(x){load(true,'Loading episodes...');try{/* v12.4: a playlist has no per-series endpoint — its episodes were collected at parse time
      and travel with the show, so the picker opens instantly and without a request. */
@@ -3678,7 +3688,24 @@ function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pau
        Live keeps the clean auto-hide. */
     pb.classList.toggle('vodMode',isVod);}
 }
-function setCurrentItem(x){S.current=x;pushRecent(x);renderGrid();if($('ovTitle'))$('ovTitle').textContent=nameOf(x);$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls();updateMediaSession(x)}
+/* v19.3.2: this used to call renderGrid() — a full innerHTML rebuild of up to 900 cards, PLUS a
+   fresh filter/sort of the whole catalog underneath it (filtered()/ordered()) — every single
+   time ANY title was tapped, purely to move the ".active" highlight from one card to another. On
+   a large Movies/Series catalog (the whole library now loads, not just the first 560 — see
+   loadType) that rebuild is real, visible work sitting between the tap and the first sign
+   anything is happening, which is exactly what reads as "taking a long time to get clicked".
+   Only the highlight needs to move; nothing else renderGrid() produces depends on S.current. */
+function paintActiveCard(){
+  const g=$('grid');if(!g)return;
+  const was=g.querySelector('.card.active,.gcard.active');if(was)was.classList.remove('active');
+  if(!S.current)return;
+  /* CSS.escape(), not esc() — this builds a CSS attribute-selector string, not HTML markup, and
+     the key can carry characters (from an M3U-derived id) that are only safe once escaped for
+     THAT grammar. esc()'s HTML entities would be matched literally and never find the card. */
+  const sel=(typeof CSS!=='undefined'&&CSS.escape)?CSS.escape(keyOf(S.current)):keyOf(S.current).replace(/["\\]/g,'\\$&');
+  const now=g.querySelector('[data-key="'+sel+'"]');if(now)now.classList.add('active');
+}
+function setCurrentItem(x){S.current=x;pushRecent(x);paintActiveCard();if($('ovTitle'))$('ovTitle').textContent=nameOf(x);$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls();updateMediaSession(x)}
 /* v18.4: ONE VLC PATH, NOT TWO. This was a second, weaker implementation of what
    playItemExternal(x,'vlc') already does properly — and it skipped every safeguard that one has:
    it never exchanged a MAG portal command for a real link, never checked the address was a URL
@@ -3806,6 +3833,12 @@ function playerStateHooks(engineName,clearSpin,onFailed){
            identifies the route that stalled. */
         $('netStatus').textContent=detail?'Trying '+detail:('Starting '+engineName);
         $('miniMeta').textContent='Loading';
+        /* v19.3.2: a transcoder wait is the one phase that can genuinely run to a minute (cold
+           starts, real encode time) — everything else here resolves in a few seconds. The overlay
+           title was frozen on the plain title name the whole time regardless, which is exactly
+           what a stuck/broken app also looks like. Say what is actually happening only for this
+           one phase, so a minute of waiting reads as progress instead of as a hang. */
+        if(detail&&/transcod/i.test(detail)&&$('stateText'))$('stateText').textContent='Converting for playback — this can take up to a minute the first time.';
       }else if(state==='recovering'){
         $('netStatus').textContent='Reconnecting';$('miniMeta').textContent='Reconnecting...';
       }else if(state==='switching'){

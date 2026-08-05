@@ -29,8 +29,14 @@
   function configure(deps) { D = deps || {}; }
 
   var POLL_MS = 2000;
-  var WAKE_DEADLINE_MS = 150000;   /* generous and independent of whatever budget Player 1 spent —
-                                       a fresh attempt gets a fresh cold-start allowance */
+  /* v19.3.2: was 150000. Player 1 already tries the transcoder itself as its own last-resort
+     candidate(s) before it ever gives up — so by the time Player 2 starts, the transcoder has
+     either already been woken (this wait only needs to cover a single ffmpeg job, not a cold
+     container) or it is genuinely not answering (this wait would only be spent to learn that
+     twice). A second 150s allowance on top of what Player 1 already spent was the actual cause of
+     "movies take forever" — the two were adding, not covering the same ground faster the second
+     time. */
+  var WAKE_DEADLINE_MS = 60000;
   var STALL_MS = 10000;
   var START_BUDGET_MS = 45000;
   var MAX_RECOVERIES = 8;
@@ -49,17 +55,18 @@
       || status === 522 || status === 523 || status === 524;
   }
 
-  /* Every profile worth trying, most-likely-to-succeed first. A resource limit or a bad encode on
-     one tier does not take the whole attempt down — the next profile is a genuinely fresh request. */
+  /* v19.3.2: ONE profile, not a cascade. This used to try up to three transcoder profiles in
+     sequence (a 4K tier, then 'fastvod', then 'vod') — reasonable read in isolation, but Player 1
+     already runs its OWN 'fastvod'/'vod' cascade first and only reaches Player 2 after every one
+     of those has already failed or timed out. Repeating the same cascade here does not raise the
+     odds of success (it is the same transcoder, the same source, the same reason the first round
+     didn't work) — it just adds another one to three minutes onto a title that was already slow.
+     Player 2's job is ONE clean, independent shot, not "try harder at the thing that just failed
+     harder". The quality-appropriate profile if one is set, else the fast default. */
   function profiles(item, live) {
-    var out = [];
+    if (live) return ['remux'];
     var qp = D.qualityProfile && D.qualityProfile();
-    if (live) { out.push('remux'); }
-    else {
-      if (qp && D.looks4k && D.looks4k(item)) out.push(qp);
-      out.push('fastvod', 'vod');
-    }
-    return out;
+    return [qp || 'fastvod'];
   }
 
   function Session(item, video, hooks, token) {
