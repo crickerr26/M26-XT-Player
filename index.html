@@ -1506,7 +1506,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.21.0';
+const APP_VERSION='19.22.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2138,7 +2138,22 @@ async function login(opts){
        field in the sign-in UI and no MAC in the seller's record. So that fingerprint was sending
        login+password customers into a MAC handshake they can never complete, and every verdict
        that came back was about a MAC they were never given. A credentials line is M3U only. */
-    const _tryMag=plErr&&!(S.user&&S.pass)&&(_plReason==='stalker-portal'||_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&stalkerMac();
+    /* ── v19.22: A MAG PORTAL IS WHERE A LOGIN AND PASSWORD BELONG. ────────────────────────────
+       v19.21 cut credentials lines off from this handshake to stop MAC-flavoured verdicts reaching
+       people who were never sold a MAC. That was right about the messaging and wrong about the
+       route: on a Ministra/Stalker portal the username and password ARE the sign-in — the portal
+       answers get_profile with "Authentication request" until stb.do_auth has run with them (see
+       stalkerHandshake). Cutting the route off meant a portal URL, a login and a password could
+       never sign in to the one kind of server that authenticates with exactly those three things,
+       which is precisely what tv.stream4k.cc turned out to be: get.php 404s on every port, and /
+       serves a Ministra portal.
+       So a POSITIVE MAG fingerprint re-opens it for a credentials line — there the handshake IS
+       the sign-in, and the MAC is nothing but the device id it has to carry, never shown and never
+       asked for. Every other reason is still a guess and stays reserved for a line with no
+       credentials to judge. */
+    const _tryMag=plErr&&stalkerMac()&&(
+      _plReason==='stalker-portal'
+      ||(!(S.user&&S.pass)&&(_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))));
     if(_tryMag){
       try{
         const mac=stalkerMac();
@@ -2194,6 +2209,11 @@ async function login(opts){
            certainly untrue for them, and it sent them to argue with their provider about a block
            that did not exist. The MAG handshake's own edge trouble is a fact about portal.php,
            not about their playlist; say what happened to the playlist. */
+        /* v19.22: unless the PORTAL ITSELF spoke about this line. On a Ministra line the handshake
+           IS the sign-in — do_auth runs with the username and password — so "the portal rejected
+           them" or "the device slots are full" is a real answer about the real credentials, and it
+           beats both the playlist step's guess and stalkerFailMessage's MAC dressing. */
+        if(S.user&&S.pass&&se&&se.profile&&se.message)throw Error(se.message);
         if(S.user&&S.pass&&plErr&&plErr.message)throw Error(plErr.message);
         if(se&&se.edge&&((opts&&opts._relayAttempt)||0)>0&&S.user&&S.pass){
           throw Error('Every route to your portal was refused — this app\'s two servers and this device itself. The block is in front of the panel, so your login and password were never checked. Ask your provider to allow player/API access for this address.');
@@ -5180,9 +5200,15 @@ function stalkerProfileProblem(js){
   if(/serial number mismatch|device conflict/i.test(msg))
     return {state:'serial-mismatch',said:msg+(said?' — '+said:''),
       message:'This portal already has a DIFFERENT serial number stored against this MAC, so it is refusing the device. Your subscription and your MAC are not the problem. Ask your provider to RESET the device (their panel has a "reset device / clear serial" button), then sign in again.'};
+  /* v19.22: status 2 means "authenticate first", and what that asks for depends on how the line is
+     sold. On a username+password line the handshake answers this until stb.do_auth has run with the
+     credentials, so reaching here WITH credentials means the login was not accepted — telling that
+     customer to send their provider a MAC is advice about a field their seller left blank. */
   if(status===2||/authentication request/i.test(msg))
     return {state:'not-provisioned',said:msg||'Authentication request',
-      message:'This portal does not know this MAC. Send your provider this exact MAC and ask them to add it to your subscription on this portal address.'};
+      message:(S.user&&S.pass)
+        ?'This portal wants this line authenticated and would not accept this username and password. Check them with your provider — and if they are right, the line’s device slots may be full, so ask your provider to reset the devices for it.'
+        :'This portal does not know this device. Ask your provider to add it to your subscription on this portal address.'};
   /* v18.6: A BARE status:1 IS NOT A BLOCK, AND MUST NOT BE ANNOUNCED AS ONE.
      This used to declare "The portal blocked this device" on status===1 alone. A portal that is
      actually blocking a device says so — that is what block_msg and msg are for, and the two
