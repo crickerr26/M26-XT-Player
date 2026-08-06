@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.1';
+const SERVER_BUILD = '13.2';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -577,12 +577,30 @@ function relayFetch(target, req, res, hops) {
      `&ua=browser` opts back in. */
   let uaMode = '';
   try { uaMode = new URL(req.url, 'http://x').searchParams.get('ua') || ''; } catch (e) {}
-  const headers = {
-    'user-agent': uaMode === 'browser'
-      ? (req.headers['user-agent'] || 'Mozilla/5.0')
-      : 'VLC/3.0.20 LibVLC/3.0.20',
-    accept: req.headers.accept || '*/*'
-  };
+  /* v13.2 (server build): `ua=browser` now means a WHOLE browser, not just a User-Agent string.
+     This relay is the app's second egress, and it exists for one job: reach a panel whose edge has
+     already refused the Cloudflare worker. It was doing that job with a bare two-header GET from a
+     datacenter address — the easiest possible request for bot protection to score as automated, and
+     the same shape that had just been refused. So the "second, independent route" was failing the
+     same test as the first, every time, and the app reported a portal blocking both routes when
+     what it had really done was ask the same question twice in the same voice.
+     These are the headers a real browser always carries on a top-level GET. Kept in step with
+     browserHeaders() in _worker.js. */
+  const headers = uaMode === 'browser'
+    ? {
+        'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+        accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'accept-language': 'en-US,en;q=0.9',
+        'upgrade-insecure-requests': '1',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1'
+      }
+    : {
+        'user-agent': 'VLC/3.0.20 LibVLC/3.0.20',
+        accept: req.headers.accept || '*/*'
+      };
   /* v14.5: MAG/Stalker support, mirroring _worker.js. This exists so the app has a SECOND route
      to a portal. The Cloudflare relay reaches a panel from Cloudflare's own network, and a portal
      sitting behind an edge/WAF routinely refuses that on the very first request — a 429 or 403
