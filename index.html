@@ -1506,7 +1506,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.22.0';
+const APP_VERSION='19.23.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2214,6 +2214,21 @@ async function login(opts){
            them" or "the device slots are full" is a real answer about the real credentials, and it
            beats both the playlist step's guess and stalkerFailMessage's MAC dressing. */
         if(S.user&&S.pass&&se&&se.profile&&se.message)throw Error(se.message);
+        /* ── v19.23: SAY WHY THE HANDSHAKE FAILED, DO NOT BURY IT. ─────────────────────────────
+           On a confirmed MAG portal the handshake IS the sign-in, so its failure is the thing that
+           actually happened — and it was being replaced by the playlist step's verdict, which on
+           this route only ever says "get.php 404s here", something already known and no longer the
+           question. That swap is why the reported account still saw a playlist message on v19.22
+           even though the handshake had by then run: whatever portal.php said was thrown away.
+           Report the handshake's own reason, with the paths tried, and without the MAC dressing
+           stalkerFailMessage would add to it. */
+        if(S.user&&S.pass&&se&&(se.message||(se.tried&&se.tried.length))){
+          const paths=(se.tried&&se.tried.length)?(' Tried: '+se.tried.join('; ')+'.'):'';
+          const said=se.detail?(' Portal said: “'+se.detail+'”.'):'';
+          throw Error('This is a MAG / Stalker portal, so the app signed in with your login and password through its portal handshake — and that did not complete. '
+            +((se.message||'The portal did not answer.').replace(/\s*\(?MAC on this device:[^)]*\)?\.?/gi,'').trim())
+            +said+paths+' Portal address: '+S.url+'.');
+        }
         if(S.user&&S.pass&&plErr&&plErr.message)throw Error(plErr.message);
         if(se&&se.edge&&((opts&&opts._relayAttempt)||0)>0&&S.user&&S.pass){
           throw Error('Every route to your portal was refused — this app\'s two servers and this device itself. The block is in front of the panel, so your login and password were never checked. Ask your provider to allow player/API access for this address.');
@@ -5244,8 +5259,16 @@ function stalkerDevice(mac){
   }
   return d;
 }
+/* Just the path, for a readable one-line record: "/portal.php", "/stalker_portal/server/load.php". */
+function pathOf(u){try{return new URL(u).pathname}catch(e){return String(u||'')}}
 async function stalkerHandshake(base,mac,creds){
   let lastErr=null;
+  /* v19.23: keep a record of what each portal endpoint DID, the way the playlist step already
+     does. Without it, a handshake that fails for any reason other than a portal verdict throws a
+     single sentence with no indication of which of the four candidate paths was asked or what came
+     back — so a MAG portal that is answering on a path this app does not try is indistinguishable
+     from one that is not there at all. */
+  const tried=[];
   const dev=stalkerDevice(mac);
   for(const ep of Media26Portal.stalkerEndpoints(base)){
     try{
@@ -5255,7 +5278,7 @@ async function stalkerHandshake(base,mac,creds){
          anti-bot challenge page is served with a 200 and parses to nothing, so every endpoint
          "failed" without ever recording why and the user got a message about the last unrelated
          thing that went wrong. Name it. */
-      if(!token){lastErr=lastErr||new Error('This portal answered the handshake without issuing a token — the reply was not a portal response.');continue;}
+      if(!token){tried.push(pathOf(ep)+': answered without a token');lastErr=lastErr||new Error('This portal answered the handshake without issuing a token — the reply was not a portal response.');continue;}
       /* get_profile registers the device with the portal — most panels expect this before the
          token is treated as fully authorised, and it surfaces "MAC not found" quickly. Sent BARE
          (no serial) first: that is what a dealer-registered, empty-serial line accepts, and it is
@@ -5288,8 +5311,9 @@ async function stalkerHandshake(base,mac,creds){
       return {endpoint:ep,token};
     }catch(e){
       lastErr=e;
+      tried.push(pathOf(ep)+': '+((e&&e.status)?('HTTP '+e.status):((e&&e.message)||'no answer')).slice(0,60));
       /* The portal has spoken about this device — stop, and let the message through untouched. */
-      if(e&&e.profile)throw e;
+      if(e&&e.profile){e.tried=tried;throw e;}
       /* A 429/403 means the portal (or an edge/WAF layer in front of it) is actively throttling
          or blocking this request — trying the next 3 candidate endpoint paths right away only
          piles on more requests against the same limit and makes it worse. Stop immediately and
@@ -5309,7 +5333,9 @@ async function stalkerHandshake(base,mac,creds){
       }
     }
   }
-  throw lastErr||new Error('Could not reach that portal');
+  const fin=lastErr||new Error('Could not reach that portal');
+  fin.tried=tried;
+  throw fin;
 }
 async function stalkerLogin(base,mac,creds){
   /* This is a sign-in, so it is entitled to hold for a cooldown rather than fail on one. login()
