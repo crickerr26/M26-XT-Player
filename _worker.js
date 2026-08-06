@@ -43,6 +43,23 @@ const MAG_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, 
    "VLC/3.0.20" as a scraper and answer 403 without the panel ever seeing the request — which reads
    from here exactly like an IP block, but is disproved by one request wearing a browser string. */
 const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
+/* v19.19: a User-Agent on its own is not a browser. Bot protection scores the whole request, and a
+   bare two-header GET from a datacenter address is the easiest possible call to make against it —
+   which is what both of this app's egresses were sending. These are the headers a real browser
+   always carries on a top-level GET; supplying them is free and turns "obviously automated" into
+   "plausibly a person" for the rule sets that decide on header shape rather than on IP alone. */
+function browserHeaders() {
+  return {
+    'user-agent': BROWSER_UA,
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'accept-language': 'en-US,en;q=0.9',
+    'upgrade-insecure-requests': '1',
+    'sec-fetch-dest': 'document',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1'
+  };
+}
 
 function corsJson(status, data) {
   return new Response(JSON.stringify(data), {
@@ -476,7 +493,16 @@ async function viaRelay(env, target, useMac, mac, state) {
   if (!/^https?:\/\//i.test(base)) { st.dead = true; return null; }
   let relay = base.replace(/\/+$/, '') + '/proxy?url=' + encodeURIComponent(target.href);
   if (useMac && mac) relay += '&stb=1&mac=' + encodeURIComponent(mac);
-  const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
+  /* v19.19: THE RELAY GETS THE SAME SECOND CHANCE THE ORIGIN DOES. The relay exists for exactly one
+     situation — a panel whose edge refuses this worker — and it was asking that panel with the same
+     bare player identity that had just been refused here, from a datacenter address of its own. So
+     the app's "second, independent route" was reliably failing on the same test as the first. Once
+     the origin has turned us away, ask through the relay as a browser (server.js /proxy honours
+     `ua=browser`, and now sends the full browser header set for it). */
+  if (!useMac && st.originBlocked) relay += '&ua=browser';
+  const headers = useMac
+    ? { 'user-agent': MAG_UA, 'accept': '*/*' }
+    : (st.originBlocked ? browserHeaders() : { 'user-agent': PLAYER_UA, 'accept': '*/*' });
   /* Only the first use pays for the cold start. Once the relay has answered as itself — or has
      been written off — every later candidate gets a single attempt, so a login never spends the
      wake budget more than once. */
@@ -619,10 +645,9 @@ async function handlePlaylist(request, env) {
        with no username keeps the MAC from the start, because there the MAC IS the identity
        (macPlaylistCandidates builds those addresses). */
     if (mac && (useMac || !hasCreds)) target.searchParams.set('mac', mac);
-    const headers = {
-      'user-agent': useMac ? MAG_UA : (relay.useBrowserUa ? BROWSER_UA : PLAYER_UA),
-      'accept': '*/*'
-    };
+    const headers = useMac
+      ? { 'user-agent': MAG_UA, 'accept': '*/*' }
+      : (relay.useBrowserUa ? browserHeaders() : { 'user-agent': PLAYER_UA, 'accept': '*/*' });
     if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
     let upstream;
     /* v18.0: once this portal's edge has turned the worker away, it will turn away every
@@ -671,15 +696,7 @@ async function handlePlaylist(request, env) {
         relay.uaTried = true;
         let asBrowser = null;
         try {
-          asBrowser = await fetch(target.href, {
-            method: 'GET',
-            headers: {
-              'user-agent': BROWSER_UA,
-              'accept': '*/*',
-              'accept-language': 'en-US,en;q=0.9'
-            },
-            redirect: 'follow'
-          });
+          asBrowser = await fetch(target.href, { method: 'GET', headers: browserHeaders(), redirect: 'follow' });
         } catch (e) { asBrowser = null; }
         if (asBrowser && asBrowser.ok) {
           attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: 'player UA refused; succeeded as a browser' });

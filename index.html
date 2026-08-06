@@ -1506,7 +1506,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.18.0';
+const APP_VERSION='19.19.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2179,7 +2179,11 @@ async function login(opts){
            login+password to build that link from (see devicePlaylistUrl) — a MAC-only line has
            nothing else to try, so it keeps the plain stalkerFailMessage verdict below. */
         if(se&&se.edge&&((opts&&opts._relayAttempt)||0)>0&&S.user&&S.pass){
-          throw Error('Both of this app\'s routes to your portal were refused — its own security layer is blocking not just our main connection but a second, independent backup one too. That is not something waiting or retrying fixes. Close this and tap “Open or paste an M3U playlist” on the sign-in screen instead: it opens your portal link straight from your own phone\'s connection, which this block cannot reach.');
+          /* v19.19: no longer sends anyone to the import screen. The device's own connection is
+             now tried automatically as part of the sign-in (fetchPlaylistDirect), so by the time
+             this is read that route has ALSO been attempted and refused — telling someone to go
+             and perform it by hand would be asking them to redo work the app just did. */
+          throw Error('Every route to your portal was refused — this app\'s two servers and this device itself. The block is in front of the panel, so your login and password were never checked. Ask your provider to allow player/API access for this address, or for a playlist link on an address that is not behind their CDN.');
         }
         /* v19.6: the MAG handshake is the ONLY other route left once the playlist step has
            failed — there is no Xtream API fallback to carry on to any more, so its verdict (or
@@ -2669,8 +2673,8 @@ async function fetchPlaylistViaFunction(base,user,pass){
          this app's servers are turned away. That is one setting on the provider's own dashboard,
          and naming it is the difference between a fixable problem and a standoff. */
       :(j&&j.reason==='edge-blocked')?(((j&&j.edge)==='cloudflare')
-        ?('Your provider\u2019s domain sits behind Cloudflare, and its bot protection is refusing this app\u2019s servers before the panel itself sees the request (HTTP '+((j&&j.status)||403)+'). Nothing about your subscription, your login or your password was checked — your own phone is not blocked, only our servers are. Ask your provider to either allow API/player access for '+((j&&j.base)||base)+', or simply send you your M3U line; you can paste that whole link into the Portal URL box above and it will load.')
-        :'A security layer in front of this portal turned the request away before the portal itself saw it — so your username and password were never actually checked. Your own phone is not blocked, only this app\u2019s servers are. Ask your provider for your M3U link and paste it into the Portal URL box above.')
+        ?('Your provider\u2019s domain sits behind Cloudflare, and its bot protection refused this app\u2019s servers before the panel itself saw the request (HTTP '+((j&&j.status)||403)+'). Your subscription, login and password were never checked. Ask your provider to allow player/API access for '+((j&&j.base)||base)+' — turning off Bot Fight Mode, or a WAF skip rule for /get.php, is all it takes at their end.')
+        :'A security layer in front of this portal turned the request away before the portal itself saw it, so your username and password were never checked. Ask your provider to allow player/API access for '+((j&&j.base)||base)+'.')
       /* v19.1.2: this used to end 'Opening "Connect via MAC Address" for you…' — a promise that
          visibly never happened, since Enter the Portal is already the only sign-in form there is.
          It is also only ever READ when the MAC handshake that follows has itself failed (login()
@@ -2684,7 +2688,7 @@ async function fetchPlaylistViaFunction(base,user,pass){
          them is the one address that always works: the ready-made playlist link, which this app
          now accepts verbatim in the portal-URL box. */
       :(j&&j.reason==='stalker-portal')?(user
-        ?('No playlist endpoint answered on '+((j&&j.base)||base)+', and that address serves a MAG / Stalker portal page. Ask your provider for the M3U line for this account — it looks like http://your-server:port/get.php?username=…&password=…&type=m3u_plus — and paste that whole link into the Portal URL box. The app will open it directly.')
+        ?('No playlist endpoint answered on '+((j&&j.base)||base)+', and that address serves a MAG / Stalker portal page rather than a playlist. Ask your provider for the M3U address for this account — it looks like http://your-server:port/get.php?username=…&password=…&type=m3u_plus.')
         :'This is a MAG / Stalker portal — it signs devices in by their MAC address, not by a username and password. The MAC on this device is being used to sign in.')
       /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
          Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
@@ -2723,6 +2727,64 @@ async function fetchPlaylistViaFunction(base,user,pass){
    went looking for them in was not there. Keep the parser's three buckets as it produces them —
    Live TV, Movies, Series — for playlists exactly as for Xtream and Stalker. Tapping a show opens
    its episode picker either way; that is driven by _m3uEpisodes on the entry, not by the bucket. */
+/* ── v19.19: FETCH IT FROM THIS DEVICE, AUTOMATICALLY. ──────────────────────────────────────
+   The panels this app cannot sign in to are the ones sitting behind a CDN whose bot protection
+   refuses datacenter addresses. Both of the app's own routes are datacenter addresses, so both are
+   refused — while the customer's own phone, on a home connection, is waved straight through. The
+   app has been sending people to a manual import screen to exploit that, which is a chore nobody
+   should be asked to perform for a sign-in that has a URL, a login and a password in hand.
+
+   So do it here instead: ask the panel from the browser, with no server of ours in the middle.
+   Two things have to be true and both usually are on exactly these panels —
+
+     - HTTPS. An https page cannot fetch an http address, so http candidates are retried as https.
+       A panel behind a CDN always answers on https, which is precisely the case this rescues.
+     - CORS. The panel has to allow a cross-origin read. Many Xtream/XUI builds send
+       `Access-Control-Allow-Origin: *` on get.php; where one does not, the browser refuses the
+       read IMMEDIATELY — no timeout, no cost — and we are exactly where we were.
+
+   Runs only after the server routes have failed, so a working sign-in never spends a millisecond
+   here, and it needs nothing from the customer at all. */
+async function fetchPlaylistDirect(rawUrl,user,pass,budgetMs){
+  if(typeof Media26Portal==='undefined')return null;
+  const sig=portalParts(rawUrl);
+  const base=sig.playlist?[sig.playlist]:Media26Portal.m3uCandidates(rawUrl,user,pass).slice(0,3);
+  const secure=location.protocol==='https:';
+  const tries=[];
+  for(const u of base){
+    /* On an https page the https form is the only one the browser will even attempt; try it first
+       and keep the original only when it is already secure or we are not on an https page. */
+    if(secure){
+      tries.push(u.replace(/^http:/i,'https:'));
+      if(/^https:/i.test(u))tries.push(u);
+    }else{
+      tries.push(u);
+      tries.push(u.replace(/^http:/i,'https:'));
+    }
+  }
+  const seen=new Set();
+  const deadline=Date.now()+(budgetMs||20000);
+  for(const u of tries){
+    if(seen.has(u))continue;seen.add(u);
+    if(Date.now()>=deadline)break;
+    let ctl=null,timer=null;
+    try{
+      ctl=('AbortController'in window)?new AbortController():null;
+      if(ctl)timer=setTimeout(()=>{try{ctl.abort()}catch(e){}},Math.max(2000,deadline-Date.now()));
+      const r=await fetch(u,{method:'GET',redirect:'follow',credentials:'omit',cache:'no-store',
+        signal:ctl?ctl.signal:undefined});
+      if(timer)clearTimeout(timer);
+      if(!r.ok)continue;
+      const text=await r.text();
+      if(Media26Portal.looksLikeM3U(text))return {text,url:u};
+    }catch(e){
+      /* A CORS refusal, a mixed-content refusal and a genuine network error are deliberately
+         indistinguishable to script — all three land here, and all three mean "try the next one". */
+      if(timer)clearTimeout(timer);
+    }
+  }
+  return null;
+}
 async function loadPlaylistSource(){
   if(typeof Media26Portal==='undefined')return false;
   const adopt=(text,srcUrl)=>{
@@ -2734,6 +2796,7 @@ async function loadPlaylistSource(){
     return true;
   };
   /* Preferred path: our own serverless function does the whole fetch. */
+  let fnErr=null;
   try{
     const res=await fetchPlaylistViaFunction(S.rawUrl||S.url,S.user,S.pass);
     if(res&&adopt(res.text,res.url)){
@@ -2741,8 +2804,20 @@ async function loadPlaylistSource(){
       return true;
     }
   }catch(e){
-    if(e&&e.message)throw e;   /* a definite answer from the panel — surface it, don't retry blindly */
+    fnErr=e;
   }
+  /* ── v19.19: THE DEVICE'S OWN CONNECTION, BEFORE GIVING UP. ──────────────────────────────────
+     This used to `throw` the moment the function came back with any message, which meant a sign-in
+     was declared dead while the one route that was never blocked had not been tried. On a panel
+     whose CDN refuses our servers that is the whole ball game — the phone is not refused, so ask
+     from the phone. Costs nothing when the servers already worked (we never get here) and costs a
+     CORS refusal, which is instant, when the panel will not allow it. */
+  try{
+    const direct=await fetchPlaylistDirect(S.rawUrl||S.url,S.user,S.pass,20000);
+    if(direct&&adopt(direct.text,direct.url))return true;
+  }catch(e){}
+  /* Only now is the function's verdict the answer. */
+  if(fnErr&&fnErr.message)throw fnErr;
   /* Fallback: the original browser-side walk through the CORS relay. v19.13: a username+password
      line no longer has MAC-keyed URLs appended to its own candidate list — those are a different
      line's playlist (whatever this device's MAC happens to be bound to, if anything), not a second
