@@ -1497,7 +1497,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.15.0';
+const APP_VERSION='19.16.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2099,6 +2099,19 @@ async function login(opts){
              the worker positively fingerprinted as MAG/Stalker, so "your MAC" is still the right
              word for it. */
           throw Error('Your portal blocks our main route, and our backup relay is not responding after waiting for it to start up. This is our side, not your subscription or your MAC ('+macFmt(stalkerMac())+'). Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
+        }
+        /* v19.16: confirmed live, not theoretical — a portal that refuses Cloudflare AND a backup
+           relay proven to be healthy and answering (its own /health checked directly, separately
+           from this app, and it was fine). _relayAttempt>0 means this sign-in already went through
+           at least one full "wake the relay, confirm it's up, retry via it" cycle and STILL got
+           refused — that is the relay working exactly as designed and the portal blocking it
+           anyway. Waiting longer does not fix an edge that blocks the address, not the timing; the
+           one address left that is not blocked is the customer's own connection, which is exactly
+           what "Open or paste an M3U playlist" fetches from. Only pointed at when there is a
+           login+password to build that link from (see devicePlaylistUrl) — a MAC-only line has
+           nothing else to try, so it keeps the plain stalkerFailMessage verdict below. */
+        if(se&&se.edge&&((opts&&opts._relayAttempt)||0)>0&&S.user&&S.pass){
+          throw Error('Both of this app\'s routes to your portal were refused — its own security layer is blocking not just our main connection but a second, independent backup one too. That is not something waiting or retrying fixes. Close this and tap “Open or paste an M3U playlist” on the sign-in screen instead: it opens your portal link straight from your own phone\'s connection, which this block cannot reach.');
         }
         /* v19.6: the MAG handshake is the ONLY other route left once the playlist step has
            failed — there is no Xtream API fallback to carry on to any more, so its verdict (or
