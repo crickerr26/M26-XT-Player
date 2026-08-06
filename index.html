@@ -679,9 +679,10 @@ body.noSeries .playerModes{grid-template-columns:1fr}
 /* ── QR scanner overlay (Load from another device → Scan) ───────────────────── */
 /* redesigned login actions */
 .loginLead{margin:14px 0 4px!important;font-size:13.5px;line-height:1.55;color:#66758c}
-/* v19.10: ONE FLOW. The MAC/server-details pane is no longer behind a tab — see the HTML comment
-   at #macBlock. The activation code (a separate, secondary feature) sits in a <details> disclosure
-   instead, closed by default so it reads as "also available" rather than an equal alternative. */
+/* v19.10: ONE FLOW. The sign-in pane is no longer behind a tab — see the HTML comment above
+   #portalConnectBtn. The activation code (a separate, secondary feature) sits in a <details>
+   disclosure instead, closed by default so it reads as "also available" rather than an equal
+   alternative. */
 .actCodeMore{margin-top:14px}
 .actCodeMore summary{list-style:none;cursor:pointer;font-size:12.5px;font-weight:800;color:#5b7aa8;text-align:center;padding:6px 0}
 .actCodeMore summary::-webkit-details-marker{display:none}
@@ -754,21 +755,20 @@ body.noSeries .playerModes{grid-template-columns:1fr}
 .idBtn{flex:none;width:40px;height:45px;border-radius:12px;display:grid;place-items:center;border:1px solid rgba(20,50,90,.12);background:#fff;color:#3f7fae;cursor:pointer;transition:transform .18s ease,background .15s ease}
 .idBtn svg{width:19px;height:19px}
 .idBtn:active{transform:scale(.9)}
-#actRenew:active,#macRenew:active{transform:rotate(-180deg)}
+#actRenew:active{transform:rotate(-180deg)}
 @media(hover:hover){.idBtn:hover{background:#e9f1fa}}
 .idSend{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:11px;height:44px;border:0;border-radius:13px;cursor:pointer;font-size:14px;font-weight:800;background:linear-gradient(135deg,#43c96f,#22a457);color:#03230f;box-shadow:0 8px 18px rgba(34,164,87,.3)}
 .idSend svg{width:18px;height:18px}
 .idSend:active{transform:scale(.985)}
 #loginActCodeErr{font-size:11.5px;min-height:15px;margin-top:9px;text-align:center;font-weight:700;color:#66758c;line-height:1.4}
-.idBlock.needsAction{border-color:#e0813a;background:#fdf4ec;box-shadow:0 0 0 3px rgba(224,129,58,.12)}
 /* the icon cluster at the top-right of the sign-in card: share · connection settings · refresh */
 .login-headbtns{display:flex;align-items:center;gap:7px;flex:none}
-/* v15.2: phone sizing for the sign-in card. It now carries six routes plus the MAC block and the
-   code entry, and at desktop padding that came to roughly twice a phone screen. These must sit
-   AFTER the base .loginAction/.macBlock rules above — an equal-specificity rule declared earlier
-   loses regardless of the media query, which is why an identical block placed further up the
-   file had no effect at all. The two-line wrap on the longer labels is what drove the height, so
-   the type scale comes down with the padding. */
+/* v15.2: phone sizing for the sign-in card. It carries several routes plus the code entry, and at
+   desktop padding that came to roughly twice a phone screen. These must sit AFTER the base
+   .loginAction rules above — an equal-specificity rule declared earlier loses regardless of the
+   media query, which is why an identical block placed further up the file had no effect at all.
+   The two-line wrap on the longer labels is what drove the height, so the type scale comes down
+   with the padding. */
 @media(max-width:760px){
   .login{padding:12px;padding-top:max(12px,env(safe-area-inset-top));padding-bottom:max(12px,env(safe-area-inset-bottom))}
   .login-card{padding:16px;border-radius:20px}
@@ -1173,37 +1173,15 @@ body.login-dark .login,body.dark .login{background:
          this is still the first thing under the title, exactly as before. The heading appears only
          once there are users, so what follows reads as "add another one" rather than the only way in. -->
     <div class="addHead" id="addHead" style="display:none">Add another line</div>
-    <!-- v19.10: ONE FLOW, NOT TWO TABS. Every seller this app's customers actually deal with runs
-         the same sign-up: give the MAC below to your IPTV seller, they bind it on their panel and
-         hand back a server URL, username and password, and you type those in below. Splitting that
-         into an "Activation Code" tab and an "M3U Playlist" tab (v19.6) put a MAC-based sign-up next
-         to what looked like a second, competing product — a customer whose seller only deals in
-         MAC-bound lines had no idea which tab was "theirs" and the Activation Code tab reads, to
-         someone who has never heard of it, exactly like the Xtream Code product this app dropped in
-         v19.6. So: one pane, MAC first because that is the one thing every sign-up starts with.
-         The activation code is a real, separate feature — it is this app's OWN device-pairing code,
-         nothing to do with any IPTV provider — so it still works below, just no longer top billing. -->
-    <div class="idBlock" id="macBlock">
-      <div class="idRow">
-        <label for="macCodeBox">MAC Address — give this to your IPTV seller</label>
-        <div class="idLine">
-          <input class="idVal" id="macCodeBox" value="00:1A:79:00:00:00" spellcheck="false" autocapitalize="characters" autocomplete="off" inputmode="text" aria-label="Device MAC address">
-          <button class="idBtn" id="macCopy" type="button" aria-label="Copy MAC address" title="Copy MAC address">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5.5 15H5a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 5 4h8A1.5 1.5 0 0 1 14.5 5.5V6"/></svg>
-          </button>
-          <button class="idBtn" id="macRenew" type="button" aria-label="Renew MAC address" title="Renew MAC — issues a brand-new MAC for this device">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><path d="M20.5 3.5v5h-5"/></svg>
-          </button>
-        </div>
-      </div>
-      <div class="err" id="loginMacErr"></div>
-    </div>
+    <!-- v19.14: NO MAC ADDRESS ANYWHERE IN THE SIGN-IN UI (owner request). v19.10 opened on a MAC
+         box because most sellers were assumed to bind one first — but this app's actual sign-ups
+         are a portal URL, a login and a password, full stop, and a MAC box up top made every one
+         of them look like it needed something it never did. The device still generates and remembers
+         one MAC per install behind the scenes (stalkerMac()) — it rides along quietly on every
+         sign-in attempt and is what a real MAC-bound line (no login/password at all) authorises on
+         — but there is no screen anywhere that shows, copies or renews it any more. -->
     <div class="loginActions">
-      <!-- v17.7: binding a MAC and being issued a username and password are not two products — on
-           most panels they are two halves of one sign-up, which is why this opens a form with the
-           MAC, URL, username and password all in it. The MAC is sent on every attempt, so a line
-           that authorises on the MAC alone needs nothing more than the address. -->
-      <button class="loginAction primary" id="macConnectBtn" type="button">
+      <button class="loginAction primary" id="portalConnectBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M7 21h10M12 17v4"/><path d="M6 9h4M6 12h7"/></svg></span>
         <span class="la-tx"><b>Enter the Portal</b><small>Portal name, URL, login and password from your seller</small></span>
         <span class="la-ch">›</span>
@@ -1381,20 +1359,12 @@ body.login-dark .login,body.dark .login{background:
   <div class="qrScanHint" id="qrScanHint">Point your camera at the QR code on the other device.</div>
 </div>
 <!-- v16.3: the "Get activated" sheet is gone. The code it used to hold is on the sign-in card
-     itself now, next to the MAC, so there is nothing left for a sheet to reveal. -->
-<!-- ── v17.7: ONE SIGN-IN FORM ──────────────────────────────────────────────────────────────
-     There were two, and which one a customer opened was decided by which tab they were on —
-     which is decided by which identifier their SELLER asked for. Those are different questions,
-     and splitting the form on the first one broke the commonest flow there is: the seller asks
-     for the MAC, binds it on their panel, and hands back a SERVER URL, USERNAME and PASSWORD.
-     A customer who did that arrives on the M3U tab (they were asked for a MAC) and opens a form
-     with no username or password field — so the details they were given have nowhere to go. It
-     then failed and told them to check a username and password it had never collected.
-
-     One form. Server URL, username, password, and the device MAC underneath — sent with every
-     attempt, so a MAC-bound line authorises whether or not a username came with it. Leave the
-     username and password empty and it is a MAC-only sign-in, exactly as before. Both tabs open
-     this, because after the seller replies there is only one thing left to do. -->
+     itself now, so there is nothing left for a sheet to reveal. -->
+<!-- ── v17.7 → v19.14: ONE SIGN-IN FORM, NO MAC FIELD ─────────────────────────────────────────
+     One form: portal URL, login, password. stalkerMac() still sends this device's own MAC along
+     with every attempt in the background (see its own comment) — a MAC-bound line still
+     authorises whether or not a login came with it — but there is nothing on this screen for the
+     customer to type, see or manage about it any more (owner request, v19.14). -->
 <div class="episodeSheet" id="xtreamSheet"><div class="episodePanel nativePanel portalPanel">
   <div class="episodeHead portalHead">
     <div class="portalHeadMain">
@@ -1403,12 +1373,11 @@ body.login-dark .login,body.dark .login{background:
     </div>
     <button class="iconbtn" id="xtreamClose">×</button>
   </div>
-  <!-- v19.11: ULTRA-PROFESSIONAL PORTAL FORM. Four labelled fields, each with a leading icon, inside
+  <!-- v19.11: ULTRA-PROFESSIONAL PORTAL FORM. Labelled fields, each with a leading icon, inside
        one bordered card — Portal Name, Portal URL, Login, Password. Portal Name is purely a label
        this device remembers the line by (see rememberProfile/_portalNamePending below); it is never
-       sent to any server. Field ids (xtreamUrl/xtreamUser/xtreamPass) are unchanged from the old
-       "Server URL/Username/Password" wording so submitXtreamLogin, commitSheetMac and every other
-       reader of this sheet keep working untouched — only the labels and layout are new. -->
+       sent to any server. v19.14 dropped the MAC field from this card entirely (owner request) — no
+       MAC UI anywhere in the app now, see #login for what that means for stalkerMac(). -->
   <div class="portalForm">
     <div class="portalField">
       <label for="xtreamPortalName">Portal Name <span class="portalOptional">(optional)</span></label>
@@ -1438,31 +1407,8 @@ body.login-dark .login,body.dark .login{background:
         <input id="xtreamPass" type="text" placeholder="Password" autocomplete="current-password" autocapitalize="none" spellcheck="false">
       </div>
     </div>
-    <!-- v17.9: TYPEABLE. This was read-only, on the theory that the MAC is the device's own property.
-         It is not — it is whatever the SELLER bound on their panel, and the device's copy is only a
-         suggestion for what to give them. localStorage is per browser and is evicted: open the app in
-         an in-app browser, a second browser, a private tab, or come back after Safari has cleared the
-         site, and this device invents a brand-new MAC while the seller's panel still holds the old
-         one. The sign-in then goes out under a MAC that was never bound, and with the field read-only
-         there was nothing the customer could do about it on the screen where the failure appeared. -->
-    <!-- v19.1.3: shown only when this sheet is opened from the M3U tab. An Xtream-code line signs in
-         on username/password alone, and showing a MAC box on that form told customers it was needed
-         when it never was — the MAC still rides along on the wire either way (see commitSheetMac). -->
-    <!-- v19.13: relabelled from "must match your seller's panel" — that read as a requirement on
-         every sign-in, when a login+password line never needs this box at all (see the login()
-         gating around _tryMag). It still rides along automatically either way (harmless — the
-         worker only reaches for it if the credentials alone don't get a playlist), so the copy
-         says what it actually is: a fallback for a MAC-bound line, not a fourth required field. -->
-    <div id="xtreamMacWrap" class="portalField">
-      <label for="xtreamMac">MAC Address <span class="portalOptional">optional — not needed with a login and password</span></label>
-      <div class="portalInputWrap">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h6M7 14h10"/></svg>
-        <input id="xtreamMac" placeholder="00:1A:79:00:00:00" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="MAC address bound on your provider's panel">
-      </div>
-      <p class="nativeText" id="xtreamMacHint" style="margin:6px 0 0;font-size:11.5px;opacity:.75">Only matters for a MAC-bound line. With a portal URL, login and password, the playlist loads without it — if your seller's panel shows a different MAC, type theirs here.</p>
-    </div>
   </div>
-  <p class="nativeText portalNote">A portal URL, login and password is all most lines need. If yours was set up on the MAC alone, fill in just the portal URL above and leave login/password empty.</p>
+  <p class="nativeText portalNote">A portal URL, login and password is all most lines need.</p>
   <div class="nativeActions" style="margin-top:4px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Connect to Portal</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
 </div></div>
@@ -1471,7 +1417,7 @@ body.login-dark .login,body.dark .login{background:
   <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider that blocks our servers cannot block this. Your phone's own connection is never blocked.</p>
   <div class="field nativeField"><label>Step 1 — open your playlist</label>
     <div class="nativeActions" style="grid-template-columns:1fr"><button class="pillbtn primary" id="importOpenLink" type="button" style="width:100%">Open my playlist in a new tab</button></div>
-    <p class="macHint" id="importOpenHint" style="margin-top:7px">Built from the portal and MAC you already entered. It opens on your phone's own connection, which your provider cannot block. When it appears, select all the text and copy it — or save it as a file.</p>
+    <p class="macHint" id="importOpenHint" style="margin-top:7px">Built from the portal, login and password you already entered. It opens on your phone's own connection, which your provider cannot block. When it appears, select all the text and copy it — or save it as a file.</p>
   </div>
   <div class="field nativeField" style="margin-top:10px"><label>Step 2 — bring it back</label>
     <div class="nativeActions" style="grid-template-columns:1fr"><button class="pillbtn" id="importPaste" type="button" style="width:100%">Paste playlist from clipboard</button></div>
@@ -1551,7 +1497,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.13.0';
+const APP_VERSION='19.14.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2622,13 +2568,12 @@ async function fetchPlaylistViaFunction(base,user,pass){
          more route to try (the MAC handshake, which login() now reaches on this reason), so this
          message is only ever the fallback for when that route has also been exhausted. */
       :(j&&j.reason==='edge-blocked')?'A security layer in front of this portal turned the request away before the portal itself saw it — so your username, password and MAC were never actually checked. This is usually short-lived. Try again in a moment.'
-      /* v19.1.2: this used to end 'Opening "Connect via MAC Address" for you…'. There has been no
-         separate MAC screen since v17.7 merged the two forms — openMacSheet() opens the very form
-         the customer is already looking at — so the sentence promised a thing that visibly never
-         happened, on a form whose MAC box was already filled in. It is also only ever READ when
-         the MAC handshake that follows has itself failed (login() throws the handshake's verdict
-         in preference to this, see the final throw there), so a promise to try the MAC is exactly
-         wrong: by then it has been tried. Describe the portal and stop. */
+      /* v19.1.2: this used to end 'Opening "Connect via MAC Address" for you…' — a promise that
+         visibly never happened, since Enter the Portal is already the only sign-in form there is.
+         It is also only ever READ when the MAC handshake that follows has itself failed (login()
+         throws the handshake's verdict in preference to this, see the final throw there), so a
+         promise to try the MAC is exactly wrong: by then it has been tried. Describe the portal
+         and stop. */
       :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal — it signs devices in by their MAC address, not by a username and password. The MAC on this device is being used to sign in.'
       /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
          Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
@@ -4605,8 +4550,7 @@ async function signInWithProfile(id){
      whichever MAC was last on screen and the portal refuses a MAC it never bound. */
   if(p.mac&&typeof Media26Portal!=='undefined'){
     const m=Media26Portal.normaliseMac(p.mac);
-    if(m){try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
-      if($('macCodeBox'))$('macCodeBox').value=m;}
+    if(m){try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}}
   }
   $('url').value=p.url||'';$('user').value=p.user||'';$('pass').value=p.pass||'';
   await login();
@@ -4682,10 +4626,6 @@ async function resumeLogin(){
     paintResumeLogin();
   }
 }
-/* v19.10: openMacSheet opens the one sign-in form (MAC + server URL + username + password) that
-   #macConnectBtn leads to — the seller binds the MAC and replies with the other three, so the form
-   has to hold all four. */
-function openMacSheet(){ openXtreamSheet(true); }
 /* ── STALKER / MINISTRA (MAG PORTAL) MAC AUTHENTICATION ──────────────────────────────
    Real Smart-STB-style device auth, matching how Stalker/Ministra panels (Infomir MAG,
    Smart STB, Eagle, Star, Smart4K) actually work: this device generates and displays a
@@ -4697,19 +4637,18 @@ function openMacSheet(){ openXtreamSheet(true); }
    is routed through the Cloudflare Worker's /proxy (stb=1&mac=&token=) so the MAG-specific
    headers (User-Agent, X-User-Agent, Cookie, Authorization) can be set — a browser fetch()
    cannot set a Cookie header cross-origin itself. */
+/* v19.14: there is no MAC box on screen any more (owner request — no MAC UI anywhere in the app),
+   so this is now just "this device's persistent MAC": read from localStorage, or mint one and
+   remember it the first time anything asks. Still called on every sign-in attempt (see login(),
+   stalkerHandshake) because a real MAC-bound line still authorises on it, and it still rides along
+   quietly with an ordinary login+password attempt — see fetchPlaylistViaFunction's comment on why
+   that's harmless. A profile row can still carry a MAC it was signed in with (signInWithProfile
+   restores it into localStorage before reconnecting), so a MAC-bound line keeps working exactly as
+   before; there is simply nowhere left to type or view one by hand. */
 function stalkerMac(){
-  /* v16.7: THE MAC BOX ON SCREEN IS THE SINGLE SOURCE OF TRUTH. Previously this read only
-     localStorage, so the value the user SEES at the top of the sign-in card could diverge from the
-     MAC actually used to sign in and named in error messages — e.g. after a Renew, or when the box
-     was repainted from a fresh value that had not been committed. The user rightly flagged the
-     error showing a different MAC than the box. Now: if the box holds a real MAC, that IS the
-     device MAC — used for login, stream resolution and every message — and localStorage is kept in
-     step with it. Falls back to localStorage (and then a fresh random) only when the box is absent
-     or still empty. The all-zero placeholder is treated as empty. */
   if(typeof Media26Portal==='undefined')return '';
   let m='';
-  try{const box=$('macCodeBox');if(box){const v=Media26Portal.normaliseMac(box.value);if(v&&v!=='00:1A:79:00:00:00'&&!/^00:00:00:00:00:00$/.test(v))m=v;}}catch(e){}
-  if(!m){try{m=Media26Portal.normaliseMac(localStorage.getItem('m26_stkmac'));}catch(e){}}
+  try{m=Media26Portal.normaliseMac(localStorage.getItem('m26_stkmac'));}catch(e){}
   if(!m){m=Media26Portal.randomMac();try{localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}}
   try{localStorage.setItem('m26_stkmac',m);}catch(e){}
   return m;
@@ -5393,7 +5332,6 @@ async function stalkerResolve(x){
   S.stalkerLastError=lastErr;
   return '';
 }
-function macInputValue(){return $('macCodeBox')?$('macCodeBox').value:'';}
 /* One place that turns a successful Stalker handshake into a live session. Three callers reach
    this — the MAC sheet's Connect, the silent re-connect on relaunch, and the automatic handover
    when a username login turns out to be pointed at a MAG portal — and they must not drift apart. */
@@ -5425,21 +5363,6 @@ function adoptStalkerSession(res){
   loadType('vod').catch(()=>{});
   loadType('series').catch(()=>{});
 }
-/* The MAC lives on the login screen now, so it just needs to be shown and kept in sync — there
-   is no separate connect step here any more. Whatever MAC ends up in the box (auto-generated, or
-   typed in because the seller already had one on file) becomes this device's MAC from then on,
-   so the sign-in below and the reconnect on relaunch both use that same one. */
-function paintLoginMac(){
-  const el=$('macCodeBox');if(!el)return;
-  el.value=macFmt(stalkerMac());
-}
-function commitLoginMac(){
-  const mac=Media26Portal.normaliseMac(macInputValue());
-  if(!mac)return '';
-  try{localStorage.setItem('m26_stkmac',mac);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
-  if($('macCodeBox'))$('macCodeBox').value=mac;
-  return mac;
-}
 /* ── MANUAL XTREAM LOGIN (portal URL + username + password) ─────────────────────────
    For users who already have full Xtream credentials from their provider — a straight
    shot at the existing login(), which already handles the Xtream/M3U handshake, saving
@@ -5447,27 +5370,13 @@ function commitLoginMac(){
    same ones login() reads from the hidden #url/#user/#pass inputs) and calls login()
    with them directly via its {creds} form, then reflects success/failure locally instead
    of relying on the background #err text, which can sit behind the open sheet. */
-function openXtreamSheet(showMac){
+function openXtreamSheet(){
   if($('xtreamErr'))$('xtreamErr').textContent='';
-  /* v19.1.3: the MAC box is only shown when this sheet was opened from the M3U tab. It still rides
-     along with every sign-in attempt either way (see commitSheetMac / submitXtreamLogin) — an
-     Xtream-code line just never needed the customer to see or edit it. */
-  if($('xtreamMacWrap'))$('xtreamMacWrap').style.display=showMac?'':'none';
-  /* The MAC rides along with every attempt. It is pre-filled with this device's, which is what the
-     customer was told to send — but it is theirs to correct, because the binding lives on the
-     seller's panel and this copy can be lost (see the field's own note). */
-  const m=$('xtreamMac');
-  if(m)m.value=macFmt((typeof Media26Portal!=='undefined'&&Media26Portal.normaliseMac(macInputValue()))||stalkerMac());
-  /* ── v18.7: THE FORM OPENS EMPTY EXCEPT THE MAC. ────────────────────────────────────────
-     This is the shape of the product, not a preference. The customer is handed a MAC on the
-     screen behind this one, sends THAT MAC to their seller, and the seller registers it against a
-     line and sends back three things: an M3U server address, a login and a password. So the MAC
-     is the one field the app already knows and the customer must not have to type; the other
-     three are what the seller just sent and are typed fresh.
-     Carrying the previous attempt's server, username and password forward actively fought that:
-     a customer setting up a NEW line was met with an OLD line's details already in the boxes, and
-     the natural thing — change the URL, tap Load — silently submitted the previous line's
-     username and password against the new server. Every field except the MAC is cleared. */
+  /* ── v18.7: THE FORM OPENS EMPTY. ────────────────────────────────────────────────────────
+     Carrying the previous attempt's server, username and password forward fought the shape of
+     the product: a customer setting up a NEW line was met with an OLD line's details already in
+     the boxes, and the natural thing — change the URL, tap Load — silently submitted the previous
+     line's username and password against the new server. */
   ['xtreamPortalName','xtreamUrl','xtreamUser','xtreamPass'].forEach(id=>{const el=$(id);if(el)el.value='';});
   /* v17.9: wake the transcoder NOW, not after signing in. It is the app's second egress: when a
      portal sits behind Cloudflare — which the ones that fail here do — the worker's own request is
@@ -5478,21 +5387,7 @@ function openXtreamSheet(showMac){
      time the customer spends typing, so the fallback is live by the time it is needed. */
   try{warmTranscoder();}catch(e){}
   $('xtreamSheet').classList.add('show');
-  /* Every field but the MAC is now empty, so the cursor belongs in the first one the seller's
-     reply fills: the server address. */
-  try{$('xtreamUrl').focus();}catch(e){}
-}
-/* A MAC typed in here becomes this device's MAC, exactly as the one on the sign-in card does — the
-   sign-in, the stream resolution and every error message all read from the same place, so they can
-   never disagree about which MAC was actually sent. */
-function commitSheetMac(){
-  const el=$('xtreamMac');if(!el||typeof Media26Portal==='undefined')return '';
-  const mac=Media26Portal.normaliseMac(el.value);
-  if(!mac||mac==='00:1A:79:00:00:00'||/^00:00:00:00:00:00$/.test(mac))return '';
-  try{localStorage.setItem('m26_stkmac',mac);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
-  el.value=mac;
-  if($('macCodeBox'))$('macCodeBox').value=mac;   /* the card and the sheet show one MAC, not two */
-  return mac;
+  try{$('xtreamPortalName').focus();}catch(e){}
 }
 /* v18.7: one place that writes the sign-in message line, so progress and failure can never be
    styled the same by accident. kind==='working' is the app doing something on the customer's
@@ -5518,12 +5413,6 @@ async function submitXtreamLogin(){
      that works into a form a MAC-only customer could not submit at all — and login() has accepted
      a URL with no username since v15.0, precisely because a MAG line has no username to give. */
   if(!url){if($('xtreamErr'))$('xtreamErr').textContent='Enter the portal URL your seller gave you.';return;}
-  /* Whatever MAC is in the field is the one this sign-in goes out under — commit it before login()
-     reads it, or a corrected MAC would be shown on screen and ignored on the wire. */
-  const typedMac=(($('xtreamMac')&&$('xtreamMac').value)||'').trim();
-  if(typedMac&&!commitSheetMac()){
-    if($('xtreamErr'))$('xtreamErr').textContent='That MAC address is not complete — it needs 12 hex characters, like 00:1A:79:A6:AC:EB.';return;
-  }
   if((!user||!pass)&&!stalkerMac()){
     if($('xtreamErr'))$('xtreamErr').textContent='Enter the login and password your seller gave you.';return;
   }
@@ -5544,15 +5433,12 @@ async function submitXtreamLogin(){
         msg='This server would not issue a playlist for MAC '+macFmt(stalkerMac())+'. Either your seller has not finished binding it, or this line needs the username and password they were given — add them above and try again.';
       }
       signInMsg(msg,'error');
-      /* The seller hasn't activated this device's MAC yet. Close the form and put the MAC —
-         which lives on the login screen — back in front of the user, since sending it to the
-         seller is the one action that unblocks them. */
+      /* v19.14: no MAC box left to scroll to or highlight (see stalkerMac()) — just close the form
+         and leave the message up on the login screen. */
       if(/not activated this device yet/i.test(msg)){
         setTimeout(()=>{
           $('xtreamSheet').classList.remove('show');
           if($('err'))$('err').textContent=msg;
-          const b=$('macBlock');
-          if(b){b.classList.add('needsAction');try{b.scrollIntoView({behavior:'smooth',block:'center'});}catch(e){}}
         },2600);
       }
     }
@@ -5611,7 +5497,7 @@ if($('loginShareBtn'))$('loginShareBtn').onclick=()=>{
 };
 /* Login-screen refresh: re-check activation and reload to pick up the latest app version. */
 if($('loginRefresh'))$('loginRefresh').onclick=()=>{try{toast('Refreshing…');}catch(e){}setTimeout(()=>{try{location.reload();}catch(e){}},250);};
-if($('macConnectBtn'))$('macConnectBtn').onclick=openMacSheet;
+if($('portalConnectBtn'))$('portalConnectBtn').onclick=openXtreamSheet;
 if($('actCopy'))$('actCopy').onclick=()=>{
   const c=actCodeGet(false);
   if(!/^\d{8}$/.test(c)){toast('Still getting your activation code — try again in a second.');return;}
@@ -5659,47 +5545,6 @@ if($('actCodeBox')){
   box.addEventListener('blur',commit);
   box.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();box.blur();}});
 }
-/* v15.2: RENEW THE MAC. A MAC can need replacing — the provider bound the line to a different
-   one, a device is being moved to a fresh subscription, or the current one has been refused and a
-   clean identity is wanted. Doing it by hand meant clearing site data, which also throws away
-   favourites, recents and the saved playlist. This mints a new one and nothing else.
-   It is destructive in one specific way: the provider's activation is against the OLD MAC, so
-   after renewing they must be given the new one before sign-in can work again. That is worth a
-   confirmation, and the new MAC is put straight on the clipboard so it can be sent immediately. */
-if($('macRenew'))$('macRenew').onclick=()=>{
-  /* v16.2: NO MORE confirm(). A blocking window.confirm() is suppressed outright in an installed
-     PWA, an Android/iOS WebView and a sandboxed frame — it silently returns false, so the button
-     "did nothing". Renew directly and make it recoverable instead: the previous MAC is kept for a
-     few seconds so a mis-tap can be undone from the toast, and the new MAC is copied ready to send
-     to the provider. */
-  const current=macFmt(Media26Portal.normaliseMac(macInputValue())||stalkerMac());
-  const next=Media26Portal.randomMac();
-  try{localStorage.setItem('m26_stkmac',next);localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}
-  /* Drop the saved Stalker session too — it is bound to the old MAC and would be reconnected on
-     the next launch, silently putting the previous identity back in play. */
-  try{localStorage.removeItem('m26_stk');}catch(e){}
-  if($('macCodeBox'))$('macCodeBox').value=macFmt(next);
-  if($('err'))$('err').textContent='';
-  if($('xtreamErr'))$('xtreamErr').textContent='';
-  /* Let the customer put the OLD one back if they renewed by accident — the provider activated the
-     old MAC, so an accidental renew would otherwise lock them out until re-activation. */
-  window._m26PrevMac=current;
-  try{navigator.clipboard.writeText(macFmt(next));toast('New MAC '+macFmt(next)+' copied — send it to your provider (tap to undo)');}
-  catch(e){toast('New MAC: '+macFmt(next)+' (tap to undo)');}
-  armToastUndo(()=>{
-    const p=window._m26PrevMac;if(!p)return;
-    try{localStorage.setItem('m26_stkmac',Media26Portal.normaliseMac(p));localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}
-    if($('macCodeBox'))$('macCodeBox').value=macFmt(p);
-    window._m26PrevMac='';
-    toast('Reverted to '+macFmt(p));
-  });
-};
-if($('macCopy'))$('macCopy').onclick=()=>{const m=Media26Portal.normaliseMac(macInputValue())||stalkerMac();try{navigator.clipboard.writeText(macFmt(m));toast('MAC address copied');}catch(e){toast(macFmt(m));}};
-if($('macCodeBox'))$('macCodeBox').addEventListener('input',()=>{const el=$('macCodeBox');const pos=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=pos;}catch(e){}/* v16.7: editing the MAC clears any old error so a stale message can never sit under a MAC it no longer refers to */if($('err'))$('err').textContent='';if($('xtreamErr'))$('xtreamErr').textContent='';});
-/* Remember a hand-typed MAC as soon as the field loses focus, so a seller-issued MAC is already
-   in force by the time Login is tapped — no separate save step to forget. */
-if($('macCodeBox'))$('macCodeBox').addEventListener('blur',()=>{if(!commitLoginMac())paintLoginMac();});
-paintLoginMac();
 /* First paint of the user list on every launch. The sign-in screen is on screen at this point
    whether or not one of the automatic paths is about to replace it, and a launch that ends up
    staying here (no saved session, or the last one was logged out of) would otherwise show no users
@@ -5738,17 +5583,12 @@ function devicePlaylistUrl(){
     (($('xtreamUrl')&&$('xtreamUrl').value)||'')
     ||S.url||'');
   if(!base)return '';
-  const mac=Media26Portal.normaliseMac(macInputValue())||'';
   const u=(($('xtreamUser')&&$('xtreamUser').value)||S.user||'').trim();
   const p=(($('xtreamPass')&&$('xtreamPass').value)||S.pass||'');
   /* A direct .m3u link pasted as the portal URL is already the playlist. */
   if(/\.m3u8?(\?|$)/i.test(base))return base;
-  let q='';
-  if(u)q='username='+encodeURIComponent(u)+'&password='+encodeURIComponent(p)+'&type=m3u_plus&output=ts';
-  else if(mac)q='mac='+encodeURIComponent(mac)+'&type=m3u_plus&output=ts';
-  else return '';
-  if(mac&&u)q+='&mac='+encodeURIComponent(mac);
-  return base.replace(/\/+$/,'')+'/get.php?'+q;
+  if(!u)return '';
+  return base.replace(/\/+$/,'')+'/get.php?username='+encodeURIComponent(u)+'&password='+encodeURIComponent(p)+'&type=m3u_plus&output=ts';
 }
 function openImportSheet(){
   if($('importErr'))$('importErr').textContent='';
@@ -5799,17 +5639,10 @@ if($('importPaste'))$('importPaste').onclick=async()=>{
     err('This browser would not hand over the clipboard. Long-press the box below and choose Paste instead.');
   }
 };
-if($('xtreamActBtn'))$('xtreamActBtn').onclick=()=>openXtreamSheet(false);
+if($('xtreamActBtn'))$('xtreamActBtn').onclick=openXtreamSheet;
 if($('xtreamClose'))$('xtreamClose').onclick=()=>$('xtreamSheet').classList.remove('show');
 if($('xtreamGo'))$('xtreamGo').onclick=submitXtreamLogin;
 if($('xtreamPass'))$('xtreamPass').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitXtreamLogin();}});
-/* v17.9: the MAC field behaves like the one on the sign-in card — upper-cased as it is typed, and
-   committed on blur so a corrected MAC is already in force before the button is even pressed. */
-if($('xtreamMac')){
-  $('xtreamMac').addEventListener('input',()=>{const el=$('xtreamMac'),p=el.selectionStart;el.value=el.value.toUpperCase();try{el.selectionStart=el.selectionEnd=p;}catch(e){}if($('xtreamErr'))$('xtreamErr').textContent='';});
-  $('xtreamMac').addEventListener('blur',()=>{commitSheetMac();});
-  $('xtreamMac').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();submitXtreamLogin();}});
-}
 if($('xtreamSheet'))$('xtreamSheet').onclick=e=>{if(e.target.id==='xtreamSheet'){$('xtreamSheet').classList.remove('show');}};
 if($('pairClose'))$('pairClose').onclick=()=>$('pairSheet').classList.remove('show');
 if($('pairCancel'))$('pairCancel').onclick=()=>$('pairSheet').classList.remove('show');
