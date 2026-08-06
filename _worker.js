@@ -39,6 +39,10 @@ const PLAYER_UA = 'VLC/3.0.20 LibVLC/3.0.20';
    login, alongside the `mac=` cookie, because a panel that binds a line to a MAC generally wants
    to see the request come from something that looks like a MAG box. */
 const MAG_UA = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
+/* v19.17: the fallback identity for a panel whose edge refuses PLAYER_UA. Plenty of bot rules score
+   "VLC/3.0.20" as a scraper and answer 403 without the panel ever seeing the request — which reads
+   from here exactly like an IP block, but is disproved by one request wearing a browser string. */
+const BROWSER_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15';
 
 function corsJson(status, data) {
   return new Response(JSON.stringify(data), {
@@ -241,33 +245,89 @@ async function readCapped(response, max) {
   return { text: out, truncated };
 }
 
+/* ── v19.17: WHAT THE SELLER ACTUALLY HANDED OVER ────────────────────────────────────────────
+   Kept deliberately identical to Media26Portal.parseSignIn in portal.js — both sides build
+   playlist addresses out of the same "portal URL" string, so they have to agree on what that
+   string means.
+
+   "Portal URL" is whatever the provider wrote in their own notes, and in practice it is the panel
+   root, the MAG portal page (…/c/, …/stalker_portal/c/), an API file (…/player_api.php,
+   …/portal.php) or the finished M3U link itself (…/get.php?username=…&type=m3u_plus).
+
+   Every playlist address is base + '/get.php?…', so the base has to be the panel ROOT. Keeping the
+   decoration the seller included produced addresses like `http://host:8080/c/get.php?username=…`,
+   which exist on no panel anywhere — and the 404 or portal HTML that came back was then reported
+   as a security layer blocking the app, on a line where nothing was blocking anything at all. */
+const PORTAL_PATH_JUNK = /^(c|client|stalker_portal|portal|play|player|api|index\.html?|index\.php|portal\.php|load\.php|get\.php|player_api\.php|panel_api\.php|xmltv\.php|enigma2\.php|m3u|playlist)$/i;
+
+function isPlaylistUrl(u) {
+  try {
+    const x = new URL(u);
+    if (/\.m3u8?$/i.test(x.pathname)) return true;
+    if (/[?&]type=m3u/i.test(x.search)) return true;
+    if (/get\.php$/i.test(x.pathname) && /[?&](username|mac)=/i.test(x.search)) return true;
+    return false;
+  } catch (e) { return false; }
+}
+
+/* { root, typed, playlist, username, password } — see the note above. `playlist` short-circuits
+   everything: when the customer pastes the link their provider gave them, it is fetched verbatim
+   and no address is guessed at all. */
+function parseSignIn(raw) {
+  const out = { root: '', typed: '', playlist: '', username: '', password: '' };
+  let s = String(raw || '').trim();
+  if (!s) return out;
+  if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+  let x;
+  try { x = new URL(s); } catch (e) { return out; }
+  if (!/^https?:$/i.test(x.protocol)) return out;
+  x.hash = '';
+  if (isPlaylistUrl(x.href)) {
+    out.playlist = x.href;
+    out.username = x.searchParams.get('username') || '';
+    out.password = x.searchParams.get('password') || '';
+  }
+  const parts = x.pathname.split('/').filter(Boolean);
+  out.typed = (x.origin + '/' + parts.join('/')).replace(/\/+$/, '');
+  while (parts.length && PORTAL_PATH_JUNK.test(parts[parts.length - 1])) parts.pop();
+  out.root = (x.origin + '/' + parts.join('/')).replace(/\/+$/, '');
+  return out;
+}
+
 /* v15.0: PLAYLIST BY MAC ADDRESS. This is the flow the app is built around — the app shows a MAC,
    the reseller binds a line to it, and from then on the portal hands that MAC its own M3U, with no
    username or password anywhere in the picture. Panels differ in where they expose it and in
-   whether they want the MAC with or without colons, so both shapes are tried, most common first. */
-function macPlaylistCandidates(base, mac) {
-  const b = String(base || '').trim().replace(/\/+$/, '');
-  if (!b || !mac) return [];
+   whether they want the MAC with or without colons, so both shapes are tried, most common first.
+   v19.17: over the panel root first, then the path as typed. */
+function macPlaylistCandidates(bases, mac) {
+  if (!mac) return [];
   const enc = encodeURIComponent(mac);         // 00%3A1A%3A79%3A45%3AFD%3AAD
   const flat = mac.replace(/:/g, '');          // 001A7945FDAD
-  return [
-    b + '/get.php?mac=' + enc + '&type=m3u_plus&output=ts',
-    b + '/get.php?mac=' + enc + '&type=m3u_plus',
-    b + '/get.php?username=' + enc + '&password=' + enc + '&type=m3u_plus&output=ts',
-    b + '/get.php?mac=' + enc + '&type=m3u',
-    b + '/playlist/' + enc + '/m3u_plus',
-    b + '/play/get.php?mac=' + enc + '&type=m3u_plus',
-    b + '/get.php?mac=' + flat + '&type=m3u_plus',
-    b + '/get.php?username=' + flat + '&password=' + flat + '&type=m3u_plus',
-    b + '/get.php?mac=' + enc
-  ];
+  const out = [];
+  const add = x => { if (x && out.indexOf(x) < 0) out.push(x); };
+  for (const b of (bases || [])) {
+    if (!b) continue;
+    add(b + '/get.php?mac=' + enc + '&type=m3u_plus&output=ts');
+    add(b + '/get.php?mac=' + enc + '&type=m3u_plus');
+    add(b + '/get.php?username=' + enc + '&password=' + enc + '&type=m3u_plus&output=ts');
+    add(b + '/get.php?mac=' + enc + '&type=m3u');
+    add(b + '/playlist/' + enc + '/m3u_plus');
+    add(b + '/play/get.php?mac=' + enc + '&type=m3u_plus');
+    add(b + '/get.php?mac=' + flat + '&type=m3u_plus');
+    add(b + '/get.php?username=' + flat + '&password=' + flat + '&type=m3u_plus');
+    add(b + '/get.php?mac=' + enc);
+  }
+  return out;
 }
-function playlistCandidates(base, user, pass, variant, mac) {
-  const b = String(base || '').trim().replace(/\/+$/, '');
-  if (!b) return [];
+function playlistCandidates(sig, user, pass, variant, mac) {
+  /* The portal URL IS the playlist — a link the provider handed over ready-made, or a direct
+     .m3u/.m3u8. Nothing to guess: fetch exactly what was given. */
+  if (sig.playlist) return [sig.playlist];
+  const bases = sig.root === sig.typed ? [sig.root] : [sig.root, sig.typed];
+  if (!bases[0]) return [];
   const u = encodeURIComponent(user || ''), p = encodeURIComponent(pass || '');
-  /* A direct .m3u/.m3u8 link pasted as the portal URL is already the playlist. */
-  if (/\.(m3u8?)(\?|$)/i.test(b)) return [b];
+  const out = [];
+  const add = x => { if (x && out.indexOf(x) < 0) out.push(x); };
   /* No username at all: the MAC IS the identity.
      v19.1.0: this returned before the variant==='full' branch below ever ran, so a MAC-only line
      asking for the FULL catalogue was handed the same candidate list as the login — led by the
@@ -276,8 +336,8 @@ function playlistCandidates(base, user, pass, variant, mac) {
      as they were. v18.3 fixed the client-side guard for MAC lines (fullPlaylistCatalog) but this
      side still discarded the variant, which is why that fix did not show up for them. */
   if (!user) {
-    if (!mac) return [b];
-    const macList = macPlaylistCandidates(b, mac);
+    if (!mac) return [bases[0]];
+    const macList = macPlaylistCandidates(bases, mac);
     if (variant === 'full') {
       const full = macList.filter(x => !/[?&]output=ts(&|$)/i.test(x));
       return full.length ? full : macList;
@@ -292,12 +352,13 @@ function playlistCandidates(base, user, pass, variant, mac) {
      catalogue. Asking for that document as a deliberate follow-up request costs the login
      nothing: it happens in the background, and a failure just leaves the tabs as they were. */
   if (variant === 'full') {
-    return [
-      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
-      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=m3u8',
-      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
-      b + '/playlist/' + u + '/' + p + '/m3u_plus'
-    ];
+    for (const b of bases) {
+      add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus');
+      add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=m3u8');
+      add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u');
+      add(b + '/playlist/' + u + '/' + p + '/m3u_plus');
+    }
+    return out;
   }
   /* Order by what RELIABLY ANSWERS, not by what carries the most content. v13.3 briefly led with
      plain type=m3u_plus to pick up movies/series in one document, and that broke logins that had
@@ -315,13 +376,15 @@ function playlistCandidates(base, user, pass, variant, mac) {
      stalker_portal…" result. With a username in hand, only real playlist endpoints are worth
      asking. The bare URL stays a candidate in the no-credentials case above, where it is a
      directly-pasted playlist link. */
-  return [
-    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
-    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
-    b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
-    b + '/playlist/' + u + '/' + p + '/m3u_plus',
-    b + '/get.php?username=' + u + '&password=' + p
-  ].concat(macPlaylistCandidates(b, mac));
+  for (const b of bases) {
+    add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts');
+    add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus');
+    add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u');
+    add(b + '/playlist/' + u + '/' + p + '/m3u_plus');
+    add(b + '/get.php?username=' + u + '&password=' + p);
+  }
+  for (const x of macPlaylistCandidates(bases, mac)) add(x);
+  return out;
 }
 
 function looksLikePlaylist(text) {
@@ -437,6 +500,11 @@ async function handlePlaylist(request, env) {
   try { baseUrl = new URL(withScheme); } catch { return corsJson(400, { error: 'Invalid portal url' }); }
   if (!/^https?:$/.test(baseUrl.protocol)) return corsJson(400, { error: 'Portal url must be http or https' });
   if (PRIVATE_HOST.test(baseUrl.hostname)) return corsJson(403, { error: 'Target host not allowed' });
+  /* v19.17: the panel root, the path as typed, and whether this URL is already the playlist. Every
+     candidate below is built from these rather than from the raw string, which is what stops a
+     seller's "/c/" or "/stalker_portal/c/" from being carried into an address no panel serves. */
+  const sig = parseSignIn(withScheme);
+  if (!sig.root) return corsJson(400, { error: 'Invalid portal url' });
 
   /* v14.3: THE DEVICE MAC, sent with the username and password.
      The product flow is: the app shows a MAC, the reseller creates the line in their panel BOUND
@@ -447,14 +515,20 @@ async function handlePlaylist(request, env) {
      `mac=` cookie with a set-top-box User-Agent. Strictly validated, never forwarded verbatim. */
   /* Which of the two products this is being asked on behalf of: a line with a username and
      password is authorised by those, a line without one is authorised by its MAC. */
-  const hasCreds = !!String(body.username || '').trim();
+  /* v19.17: a pasted get.php link carries the line's identity in its own query string. When the
+     customer pastes that as the portal URL and leaves the login boxes empty — which is exactly what
+     "here is your M3U link" invites — those credentials are the ones to sign in with, rather than
+     falling through to the MAC flow as if no identity had been supplied at all. */
+  const user = String(body.username || '').trim() || sig.username;
+  const pass = (body.password != null && String(body.password) !== '') ? String(body.password) : sig.password;
+  const hasCreds = !!user;
   const variant = String(body.variant || '').trim().toLowerCase();
-  const candidates = playlistCandidates(withScheme.replace(/\/+$/, ''), body.username, body.password, variant, mac);
+  const candidates = playlistCandidates(sig, user, pass, variant, mac);
   const attempts = [];
   let sawStalker = false, rejected = 0, limited = 0, blocked = 0;
   /* Shared across every candidate in this login: whether the portal's edge has already turned this
      worker away, and what state the second egress is in. */
-  const relay = { awake: false, dead: false, originBlocked: false, spent: 0, exhausted: false };
+  const relay = { awake: false, dead: false, originBlocked: false, spent: 0, exhausted: false, uaTried: false, useBrowserUa: false };
   wakeRelay(env, relay);
 
   /* Stop walking candidates when there is provably nothing left to learn from another request:
@@ -530,7 +604,10 @@ async function handlePlaylist(request, env) {
        with no username keeps the MAC from the start, because there the MAC IS the identity
        (macPlaylistCandidates builds those addresses). */
     if (mac && (useMac || !hasCreds)) target.searchParams.set('mac', mac);
-    const headers = { 'user-agent': useMac ? MAG_UA : PLAYER_UA, 'accept': '*/*' };
+    const headers = {
+      'user-agent': useMac ? MAG_UA : (relay.useBrowserUa ? BROWSER_UA : PLAYER_UA),
+      'accept': '*/*'
+    };
     if (useMac) headers.cookie = 'mac=' + mac + '; stb_lang=en; timezone=UTC';
     let upstream;
     /* v18.0: once this portal's edge has turned the worker away, it will turn away every
@@ -566,6 +643,32 @@ async function handlePlaylist(request, env) {
        different IPs and already relays these exact requests (server.js /proxy, MAG headers and
        all), so the same attempt is simply a different visitor. Retry there before giving up. */
     if (edgeRefused(upstream.status)) {
+      /* v19.17: BEFORE writing the address off, try the other identity. PLAYER_UA is
+         "VLC/3.0.20 LibVLC/3.0.20" — a plain-media-player string that a good number of panels
+         (and the bot rules in front of them) refuse outright, while the very same request from
+         something that looks like a browser is served normally. That refusal is indistinguishable
+         from an IP block from here, and it is the cheaper of the two to disprove: one extra
+         request, once per sign-in, before any of the relay machinery is woken up. */
+      if (!relay.uaTried && !useMac) {
+        relay.uaTried = true;
+        let asBrowser = null;
+        try {
+          asBrowser = await fetch(target.href, {
+            method: 'GET',
+            headers: {
+              'user-agent': BROWSER_UA,
+              'accept': '*/*',
+              'accept-language': 'en-US,en;q=0.9'
+            },
+            redirect: 'follow'
+          });
+        } catch (e) { asBrowser = null; }
+        if (asBrowser && asBrowser.ok) {
+          attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: 'player UA refused; succeeded as a browser' });
+          relay.useBrowserUa = true;
+          return await finish(asBrowser, target, useMac);
+        }
+      }
       relay.originBlocked = true;
       const relayed = await viaRelay(env, target, useMac, mac, relay);
       if (relayed && relayed.ok) {
@@ -600,7 +703,7 @@ async function handlePlaylist(request, env) {
   for (const candidate of candidates) {
     const ok = await attempt(candidate, false);
     if (ok) return ok;
-    if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
+    if (limited) return corsJson(200, { ok: false, status: 429, attempts, base: sig.root, reason: 'rate-limited' });
     if (exhausted()) break;
   }
   /* Pass 2: the same endpoints again, now carrying the device MAC. Only reached when pass 1
@@ -609,11 +712,11 @@ async function handlePlaylist(request, env) {
     for (const candidate of candidates) {
       const ok = await attempt(candidate, true);
       if (ok) return ok;
-      if (limited) return corsJson(200, { ok: false, status: 429, attempts, reason: 'rate-limited' });
+      if (limited) return corsJson(200, { ok: false, status: 429, attempts, base: sig.root, reason: 'rate-limited' });
       if (exhausted()) break;
     }
   }
-  if (rejected) return corsJson(200, { ok: false, status: rejected, attempts, reason: 'rejected' });
+  if (rejected) return corsJson(200, { ok: false, status: rejected, attempts, base: sig.root, reason: 'rejected' });
 
   /* No playlist endpoint answered. Before giving up, make ONE deliberate probe of the base URL to
      identify what kind of server this actually is. This is a diagnostic, not another playlist
@@ -646,12 +749,12 @@ async function handlePlaylist(request, env) {
     attempts.push({ endpoint: '/ (probe)', error: String((e && e.message) || e).slice(0, 120) });
   }
 
-  if (sawStalker) return corsJson(200, { ok: false, reason: 'stalker-portal', attempts });
+  if (sawStalker) return corsJson(200, { ok: false, reason: 'stalker-portal', attempts, base: sig.root });
   /* v18.0: both egresses were turned away before the portal answered for itself. Said plainly,
      this is the one verdict the app can act on — it means retry, and it means the MAC handshake
      is still worth trying, not that anybody's details are wrong. */
-  if (blocked) return corsJson(200, { ok: false, status: blocked, attempts, reason: 'edge-blocked' });
-  return corsJson(200, { ok: false, reason: 'no-playlist', attempts });
+  if (blocked) return corsJson(200, { ok: false, status: blocked, attempts, base: sig.root, reason: 'edge-blocked' });
+  return corsJson(200, { ok: false, reason: 'no-playlist', attempts, base: sig.root });
 }
 
 function rewriteLocation(location, requestUrl, origin) {

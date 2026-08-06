@@ -189,19 +189,83 @@
     return /^\s*#EXTM3U/i.test(String(text || '')) || /#EXTINF/i.test(String(text || '').slice(0, 4096));
   }
 
+  /* ── v19.17: WHAT THE SELLER ACTUALLY HANDED OVER ──────────────────────────────────────────
+     "Portal URL" is whatever the provider wrote in their own notes, and in practice it is one of
+     half a dozen different things:
+
+       http://host:8080                      the panel root
+       http://host:8080/c/                   the MAG portal page a Smart-STB user is given
+       http://host/stalker_portal/c/         the same thing on a Ministra install
+       http://host:8080/player_api.php       an API file
+       http://host:8080/get.php?username=…   the finished M3U link itself
+
+     Every playlist address this app builds is base + '/get.php?…', so the base has to be the panel
+     ROOT. Keeping the decoration the seller happened to include is what produced addresses like
+     `http://host:8080/c/get.php?username=…`, which exist on no panel anywhere — and the portal HTML
+     or 404 that came back was then read as "a security layer is blocking us" on a line where
+     nothing was blocking anything. Stripping it is the difference between a working sign-in and an
+     unfixable-looking error.
+
+     Returns { root, typed, playlist, username, password }:
+       root      the panel root, seller decoration removed — tried FIRST
+       typed     origin + the path exactly as typed, for the rare panel really hosted in a subfolder
+       playlist  set when the URL IS already a playlist; then it is used verbatim and nothing is
+                 built at all, which is what makes "just paste the M3U link they gave you" work
+       username/password  read back out of a pasted get.php link, so the line still has an identity */
+  const PORTAL_PATH_JUNK = /^(c|client|stalker_portal|portal|play|player|api|index\.html?|index\.php|portal\.php|load\.php|get\.php|player_api\.php|panel_api\.php|xmltv\.php|enigma2\.php|m3u|playlist)$/i;
+
+  function looksLikePlaylistUrl(u) {
+    try {
+      const x = new URL(u);
+      if (/\.m3u8?$/i.test(x.pathname)) return true;
+      if (/[?&]type=m3u/i.test(x.search)) return true;
+      if (/get\.php$/i.test(x.pathname) && /[?&](username|mac)=/i.test(x.search)) return true;
+      return false;
+    } catch (e) { return false; }
+  }
+
+  function parseSignIn(raw) {
+    const out = { root: '', typed: '', playlist: '', username: '', password: '' };
+    let s = String(raw || '').trim();
+    if (!s) return out;
+    if (!/^https?:\/\//i.test(s)) s = 'http://' + s;
+    let x;
+    try { x = new URL(s); } catch (e) { return out; }
+    if (!/^https?:$/i.test(x.protocol)) return out;
+    x.hash = '';
+    if (looksLikePlaylistUrl(x.href)) {
+      out.playlist = x.href;
+      out.username = x.searchParams.get('username') || '';
+      out.password = x.searchParams.get('password') || '';
+    }
+    const parts = x.pathname.split('/').filter(Boolean);
+    out.typed = (x.origin + '/' + parts.join('/')).replace(/\/+$/, '');
+    while (parts.length && PORTAL_PATH_JUNK.test(parts[parts.length - 1])) parts.pop();
+    out.root = (x.origin + '/' + parts.join('/')).replace(/\/+$/, '');
+    return out;
+  }
+
   /* Candidate playlist URLs for a portal that gave us a username and password. Panels differ in
-     which of these they answer, so they are tried in order of how common they are. */
+     which of these they answer, so they are tried in order of how common they are.
+     v19.17: built off the panel root first and the path as typed second, and short-circuited
+     entirely when the "portal URL" is already the playlist. The bare base is no longer a candidate:
+     a GET on / can only return the panel's landing page, and reading that as a playlist is exactly
+     what made a MAG portal's HTML look like an answer. */
   function m3uCandidates(base, user, pass) {
-    const b = String(base || '').replace(/\/+$/, '');
-    const u = encodeURIComponent(user || ''), p = encodeURIComponent(pass || '');
-    if (/\.(m3u8?|php)(\?|$)/i.test(b) && !user) return [b];
-    return [
-      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
-      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
-      b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
-      b + '/playlist/' + u + '/' + p + '/m3u_plus',
-      b
-    ];
+    const sig = parseSignIn(base);
+    if (sig.playlist) return [sig.playlist];
+    const u = encodeURIComponent(user || sig.username || '');
+    const p = encodeURIComponent(pass != null && pass !== '' ? pass : (sig.password || ''));
+    const out = [];
+    const add = x => { if (x && out.indexOf(x) < 0) out.push(x); };
+    for (const b of [sig.root, sig.typed]) {
+      if (!b) continue;
+      add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts');
+      add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus');
+      add(b + '/get.php?username=' + u + '&password=' + p + '&type=m3u');
+      add(b + '/playlist/' + u + '/' + p + '/m3u_plus');
+    }
+    return out;
   }
 
   /* Playlist URLs for a portal that identifies the customer by MAC ADDRESS instead of by a
@@ -210,22 +274,27 @@
      they expose it and in whether they want the MAC with or without colons, so both shapes are
      tried, most common first. */
   function macM3uCandidates(base, mac) {
-    const b = String(base || '').replace(/\/+$/, '');
+    const sig = parseSignIn(base);
+    if (sig.playlist) return [sig.playlist];
     const m = normaliseMac(mac);
-    if (!b || !m) return [];
+    if (!m) return [];
     const enc = encodeURIComponent(m);           // 00%3A1A%3A79%3A45%3AFD%3AAD
     const flat = m.replace(/:/g, '');            // 001A7945FDAD
-    return [
-      b + '/get.php?mac=' + enc + '&type=m3u_plus&output=ts',
-      b + '/get.php?mac=' + enc + '&type=m3u_plus',
-      b + '/get.php?username=' + enc + '&password=' + enc + '&type=m3u_plus&output=ts',
-      b + '/get.php?mac=' + enc + '&type=m3u',
-      b + '/playlist/' + enc + '/m3u_plus',
-      b + '/play/get.php?mac=' + enc + '&type=m3u_plus',
-      b + '/get.php?mac=' + flat + '&type=m3u_plus',
-      b + '/get.php?username=' + flat + '&password=' + flat + '&type=m3u_plus',
-      b + '/get.php?mac=' + enc
-    ];
+    const out = [];
+    const add = x => { if (x && out.indexOf(x) < 0) out.push(x); };
+    for (const b of [sig.root, sig.typed]) {
+      if (!b) continue;
+      add(b + '/get.php?mac=' + enc + '&type=m3u_plus&output=ts');
+      add(b + '/get.php?mac=' + enc + '&type=m3u_plus');
+      add(b + '/get.php?username=' + enc + '&password=' + enc + '&type=m3u_plus&output=ts');
+      add(b + '/get.php?mac=' + enc + '&type=m3u');
+      add(b + '/playlist/' + enc + '/m3u_plus');
+      add(b + '/play/get.php?mac=' + enc + '&type=m3u_plus');
+      add(b + '/get.php?mac=' + flat + '&type=m3u_plus');
+      add(b + '/get.php?username=' + flat + '&password=' + flat + '&type=m3u_plus');
+      add(b + '/get.php?mac=' + enc);
+    }
+    return out;
   }
 
   /* ── Stalker / Ministra (MAG portal) ──────────────────────────────────────────────────────── */
@@ -313,6 +382,8 @@
   global.Media26Portal = {
     parseM3U: parseM3U,
     looksLikeM3U: looksLikeM3U,
+    parseSignIn: parseSignIn,
+    looksLikePlaylistUrl: looksLikePlaylistUrl,
     m3uCandidates: m3uCandidates,
     macM3uCandidates: macM3uCandidates,
     classify: classify,

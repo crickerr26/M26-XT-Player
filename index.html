@@ -92,7 +92,7 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
 any input under 16px and does not zoom back out on blur, which is exactly the "misaligned, hidden
 until you zoom out" report: the page was left zoomed in from focusing this sheet's fields at 14.5px.
 Same reason .searchbox input is pinned to 16px in the mobile media query above. */
-.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalNote{margin-top:12px}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
+.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
 </style>
 <style>
 /* --- v17 premium redesign layer: additive overrides only, original rules above stay intact --- */
@@ -1390,8 +1390,12 @@ body.login-dark .login,body.dark .login{background:
       <label for="xtreamUrl">Portal URL</label>
       <div class="portalInputWrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.6 3.6 5.7 3.6 9s-1.2 6.4-3.6 9c-2.4-2.6-3.6-5.7-3.6-9s1.2-6.4 3.6-9z"/></svg>
-        <input id="xtreamUrl" placeholder="http://tv.example.cc" autocomplete="url" inputmode="url" autocapitalize="none" spellcheck="false">
+        <input id="xtreamUrl" placeholder="http://tv.example.cc:8080" autocomplete="url" inputmode="url" autocapitalize="none" spellcheck="false">
       </div>
+      <!-- v19.17: say that the whole M3U link is welcome here. Providers hand out both shapes, the
+           app now accepts either, and a customer who has the ready-made link had no way to know it
+           was allowed in this box. -->
+      <p class="portalHint">Paste the server address, or the whole M3U link if your provider gave you one — either works.</p>
     </div>
     <div class="portalField">
       <label for="xtreamUser">Login</label>
@@ -1497,7 +1501,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.16.0';
+const APP_VERSION='19.17.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1574,7 +1578,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={url:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -1622,7 +1626,50 @@ function cancelSignIn(){
 }
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg;paintLoaderCancel();}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
-function normalize(raw){let u=String(raw||'').trim();if(!u)return'';if(!/^https?:\/\//i.test(u))u='http://'+u;const x=new URL(u);x.hash='';x.search='';return x.href.replace(/\/+$/,'')}
+/* ── v19.17: WHAT THE SELLER ACTUALLY HANDED OVER ──────────────────────────────────────────
+   Kept deliberately identical to Media26Portal.parseSignIn (portal.js) and parseSignIn
+   (_worker.js) — all three build playlist addresses out of the same "portal URL" string and so
+   must agree on what that string means.
+
+   normalize() used to keep the PATH and throw away the QUERY, which is backwards for every shape
+   a provider actually gives out:
+
+     http://host:8080/c/                    ->  http://host:8080/c        -> /c/get.php?…   (404)
+     http://host/stalker_portal/c/          ->  …/stalker_portal/c        -> …/c/get.php?…  (portal HTML)
+     http://host:8080/get.php?username=…    ->  http://host:8080/get.php  -> /get.php/get.php?… (404)
+
+   Every playlist address is base + '/get.php?…', so the base has to be the panel ROOT — and a URL
+   that IS already the playlist has to be used verbatim, query and all. Getting this wrong is what
+   made a perfectly good login+password line come back as "a security layer turned this request
+   away": the app was asking for an address that exists on no panel, and reading the 404 or the
+   portal's own landing page as a block. */
+const PORTAL_PATH_JUNK=/^(c|client|stalker_portal|portal|play|player|api|index\.html?|index\.php|portal\.php|load\.php|get\.php|player_api\.php|panel_api\.php|xmltv\.php|enigma2\.php|m3u|playlist)$/i;
+function portalParts(raw){
+  const out={root:'',typed:'',playlist:'',username:'',password:''};
+  let s=String(raw||'').trim();
+  if(!s)return out;
+  if(!/^https?:\/\//i.test(s))s='http://'+s;
+  let x;try{x=new URL(s)}catch(e){return out}
+  if(!/^https?:$/i.test(x.protocol))return out;
+  x.hash='';
+  /* The portal URL IS the playlist: a ready-made link ("here is your M3U") or a direct .m3u file.
+     Used exactly as given — no candidate is built and nothing is guessed. */
+  if(/\.m3u8?$/i.test(x.pathname)||/[?&]type=m3u/i.test(x.search)||(/get\.php$/i.test(x.pathname)&&/[?&](username|mac)=/i.test(x.search))){
+    out.playlist=x.href;
+    out.username=x.searchParams.get('username')||'';
+    out.password=x.searchParams.get('password')||'';
+  }
+  const parts=x.pathname.split('/').filter(Boolean);
+  out.typed=(x.origin+'/'+parts.join('/')).replace(/\/+$/,'');
+  while(parts.length&&PORTAL_PATH_JUNK.test(parts[parts.length-1]))parts.pop();
+  out.root=(x.origin+'/'+parts.join('/')).replace(/\/+$/,'');
+  return out;
+}
+/* S.url is the PANEL ROOT everywhere — it is what playlist addresses and directUrl()'s
+   /live/user/pass/id.ts stream addresses are both built from, and neither works off a portal page
+   path. The raw string the customer typed is kept separately (S.rawUrl) so a pasted playlist link
+   survives intact. */
+function normalize(raw){return portalParts(raw).root}
 function mobile(){return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent||'')||innerWidth<800||('ontouchstart'in window&&innerWidth<980)}
 /* v11.5: are we the packaged app rather than the website? capacitor.config.json enables cleartext
    and allowMixedContent, so a native WebView may fetch an http:// panel DIRECTLY — the CORS proxy
@@ -1729,8 +1776,11 @@ function logoOf(x){return x.stream_icon||x.cover||x.movie_image||x.info?.movie_i
 function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
 function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
 function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
-function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,user:S.user,pass:S.pass}))}
-function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
+/* v19.17: `raw` is what the customer actually typed, `url` the panel root derived from it. Both
+   are kept: the root is what stream addresses are built from, and the raw string is the only thing
+   that can replay a sign-in where the "portal URL" was itself the ready-made playlist link. */
+function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,raw:S.rawUrl||S.url,user:S.user,pass:S.pass}))}
+function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.raw||c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
    media26-transcoder-*.onrender.com — including services that are alive and current — so a URL
    typed into Stream Tools by hand was silently erased on the next load and there was no way to
    point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
@@ -1914,8 +1964,17 @@ async function login(opts){
   try{
   /* Activation logs in with credentials passed directly (opts.creds) so they're never shown in the
      visible fields — the customer only ever sees their 8-digit code, not the username/password. */
-  if(opts&&opts.creds){S.url=normalize(opts.creds.portalUrl||'');S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
-  else{S.url=normalize($('url').value);S.user=$('user').value.trim();S.pass=$('pass').value;}
+  if(opts&&opts.creds){S.rawUrl=String(opts.creds.portalUrl||'').trim();S.user=String(opts.creds.username||'').trim();S.pass=String(opts.creds.password==null?'':opts.creds.password);}
+  else{S.rawUrl=String($('url').value||'').trim();S.user=$('user').value.trim();S.pass=$('pass').value;}
+  S.url=normalize(S.rawUrl);
+  /* v19.17: a pasted get.php link carries the line's identity in its own query string. Reading it
+     back out is what lets "paste the M3U link your provider gave you" be a complete sign-in, with
+     the login boxes left empty — instead of falling through to the MAC flow as though no identity
+     had been supplied at all. */
+  {
+    const _sig=portalParts(S.rawUrl);
+    if(!S.user&&_sig.username){S.user=_sig.username;S.pass=S.pass||_sig.password;}
+  }
   /* v15.0: SIGN IN WITH THE MAC ALONE. The product flow is that the reseller binds a line to the
      MAC this app shows, and from then on the portal will hand that MAC its own M3U — there is no
      username or password in that flow at all. Require a portal URL, and then EITHER credentials or
@@ -2116,6 +2175,13 @@ async function login(opts){
         /* v19.6: the MAG handshake is the ONLY other route left once the playlist step has
            failed — there is no Xtream API fallback to carry on to any more, so its verdict (or
            this catch) is the final answer whether or not credentials were also supplied. */
+        /* v19.17: but its verdict is written for a MAC line, and every sentence in it is about a
+           MAC. On a line the customer knows only as a portal URL, a login and a password, that is
+           an answer to a question they never asked — it names a MAC they were never given, on an
+           account that does not depend on one, and it buries the thing that actually failed (the
+           playlist request). Keep the MAC verdict for MAC lines; a credentials line hears what
+           happened to its credentials. */
+        if(S.user&&S.pass&&plErr&&plErr.message)throw Error(plErr.message);
         throw Error(stalkerFailMessage(se));
       }
     }
@@ -2157,8 +2223,8 @@ async function login(opts){
      see _portalNamePending. Consumed once and cleared, so it can never leak into a later, unrelated
      sign-in (silent resume, another saved profile, activation-code redemption). */
   rememberProfile((S.user&&S.pass)
-    ?{kind:'xtream',name:_portalNamePending||S.user,url:S.url,user:S.user,pass:S.pass,mac:stalkerMac(),source:hostOf(S.url)}
-    :{kind:'mac',name:_portalNamePending||macFmt(stalkerMac())||hostOf(S.url),url:S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
+    ?{kind:'xtream',name:_portalNamePending||S.user,url:S.url,raw:S.rawUrl||S.url,user:S.user,pass:S.pass,mac:stalkerMac(),source:hostOf(S.url)}
+    :{kind:'mac',name:_portalNamePending||macFmt(stalkerMac())||hostOf(S.url),url:S.url,raw:S.rawUrl||S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
   _portalNamePending='';
   if(signInCancelled(_tok))return;
   $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast(sourceLabel()+' loaded — '+S.live.length.toLocaleString()+' channels')}
@@ -2429,7 +2495,7 @@ function fullPlaylistCatalog(){
       const r=await fetch(location.origin+'/api/playlist',{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({url:S.url,username:S.user,password:S.pass,variant:'full',mac:stalkerMac()})
+        body:JSON.stringify({url:S.rawUrl||S.url,username:S.user,password:S.pass,variant:'full',mac:stalkerMac()})
       });
       if(!r.ok)return null;
       /* A JSON body is the function's "no playlist / rate-limited / stalker" answer. Nothing to
@@ -2573,6 +2639,12 @@ async function fetchPlaylistViaFunction(base,user,pass){
       else if(first.error)bits.push(first.error);
       if(bits.length)detail=' The panel answered '+(first.endpoint||'')+' with '+bits.join(' — ')+'.';
     }
+    /* v19.17: name the address that was actually asked, not the one that was typed. The worker
+       derives the panel root from the portal URL (a seller's "/c/" or "/stalker_portal/c/" is
+       stripped), so a customer comparing the message against what they typed has to be able to see
+       which one the app used. */
+    const tried=(j&&j.base)||'';
+    if(tried)detail+=' Playlist addresses were built from '+tried+'.';
     const err=new Error(
       (j&&j.reason==='rate-limited')?'This portal is rate-limiting connection attempts right now. Wait a minute, then try again.'
       :(j&&j.reason==='rejected')?'The portal rejected these details — check the username and password.'
@@ -2587,7 +2659,15 @@ async function fetchPlaylistViaFunction(base,user,pass){
          throws the handshake's verdict in preference to this, see the final throw there), so a
          promise to try the MAC is exactly wrong: by then it has been tried. Describe the portal
          and stop. */
-      :(j&&j.reason==='stalker-portal')?'This is a MAG / Stalker portal — it signs devices in by their MAC address, not by a username and password. The MAC on this device is being used to sign in.'
+      /* v19.17: WHICH PRODUCT IS THIS PERSON ON. A MAC-only line genuinely has to hear about the
+         MAC — that is its whole identity. But a customer who was handed a portal URL, a login and
+         a password has no MAC in their picture at all, and telling them their device MAC is being
+         used to sign in is both untrue for their line and unusable as advice. What actually helps
+         them is the one address that always works: the ready-made playlist link, which this app
+         now accepts verbatim in the portal-URL box. */
+      :(j&&j.reason==='stalker-portal')?(user
+        ?('No playlist endpoint answered on '+((j&&j.base)||base)+', and that address serves a MAG / Stalker portal page. Ask your provider for the M3U line for this account — it looks like http://your-server:port/get.php?username=…&password=…&type=m3u_plus — and paste that whole link into the Portal URL box. The app will open it directly.')
+        :'This is a MAG / Stalker portal — it signs devices in by their MAC address, not by a username and password. The MAC on this device is being used to sign in.')
       /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
          Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
          the panel behind it is down or its DNS is broken. Telling someone to re-check a username
@@ -2633,7 +2713,7 @@ async function loadPlaylistSource(){
   };
   /* Preferred path: our own serverless function does the whole fetch. */
   try{
-    const res=await fetchPlaylistViaFunction(S.url,S.user,S.pass);
+    const res=await fetchPlaylistViaFunction(S.rawUrl||S.url,S.user,S.pass);
     if(res&&adopt(res.text,res.url)){
       if(res.truncated)toast('This playlist is larger than the app can read in one go — some titles at the end were left out. Tell your provider, or use a smaller playlist link.');
       return true;
@@ -2646,8 +2726,8 @@ async function loadPlaylistSource(){
      line's playlist (whatever this device's MAC happens to be bound to, if anything), not a second
      chance at THIS one, and trying them just adds MAC-flavoured noise to a plain credentials sign-in. */
   const tries=(S.user&&S.pass)
-    ? Media26Portal.m3uCandidates(S.url,S.user,S.pass)
-    : Media26Portal.macM3uCandidates(S.url,stalkerMac());
+    ? Media26Portal.m3uCandidates(S.rawUrl||S.url,S.user,S.pass)
+    : Media26Portal.macM3uCandidates(S.rawUrl||S.url,stalkerMac());
   for(const u of tries){
     let text='';
     try{ text=await fetchTextChain(u,45000); }catch(e){ text=''; }
@@ -4565,7 +4645,7 @@ async function signInWithProfile(id){
     const m=Media26Portal.normaliseMac(p.mac);
     if(m){try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}}
   }
-  $('url').value=p.url||'';$('user').value=p.user||'';$('pass').value=p.pass||'';
+  $('url').value=p.raw||p.url||'';$('user').value=p.user||'';$('pass').value=p.pass||'';
   await login();
 }
 if($('userList'))$('userList').onclick=e=>{
@@ -5358,7 +5438,7 @@ function adoptStalkerSession(res){
      re-authenticate (do_auth) on the next launch. A MAC-only line simply has none, and storing
      empty strings is harmless. */
   const _u=S.user||'',_p=S.pass||'';
-  S.source='stalker';S.m3u=null;S.url=res.base;S.user=_u;S.pass=_p;
+  S.source='stalker';S.m3u=null;S.url=res.base;S.rawUrl=res.base;S.user=_u;S.pass=_p;
   S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
   /* Movies and series are NOT marked loaded here — they live behind a different, paged endpoint
      and are fetched below. Claiming they were already loaded is what left both tabs reading
@@ -5596,16 +5676,18 @@ async function adoptPlaylistText(text,label){
    list /api/playlist walks), so it builds it for them and opens it on the phone's own connection.
    Returning with the text is one tap too. Nothing here touches a server we control. */
 function devicePlaylistUrl(){
-  const base=normalize(
+  /* v19.17: read the RAW string, not normalize()'s panel root — a portal URL that is itself the
+     playlist link carries its identity in the query, and normalising it away is what left this
+     button building a second, different address from the one the provider handed over. */
+  const sig=portalParts(
     (($('xtreamUrl')&&$('xtreamUrl').value)||'')
-    ||S.url||'');
-  if(!base)return '';
+    ||S.rawUrl||S.url||'');
+  if(sig.playlist)return sig.playlist;
+  if(!sig.root)return '';
   const u=(($('xtreamUser')&&$('xtreamUser').value)||S.user||'').trim();
   const p=(($('xtreamPass')&&$('xtreamPass').value)||S.pass||'');
-  /* A direct .m3u link pasted as the portal URL is already the playlist. */
-  if(/\.m3u8?(\?|$)/i.test(base))return base;
   if(!u)return '';
-  return base.replace(/\/+$/,'')+'/get.php?username='+encodeURIComponent(u)+'&password='+encodeURIComponent(p)+'&type=m3u_plus&output=ts';
+  return sig.root+'/get.php?username='+encodeURIComponent(u)+'&password='+encodeURIComponent(p)+'&type=m3u_plus&output=ts';
 }
 function openImportSheet(){
   if($('importErr'))$('importErr').textContent='';
