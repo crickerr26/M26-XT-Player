@@ -179,8 +179,30 @@
     }
     /* Direct first when the browser is allowed the address, then through the app's relay, which
        supplies the CORS headers and the player User-Agent panels expect. */
+    /* ── v19.28: THE MAG PASS-THROUGH RELAY, WHICH THIS ENGINE NEVER HAD. ──────────────────────
+       index.html's plan() learned in v16.6 that a MAG stream node BLOCKS CLOUDFLARE: measured
+       against a live portal, the stream host answers the app's own /proxy — which runs on
+       Cloudflare — with "error code: 1003" / 403, while the transcoder's plain pass-through /proxy
+       (ordinary hosting, a normal IP) fetches the very same link with HTTP 200. So plan() leads a
+       Stalker stream with that relay.
+       This engine builds its own catalogue and was never given that knowledge, so on a MAG portal
+       it offered exactly two routes that cannot work — the raw cross-origin address (no CORS) and
+       the Cloudflare relay (1003) — before falling through to a full ffmpeg transcode on a free
+       instance. That is why Player 1 would not play here while the same link was fine elsewhere.
+       It is a plain relay, not a re-encode: same bytes, different egress IP. Nothing about the MAC,
+       the handshake or the token is involved — this is purely which address the video is fetched
+       from once the portal has already issued the link. */
+    function magRelay(url) {
+      if (!url || !D.streamRelayUrl) return '';
+      try { return D.streamRelayUrl(url) || ''; } catch (e) { return ''; }
+    }
+    var useMagRelay = !!(D.isMag && D.isMag(item));
     function addPair(url, label) {
       if (!url) return;
+      if (useMagRelay) {
+        var mr = magRelay(url);
+        if (mr) add(mr, { label: label + ' via stream relay', claim: formatFromUrl(url) });
+      }
       if (!D.blocked(url)) add(url, { label: label });
       var relay = D.proxyUrl(url);
       if (relay) add(relay, { label: label + ' via relay', claim: formatFromUrl(url) });
