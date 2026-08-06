@@ -400,7 +400,12 @@ function playlistCandidates(sig, user, pass, variant, mac) {
     add(b + '/playlist/' + u + '/' + p + '/m3u_plus');
     add(b + '/get.php?username=' + u + '&password=' + p);
   }
-  for (const x of macPlaylistCandidates(bases, mac)) add(x);
+  /* v19.21: NO MAC-KEYED ADDRESSES ON A LINE THAT HAS A LOGIN. These are a DIFFERENT line's
+     playlist — whatever this device's MAC happens to be bound to on that panel, if anything — not
+     a second chance at this one. This product signs in with a portal URL, a login and a password
+     resolving through get.php; there is no MAC in the sign-in UI and none on the seller's record.
+     Appending them doubled the request count against a rate-limiting panel and, when nothing
+     answered, made the failure look like a MAC problem on an account that has no MAC. */
   return out;
 }
 
@@ -743,8 +748,13 @@ async function handlePlaylist(request, env) {
     if (exhausted()) break;
   }
   /* Pass 2: the same endpoints again, now carrying the device MAC. Only reached when pass 1
-     produced nothing, so a working login never spends these requests. */
-  if (mac && !exhausted()) {
+     produced nothing, so a working login never spends these requests.
+     v19.21: and only for a line whose identity IS the MAC. A login+password line has no business
+     re-asking every endpoint as a set-top box — it is a second full sweep of the panel on behalf
+     of a device identity the account was never sold with, and it is what turned a plain M3U
+     sign-in failure into a MAC verdict. Enforced here as well as in the app, because an app kept
+     in a home-screen cache can still be sending the old body. */
+  if (mac && !hasCreds && !exhausted()) {
     for (const candidate of candidates) {
       const ok = await attempt(candidate, true);
       if (ok) return ok;
@@ -752,6 +762,32 @@ async function handlePlaylist(request, env) {
       if (exhausted()) break;
     }
   }
+  /* ── v19.20: THE PANEL IS OFTEN ON ANOTHER PORT. ─────────────────────────────────────────────
+     A very common shape, and the one behind the account that kept failing: the hostname a seller
+     hands out answers on :80 with a MAG/Ministra portal page and has no get.php on it at all,
+     while the Xtream/M3U service for the very same subscription runs on one of the panel ports.
+     Nothing is blocking anything there — we were simply knocking on the wrong door and then
+     reporting the portal page we found as though it were the answer.
+
+     The ports below are the ones IPTV panels actually use AND that a CDN in front of the host will
+     still proxy, so they stay reachable when the hostname is behind one. Bounded hard: only when
+     the seller gave no port of their own, only with credentials to try, only the single
+     highest-yield candidate shape per port, and only after the normal walk has come up empty
+     without being refused — so a working sign-in never spends one of these, and a panel that is
+     genuinely refusing us is not knocked on six more times. */
+  const PANEL_PORTS = ['8080', '2082', '2086', '2095', '8880', '2052'];
+  if (!blocked && !limited && !rejected && hasCreds && !baseUrl.port && !sig.playlist) {
+    const u = encodeURIComponent(user), p = encodeURIComponent(pass);
+    for (const port of PANEL_PORTS) {
+      const alt = baseUrl.protocol + '//' + baseUrl.hostname + ':' + port +
+        '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts';
+      const ok = await attempt(alt, false);
+      if (ok) return ok;
+      if (limited) return corsJson(200, { ok: false, status: 429, attempts, base: sig.root, reason: 'rate-limited' });
+      if (blocked || rejected) break;   /* it is answering for itself now — stop guessing ports */
+    }
+  }
+
   if (rejected) return corsJson(200, { ok: false, status: rejected, attempts, base: sig.root, reason: 'rejected' });
 
   /* No playlist endpoint answered. Before giving up, make ONE deliberate probe of the base URL to
