@@ -1523,7 +1523,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.27.0';
+const APP_VERSION='19.28.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3758,6 +3758,16 @@ function configureInbuiltPlayer(){
     /* the item's own resolved address: an M3U entry carries one, a MAG channel has one once
        stalkerResolve() has exchanged its portal command for a real link */
     streamUrlOf:x=>String((x&&(x.direct_source||x.stream_url))||'').trim(),
+    /* v19.28: the two facts Player 1 needs to route a MAG stream the way plan() already does —
+       whether this title came from a Stalker portal, and the transcoder's plain pass-through
+       relay address for it. See the note in m26player2.js catalog(). */
+    isMag:x=>!!(x&&x._stalkerCmd),
+    streamRelayUrl:u=>{
+      try{
+        const tb=(typeof transcoderBase==='function')&&transcoderBase();
+        return (tb&&u)?(tb.replace(/\/+$/,'')+'/proxy?url='+encodeURIComponent(u)):'';
+      }catch(e){return ''}
+    },
     getResume:x=>(S.resume&&S.resume[keyOf(x)])||0,
     getLastSeekAt:()=>S.lastSeekAt||0,
     /* the quality menu, the seek bar and cleanup() all read S.hls/S.ts and S.timer, so the engine
@@ -5405,7 +5415,12 @@ async function stalkerLogin(base,mac,creds){
    a full library was reporting, on a portal holding thousands. The loop below now stops on the
    portal's own total_items (or on a short page), so this is a runaway guard and nothing else; it
    is reached only by a portal that never signals an end. */
-const STALKER_MAX_PAGES=600;
+/* v19.28: raised now that pages are fetched in parallel (see stalkerPaged). Sequentially this was
+   600 round trips taken in single file, which is why it was set low; a concurrency pool makes a
+   deeper sweep affordable in wall-clock time. It stays a ceiling rather than "everything", because
+   a portal reporting a 211,861-title catalogue is reporting a federated list nobody scrolls —
+   past this point the way to find a film is its category or the search box, not more paging. */
+const STALKER_MAX_PAGES=1200;
 /* v19.1.0: THIS LOOP USED TO STOP LONG BEFORE THE CATALOGUE ENDED, in three separate ways, and
    each one presented as "only half my library loaded":
 
@@ -5422,35 +5437,84 @@ const STALKER_MAX_PAGES=600;
    does not, a failed page is retried once before giving up, and whatever HAS been collected is
    always returned rather than discarded. onPage additionally reports the known total so the Home
    cards can show real progress instead of a spinner. */
+/* ── v19.28: PAGE THE CATALOGUE IN PARALLEL, NOT ONE AT A TIME. ────────────────────────────────
+   This walked pages strictly sequentially: ask, await, ask, await. On a Ministra portal a page is
+   ~14 titles, so a catalogue of 211,861 — a real, measured number from a live account — is about
+   fifteen THOUSAND round trips taken in single file. At even 150ms each that is over half an hour
+   before the shelf stops saying "loading…", and the 600-page ceiling means it could never finish
+   in any case: it would stall at ~8,400 titles having spent 600 sequential requests to get there.
+
+   Nothing about the PROTOCOL needs to change to fix this, and nothing here touches the MAC, the
+   handshake, the token or the auth path — the requests are byte-for-byte the ones this function
+   already sent. Only their SCHEDULING changes: page 1 is fetched alone (it is what reports
+   total_items and max_page_items), and the pages it tells us about are then fetched through a
+   small concurrency pool instead of a queue of one.
+
+   The pool is deliberately modest. These portals rate-limit, and the point is to stop wasting
+   latency, not to flood the panel — six in flight turns half an hour into a few minutes while
+   keeping well inside what a set-top box itself would do when a user scrolls quickly. Any edge
+   refusal still aborts the whole sweep on the spot, exactly as before. */
+const STALKER_PAGE_CONCURRENCY=6;
 async function stalkerPaged(kind,params,onPage){
   const st=S.stalker;if(!st)return [];
-  const out=[];
-  let known=0;
-  for(let p=1;p<=STALKER_MAX_PAGES;p++){
-    let r=null,failed=false;
+  const ask=async page=>{
     for(let attempt=0;attempt<2;attempt++){
       try{
-        r=await stalkerJson(st.endpoint,st.mac,st.token,Object.assign({type:kind,action:'get_ordered_list',p:String(p),JsHttpRequest:'1-xml'},params));
-        failed=false;break;
+        return await stalkerJson(st.endpoint,st.mac,st.token,Object.assign({type:kind,action:'get_ordered_list',p:String(page),JsHttpRequest:'1-xml'},params));
       }catch(e){
-        failed=true;
         /* an edge refusal is not transient — retrying only lengthens the cooldown */
-        if(e&&e.edge)break;
+        if(e&&e.edge)throw e;
+        if(attempt)throw e;
       }
     }
-    /* keep what we already have: a partial catalogue beats an empty one */
-    if(failed)break;
-    const js=r&&r.js;
-    const data=(js&&(js.data||js))||[];
-    if(!Array.isArray(data)||!data.length)break;
-    out.push(...data);
-    const total=Number(js&&js.total_items)||0;
-    const per=Number(js&&js.max_page_items)||0;
-    if(total>known)known=total;
-    if(onPage)try{onPage(out,known);}catch(e){}
-    if(total&&out.length>=total)break;      /* the portal told us how big it is */
-    if(per&&data.length<per)break;          /* a short page is the last page */
+    return null;
+  };
+  const pageOf=r=>{const js=r&&r.js;const data=(js&&(js.data||js))||[];return Array.isArray(data)?data:[]};
+
+  let first=null;
+  try{ first=await ask(1); }catch(e){ return []; }
+  const firstData=pageOf(first);
+  if(!firstData.length)return [];
+  const js1=first&&first.js;
+  const total=Number(js1&&js1.total_items)||0;
+  const per=Number(js1&&js1.max_page_items)||firstData.length||1;
+  /* v19.28: report the total this sweep can actually REACH, not the portal's headline figure. On
+     the 211,861-title account the card sat at "loading… 2,730 / 211,861" and could never finish,
+     because the page ceiling caps the sweep long before that number — so the one thing the
+     progress line was for, telling the customer whether waiting would help, was telling them the
+     opposite of the truth. */
+  const reachable=total?Math.min(total,STALKER_MAX_PAGES*per):0;
+  const known=reachable;
+
+  /* Slot 0 is page 1; every later slot is filled by the pool, so the catalogue keeps the portal's
+     own ordering however the responses happen to come back. */
+  const pages=[firstData];
+  const emit=()=>{ if(!onPage)return; const flat=[];for(const pg of pages){if(pg)flat.push(...pg);} try{onPage(flat,known);}catch(e){} };
+  emit();
+
+  /* A short first page, or a total we have already covered, means there is nothing more. */
+  if(!total||firstData.length>=total||firstData.length<per){
+    return pages[0].slice(0,total||undefined);
   }
+  const last=Math.min(STALKER_MAX_PAGES,Math.ceil(total/per));
+  let next=2,stop=false,done=0;
+  const worker=async()=>{
+    for(;;){
+      if(stop)return;
+      const page=next++;
+      if(page>last)return;
+      let r=null;
+      try{ r=await ask(page); }
+      catch(e){ stop=true; return; }        /* keep what we have: a partial catalogue beats none */
+      const data=pageOf(r);
+      pages[page-1]=data;
+      if(!data.length){stop=true;return;}   /* ran off the end of the list */
+      if(++done%STALKER_PAGE_CONCURRENCY===0)emit();
+    }
+  };
+  await Promise.all(Array.from({length:Math.min(STALKER_PAGE_CONCURRENCY,last-1)},worker));
+  const out=[];for(const pg of pages){if(pg)out.push(...pg);}
+  emit();
   return out;
 }
 function stalkerCats(list,byId,prefix,fallback){
