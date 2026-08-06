@@ -1506,7 +1506,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.20.0';
+const APP_VERSION='19.21.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2131,7 +2131,14 @@ async function login(opts){
        handshake even on a credentials line that genuinely needs it. Every other reason here is a
        guess, and now only acts on it when there is no username/password to try instead. */
     const _plReason=(plErr&&(plErr.reason||''))||'';
-    const _tryMag=plErr&&(plErr.stalker||((_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&!(S.user&&S.pass)))&&stalkerMac();
+    /* v19.21: NOT ON A LINE THAT HAS A LOGIN. `plErr.stalker` used to let the MAG handshake run
+       even with a username and password in hand, on the reasoning that the worker had positively
+       fingerprinted a Ministra portal. It had — but a Ministra page on / says nothing about
+       whether this ACCOUNT is a MAC line, and this product no longer sells one: there is no MAC
+       field in the sign-in UI and no MAC in the seller's record. So that fingerprint was sending
+       login+password customers into a MAC handshake they can never complete, and every verdict
+       that came back was about a MAC they were never given. A credentials line is M3U only. */
+    const _tryMag=plErr&&!(S.user&&S.pass)&&(_plReason==='stalker-portal'||_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&stalkerMac();
     if(_tryMag){
       try{
         const mac=stalkerMac();
@@ -2242,7 +2249,10 @@ async function login(opts){
      see _portalNamePending. Consumed once and cleared, so it can never leak into a later, unrelated
      sign-in (silent resume, another saved profile, activation-code redemption). */
   rememberProfile((S.user&&S.pass)
-    ?{kind:'xtream',name:_portalNamePending||S.user,url:S.url,raw:S.rawUrl||S.url,user:S.user,pass:S.pass,mac:stalkerMac(),source:hostOf(S.url)}
+    /* v19.21: no MAC on a credentials row. v17.9 stored one because these lines were then sold by
+       binding a MAC first; they are not any more, and keeping it meant signing back in from a
+       saved user re-armed the MAC path this release exists to close. */
+    ?{kind:'xtream',name:_portalNamePending||S.user,url:S.url,raw:S.rawUrl||S.url,user:S.user,pass:S.pass,mac:'',source:hostOf(S.url)}
     :{kind:'mac',name:_portalNamePending||macFmt(stalkerMac())||hostOf(S.url),url:S.url,raw:S.rawUrl||S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
   _portalNamePending='';
   if(signInCancelled(_tok))return;
@@ -2514,7 +2524,9 @@ function fullPlaylistCatalog(){
       const r=await fetch(location.origin+'/api/playlist',{
         method:'POST',
         headers:{'content-type':'application/json'},
-        body:JSON.stringify({url:S.rawUrl||S.url,username:S.user,password:S.pass,variant:'full',mac:stalkerMac()})
+        body:JSON.stringify(S.user
+          ?{url:S.rawUrl||S.url,username:S.user,password:S.pass,variant:'full'}
+          :{url:S.rawUrl||S.url,username:S.user,password:S.pass,variant:'full',mac:stalkerMac()})
       });
       if(!r.ok)return null;
       /* A JSON body is the function's "no playlist / rate-limited / stalker" answer. Nothing to
@@ -2638,7 +2650,18 @@ async function fetchPlaylistViaFunction(base,user,pass){
        panel bound to the MAC this app shows, so a MAC-locked line needs it present to authorise —
        without it the correct username and password are refused. The worker only uses it if the
        credentials-only attempt fails, so nothing changes for a panel that is not MAC-locked. */
-    body:JSON.stringify({url:base,username:user,password:pass,mac:stalkerMac()})
+    /* v19.21: A LOGIN+PASSWORD LINE IS M3U, AND ONLY M3U. The MAC used to ride along on every
+       sign-in "in case" the line was MAC-bound. It is not free: it makes the worker append a whole
+       second list of MAC-keyed addresses to this line's own, run a second pass over all of them,
+       and — when that fails — describe the failure in the language of MACs, on an account whose
+       MAC field the seller deliberately left empty. Every misleading verdict this app produced for
+       a credentials line came through that door. There is no MAC in this product any more: the
+       sign-in is a portal URL, a login and a password, resolving through get.php. So send exactly
+       that, and let a MAC be sent only by a line that has no login and is therefore identified by
+       one. */
+    body:JSON.stringify(user
+      ?{url:base,username:user,password:pass}
+      :{url:base,username:user,password:pass,mac:stalkerMac()})
   });
   if(!r.ok)return null;                /* endpoint missing/older worker → fall back to the client walk */
   const ct=(r.headers.get('content-type')||'').toLowerCase();

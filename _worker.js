@@ -400,7 +400,12 @@ function playlistCandidates(sig, user, pass, variant, mac) {
     add(b + '/playlist/' + u + '/' + p + '/m3u_plus');
     add(b + '/get.php?username=' + u + '&password=' + p);
   }
-  for (const x of macPlaylistCandidates(bases, mac)) add(x);
+  /* v19.21: NO MAC-KEYED ADDRESSES ON A LINE THAT HAS A LOGIN. These are a DIFFERENT line's
+     playlist — whatever this device's MAC happens to be bound to on that panel, if anything — not
+     a second chance at this one. This product signs in with a portal URL, a login and a password
+     resolving through get.php; there is no MAC in the sign-in UI and none on the seller's record.
+     Appending them doubled the request count against a rate-limiting panel and, when nothing
+     answered, made the failure look like a MAC problem on an account that has no MAC. */
   return out;
 }
 
@@ -743,8 +748,13 @@ async function handlePlaylist(request, env) {
     if (exhausted()) break;
   }
   /* Pass 2: the same endpoints again, now carrying the device MAC. Only reached when pass 1
-     produced nothing, so a working login never spends these requests. */
-  if (mac && !exhausted()) {
+     produced nothing, so a working login never spends these requests.
+     v19.21: and only for a line whose identity IS the MAC. A login+password line has no business
+     re-asking every endpoint as a set-top box — it is a second full sweep of the panel on behalf
+     of a device identity the account was never sold with, and it is what turned a plain M3U
+     sign-in failure into a MAC verdict. Enforced here as well as in the app, because an app kept
+     in a home-screen cache can still be sending the old body. */
+  if (mac && !hasCreds && !exhausted()) {
     for (const candidate of candidates) {
       const ok = await attempt(candidate, true);
       if (ok) return ok;
