@@ -1528,7 +1528,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.30.0';
+const APP_VERSION='19.31.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5321,12 +5321,26 @@ async function stalkerJson(endpoint,mac,token,params){
   /* start with whichever relay last got through */
   const order=[];for(let i=0;i<relays.length;i++)order.push((_portalRelay+i)%relays.length);
   let last=null;
+  /* ── v19.31: RECORD WHAT EVERY ROUTE DID, NOT JUST THE LAST ONE. ───────────────────────────
+     This kept only `last`, so four independent attempts — this app's worker, the same worker
+     presenting a browser, the Render relay, and the relay presenting a browser — collapsed into a
+     single sentence naming none of them. That is why a portal saying "Attention Required" has
+     been unanswerable for hours: there was no way to tell whether all four were refused, or three
+     were refused and the fourth never ran, or the relay was simply on an older build. Each route
+     is labelled by what it actually is and carried on the error. */
+  const routeLabel=u2=>{
+    const browser=/[?&]ua=browser/.test(u2);
+    let relayHost='';try{relayHost=new URL(u2,location.href).host}catch(e){}
+    const viaRelay=relayHost&&relayHost!==location.host;
+    return (viaRelay?'backup relay':'main')+(browser?' (as browser)':' (as box)');
+  };
+  const routes=[];
   for(let k=0;k<order.length;k++){
     const i=order[k];
     await portalGate();
     let r;
     try{ r=await fetch(relays[i],{headers:{'Accept':'application/json'}}); }
-    catch(e){ last=Object.assign(new Error((e&&e.message)||'Could not reach the portal'),{status:0}); continue; }
+    catch(e){ routes.push(routeLabel(relays[i])+': no answer'); last=Object.assign(new Error((e&&e.message)||'Could not reach the portal'),{status:0}); continue; }
     /* v18.0: 502/503/504 from one of our OWN relays is the free-plan transcoder cold-starting, not
        the portal refusing anything — and that relay is the second egress, the one route that gets
        through a portal whose edge blocks Cloudflare. Writing it off after a single knock is what
@@ -5340,13 +5354,16 @@ async function stalkerJson(endpoint,mac,token,params){
     last=new Error('Portal returned HTTP '+r.status);
     last.status=r.status;last.detail=_snippet(body);
     last.edge=isEdgeRefusal(r.status,body);
+    routes.push(routeLabel(relays[i])+': HTTP '+r.status+(last.edge?' (edge)':''));
     /* Only a where-you-came-from refusal is worth re-sending down the other route. Anything else
        is the portal's considered answer and will be identical from any IP. */
     if(!last.edge&&r.status<500)break;
   }
   /* Every route was refused by an edge — stop contacting this portal for a while. */
   if(last&&last.edge)portalCooldown(45);
-  throw last||new Error('Could not reach the portal');
+  const err=last||new Error('Could not reach the portal');
+  err.routes=routes;
+  throw err;
 }
 /* v16.1: WHAT get_profile SAID. A Ministra portal states the actual problem here and nowhere
    else, and the answer was being dropped on the floor by a `.catch(()=>null)`. Two replies seen
@@ -5465,7 +5482,8 @@ async function stalkerHandshake(base,mac,creds){
       return {endpoint:ep,token};
     }catch(e){
       lastErr=e;
-      tried.push(pathOf(ep)+': '+((e&&e.status)?('HTTP '+e.status):((e&&e.message)||'no answer')).slice(0,60));
+      tried.push(pathOf(ep)+': '+((e&&e.status)?('HTTP '+e.status):((e&&e.message)||'no answer')).slice(0,60)
+        +((e&&e.routes&&e.routes.length)?(' ['+e.routes.join(' | ')+']'):''));
       /* The portal has spoken about this device — stop, and let the message through untouched. */
       if(e&&e.profile){e.tried=tried;throw e;}
       /* A 429/403 means the portal (or an edge/WAF layer in front of it) is actively throttling
