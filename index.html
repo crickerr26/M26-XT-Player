@@ -1414,6 +1414,11 @@ body.login-dark .login,body.dark .login{background:
   </div>
   <p class="nativeText portalNote">A portal URL, login and password is all most lines need.</p>
   <div class="nativeActions" style="margin-top:4px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Connect to Portal</button></div>
+  <!-- v19.29: saving is its own action, not a side effect of a successful sign-in. A line that is
+       correct but whose portal is having a bad minute could not be saved at all before, so the
+       customer retyped it every attempt. Saved rows appear on the sign-in screen and sign in on
+       one tap. -->
+  <div class="nativeActions" style="margin-top:8px"><button class="pillbtn" id="xtreamSave" type="button" style="width:100%">Save portal for one-tap login</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
   <!-- v19.24: THE DEVICE ID, TO BE READ OUT — NOT TYPED IN. The MAC input was removed on purpose
        and stays removed: a customer should never be asked to supply one. But a Ministra portal
@@ -1423,7 +1428,7 @@ body.login-dark .login,body.dark .login{background:
        button, and only in that exact situation. -->
   <div id="macRow" class="macRow">
     <div class="macRowLabel">Device ID (MAC) for your provider</div>
-    <div class="macRowVal"><code id="macRowMac"></code><button class="pillbtn" id="macRowCopy" type="button">Copy</button></div>
+    <div class="macRowVal"><code id="macRowMac"></code><button class="pillbtn" id="macRowCopy" type="button">Copy</button><button class="pillbtn" id="macRowEdit" type="button">Edit</button></div>
     <p class="macRowHint" id="macRowHint">Send this to your IPTV provider and ask them to register it on your line. Then type the portal URL, login and password above and tap Connect. You never need to type this in yourself — it belongs to this browser, so use the same one each time.</p>
   </div>
 </div></div>
@@ -1523,7 +1528,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.28.0';
+const APP_VERSION='19.29.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4769,11 +4774,27 @@ const PROFILE_KINDS={
    activation watch). Gating it on the first read instead of on a call at load time means the order
    of those cannot matter, and it still runs exactly once. */
 let _profilesMigrated=false;
+/* v19.29: saved users survive a storage eviction too. `store` silently degrades to an in-memory
+   Map when localStorage is unavailable, and iOS clears localStorage on its own schedule — either
+   way the saved lines vanish and the customer is back to typing a portal URL, a login and a
+   password by hand. The list is a handful of short records, so it fits in a cookie comfortably;
+   the cookie is the fallback read whenever localStorage comes back empty, and it is refreshed on
+   every save. Kept to 4 rows there (cookies are ~4KB) while localStorage still holds 12. */
+function _profilesFromCookie(){
+  try{const a=JSON.parse(readCookie(PROFILES_KEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return []}
+}
 function profiles(){
   if(!_profilesMigrated){_profilesMigrated=true;migrateProfiles();}
-  try{const a=JSON.parse(store.getItem(PROFILES_KEY)||'[]');return Array.isArray(a)?a.filter(p=>p&&p.id&&PROFILE_KINDS[p.kind]):[]}catch(e){return []}
+  let a=[];
+  try{a=JSON.parse(store.getItem(PROFILES_KEY)||'[]');}catch(e){a=[];}
+  if(!Array.isArray(a)||!a.length)a=_profilesFromCookie();
+  return Array.isArray(a)?a.filter(p=>p&&p.id&&PROFILE_KINDS[p.kind]):[];
 }
-function saveProfiles(arr){try{store.setItem(PROFILES_KEY,JSON.stringify(arr.slice(0,12)))}catch(e){}}
+function saveProfiles(arr){
+  const list=arr.slice(0,12);
+  try{store.setItem(PROFILES_KEY,JSON.stringify(list))}catch(e){}
+  try{writeCookie(PROFILES_KEY,JSON.stringify(list.slice(0,4)))}catch(e){}
+}
 /* Identity is what the sign-in actually uses, so re-signing in with the same line updates its row
    instead of stacking a duplicate, while a second username on the same panel is its own user. */
 function profileId(p){return [p.kind,String(p.url||'').toLowerCase(),String(p.user||'').toLowerCase(),String(p.label||'').toLowerCase()].join('|')}
@@ -4845,7 +4866,7 @@ async function signInWithProfile(id){
      whichever MAC was last on screen and the portal refuses a MAC it never bound. */
   if(p.mac&&typeof Media26Portal!=='undefined'){
     const m=Media26Portal.normaliseMac(p.mac);
-    if(m){try{localStorage.setItem('m26_stkmac',m);localStorage.setItem(MAC_SRC_KEY,'user');}catch(e){}}
+    if(m)setDeviceMac(m);   /* v19.29: one path that pins the MAC, memo and both stores included */
   }
   $('url').value=p.raw||p.url||'';$('user').value=p.user||'';$('pass').value=p.pass||'';
   await login();
@@ -4940,12 +4961,67 @@ async function resumeLogin(){
    that's harmless. A profile row can still carry a MAC it was signed in with (signInWithProfile
    restores it into localStorage before reconnecting), so a MAC-bound line keeps working exactly as
    before; there is simply nowhere left to type or view one by hand. */
+/* ── v19.29: ONE DEVICE, ONE MAC. IT MUST NEVER CHANGE BY ITSELF. ─────────────────────────────
+   This minted a brand-new random MAC any time the stored one could not be read, and wrote it back
+   with the failure swallowed:
+
+       try{m=normaliseMac(localStorage.getItem('m26_stkmac'));}catch(e){}
+       if(!m){m=randomMac();}
+       try{localStorage.setItem('m26_stkmac',m);}catch(e){}
+
+   On a MAG line the MAC *is* the subscription binding — the seller registers it once and the
+   portal authorises that device and no other. So "regenerate silently" is the worst possible
+   failure mode: the customer gets their line registered, it works, and then one storage eviction
+   (iOS clears localStorage under pressure and on its own schedule) hands them a different
+   identity, the portal refuses a device it has never seen, and nothing on screen explains why the
+   number moved. That is exactly what happened after 00:1A:79:25:D8:C3 had been registered.
+
+   Three changes, and between them the value cannot drift:
+     1. MEMOISED. Once resolved, every later call in this session returns the same string. It can
+        no longer differ between the row on screen and the request that went out.
+     2. TWO STORES. localStorage AND a ten-year cookie. They are evicted under different rules, so
+        losing both at once takes a deliberate "clear website data" — and whichever survives
+        restores the other.
+     3. MINTING IS A LAST RESORT and is announced, not silent: it only happens when both stores are
+        genuinely empty, i.e. a device that has never had one.
+   And when it does go wrong, setDeviceMac() lets the customer type the registered MAC straight
+   back in (see the Edit button on the device-ID row) instead of going back to their seller. */
+const MAC_COOKIE='m26_mac';
+function readCookie(n){
+  try{const m=document.cookie.match(new RegExp('(?:^|;\\s*)'+n+'=([^;]*)'));return m?decodeURIComponent(m[1]):''}catch(e){return ''}
+}
+function writeCookie(n,v){
+  try{
+    const d=new Date(Date.now()+3650*864e5);
+    document.cookie=n+'='+encodeURIComponent(v)+'; expires='+d.toUTCString()+'; path=/; SameSite=Lax'+(location.protocol==='https:'?'; Secure':'');
+  }catch(e){}
+}
+let _macMemo='';
+function persistMac(m,src){
+  try{localStorage.setItem('m26_stkmac',m);}catch(e){}
+  writeCookie(MAC_COOKIE,m);
+  if(src){try{localStorage.setItem(MAC_SRC_KEY,src);}catch(e){}writeCookie(MAC_COOKIE+'_src',src);}
+}
 function stalkerMac(){
   if(typeof Media26Portal==='undefined')return '';
+  if(_macMemo)return _macMemo;
   let m='';
-  try{m=Media26Portal.normaliseMac(localStorage.getItem('m26_stkmac'));}catch(e){}
-  if(!m){m=Media26Portal.randomMac();try{localStorage.setItem(MAC_SRC_KEY,'auto');}catch(e){}}
-  try{localStorage.setItem('m26_stkmac',m);}catch(e){}
+  try{m=Media26Portal.normaliseMac(localStorage.getItem('m26_stkmac'))||'';}catch(e){}
+  if(!m)m=Media26Portal.normaliseMac(readCookie(MAC_COOKIE))||'';
+  const minted=!m;
+  if(minted)m=Media26Portal.randomMac();
+  _macMemo=m;
+  persistMac(m,minted?'auto':'');
+  return m;
+}
+/* The customer's own correction: whatever their provider has on the line. Validated, then written
+   to both stores and pinned in memory, so it survives everything an auto-generated one would not. */
+function setDeviceMac(raw){
+  if(typeof Media26Portal==='undefined')return '';
+  const m=Media26Portal.normaliseMac(raw);
+  if(!m)return '';
+  _macMemo=m;
+  persistMac(m,'user');
   return m;
 }
 /* v14.2: was this MAC invented by this device, or typed in from the seller? The MAC lives in
@@ -5802,6 +5878,34 @@ function wireMacCopy(btnId,codeId){
 }
 wireMacCopy('macRowCopy','macRowMac');
 wireMacCopy('setMacCopy','setMac');
+/* v19.29: the customer's own correction. If the device id ever drifts from the one their provider
+   registered — a cleared browser, a second device, a storage eviction — this is the way back
+   without going near the seller again: type the registered MAC in and it is pinned for good. */
+if($('macRowEdit'))$('macRowEdit').onclick=()=>{
+  const cur=macFmt(stalkerMac());
+  const typed=prompt('Device ID (MAC) registered with your provider.\n\nOnly change this if your provider registered a different one — otherwise leave it alone.',cur);
+  if(typed==null)return;
+  const t=String(typed).trim();
+  if(!t)return;
+  const m=setDeviceMac(t);
+  if(!m){toast('That is not a valid MAC address. It should look like 00:1A:79:25:D8:C3.');return;}
+  try{if($('macRowMac'))$('macRowMac').textContent=macFmt(m);if($('setMac'))$('setMac').textContent=macFmt(m);}catch(e){}
+  toast('Device ID set to '+macFmt(m)+' — it will not change again on this browser.');
+};
+/* v19.29: save without signing in. Everything the sign-in screen needs to bring this line back on
+   one tap, stored the moment it is typed rather than only after a portal happens to answer. */
+if($('xtreamSave'))$('xtreamSave').onclick=()=>{
+  const url=(($('xtreamUrl')&&$('xtreamUrl').value)||'').trim();
+  const user=(($('xtreamUser')&&$('xtreamUser').value)||'').trim();
+  const pass=(($('xtreamPass')&&$('xtreamPass').value)||'');
+  const nm=(($('xtreamPortalName')&&$('xtreamPortalName').value)||'').trim();
+  if(!url){signInMsg('Enter the portal URL first, then save.','error');return;}
+  const root=normalize(url);
+  rememberProfile(user
+    ?{kind:'xtream',name:nm||user,url:root,raw:url,user:user,pass:pass,mac:'',source:hostOf(root)}
+    :{kind:'mac',name:nm||macFmt(stalkerMac())||hostOf(root),url:root,raw:url,user:'',pass:'',mac:stalkerMac(),source:hostOf(root)});
+  toast('Saved. It is on the sign-in screen now — one tap to connect.');
+};
 function signInMsg(text,kind,opts){
   const el=$('xtreamErr');
   if(el){el.textContent=text||'';el.classList.toggle('working',kind==='working'&&!!text);}
