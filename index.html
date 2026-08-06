@@ -1528,7 +1528,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.33.0';
+const APP_VERSION='19.34.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2195,9 +2195,21 @@ async function login(opts){
        where it is. But a customer who typed a portal URL, a login and a password asked for their
        playlist, and the answer they need is what those thirteen addresses said — not what
        portal.php thinks of a device identity their line does not use. */
-    const _tryMag=plErr&&stalkerMac()&&!(S.user&&S.pass)&&(
-      _plReason==='stalker-portal'||_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'
-      ||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''));
+    /* ── v19.34: BOTH ROUTES RUN, AND BOTH ARE REPORTED. ──────────────────────────────────────
+       v19.33 cut the handshake off a credentials line to stop it hiding the playlist findings.
+       That fixed the reporting and broke the sign-in, because on this account the handshake is
+       the route that WORKS — it is what loaded 10,148 channels earlier. The playlist genuinely
+       has nowhere to go here: the app's own diagnosis now shows /get.php answering 404 on the
+       origin's own port (so the server is up and simply has no get.php) and HTTP 521 on every
+       panel port (Cloudflare reporting nothing listening there at all).
+       So the answer was never either/or. Try the playlist first — that is what most lines are —
+       and when it finds nothing, still run the handshake. The mistake was never the second
+       attempt; it was letting the second attempt's failure ERASE the first one's evidence, which
+       is fixed below by reporting both. */
+    const _tryMag=plErr&&stalkerMac()&&(
+      _plReason==='stalker-portal'
+      ||(!(S.user&&S.pass)&&(_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'
+        ||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))));
     if(_tryMag){
       try{
         const mac=stalkerMac();
@@ -2257,7 +2269,17 @@ async function login(opts){
            IS the sign-in — do_auth runs with the username and password — so "the portal rejected
            them" or "the device slots are full" is a real answer about the real credentials, and it
            beats both the playlist step's guess and stalkerFailMessage's MAC dressing. */
-        if(S.user&&S.pass&&se&&se.profile&&se.message)throw Error(se.message);
+        /* v19.34: never let one route's verdict erase the other's. The playlist walked thirteen
+           addresses and recorded what each answered; the handshake then tried portal.php. Both
+           happened, so both are said — playlist first, because it is the route most lines use and
+           the one whose evidence tells a provider what to hand over. */
+        if(S.user&&S.pass){
+          const hsSaid=(se&&se.profile&&se.message)?se.message
+            :('the portal handshake did not complete'+((se&&se.message)?(' — '+se.message.replace(/\s*Device ID this app presents:[^.]*\.?/i,'').trim()):'')
+              +((se&&se.tried&&se.tried.length)?(' Tried: '+se.tried.join('; ')+'.'):''));
+          const plSaid=(plErr&&plErr.message)||'';
+          throw Error((plSaid?(plSaid+' '):'')+'The MAG handshake was tried as well: '+hsSaid+' Device ID: '+macFmt(stalkerMac())+'.');
+        }
         /* ── v19.23: SAY WHY THE HANDSHAKE FAILED, DO NOT BURY IT. ─────────────────────────────
            On a confirmed MAG portal the handshake IS the sign-in, so its failure is the thing that
            actually happened — and it was being replaced by the playlist step's verdict, which on
@@ -2768,7 +2790,7 @@ async function fetchPlaylistViaFunction(base,user,pass){
         const key=(a.endpoint||'')+'|'+what;
         if(seen.has(key))continue;seen.add(key);
         lines.push((a.endpoint||'?')+' → '+what+(a.got?(' “'+a.got.slice(0,60)+'”'):''));
-        if(lines.length>=8)break;
+        if(lines.length>=16)break;   /* v19.34: thirteen addresses are walked; show them all */
       }
       detail=' Tried: '+lines.join(' · ')+'.';
     }

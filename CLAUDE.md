@@ -97,13 +97,17 @@ What is true, and must stay true:
   one — a customer is never asked for a MAC they were not given. But the device ID row on the
   "Enter the Portal" sheet (and in Settings) must stay *visible*, with its Copy button: the seller
   pastes that value into the MAC field on the line, and until they do, nothing can work.
-- **A login+password line is an M3U sign-in and must NOT detour through the handshake** (owner
-  rule, v19.33 — this corrects the opposite claim written here at v19.27, which was wrong). When
-  it did, the handshake's own failure replaced the playlist findings in the error, so a customer
-  saw "Attention Required! | Cloudflare" about `portal.php` while the thirteen addresses the
-  playlist step actually walked went unreported. `_tryMag` is for a line with NO login, where the
-  MAC is the identity. Keep every line of the MAG code; just do not route a credentials line into
-  it.
+- **A login+password line tries the playlist FIRST and the handshake SECOND — both run, both are
+  reported** (settled v19.34, after getting this wrong in both directions).
+  - Not handshake-first: the playlist is what most lines use.
+  - Not playlist-only: on a Ministra portal the handshake is the ONLY thing that works, and
+    disabling it for credentials lines (v19.33) broke the very account it was meant to help.
+  - The real bug was never the second attempt — it was letting the second attempt's failure
+    ERASE the first one's evidence, so a customer saw "Attention Required! | Cloudflare" about
+    `portal.php` while the thirteen playlist addresses went unreported. Both verdicts are now
+    printed together. Never collapse them again.
+  - `_tryMag` fires for a credentials line only on a POSITIVE `stalker-portal` fingerprint, never
+    on a vague `no-playlist`/`edge-blocked` guess.
 - **`ua=browser` must never carry MAG headers.** The browser fallback exists to get past bot
   protection that refuses the set-top-box identity, so it must send a full browser header set and
   **no `x-user-agent: Model: MAG250`**. That header sat below the if/else for years, went out on
