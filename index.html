@@ -1448,16 +1448,21 @@ body.login-dark .login,body.dark .login{background:
     <!-- v19.1.3: shown only when this sheet is opened from the M3U tab. An Xtream-code line signs in
          on username/password alone, and showing a MAC box on that form told customers it was needed
          when it never was — the MAC still rides along on the wire either way (see commitSheetMac). -->
+    <!-- v19.13: relabelled from "must match your seller's panel" — that read as a requirement on
+         every sign-in, when a login+password line never needs this box at all (see the login()
+         gating around _tryMag). It still rides along automatically either way (harmless — the
+         worker only reaches for it if the credentials alone don't get a playlist), so the copy
+         says what it actually is: a fallback for a MAC-bound line, not a fourth required field. -->
     <div id="xtreamMacWrap" class="portalField">
-      <label for="xtreamMac">MAC Address <span class="portalOptional">must match your seller's panel</span></label>
+      <label for="xtreamMac">MAC Address <span class="portalOptional">optional — not needed with a login and password</span></label>
       <div class="portalInputWrap">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><path d="M7 10h.01M11 10h.01M15 10h6M7 14h10"/></svg>
         <input id="xtreamMac" placeholder="00:1A:79:00:00:00" autocapitalize="characters" autocomplete="off" spellcheck="false" aria-label="MAC address bound on your provider's panel">
       </div>
-      <p class="nativeText" id="xtreamMacHint" style="margin:6px 0 0;font-size:11.5px;opacity:.75">Sent automatically with your sign-in. If your seller's panel shows a different MAC, type theirs here.</p>
+      <p class="nativeText" id="xtreamMacHint" style="margin:6px 0 0;font-size:11.5px;opacity:.75">Only matters for a MAC-bound line. With a portal URL, login and password, the playlist loads without it — if your seller's panel shows a different MAC, type theirs here.</p>
     </div>
   </div>
-  <p class="nativeText portalNote">Most lines come with a portal URL, login and password — enter all three. If yours was set up on the MAC alone, fill in just the portal URL and leave login/password empty.</p>
+  <p class="nativeText portalNote">A portal URL, login and password is all most lines need. If yours was set up on the MAC alone, fill in just the portal URL above and leave login/password empty.</p>
   <div class="nativeActions" style="margin-top:4px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Connect to Portal</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
 </div></div>
@@ -1546,7 +1551,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.12.0';
+const APP_VERSION='19.13.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2035,7 +2040,14 @@ async function login(opts){
      actually signs in through, and it costs the relay path nothing: if it fails we fall into
      exactly the wait that used to run immediately. A customer on a Cloudflare-fronted MAG portal
      stops staring at a 75-second countdown before the app tries the thing that works. */
-  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&((opts&&opts._relayAttempt)||0)<MAX_RELAY_ATTEMPTS&&stalkerMac()){
+  /* v19.13: NOT for a username+password line. Every device has a MAC (auto-generated, always
+     truthy), so stalkerMac() used to send ANY credentials-only sign-in that hit an edge block
+     straight into a full MAG/Stalker handshake it never asked for and does not need — "signing in
+     with your MAC instead…" on an account the customer knows only as a portal URL, login and
+     password. A plain get.php line has no use for that detour; its own relay-wait right below is
+     the correct next step. This branch is now reserved for the case it actually describes: a line
+     with no password, signing in on the MAC alone. */
+  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&((opts&&opts._relayAttempt)||0)<MAX_RELAY_ATTEMPTS&&!(S.user&&S.pass)&&stalkerMac()){
     try{
       const t='Your portal blocks our main route — signing in with your MAC instead…';
       load(true,t);signInMsg(t,'working');
@@ -2094,8 +2106,18 @@ async function login(opts){
        code, so nothing about this line has been judged yet and the MAC handshake — which has its
        own second egress and its own relays — is exactly the right next move. Falling through to
        "check the username and password" on this reason is the bug the customer kept hitting. */
+    /* v19.13: NOT on a guess, once there is a username and password to judge instead. Every device
+       always holds a MAC (auto-generated, never empty), so this used to fire on almost any get.php
+       failure for ANY line — a plain "portal URL, login, password" sign-in that hit a rate-limit or
+       an edge block was dropped into a full MAG/Stalker handshake it never asked for, with its own
+       "signing in with your MAC instead…" progress text and its own MAC-flavoured verdicts. That is
+       where "no MAC issues" complaints on an ordinary credentials line came from. plErr.stalker is
+       the one signal worth keeping regardless of credentials — the worker POSITIVELY fingerprinted
+       a MAG/Ministra portal, not just a request that failed for some reason — so it still runs the
+       handshake even on a credentials line that genuinely needs it. Every other reason here is a
+       guess, and now only acts on it when there is no username/password to try instead. */
     const _plReason=(plErr&&(plErr.reason||''))||'';
-    const _tryMag=plErr&&(plErr.stalker||_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&stalkerMac();
+    const _tryMag=plErr&&(plErr.stalker||((_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))&&!(S.user&&S.pass)))&&stalkerMac();
     if(_tryMag){
       try{
         const mac=stalkerMac();
@@ -2123,15 +2145,13 @@ async function login(opts){
             return await login(Object.assign({},opts||{},{_relayAttempt:attemptN,
               creds:(opts&&opts.creds)||{portalUrl:S.url,username:S.user,password:S.pass}}));
           }
-          /* v19.12: THIS is the fresh, honest verdict once the wait itself has failed — say so for
-             EVERY line, not only a MAC-only one. The old code threw this only when there was no
-             username/password, on the reasoning that "a credentials line falls through to the MAG
-             verdict below instead" — but "Enter the Portal" (v19.10) sends the MAC on every attempt,
-             so a credentials+MAC line is now the ORDINARY case, not the exception, and it was
-             falling through to stalkerFailMessage(se): the verdict from BEFORE this 75-second wait
-             ever ran. That message says nothing about the wait, so a customer who waited it out saw
-             the exact same text as before they tapped Connect — indistinguishable from the app
-             having done nothing. Say what was actually just tried. */
+          /* v19.12: THIS is the fresh, honest verdict once the wait itself has failed — not
+             stalkerFailMessage(se), the verdict from BEFORE this 75-second wait ever ran, which
+             says nothing about the wait and made retrying look like the app had done nothing.
+             v19.13 narrowed _tryMag so a plain credentials line no longer reaches this block at
+             all (see _tryMag above) — what's left here is a MAC-only line, or a line whose portal
+             the worker positively fingerprinted as MAG/Stalker, so "your MAC" is still the right
+             word for it. */
           throw Error('Your portal blocks our main route, and our backup relay is not responding after waiting for it to start up. This is our side, not your subscription or your MAC ('+macFmt(stalkerMac())+'). Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
         }
         /* v19.6: the MAG handshake is the ONLY other route left once the playlist step has
@@ -2663,9 +2683,12 @@ async function loadPlaylistSource(){
   }catch(e){
     if(e&&e.message)throw e;   /* a definite answer from the panel — surface it, don't retry blindly */
   }
-  /* Fallback: the original browser-side walk through the CORS relay. */
+  /* Fallback: the original browser-side walk through the CORS relay. v19.13: a username+password
+     line no longer has MAC-keyed URLs appended to its own candidate list — those are a different
+     line's playlist (whatever this device's MAC happens to be bound to, if anything), not a second
+     chance at THIS one, and trying them just adds MAC-flavoured noise to a plain credentials sign-in. */
   const tries=(S.user&&S.pass)
-    ? Media26Portal.m3uCandidates(S.url,S.user,S.pass).concat(Media26Portal.macM3uCandidates(S.url,stalkerMac()))
+    ? Media26Portal.m3uCandidates(S.url,S.user,S.pass)
     : Media26Portal.macM3uCandidates(S.url,stalkerMac());
   for(const u of tries){
     let text='';
