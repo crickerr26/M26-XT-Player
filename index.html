@@ -92,7 +92,7 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
 any input under 16px and does not zoom back out on blur, which is exactly the "misaligned, hidden
 until you zoom out" report: the page was left zoomed in from focusing this sheet's fields at 14.5px.
 Same reason .searchbox input is pinned to 16px in the mobile media query above. */
-.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.macRow{margin-top:10px;padding:11px 12px;border-radius:13px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}.macRow.hidden{display:none}.macRowLabel{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:7px}.macRowVal{display:flex;align-items:center;gap:9px}.macRowVal code{flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:.6px;overflow-wrap:anywhere}.macRowVal .pillbtn{flex:none;height:34px;padding:0 14px}.macRowHint{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
+.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.macRow{margin-top:10px;padding:11px 12px;border-radius:13px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}.macRow.hidden{display:none}.macRow.urgent{background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.5)}.macRow.urgent .macRowLabel{color:#d9a441}.macRowLabel{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:7px}.macRowVal{display:flex;align-items:center;gap:9px}.macRowVal code{flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:.6px;overflow-wrap:anywhere}.macRowVal .pillbtn{flex:none;height:34px;padding:0 14px}.macRowHint{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
 </style>
 <style>
 /* --- v17 premium redesign layer: additive overrides only, original rules above stay intact --- */
@@ -1421,10 +1421,10 @@ body.login-dark .login,body.dark .login{background:
        portal answers "authenticate this line" and that field is empty on the seller's side, the one
        thing that resolves it is the seller pasting THIS value in. So the app shows it, with a copy
        button, and only in that exact situation. -->
-  <div id="macRow" class="macRow hidden">
-    <div class="macRowLabel">Device ID for your provider</div>
+  <div id="macRow" class="macRow">
+    <div class="macRowLabel">Device ID (MAC) for your provider</div>
     <div class="macRowVal"><code id="macRowMac"></code><button class="pillbtn" id="macRowCopy" type="button">Copy</button></div>
-    <p class="macRowHint">Your provider's panel has a MAC field on your line and it is empty. Ask them to paste this into it, then tap Connect again. You never need to type it yourself.</p>
+    <p class="macRowHint" id="macRowHint">Send this to your IPTV provider and ask them to register it on your line. Then type the portal URL, login and password above and tap Connect. You never need to type this in yourself — it belongs to this browser, so use the same one each time.</p>
   </div>
 </div></div>
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
@@ -1454,6 +1454,12 @@ body.login-dark .login,body.dark .login{background:
     <button class="settings-row" id="setReceive" type="button"><span class="sr-ic sr-recv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg></span><span class="sr-tx"><b>Load from another device</b><small>Scan or paste a share code</small></span><span class="sr-ch">›</span></button>
     <button class="settings-row" id="setStream" type="button"><span class="sr-ic sr-tools"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.3 5.3l-6.1 6.1a1.5 1.5 0 0 0 2.1 2.1l6.1-6.1a4 4 0 0 0 5.3-5.3l-2.5 2.5-2.3-.2-.2-2.3z"/></svg></span><span class="sr-tx"><b>Stream Tools</b><small>Transcoder & player settings</small></span><span class="sr-ch">›</span></button>
     <button class="settings-row danger" id="setLogout" type="button"><span class="sr-ic sr-out"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></span><span class="sr-tx"><b>Log out</b><small>Sign out on this device</small></span><span class="sr-ch">›</span></button>
+  </div>
+  <!-- v19.25: reachable after sign-in too. A provider who asks for the device id later, or a
+       second line being set up on the same phone, should not have to sign out to find it. -->
+  <div class="macRow" style="margin-top:12px">
+    <div class="macRowLabel">Device ID (MAC) for your provider</div>
+    <div class="macRowVal"><code id="setMac"></code><button class="pillbtn" id="setMacCopy" type="button">Copy</button></div>
   </div>
   <p class="nativeText" style="margin-top:12px;opacity:.7">Media26 XT Player · v<span id="setVer"></span></p>
 </div></div>
@@ -1517,7 +1523,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.24.0';
+const APP_VERSION='19.25.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5677,6 +5683,7 @@ function openXtreamSheet(){
      arriving at a service that was still waking up. Pinging it when the form opens gives it the
      time the customer spends typing, so the fallback is live by the time it is needed. */
   try{warmTranscoder();}catch(e){}
+  try{showDeviceId(false);}catch(e){}
   $('xtreamSheet').classList.add('show');
   try{$('xtreamPortalName').focus();}catch(e){}
 }
@@ -5685,27 +5692,42 @@ function openXtreamSheet(){
    behalf; anything else is a result they have to act on. */
 /* v19.24: the device-id row appears ONLY when the caller asks for it, and any later message
    clears it — so it can never linger next to a verdict it has nothing to do with. */
-function showDeviceId(on){
+/* v19.25: the id is ALWAYS on screen — it is the first thing a customer needs, before a portal
+   URL is even worth typing, because nothing can succeed until the provider has registered it.
+   `urgent` only raises its prominence when the portal has actually asked for the line to be
+   registered; it never hides it. */
+function showDeviceId(urgent){
   const row=$('macRow');if(!row)return;
-  row.classList.toggle('hidden',!on);
-  if(on&&$('macRowMac'))$('macRowMac').textContent=macFmt(stalkerMac());
+  row.classList.remove('hidden');
+  row.classList.toggle('urgent',!!urgent);
+  if($('macRowMac'))$('macRowMac').textContent=macFmt(stalkerMac());
+  const h=$('macRowHint');
+  if(h)h.textContent=urgent
+    ?'Your portal does not recognise this device yet. Send this ID to your provider and ask them to register it on your line, then tap Connect again.'
+    :'Send this to your IPTV provider and ask them to register it on your line. Then type the portal URL, login and password above and tap Connect. You never need to type this in yourself — it belongs to this browser, so use the same one each time.';
 }
-if($('macRowCopy'))$('macRowCopy').onclick=async()=>{
-  const v=macFmt(stalkerMac());
-  try{await navigator.clipboard.writeText(v);$('macRowCopy').textContent='Copied';}
-  catch(e){
-    /* Clipboard refused (older iOS in a home-screen app): select it so a long-press Copy works. */
-    try{const r=document.createRange();r.selectNodeContents($('macRowMac'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);}catch(e2){}
-    $('macRowCopy').textContent='Select & copy';
-  }
-  setTimeout(()=>{if($('macRowCopy'))$('macRowCopy').textContent='Copy';},2200);
-};
+/* One handler, both places. The clipboard API is refused often enough in a home-screen web app
+   that the fallback is not optional: selecting the text lets a long-press Copy do the job. */
+function wireMacCopy(btnId,codeId){
+  const b=$(btnId);if(!b)return;
+  b.onclick=async()=>{
+    const v=macFmt(stalkerMac());
+    try{await navigator.clipboard.writeText(v);b.textContent='Copied';}
+    catch(e){
+      try{const r=document.createRange();r.selectNodeContents($(codeId));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);}catch(e2){}
+      b.textContent='Select & copy';
+    }
+    setTimeout(()=>{b.textContent='Copy';},2200);
+  };
+}
+wireMacCopy('macRowCopy','macRowMac');
+wireMacCopy('setMacCopy','setMac');
 function signInMsg(text,kind,opts){
   const el=$('xtreamErr');
   if(el){el.textContent=text||'';el.classList.toggle('working',kind==='working'&&!!text);}
   const e2=$('err');
   if(e2&&kind!=='working'){e2.textContent=text||'';}
-  showDeviceId(!!(opts&&opts.deviceId));
+  showDeviceId(!!(opts&&opts.deviceId));   /* never hides it — see showDeviceId */
 }
 async function submitXtreamLogin(){
   const url=(($('xtreamUrl')&&$('xtreamUrl').value)||'').trim();
@@ -5864,6 +5886,9 @@ if($('actCodeBox')){
    staying here (no saved session, or the last one was logged out of) would otherwise show no users
    at all until something else happened to repaint. */
 paintProfiles();
+/* v19.25: the device id is painted at startup as well as when the sheet opens, so it can never
+   be blank on a path that did not go through openXtreamSheet(). */
+try{if($('macRowMac'))$('macRowMac').textContent=macFmt(stalkerMac());if($('setMac'))$('setMac').textContent=macFmt(stalkerMac());}catch(e){}
 /* v15.1: adopt a playlist the USER supplies — a picked .m3u file or pasted text. No fetch, no
    relay, no portal round-trip, so a provider whose edge refuses our servers is irrelevant here.
    The parsed result is the same shape every other login path produces, so Live/Movies/Series,
@@ -5977,7 +6002,7 @@ if($('qrScanClose'))$('qrScanClose').onclick=()=>{stopQrScan();openPairSheet($('
 if($('pairLoad'))$('pairLoad').onclick=async()=>{const code=$('pairCodeBox')&&$('pairCodeBox').value;if($('pairErr'))$('pairErr').textContent='';try{await importFromCode(code)}catch(e){if($('pairErr'))$('pairErr').textContent=e.message||'Could not load that code.'}};
 ['shareSheet','pairSheet'].forEach(id=>{const s=$(id);if(s)s.onclick=e=>{if(e.target.id===id)s.classList.remove('show')}});
 /* v7.8: Settings sheet (opened by the gear on the home hub) — Share QR / Receive / Stream Tools / Log out. */
-if($('homeSettings'))$('homeSettings').onclick=e=>{e.stopPropagation();if($('setVer'))$('setVer').textContent=APP_VERSION;$('homeSetSheet').classList.add('show')};
+if($('homeSettings'))$('homeSettings').onclick=e=>{e.stopPropagation();if($('setVer'))$('setVer').textContent=APP_VERSION;if($('setMac'))$('setMac').textContent=macFmt(stalkerMac());$('homeSetSheet').classList.add('show')};
 /* v16.3: Share playlist straight off the home screen, beside the gear. */
 if($('homeShare'))$('homeShare').onclick=e=>{e.stopPropagation();openShare()};
 if($('homeSetClose'))$('homeSetClose').onclick=()=>$('homeSetSheet').classList.remove('show');
