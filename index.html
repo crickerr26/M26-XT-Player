@@ -1523,7 +1523,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.26.0';
+const APP_VERSION='19.27.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1805,7 +1805,13 @@ function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,raw:S.rawUrl||S
 function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.raw||c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
    media26-transcoder-*.onrender.com — including services that are alive and current — so a URL
    typed into Stream Tools by hand was silently erased on the next load and there was no way to
-   point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
+   point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;/* v19.27: A PINNED PREVIEW DEPLOYMENT IS A TIME BOMB. Opening a commit- or branch-preview URL
+   once (…-smarteriptv.gz-inzi84.workers.dev) saved THAT origin as the transcoder base, because the
+   default is simply location.origin + '/transcoder'. It keeps working for a while, which is why it
+   goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
+   a worker build frozen at whatever that commit was, until the preview is reaped and it 404s
+   forever. A workers.dev transcoder is always meant to be this app's OWN origin, so any other
+   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
