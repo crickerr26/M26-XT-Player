@@ -1528,7 +1528,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.31.0';
+const APP_VERSION='19.32.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2737,15 +2737,24 @@ async function fetchPlaylistViaFunction(base,user,pass){
     /* Say WHAT the panel actually replied. "did not return a playlist" alone is unactionable —
        whether every endpoint 404'd, or one answered with an HTML challenge page, or the whole
        host timed out, are entirely different problems, and the raw answer names which. */
+    /* ── v19.32: SHOW EVERY ADDRESS THAT WAS ASKED, NOT THE FIRST ONE. ────────────────────────
+       This printed a single attempt, so a sign-in that walked the panel root, the path as typed,
+       eleven ports and both schemes reported one line — "/get.php?… HTTP 404" — and gave no way to
+       tell whether ALL of them 404'd or one of them answered something different. On a line whose
+       root genuinely has no get.php, which address answered WHAT is the entire question. Distinct
+       results only, so twenty identical 404s read as one line rather than twenty. */
     let detail='';
     const spoke=attempts.filter(a=>a.status||a.got||a.error);
     if(spoke.length){
-      const first=spoke.find(a=>a.got)||spoke[0];
-      const bits=[];
-      if(first.status)bits.push('HTTP '+first.status);
-      if(first.got)bits.push('"'+first.got+'"');
-      else if(first.error)bits.push(first.error);
-      if(bits.length)detail=' The panel answered '+(first.endpoint||'')+' with '+bits.join(' — ')+'.';
+      const seen=new Set(),lines=[];
+      for(const a of spoke){
+        const what=a.status?('HTTP '+a.status):(a.error||'no answer');
+        const key=(a.endpoint||'')+'|'+what;
+        if(seen.has(key))continue;seen.add(key);
+        lines.push((a.endpoint||'?')+' → '+what+(a.got?(' “'+a.got.slice(0,60)+'”'):''));
+        if(lines.length>=8)break;
+      }
+      detail=' Tried: '+lines.join(' · ')+'.';
     }
     /* v19.17: name the address that was actually asked, not the one that was typed. The worker
        derives the panel root from the portal URL (a seller's "/c/" or "/stalker_portal/c/" is
