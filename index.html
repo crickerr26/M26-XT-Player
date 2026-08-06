@@ -92,7 +92,7 @@ body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#
 any input under 16px and does not zoom back out on blur, which is exactly the "misaligned, hidden
 until you zoom out" report: the page was left zoomed in from focusing this sheet's fields at 14.5px.
 Same reason .searchbox input is pinned to 16px in the mobile media query above. */
-.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
+.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.macRow{margin-top:10px;padding:11px 12px;border-radius:13px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}.macRow.hidden{display:none}.macRowLabel{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:7px}.macRowVal{display:flex;align-items:center;gap:9px}.macRowVal code{flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:.6px;overflow-wrap:anywhere}.macRowVal .pillbtn{flex:none;height:34px;padding:0 14px}.macRowHint{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
 </style>
 <style>
 /* --- v17 premium redesign layer: additive overrides only, original rules above stay intact --- */
@@ -1415,6 +1415,17 @@ body.login-dark .login,body.dark .login{background:
   <p class="nativeText portalNote">A portal URL, login and password is all most lines need.</p>
   <div class="nativeActions" style="margin-top:4px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Connect to Portal</button></div>
   <div class="err" id="xtreamErr" style="min-height:0"></div>
+  <!-- v19.24: THE DEVICE ID, TO BE READ OUT — NOT TYPED IN. The MAC input was removed on purpose
+       and stays removed: a customer should never be asked to supply one. But a Ministra portal
+       identifies a box BY its MAC, and a reseller panel carries a MAC field per line. When such a
+       portal answers "authenticate this line" and that field is empty on the seller's side, the one
+       thing that resolves it is the seller pasting THIS value in. So the app shows it, with a copy
+       button, and only in that exact situation. -->
+  <div id="macRow" class="macRow hidden">
+    <div class="macRowLabel">Device ID for your provider</div>
+    <div class="macRowVal"><code id="macRowMac"></code><button class="pillbtn" id="macRowCopy" type="button">Copy</button></div>
+    <p class="macRowHint">Your provider's panel has a MAC field on your line and it is empty. Ask them to paste this into it, then tap Connect again. You never need to type it yourself.</p>
+  </div>
 </div></div>
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
@@ -1506,7 +1517,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.23.0';
+const APP_VERSION='19.24.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2227,7 +2238,7 @@ async function login(opts){
           const said=se.detail?(' Portal said: “'+se.detail+'”.'):'';
           throw Error('This is a MAG / Stalker portal, so the app signed in with your login and password through its portal handshake — and that did not complete. '
             +((se.message||'The portal did not answer.').replace(/\s*\(?MAC on this device:[^)]*\)?\.?/gi,'').trim())
-            +said+paths+' Portal address: '+S.url+'.');
+            +said+paths+' Portal address: '+S.url+'. Device ID this app presents: '+macFmt(stalkerMac())+'.');
         }
         if(S.user&&S.pass&&plErr&&plErr.message)throw Error(plErr.message);
         if(se&&se.edge&&((opts&&opts._relayAttempt)||0)>0&&S.user&&S.pass){
@@ -5672,11 +5683,29 @@ function openXtreamSheet(){
 /* v18.7: one place that writes the sign-in message line, so progress and failure can never be
    styled the same by accident. kind==='working' is the app doing something on the customer's
    behalf; anything else is a result they have to act on. */
-function signInMsg(text,kind){
+/* v19.24: the device-id row appears ONLY when the caller asks for it, and any later message
+   clears it — so it can never linger next to a verdict it has nothing to do with. */
+function showDeviceId(on){
+  const row=$('macRow');if(!row)return;
+  row.classList.toggle('hidden',!on);
+  if(on&&$('macRowMac'))$('macRowMac').textContent=macFmt(stalkerMac());
+}
+if($('macRowCopy'))$('macRowCopy').onclick=async()=>{
+  const v=macFmt(stalkerMac());
+  try{await navigator.clipboard.writeText(v);$('macRowCopy').textContent='Copied';}
+  catch(e){
+    /* Clipboard refused (older iOS in a home-screen app): select it so a long-press Copy works. */
+    try{const r=document.createRange();r.selectNodeContents($('macRowMac'));const sel=getSelection();sel.removeAllRanges();sel.addRange(r);}catch(e2){}
+    $('macRowCopy').textContent='Select & copy';
+  }
+  setTimeout(()=>{if($('macRowCopy'))$('macRowCopy').textContent='Copy';},2200);
+};
+function signInMsg(text,kind,opts){
   const el=$('xtreamErr');
   if(el){el.textContent=text||'';el.classList.toggle('working',kind==='working'&&!!text);}
   const e2=$('err');
   if(e2&&kind!=='working'){e2.textContent=text||'';}
+  showDeviceId(!!(opts&&opts.deviceId));
 }
 async function submitXtreamLogin(){
   const url=(($('xtreamUrl')&&$('xtreamUrl').value)||'').trim();
@@ -5712,7 +5741,12 @@ async function submitXtreamLogin(){
       if(!user&&!pass&&/username and password|check the username/i.test(msg)){
         msg='This server would not issue a playlist for MAC '+macFmt(stalkerMac())+'. Either your seller has not finished binding it, or this line needs the username and password they were given — add them above and try again.';
       }
-      signInMsg(msg,'error');
+      /* v19.24: a Ministra portal asking for this line to be authenticated, on an account whose
+         seller-side MAC field is empty, is the one situation where the device id is the answer —
+         so offer it to copy, and only then. Matched on what the portal actually asked for. */
+      const wantsDeviceId=/authenticat|not know this device|device slots|register|provision/i.test(msg)
+        &&/MAG|Stalker|portal handshake/i.test(msg);
+      signInMsg(msg,'error',{deviceId:wantsDeviceId});
       /* v19.14: no MAC box left to scroll to or highlight (see stalkerMac()) — just close the form
          and leave the message up on the login screen. */
       if(/not activated this device yet/i.test(msg)){
