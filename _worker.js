@@ -596,8 +596,12 @@ async function handlePlaylist(request, env) {
      those knocks are what push a portal that was merely throttling into refusing outright. */
   const exhausted = () => relay.exhausted || (relay.originBlocked && relay.dead);
 
+  /* v19.32: the label carries the ORIGIN as well as the path. Every candidate has the same
+     pathname — /get.php — so a list of them said "/get.php?… 404" over and over and named none of
+     the addresses actually asked. The origin is the only part that differs between them, and it is
+     the whole question when a playlist is hiding on another port or scheme. */
   const label = (target, useMac) =>
-    target.pathname + (target.search ? '?…' : '') + (useMac ? ' +stb' : (mac ? ' +mac' : ''));
+    target.origin + target.pathname + (target.search ? '?…' : '') + (useMac ? ' +stb' : (mac ? ' +mac' : ''));
 
   /* Read and validate whatever answered — the portal directly or the relay standing in for it.
      Split out so both routes through attempt() judge the body by exactly the same rules. */
@@ -787,16 +791,30 @@ async function handlePlaylist(request, env) {
      highest-yield candidate shape per port, and only after the normal walk has come up empty
      without being refused — so a working sign-in never spends one of these, and a panel that is
      genuinely refusing us is not knocked on six more times. */
-  const PANEL_PORTS = ['8080', '2082', '2086', '2095', '8880', '2052'];
+  /* v19.32: the http ports IPTV panels use that a CDN in front of the host still proxies, then the
+     https ones. A panel whose hostname is CDN-fronted answers on both schemes, and its get.php is
+     as likely to sit behind the https edge as the http one — that is one of the few places a
+     playlist can hide from a root that answers 404, which is exactly what this account's root
+     does. Two shapes per port, because a panel that gates `output=ts` still serves plain
+     `type=m3u_plus`, and asking only one of them is how a working endpoint reads as absent. */
+  const PANEL_PORTS_HTTP = ['8080', '2082', '2086', '2095', '8880', '2052'];
+  const PANEL_PORTS_HTTPS = ['2053', '2083', '2087', '2096', '8443'];
   if (!blocked && !limited && !rejected && hasCreds && !baseUrl.port && !sig.playlist) {
     const u = encodeURIComponent(user), p = encodeURIComponent(pass);
-    for (const port of PANEL_PORTS) {
-      const alt = baseUrl.protocol + '//' + baseUrl.hostname + ':' + port +
-        '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts';
-      const ok = await attempt(alt, false);
-      if (ok) return ok;
-      if (limited) return corsJson(200, { ok: false, status: 429, attempts, base: sig.root, reason: 'rate-limited' });
-      if (blocked || rejected) break;   /* it is answering for itself now — stop guessing ports */
+    const q = '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus';
+    const spots = [];
+    for (const port of PANEL_PORTS_HTTP) spots.push('http://' + baseUrl.hostname + ':' + port);
+    /* the plain https edge first — no port at all — then its panel ports */
+    spots.push('https://' + baseUrl.hostname);
+    for (const port of PANEL_PORTS_HTTPS) spots.push('https://' + baseUrl.hostname + ':' + port);
+    outer:
+    for (const spot of spots) {
+      for (const shape of [q + '&output=ts', q]) {
+        const ok = await attempt(spot + shape, false);
+        if (ok) return ok;
+        if (limited) return corsJson(200, { ok: false, status: 429, attempts, base: sig.root, reason: 'rate-limited' });
+        if (blocked || rejected) break outer;   /* it is answering for itself now — stop guessing */
+      }
     }
   }
 
