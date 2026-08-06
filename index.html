@@ -1506,7 +1506,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.19.0';
+const APP_VERSION='19.20.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2178,12 +2178,18 @@ async function login(opts){
            what "Open or paste an M3U playlist" fetches from. Only pointed at when there is a
            login+password to build that link from (see devicePlaylistUrl) — a MAC-only line has
            nothing else to try, so it keeps the plain stalkerFailMessage verdict below. */
+        /* ── v19.20: THE PLAYLIST VERDICT COMES FIRST ON A CREDENTIALS LINE. ───────────────────
+           This branch used to run ahead of it and announce that "every route was refused" — and
+           it was reachable on an account where nothing had been refused at all. _tryMag only
+           fires for a login+password line on a `stalker-portal` verdict, and since v19.18 the
+           worker only returns that verdict when NOTHING was blocked. So the one message a
+           customer with a working, active line could actually reach was the one message that was
+           certainly untrue for them, and it sent them to argue with their provider about a block
+           that did not exist. The MAG handshake's own edge trouble is a fact about portal.php,
+           not about their playlist; say what happened to the playlist. */
+        if(S.user&&S.pass&&plErr&&plErr.message)throw Error(plErr.message);
         if(se&&se.edge&&((opts&&opts._relayAttempt)||0)>0&&S.user&&S.pass){
-          /* v19.19: no longer sends anyone to the import screen. The device's own connection is
-             now tried automatically as part of the sign-in (fetchPlaylistDirect), so by the time
-             this is read that route has ALSO been attempted and refused — telling someone to go
-             and perform it by hand would be asking them to redo work the app just did. */
-          throw Error('Every route to your portal was refused — this app\'s two servers and this device itself. The block is in front of the panel, so your login and password were never checked. Ask your provider to allow player/API access for this address, or for a playlist link on an address that is not behind their CDN.');
+          throw Error('Every route to your portal was refused — this app\'s two servers and this device itself. The block is in front of the panel, so your login and password were never checked. Ask your provider to allow player/API access for this address.');
         }
         /* v19.6: the MAG handshake is the ONLY other route left once the playlist step has
            failed — there is no Xtream API fallback to carry on to any more, so its verdict (or
@@ -2688,7 +2694,12 @@ async function fetchPlaylistViaFunction(base,user,pass){
          them is the one address that always works: the ready-made playlist link, which this app
          now accepts verbatim in the portal-URL box. */
       :(j&&j.reason==='stalker-portal')?(user
-        ?('No playlist endpoint answered on '+((j&&j.base)||base)+', and that address serves a MAG / Stalker portal page rather than a playlist. Ask your provider for the M3U address for this account — it looks like http://your-server:port/get.php?username=…&password=…&type=m3u_plus.')
+        /* v19.20: this is the verdict a perfectly valid line gets when the address it was given is
+           the MAG portal host rather than the playlist host. Nothing is blocked and nothing is
+           wrong with the account, so the message must not imply either — it has to say which door
+           was knocked on and what was behind it, because that is the sentence the provider needs
+           to read in order to hand over the right address. */
+        ?('That address is a MAG / Stalker portal page, not a playlist server: no playlist endpoint answered on '+((j&&j.base)||base)+', on its own port or on the usual panel ports. Nothing was blocked and your login was never rejected — this is the wrong address for an M3U line. Ask your provider for the M3U / playlist URL for this account; it looks like http://server:port/get.php?username=…&password=…&type=m3u_plus, and you can paste that whole link straight into the Portal URL box.'+detail)
         :'This is a MAG / Stalker portal — it signs devices in by their MAC address, not by a username and password. The MAC on this device is being used to sign in.')
       /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
          Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
