@@ -1497,7 +1497,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.14.0';
+const APP_VERSION='19.15.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4687,8 +4687,12 @@ function stalkerFailMessage(e){
   const st=e&&e.status;
   /* v14.2: the single most common reason an "already activated" MAC fails is that it is not the
      MAC this device is sending. Say it on EVERY failure where the MAC was self-generated — the
-     user has no other way to know the phone invented a different one from the desktop. */
-  const hint=macIsAuto()?(' Note: this device generated the MAC '+mac+' itself. If your seller activated a DIFFERENT MAC, tap the MAC box above, type theirs, and sign in again.'):'';
+     user has no other way to know the phone invented a different one from the desktop.
+     v19.15: there is no MAC field left to "tap and type theirs into" (removed in v19.14) — this
+     only ever reaches a real MAC-bound line now (a login+password line never gets this far, see
+     _tryMag's gating in login()), so the honest advice is to ask the seller to bind THIS mac, or
+     to use a login and password instead if they have one. */
+  const hint=macIsAuto()?(' This device generated the MAC '+mac+' itself — ask your seller to bind this exact MAC, or sign in with a login and password instead, which does not depend on it.'):'';
   const tail=s=>s+hint;
   /* v16.1: the portal named the problem itself (see stalkerProfileProblem) — say that and stop.
      This has to come before every test below, because the checks that follow match on words like
@@ -4728,7 +4732,7 @@ function stalkerFailMessage(e){
       +'Nothing about your subscription was checked. This is usually short-lived throttling, so tap Connect to Portal again — '
       +(left?('the app will hold for the last '+left+' seconds of the quiet period and then sign you in by itself. '):'it will wait out the quiet period for you and then sign you in. ')
       +(macIsAuto()
-        ?('If it keeps happening, check the MAC: this device is sending '+mac+', which it generated itself — if your seller\'s panel shows a different one, type theirs into the MAC field and try again.')
+        ?('The MAC this device is sending is '+mac+' — that only matters for a MAC-only line; a login and password does not depend on it.')
         :('The MAC being sent is '+mac+'.'));
   }
   if(st===401||st===403||/\b(401|403)\b|not found|unauthor|forbidden|invalid mac|blocked/i.test(raw))
@@ -5529,8 +5533,8 @@ if($('actRenew'))$('actRenew').onclick=async()=>{
     toast('Activation code '+actFmt(now));
   }
 };
-/* The code box is editable, exactly like the MAC box above it: a seller who issues codes from
-   their own panel can have theirs typed straight in, and it is adopted on blur or Enter. */
+/* The code box is editable: a seller who issues codes from their own panel can have theirs typed
+   straight in, and it is adopted on blur or Enter. */
 if($('actCodeBox')){
   const box=$('actCodeBox');
   box.addEventListener('input',()=>{box.value=actFmt(box.value);});
