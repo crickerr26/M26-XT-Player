@@ -1418,16 +1418,21 @@ body.login-dark .login,body.dark .login{background:
 </div></div>
 <div class="episodeSheet" id="importSheet"><div class="episodePanel nativePanel">
   <div class="episodeHead"><h3>Open or paste an M3U playlist</h3><button class="iconbtn" id="importClose">×</button></div>
-  <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider that blocks our servers cannot block this. Your phone's own connection is never blocked.</p>
-  <div class="field nativeField"><label>Step 1 — open your playlist</label>
-    <div class="nativeActions" style="grid-template-columns:1fr"><button class="pillbtn primary" id="importOpenLink" type="button" style="width:100%">Open my playlist in a new tab</button></div>
-    <p class="macHint" id="importOpenHint" style="margin-top:7px">Built from the portal, login and password you already entered. It opens on your phone's own connection, which your provider cannot block. When it appears, select all the text and copy it — or save it as a file.</p>
+  <p class="nativeText">Nothing is sent to a server here — the playlist is read on this device, so a provider whose security layer refuses our servers cannot refuse this. Your own connection is never the one being blocked.</p>
+  <!-- v19.18: DOWNLOAD IT, DO NOT COPY IT. The old wording said "select all the text and copy it".
+       A real IPTV playlist is thousands of lines and tens of megabytes; select-all-and-copy on a
+       phone is not a thing anyone can actually do with that, and the clipboard route was quietly
+       the reason this screen read as a last resort instead of a fix. Saving the file and picking
+       it back up is two taps and has no size limit at all, so that is now step 2 and the paste
+       box is the fallback underneath it. -->
+  <div class="field nativeField"><label>Step 1 — download your playlist</label>
+    <div class="nativeActions" style="grid-template-columns:1fr"><button class="pillbtn primary" id="importOpenLink" type="button" style="width:100%">Download my playlist</button></div>
+    <p class="macHint" id="importOpenHint" style="margin-top:7px">Built from the portal, login and password you already entered, and fetched on this device's own connection. Your browser will save it to Files / Downloads — that is what you want. If it opens as text instead, use the share button and choose “Save to Files”.</p>
   </div>
-  <div class="field nativeField" style="margin-top:10px"><label>Step 2 — bring it back</label>
-    <div class="nativeActions" style="grid-template-columns:1fr"><button class="pillbtn" id="importPaste" type="button" style="width:100%">Paste playlist from clipboard</button></div>
-  </div>
-  <div class="field nativeField" style="margin-top:10px"><label>…or pick a saved .m3u file</label><input id="importFile" type="file" accept=".m3u,.m3u8,text/plain,audio/x-mpegurl,application/x-mpegurl"></div>
-  <div class="field nativeField" style="margin-top:10px"><label>…or paste the playlist text</label><textarea id="importText" rows="5" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;…&quot;,Channel name&#10;http://…" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:14px;font-family:ui-monospace,Menlo,monospace"></textarea></div>
+  <div class="field nativeField" style="margin-top:10px"><label>Step 2 — pick the file you just saved</label><input id="importFile" type="file" accept=".m3u,.m3u8,.txt,text/plain,audio/x-mpegurl,application/x-mpegurl"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>…or paste the playlist text instead</label>
+    <div class="nativeActions" style="grid-template-columns:1fr;margin-bottom:7px"><button class="pillbtn" id="importPaste" type="button" style="width:100%">Paste from clipboard</button></div>
+    <textarea id="importText" rows="4" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;…&quot;,Channel name&#10;http://…" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:14px;font-family:ui-monospace,Menlo,monospace"></textarea></div>
   <div class="nativeActions" style="margin-top:12px"><button class="pillbtn primary" id="importGo" type="button" style="width:100%">Load this playlist</button></div>
   <div class="err" id="importErr" style="min-height:0"></div>
 </div></div>
@@ -1501,7 +1506,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.17.0';
+const APP_VERSION='19.18.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2067,7 +2072,11 @@ async function login(opts){
       S.stalkerLastError=(se&&se.message)||'';
     }
   }
-  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&((opts&&opts._relayAttempt)||0)<MAX_RELAY_ATTEMPTS&&transcoderBase()){
+  /* v19.18: ...unless the relay has already answered for itself and been refused. Waking something
+     that is awake, three times, in front of a customer watching a countdown, is not a retry — it is
+     75 seconds of theatre before the same answer. plErr.relayRefused is the worker saying it got a
+     real refusal from the relay, not a boot failure, and on that there is nothing left to wait for. */
+  if(!pl&&plErr&&(plErr.reason||'')==='edge-blocked'&&!plErr.relayRefused&&((opts&&opts._relayAttempt)||0)<MAX_RELAY_ATTEMPTS&&transcoderBase()){
     const attemptN=((opts&&opts._relayAttempt)||0)+1;
     const ready=await awaitRelayReady(sec=>{
       if(signInCancelled(_tok))return false;   /* v19.1.1: Cancel actually cancels */
@@ -2652,7 +2661,16 @@ async function fetchPlaylistViaFunction(base,user,pass){
          typed was ever looked at — the portal's own code did not see the request. The app has one
          more route to try (the MAC handshake, which login() now reaches on this reason), so this
          message is only ever the fallback for when that route has also been exhausted. */
-      :(j&&j.reason==='edge-blocked')?'A security layer in front of this portal turned the request away before the portal itself saw it — so your username, password and MAC were never actually checked. This is usually short-lived. Try again in a moment.'
+      /* v19.18: NAME IT. "A security layer" is true and useless — nobody can act on it, and the
+         customer's provider hears it as an accusation and answers "we are not blocking you",
+         which is also true: nothing about the subscription is involved. What is actually
+         happening on a Cloudflare-fronted panel is that bot protection on the DOMAIN refuses
+         traffic that does not come from a home connection, so a phone sails through and both of
+         this app's servers are turned away. That is one setting on the provider's own dashboard,
+         and naming it is the difference between a fixable problem and a standoff. */
+      :(j&&j.reason==='edge-blocked')?(((j&&j.edge)==='cloudflare')
+        ?('Your provider\u2019s domain sits behind Cloudflare, and its bot protection is refusing this app\u2019s servers before the panel itself sees the request (HTTP '+((j&&j.status)||403)+'). Nothing about your subscription, your login or your password was checked — your own phone is not blocked, only our servers are. Ask your provider to either allow API/player access for '+((j&&j.base)||base)+', or simply send you your M3U line; you can paste that whole link into the Portal URL box above and it will load.')
+        :'A security layer in front of this portal turned the request away before the portal itself saw it — so your username and password were never actually checked. Your own phone is not blocked, only this app\u2019s servers are. Ask your provider for your M3U link and paste it into the Portal URL box above.')
       /* v19.1.2: this used to end 'Opening "Connect via MAC Address" for you…' — a promise that
          visibly never happened, since Enter the Portal is already the only sign-in form there is.
          It is also only ever READ when the MAC handshake that follows has itself failed (login()
@@ -2683,6 +2701,10 @@ async function fetchPlaylistViaFunction(base,user,pass){
        this (`plErr.reason`) but it was never set, so the whole reason-driven half of that decision
        was dead code and the MAG fallback fired only when the ENGLISH happened to contain a keyword. */
     err.reason=(j&&j.reason)||'';
+    /* v19.18: carry the two facts login() needs to decide whether waiting for the backup relay can
+       possibly help — whether it was already tried and refused, and who did the refusing. */
+    err.relayRefused=!!(j&&j.relayRefused);
+    err.edge=(j&&j.edge)||'';
     if(j&&j.reason==='stalker-portal')err.stalker=true;
     throw err;
   }
@@ -5694,7 +5716,7 @@ function openImportSheet(){
   const url=devicePlaylistUrl();
   const btn=$('importOpenLink'),hint=$('importOpenHint');
   if(btn)btn.disabled=!url;
-  if(hint&&!url)hint.textContent='Enter your portal URL (and MAC or username) on the sign-in screen first, and this will build the link for you. Otherwise paste the playlist text below.';
+  if(hint&&!url)hint.textContent='Enter your portal URL and login on the sign-in screen first, and this will build the download link for you. Otherwise pick a saved .m3u file, or paste the playlist text, below.';
   $('importSheet').classList.add('show');
 }
 async function submitImport(){
@@ -5718,14 +5740,24 @@ if($('importM3uBtn'))$('importM3uBtn').onclick=()=>openImportSheet();
 if($('importClose'))$('importClose').onclick=()=>$('importSheet').classList.remove('show');
 if($('importGo'))$('importGo').onclick=submitImport;
 if($('importSheet'))$('importSheet').onclick=e=>{if(e.target.id==='importSheet')$('importSheet').classList.remove('show');};
-if($('importFile'))$('importFile').onchange=()=>{if($('importErr'))$('importErr').textContent=$('importFile').files&&$('importFile').files[0]?('Ready: '+$('importFile').files[0].name):'';};
+if($('importFile'))$('importFile').onchange=()=>{const f=$('importFile').files&&$('importFile').files[0];if($('importErr'))$('importErr').textContent=f?('Ready: '+f.name+' ('+Math.max(1,Math.round(f.size/1024)).toLocaleString()+' KB) — tap “Load this playlist”.'):'';};
 if($('importOpenLink'))$('importOpenLink').onclick=()=>{
   const url=devicePlaylistUrl();
-  if(!url){if($('importErr'))$('importErr').textContent='Enter your portal URL and MAC (or username) on the sign-in screen first.';return;}
-  if($('importErr'))$('importErr').textContent='Opening on your phone’s own connection. Copy the text you see, then come back and tap Paste.';
+  if(!url){if($('importErr'))$('importErr').textContent='Enter your portal URL and login on the sign-in screen first.';return;}
+  if($('importErr'))$('importErr').textContent='Downloading on this device’s own connection. When it has saved, tap “Choose File” below and pick it.';
   /* Opened, never fetched — a navigation carries no CORS or mixed-content restriction, and it
-     leaves from the phone rather than from our servers, which is the whole point. */
-  try{window.open(url,'_blank');}catch(e){location.href=url;}
+     leaves from the device rather than from our servers, which is the whole point.
+     v19.18: asked for as a DOWNLOAD. An anchor with `download` is honoured on same-origin URLs
+     only, so it cannot be relied on cross-origin — but most panels already send get.php with a
+     Content-Disposition that makes the browser save it, and where they do not, the navigation
+     behaves exactly as it did before. Nothing is lost by asking. */
+  try{
+    const a=document.createElement('a');
+    a.href=url;a.target='_blank';a.rel='noopener';a.download='playlist.m3u';
+    document.body.appendChild(a);a.click();a.remove();
+  }catch(e){
+    try{window.open(url,'_blank');}catch(e2){location.href=url;}
+  }
 };
 if($('importPaste'))$('importPaste').onclick=async()=>{
   const err=m=>{if($('importErr'))$('importErr').textContent=m;};

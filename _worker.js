@@ -410,6 +410,21 @@ function edgeRefused(status) {
   return status === 403 || status === 429 || status === 503;
 }
 
+/* v19.18: WHOSE security layer is it. A refusal answered by Cloudflare carries Cloudflare's own
+   fingerprint — `server: cloudflare` and a cf-ray id — and saying so turns an unactionable "a
+   security layer refused us" into something the provider can fix in one setting on their own
+   dashboard. It also settles the argument the customer is otherwise stuck in: the block is not
+   their subscription and not their details, it is bot protection on the domain refusing traffic
+   that does not come from a home connection. */
+function edgeName(response) {
+  try {
+    const server = String(response.headers.get('server') || '').toLowerCase();
+    if (response.headers.get('cf-ray') || server === 'cloudflare') return 'cloudflare';
+    if (server) return server.slice(0, 40);
+  } catch (e) {}
+  return '';
+}
+
 /* Re-issue a request through the transcoder service, which sits on ordinary hosting with IPs
    unrelated to Cloudflare's. Its /proxy already speaks the MAG dialect (stb=1&mac=), so the MAC
    pass survives the detour intact. Best-effort: any failure returns null and the caller keeps its
@@ -525,10 +540,10 @@ async function handlePlaylist(request, env) {
   const variant = String(body.variant || '').trim().toLowerCase();
   const candidates = playlistCandidates(sig, user, pass, variant, mac);
   const attempts = [];
-  let sawStalker = false, rejected = 0, limited = 0, blocked = 0;
+  let sawStalker = false, rejected = 0, limited = 0, blocked = 0, blockedBy = '';
   /* Shared across every candidate in this login: whether the portal's edge has already turned this
      worker away, and what state the second egress is in. */
-  const relay = { awake: false, dead: false, originBlocked: false, spent: 0, exhausted: false, uaTried: false, useBrowserUa: false };
+  const relay = { awake: false, dead: false, originBlocked: false, spent: 0, exhausted: false, uaTried: false, useBrowserUa: false, refused: false };
   wakeRelay(env, relay);
 
   /* Stop walking candidates when there is provably nothing left to learn from another request:
@@ -626,6 +641,9 @@ async function handlePlaylist(request, env) {
       if (!upstream || !upstream.ok) {
         attempts.push({ endpoint: label(target, useMac), status: (upstream && upstream.status) || 0, note: 'via relay' });
         if (upstream && upstream.status === 429) limited = 429;
+        /* v19.18: the relay ANSWERED and was refused on its own account. That is a different fact
+           from the relay still booting, and the app must be able to tell them apart — see below. */
+        if (upstream && edgeRefused(upstream.status)) relay.refused = true;
         return null;
       }
       return await finish(upstream, target, useMac);
@@ -676,6 +694,7 @@ async function handlePlaylist(request, env) {
         upstream = relayed;
       } else {
         attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: relayed ? 'relay also ' + relayed.status : 'relay unreachable' });
+        if (relayed && edgeRefused(relayed.status)) relay.refused = true;
         /* v18.0: THIS IS NOT A REJECTION OF THE ACCOUNT. A 403 or 503 from an edge means the
            portal's own code never saw the request, so it can have had no opinion about the
            username, the password or the MAC — and reporting it as `rejected` is what put "check
@@ -683,7 +702,7 @@ async function handlePlaylist(request, env) {
            Only the portal answering for itself (below) can reject credentials. A 429 keeps its
            own reason because "wait, it is throttling" is both true and more specific. */
         if (upstream.status === 429) limited = 429;
-        else blocked = upstream.status;
+        else { blocked = upstream.status; blockedBy = blockedBy || edgeName(upstream); }
         return null;
       }
     } else if (!upstream.ok) {
@@ -749,11 +768,31 @@ async function handlePlaylist(request, env) {
     attempts.push({ endpoint: '/ (probe)', error: String((e && e.message) || e).slice(0, 120) });
   }
 
-  if (sawStalker) return corsJson(200, { ok: false, reason: 'stalker-portal', attempts, base: sig.root });
+  /* ── v19.18: A PROVEN REFUSAL OUTRANKS A FINGERPRINT. ────────────────────────────────────────
+     sawStalker used to be returned ahead of `blocked`, and that ordering is what put a MAC verdict
+     in front of a customer signing in with a username and password on tv.stream4k.cc.
+
+     What actually happened there: every playlist endpoint was refused at the edge (403, before the
+     panel's own code ran), and then the diagnostic probe of / reached a page carrying portal
+     markup. Those two facts are not equal in weight. The refusal is something we OBSERVED about
+     the addresses that matter; the fingerprint is a guess drawn from a page we merely happened to
+     be allowed to see, and it says nothing about whether get.php would have answered. Returning it
+     as the verdict told the app "this is a MAG portal, sign in by MAC" — so a line with a login, a
+     password and a deliberately empty MAC field on the seller's panel was pushed into a MAC
+     handshake it can never complete, and reported back in the language of MACs.
+
+     So: if the edge turned us away, that is the finding. The Stalker fingerprint is still returned
+     when nothing was blocked — a portal that genuinely answers and genuinely is Ministra. */
+  if (sawStalker && !blocked) return corsJson(200, { ok: false, reason: 'stalker-portal', attempts, base: sig.root });
   /* v18.0: both egresses were turned away before the portal answered for itself. Said plainly,
      this is the one verdict the app can act on — it means retry, and it means the MAC handshake
      is still worth trying, not that anybody's details are wrong. */
-  if (blocked) return corsJson(200, { ok: false, status: blocked, attempts, base: sig.root, reason: 'edge-blocked' });
+  /* v19.18: relayRefused says the SECOND egress answered for itself and was turned away too. The
+     app used to respond to every edge block by waiting up to 75 seconds for that relay to boot and
+     then re-running the whole sign-in, up to three times — which is exactly right when the relay
+     was merely asleep, and pure dead time when it was awake and blocked. Only the worker can tell
+     those apart, so it says which one happened. */
+  if (blocked) return corsJson(200, { ok: false, status: blocked, attempts, base: sig.root, edge: blockedBy, relayRefused: !!relay.refused, reason: 'edge-blocked' });
   return corsJson(200, { ok: false, reason: 'no-playlist', attempts, base: sig.root });
 }
 
