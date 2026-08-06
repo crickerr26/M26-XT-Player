@@ -141,13 +141,25 @@ async function handleProxy(request) {
        answered with "Attention Required!" and never reaches portal.php at all. `ua=browser` keeps
        the MAC cookie and the MAG model header (which is what the PORTAL checks) while presenting
        an ordinary browser User-Agent (which is what the EDGE checks), so the app can try both. */
+    /* ── v19.26: `ua=browser` NOW MEANS A BROWSER, ALL THE WAY DOWN. ────────────────────────────
+       This fallback exists for one job — get past bot protection that refuses the MAG identity —
+       and it was still shipping `x-user-agent: Model: MAG250; Link: WiFi` on every request,
+       unconditionally, because that line sat below the if/else. A set-top-box model header is
+       about as clear a "this is not a browser" signal as exists, so the edge scored it exactly the
+       same as the MAG attempt it was supposed to rescue, and both came back as Cloudflare's
+       "Attention Required!" page. Confirmed live: get.php reached the origin and answered 404,
+       while portal.php with these headers never got past the edge at all.
+       So on the browser pass, send what a browser sends and nothing a box would. The `mac=` cookie
+       stays — that is what portal.php actually reads to identify the line, and a cookie is not a
+       bot signature. */
     if (uaMode !== 'browser') {
-      headers.set('user-agent', 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3');
+      headers.set('user-agent', MAG_UA);
+      headers.set('x-user-agent', 'Model: MAG250; Link: WiFi');
     } else {
-      headers.set('user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15');
-      headers.set('accept-language', 'en-US,en;q=0.9');
+      const bh = browserHeaders();
+      for (const k in bh) headers.set(k, bh[k]);
+      headers.delete('x-user-agent');
     }
-    headers.set('x-user-agent', 'Model: MAG250; Link: WiFi');
     headers.set('cookie', 'mac=' + mac.toUpperCase() + '; stb_lang=en; timezone=UTC');
     if (token && /^[\w.\-]{1,256}$/.test(token)) headers.set('authorization', 'Bearer ' + token);
   }

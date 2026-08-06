@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.2';
+const SERVER_BUILD = '13.3';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -615,8 +615,17 @@ function relayFetch(target, req, res, hops) {
       if (/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(m)) stbMac = m.toUpperCase();
       const tok = (q.get('token') || '').trim();
       if (stbMac) {
-        headers['user-agent'] = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
-        headers['x-user-agent'] = 'Model: MAG250; Link: WiFi';
+        /* v13.3 (server build): kept in step with _worker.js. On the `ua=browser` pass this relay
+           must look like a browser all the way down — the MAG User-Agent AND the MAG model header
+           are both bot signatures, and sending the model header regardless (as this did) meant the
+           fallback was scored exactly like the attempt it exists to rescue. The mac cookie stays:
+           portal.php reads it to identify the line, and a cookie is not a bot signal. */
+        if (uaMode !== 'browser') {
+          headers['user-agent'] = 'Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3';
+          headers['x-user-agent'] = 'Model: MAG250; Link: WiFi';
+        } else {
+          delete headers['x-user-agent'];
+        }
         headers.cookie = 'mac=' + stbMac + '; stb_lang=en; timezone=UTC';
         /* Ministra checks the Referer on some builds — a box always arrives from its own /c/ UI. */
         headers.referer = t.protocol + '//' + t.host + '/c/';
