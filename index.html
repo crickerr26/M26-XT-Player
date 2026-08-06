@@ -1528,7 +1528,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.32.0';
+const APP_VERSION='19.33.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2179,9 +2179,25 @@ async function login(opts){
        the sign-in, and the MAC is nothing but the device id it has to carry, never shown and never
        asked for. Every other reason is still a guess and stays reserved for a line with no
        credentials to judge. */
-    const _tryMag=plErr&&stalkerMac()&&(
-      _plReason==='stalker-portal'
-      ||(!(S.user&&S.pass)&&(_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''))));
+    /* ── v19.33: A LOGIN AND PASSWORD IS AN M3U SIGN-IN. IT NEVER DETOURS THROUGH THE HANDSHAKE.
+       v19.22 let a `stalker-portal` verdict send a credentials line into the MAG handshake, and
+       that one line is why this account has been stuck. Look at what it does in practice:
+
+         - The playlist step walks thirteen addresses and records exactly what each one answered.
+         - Then the handshake runs, portal.php is refused by the portal's edge, and ITS failure
+           becomes the message — so the playlist findings, the whole point of the exercise, are
+           thrown away unseen. The customer is shown "Attention Required! | Cloudflare" over and
+           over for a route they never asked for.
+         - It also spends three 75-second waits bringing up a backup relay for that handshake.
+
+       Nothing about it is wrong for a MAC-only line, and none of it is removed: a line with no
+       login still runs the handshake exactly as before, and every piece of MAC/MAG code stays
+       where it is. But a customer who typed a portal URL, a login and a password asked for their
+       playlist, and the answer they need is what those thirteen addresses said — not what
+       portal.php thinks of a device identity their line does not use. */
+    const _tryMag=plErr&&stalkerMac()&&!(S.user&&S.pass)&&(
+      _plReason==='stalker-portal'||_plReason==='no-playlist'||_plReason==='edge-blocked'||_plReason==='rate-limited'
+      ||/rate-limit|1015|busy|stalker|edge|security layer/i.test(plErr.message||''));
     if(_tryMag){
       try{
         const mac=stalkerMac();
@@ -2797,7 +2813,10 @@ async function fetchPlaylistViaFunction(base,user,pass){
            wrong with the account, so the message must not imply either — it has to say which door
            was knocked on and what was behind it, because that is the sentence the provider needs
            to read in order to hand over the right address. */
-        ?('That address is a MAG / Stalker portal page, not a playlist server: no playlist endpoint answered on '+((j&&j.base)||base)+', on its own port or on the usual panel ports. Nothing was blocked and your login was never rejected — this is the wrong address for an M3U line. Ask your provider for the M3U / playlist URL for this account; it looks like http://server:port/get.php?username=…&password=…&type=m3u_plus, and you can paste that whole link straight into the Portal URL box.'+detail)
+        /* v19.33: lead with the evidence. Nothing here is blocked and no login was rejected —
+           every address answered for itself — so the useful sentence is which addresses were
+           asked and what each said, followed by the one thing the provider can supply. */
+        ?('No playlist endpoint answered anywhere on '+((j&&j.base)||base)+' — not on its own port, not on the panel ports, not over https. Nothing was blocked and your login was never rejected; those addresses simply have no get.php on them.'+detail+' Ask your provider for the M3U / playlist URL for this account — it looks like http://server:port/get.php?username=…&password=…&type=m3u_plus — and paste that whole link into the Portal URL box above.')
         :'This is a MAG / Stalker portal — it signs devices in by their MAC address, not by a username and password. The MAC on this device is being used to sign in.')
       /* v14.1: a 5xx is the panel's SERVER failing, not the credentials. 530 in particular is
          Cloudflare's "I cannot reach the origin" wrapper — the hostname resolves to Cloudflare but
