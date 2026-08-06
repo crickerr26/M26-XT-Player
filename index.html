@@ -1523,7 +1523,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.25.0';
+const APP_VERSION='19.26.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2241,7 +2241,10 @@ async function login(opts){
            stalkerFailMessage would add to it. */
         if(S.user&&S.pass&&se&&(se.message||(se.tried&&se.tried.length))){
           const paths=(se.tried&&se.tried.length)?(' Tried: '+se.tried.join('; ')+'.'):'';
-          const said=se.detail?(' Portal said: “'+se.detail+'”.'):'';
+          /* v19.26: se.message often already carries the portal's reply (stalkerHandshake folds it
+             in on a 403/429), and appending it again printed the whole Cloudflare page twice. */
+          const already=se.detail&&String(se.message||'').indexOf(String(se.detail).slice(0,40))>=0;
+          const said=(se.detail&&!already)?(' Portal said: “'+se.detail+'”.'):'';
           throw Error('This is a MAG / Stalker portal, so the app signed in with your login and password through its portal handshake — and that did not complete. '
             +((se.message||'The portal did not answer.').replace(/\s*\(?MAC on this device:[^)]*\)?\.?/gi,'').trim())
             +said+paths+' Portal address: '+S.url+'. Device ID this app presents: '+macFmt(stalkerMac())+'.');
@@ -5051,7 +5054,14 @@ function stalkerRelays(u,mac,token){
   out.push(stalkerProxyUrl(u,mac,token)+'&ua=browser');
   try{
     const tb=(typeof transcoderBase==='function')&&transcoderBase();
-    if(tb)out.push(tb+'/proxy?url='+encodeURIComponent(u)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):''));
+    if(tb){
+      const t=tb+'/proxy?url='+encodeURIComponent(u)+'&stb=1&mac='+encodeURIComponent(mac)+(token?'&token='+encodeURIComponent(token):'');
+      out.push(t);
+      /* v19.26: and the same relay presenting a browser. The transcoder route was the only one
+         with no browser variant at all, so on a portal behind bot protection it always arrived
+         wearing the set-top-box identity that had already been refused twice. */
+      out.push(t+'&ua=browser');
+    }
   }catch(e){}
   return out;
 }
