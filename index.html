@@ -1528,7 +1528,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.29.0';
+const APP_VERSION='19.30.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4996,6 +4996,40 @@ function writeCookie(n,v){
     document.cookie=n+'='+encodeURIComponent(v)+'; expires='+d.toUTCString()+'; path=/; SameSite=Lax'+(location.protocol==='https:'?'; Secure':'');
   }catch(e){}
 }
+/* ── v19.30: THE DEVICE ITSELF IS THE SEED, NOT A DICE ROLL. ─────────────────────────────────
+   v19.29 memoised the MAC and mirrored it to a cookie, and it STILL moved — twice — because the
+   design was wrong at the root, not merely leaky. Both stores empty still ended at
+   randomMac(), so every case where the browser loses its storage produced a brand-new identity,
+   which on a MAG line means a device the portal has never been told about.
+
+   No amount of storage hardening fixes that, because storage is the thing that is failing. So the
+   fallback stops being random: it is DERIVED from properties of this device that do not change
+   between page loads. Same phone, same browser, same MAC — with an empty localStorage, an empty
+   cookie jar, a private tab, a cleared cache, whatever. Storage is now only an optimisation and
+   the place a customer's own Edit is kept; it is no longer what the identity depends on.
+
+   Inputs are chosen for stability rather than uniqueness: the screen's dimensions are sorted so a
+   rotation cannot change them, the time zone is the IANA name rather than an offset so daylight
+   saving cannot, and nothing here reads a clock, a random source or anything session-scoped.
+   Only the last three octets vary — the 00:1A:79 prefix is Infomir's, which is what these panels
+   expect and what the seller's MAC field is pre-filled with. */
+function deviceSeedMac(){
+  let bits='';
+  try{
+    const n=navigator||{},sc=(typeof screen!=='undefined'&&screen)||{};
+    let tz='';try{tz=Intl.DateTimeFormat().resolvedOptions().timeZone||''}catch(e){}
+    const dims=[Number(sc.width)||0,Number(sc.height)||0].sort((a,b)=>a-b).join('x');
+    bits=[n.userAgent||'',n.platform||'',n.language||'',(n.languages||[]).join(','),
+          dims,String(sc.colorDepth||''),tz,
+          String(n.hardwareConcurrency||''),String(n.maxTouchPoints||'')].join('|');
+  }catch(e){bits='media26-fallback';}
+  /* FNV-1a, run twice over different salts so three independent bytes come out of one string. */
+  const fnv=(str,seed)=>{let h=seed>>>0;for(let i=0;i<str.length;i++){h^=str.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;};
+  const a=fnv(bits,2166136261),b=fnv(bits,a^0x9e3779b9);
+  const oct=[(a>>>16)&255,(a>>>8)&255,b&255];
+  const h=v=>('0'+v.toString(16)).slice(-2).toUpperCase();
+  return '00:1A:79:'+h(oct[0])+':'+h(oct[1])+':'+h(oct[2]);
+}
 let _macMemo='';
 function persistMac(m,src){
   try{localStorage.setItem('m26_stkmac',m);}catch(e){}
@@ -5009,7 +5043,8 @@ function stalkerMac(){
   try{m=Media26Portal.normaliseMac(localStorage.getItem('m26_stkmac'))||'';}catch(e){}
   if(!m)m=Media26Portal.normaliseMac(readCookie(MAC_COOKIE))||'';
   const minted=!m;
-  if(minted)m=Media26Portal.randomMac();
+  /* v19.30: derived from the device, never rolled. See deviceSeedMac. */
+  if(minted)m=deviceSeedMac();
   _macMemo=m;
   persistMac(m,minted?'auto':'');
   return m;
