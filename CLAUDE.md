@@ -78,6 +78,36 @@ identifiers that remain (`PROFILE_KINDS.xtream`, server.js `normalizeKind`) are 
 backward compatibility with data already stored under that name — they mean "signed in with
 username/password", not "uses the Xtream API".
 
+## THE MAC / MAG PATH IS LOAD-BEARING. DO NOT TOUCH IT. (owner rule, v19.27)
+
+**Never remove, disable, gate off or "clean up" the MAC and MAG/Stalker connection code.** It is
+what makes real customer lines sign in. This was learned the hard way across v19.21-v19.27 on a
+live account, and every step of the reasoning that led to breaking it looked sensible at the time.
+
+What is true, and must stay true:
+
+- **A Ministra/Stalker portal is signed in to by the MAG handshake, and nothing else.** Its
+  `get.php` returns 404 — there is no M3U endpoint to find. `stalkerHandshake` → `stb.do_auth`
+  with the customer's own username and password *is* the sign-in for these lines. A portal URL, a
+  login and a password are exactly what such a portal authenticates on.
+- **The handshake requires a device MAC.** That is the protocol, not a design choice: `portal.php`
+  identifies the box by the `mac=` cookie. The app generates one, keeps it in `localStorage`, and
+  it must keep doing so.
+- **The MAC is shown, never typed.** There is no MAC input in the sign-in UI and there must not be
+  one — a customer is never asked for a MAC they were not given. But the device ID row on the
+  "Enter the Portal" sheet (and in Settings) must stay *visible*, with its Copy button: the seller
+  pastes that value into the MAC field on the line, and until they do, nothing can work.
+- **`_tryMag` must stay reachable for a login+password line on a `stalker-portal` verdict.**
+  v19.21 gated it to credential-less lines only, and that alone made every Ministra account
+  unable to sign in.
+- **`ua=browser` must never carry MAG headers.** The browser fallback exists to get past bot
+  protection that refuses the set-top-box identity, so it must send a full browser header set and
+  **no `x-user-agent: Model: MAG250`**. That header sat below the if/else for years, went out on
+  every request, and made the fallback fail exactly like the attempt it was rescuing. Keep
+  `_worker.js` and `server.js` in step on this.
+
+If a MAC-related change seems obviously right, it is the same trap. Ask the owner first.
+
 Player choice, app-wide: Player 1 (in-app, `m26player2.js`) and VLC (external) are the two
 players — KMPlayer, MX Player and the packageless Android "App chooser" stay removed (owner
 request) and must not be reintroduced; VLC came back by later owner request (v19.8) after being
