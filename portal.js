@@ -329,9 +329,21 @@
   }
 
   /* Portals live at different paths depending on the panel build. */
+  /* v19.31: HTTPS TWINS. A portal behind a CDN always answers on https as well as http, and a
+     WAF rule is routinely scoped to one scheme — the plain-http request is the one that looks like
+     a scraper, while the https one goes through the same edge a browser would use. Trying both is
+     cheap (they are only reached when the first has already been refused) and it costs a portal
+     that is answering nothing at all, since the first candidate still wins on the first request.
+     The http forms stay first: that is what has always worked, and this must not reorder them. */
   function stalkerEndpoints(base) {
     const b = String(base || '').replace(/\/+$/, '').replace(/\/(c|stalker_portal)\/?$/i, '');
-    return [b + '/portal.php', b + '/stalker_portal/server/load.php', b + '/server/load.php', b + '/c/portal.php'];
+    const paths = ['/portal.php', '/stalker_portal/server/load.php', '/server/load.php', '/c/portal.php'];
+    const out = paths.map(p => b + p);
+    if (/^http:\/\//i.test(b)) {
+      const sec = b.replace(/^http:/i, 'https:');
+      for (const p of paths) out.push(sec + p);
+    }
+    return out;
   }
   function stalkerQuery(params) {
     return Object.keys(params).map(k => encodeURIComponent(k) + '=' + encodeURIComponent(params[k])).join('&');
