@@ -902,6 +902,31 @@ function rewriteLocation(location, requestUrl, origin) {
   return location;
 }
 
+function rewriteTranscoderProxyM3u8(text, baseUrl, requestUrl, renderOrigin, relaySuffix) {
+  const current = new URL(requestUrl);
+  const prox = u => {
+    try {
+      const abs = new URL(u, baseUrl);
+      let target = '';
+      if ((abs.origin === renderOrigin || abs.origin === current.origin) && abs.pathname === '/proxy') {
+        target = abs.searchParams.get('url') || '';
+      } else if (abs.origin === current.origin && abs.pathname === '/transcoder/proxy') {
+        target = abs.searchParams.get('url') || '';
+      }
+      if (!target) target = abs.href;
+      return current.origin + '/transcoder/proxy?url=' + encodeURIComponent(target) + (relaySuffix || '');
+    } catch {
+      return u;
+    }
+  };
+  return text.split(/\r?\n/).map(line => {
+    const t = line.trim();
+    if (!t) return line;
+    if (t.startsWith('#')) return line.replace(/URI="([^"]+)"/g, (_, u) => 'URI="' + prox(u) + '"');
+    return prox(t);
+  }).join('\n');
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -950,6 +975,41 @@ export default {
     const responseHeaders = withCors(upstreamResponse.headers);
     const location = rewriteLocation(responseHeaders.get('location'), request.url, origin);
     if (location) responseHeaders.set('location', location);
+
+    /* v19.72: Render 13.5 can fetch the MAG playlist as the registered STB, but its HLS playlist
+       rewrite drops stb/mac/token on the child segment URLs. Until Render is redeployed to 13.7,
+       repair those playlist bodies at the Worker edge so FFmpeg keeps the MAC identity for every
+       variant, segment and key request. */
+    if (request.method === 'GET' && upstreamResponse.ok && upstreamPath === '/proxy' && url.searchParams.get('stb') === '1') {
+      const raw = url.searchParams.get('url') || '';
+      const ct = (upstreamResponse.headers.get('content-type') || '').toLowerCase();
+      if (/mpegurl|m3u8/.test(ct) || /\.m3u8(?:$|\?)/i.test(raw)) {
+        const text = await upstreamResponse.text();
+        if (/#EXTM3U/.test(text)) {
+          const mac = url.searchParams.get('mac') || '';
+          const token = (url.searchParams.get('token') || '').trim();
+          const relaySuffix = /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(mac)
+            ? '&stb=1&mac=' + encodeURIComponent(mac.toUpperCase()) + (token && /^[\w.\-]{1,256}$/.test(token) ? '&token=' + encodeURIComponent(token) : '') + (url.searchParams.get('ua') === 'browser' ? '&ua=browser' : '')
+            : '';
+          responseHeaders.delete('content-length');
+          responseHeaders.delete('content-encoding');
+          responseHeaders.set('content-type', 'application/vnd.apple.mpegurl');
+          responseHeaders.set('cache-control', 'no-store');
+          return new Response(rewriteTranscoderProxyM3u8(text, upstreamResponse.url || upstreamUrl.href, request.url, origin, relaySuffix), {
+            status: upstreamResponse.status,
+            statusText: upstreamResponse.statusText,
+            headers: responseHeaders
+          });
+        }
+        responseHeaders.delete('content-encoding');
+        responseHeaders.delete('content-length');
+        return new Response(text, {
+          status: upstreamResponse.status,
+          statusText: upstreamResponse.statusText,
+          headers: responseHeaders
+        });
+      }
+    }
 
     return new Response(upstreamResponse.body, {
       status: upstreamResponse.status,

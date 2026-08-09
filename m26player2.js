@@ -700,7 +700,7 @@
       /* Budgets are shorter than the old player's because the probe has already ruled out the
          addresses that were never going to answer — what remains is a decoder that should be
          producing picture. The transcoder keeps a long one: it may be cold-starting. */
-      var budget = cur && cur.cand.transcode ? 60000 : (this.live ? 12000 : (this.candidates.length ? 10000 : 30000));
+      var budget = cur && cur.cand.transcode ? 130000 : (this.live ? 12000 : (this.candidates.length ? 10000 : 30000));
       if (this.attachedAt && now - this.attachedAt > budget) {
         this.note((cur && cur.cand.label || 'this route') + ' did not start in time');
         this.advance();

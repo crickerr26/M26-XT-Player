@@ -1659,7 +1659,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.71.0';
+const APP_VERSION='19.76.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1833,6 +1833,23 @@ function portalParts(raw){
    path. The raw string the customer typed is kept separately (S.rawUrl) so a pasted playlist link
    survives intact. */
 function normalize(raw){return portalParts(raw).root}
+/* Transcoder URLs are service roots, not IPTV portal roots. Keep their path intact:
+   /transcoder is the Cloudflare -> Render pass-through, and stripping it sends playback to the
+   Worker /proxy instead of the FFmpeg helper. */
+function normalizeTranscoder(raw){
+  let s=String(raw||'').trim();
+  if(!s)return '';
+  if(!/^https?:\/\//i.test(s))s=(/^(localhost|127\.|0\.0\.0\.0|\[::1\])/i.test(s)?'http://':'https://')+s;
+  let u;try{u=new URL(s)}catch(e){return ''}
+  if(!/^https?:$/i.test(u.protocol))return '';
+  u.hash='';u.search='';
+  let out=u.href.replace(/\/+$/,'');
+  try{
+    const path=u.pathname.replace(/\/+$/,'');
+    if(u.origin===location.origin&&!path)out=location.origin+'/transcoder';
+  }catch(e){}
+  return out;
+}
 function mobile(){return /iphone|ipad|ipod|android|mobile/i.test(navigator.userAgent||'')||innerWidth<800||('ontouchstart'in window&&innerWidth<980)}
 /* v11.5: are we the packaged app rather than the website? capacitor.config.json enables cleartext
    and allowMixedContent, so a native WebView may fetch an http:// panel DIRECTLY — the CORS proxy
@@ -2027,7 +2044,7 @@ function countCat(cat){if(!cat)return list().length;return list().filter(x=>Stri
    are kept: the root is what stream addresses are built from, and the raw string is the only thing
    that can replay a sign-in where the "portal URL" was itself the ready-made playlist link. */
 function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,raw:S.rawUrl||S.url,user:S.user,pass:S.pass}))}
-function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.raw||c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalize(q):(store.getItem(TRANSCODER_KEY)||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
+function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.raw||c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalizeTranscoder(q):(normalizeTranscoder(store.getItem(TRANSCODER_KEY)||'')||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
    media26-transcoder-*.onrender.com — including services that are alive and current — so a URL
    typed into Stream Tools by hand was silently erased on the next load and there was no way to
    point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;/* v19.27: A PINNED PREVIEW DEPLOYMENT IS A TIME BOMB. Opening a commit- or branch-preview URL
@@ -2036,7 +2053,7 @@ function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('u
    goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
    a worker build frozen at whatever that commit was, until the preview is reaped and it 404s
    forever. A workers.dev transcoder is always meant to be this app's OWN origin, so any other
-   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
+   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
@@ -3801,7 +3818,7 @@ function xtreamForms(raw,type){
 }
 function playableUrl(u,type){return blocked(u)?proxyUrl(u):u}
 function proxiedMediaUrl(u){return proxyUrl(u)}
-function transcoderBase(){try{return normalize($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
+function transcoderBase(){try{return normalizeTranscoder($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
 function transcoderToken(){try{return ($('transcoderToken')?.value||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
 /* v15.6: no source URL, no transcode request. Without this an unbuildable stream link turned into
    a valid-looking /hls?url= call that made ffmpeg spend the full 50s cold-start budget failing on
@@ -3811,10 +3828,10 @@ function transcodeUrl(u,profile='mobile'){if(!u)return'';const base=transcoderBa
    directly — but our Cloudflare proxy's IP IS allowed (direct movies play through it). So feed the
    transcoder the stream THROUGH that proxy: Render fetches Cloudflare, Cloudflare fetches the
    provider. This is what makes MKV/HEVC (and IP-blocked live) actually transcode. */
-/* v19.67: except for bare-IP streams. Cloudflare Workers cannot fetch literal-IP URLs, so sending
-   Render to this app's /proxy simply makes Cloudflare return 1003 before Render ever reaches the
-   stream. Render itself can fetch these URLs, so give FFmpeg the raw address. */
-function transcoderInput(x){try{const u=externalStreamUrl(x);if(!u)return '';if(isBareIpUrl(u))return u;return (typeof PROXY==='string'&&/^https?:\/\//i.test(PROXY))?PROXY+encodeURIComponent(u):u;}catch(e){return externalStreamUrl(x);}}
+/* v19.72: Stalker/MAG transcodes must use the same authenticated relay as Player 1's preview
+   candidates. A raw ffmpeg input drops the registered MAC/token identity before the media fetch,
+   so the helper can sit there forever waiting on a stream it did not ask for as the STB device. */
+function transcoderInput(x){try{const u=externalStreamUrl(x);if(!u)return '';if(x&&x._stalkerCmd){const sr=streamRelayUrl(u,x);if(sr)return sr;}if(isBareIpUrl(u))return u;return (typeof PROXY==='string'&&/^https?:\/\//i.test(PROXY))?PROXY+encodeURIComponent(u):u;}catch(e){return externalStreamUrl(x);}}
 /* v55: warm up the transcoder. It runs on a free host that goes to sleep after inactivity and
    takes 30-60s to cold-start on the next request — that cold start was the big "movies/series
    take too long to open" delay, because MKV/HEVC titles (which browsers can't decode) MUST go
@@ -4457,6 +4474,12 @@ async function playItemBasic(x){
   /* A MAG/Stalker title is a portal command, not a URL — exchange it for a real link first. */
   if(x&&x._stalkerCmd)await stalkerResolve(x);
   if(_playTok!==S.playAttempt)return;   /* a later tap already won while this one was resolving */
+  /* v19.74: rebuild Player 1 around the simpler exact-stream engine instead of M26Player2's
+     catalogue/probe machine. This playlist is live TS/HLS, not an MKV-first library; the old
+     engine already knows how to try the selected channel's authenticated MAG relay, HLS/TS, and
+     then the transcoder in one-at-a-time order. */
+  await playItemPreview(x);
+  return;
   cleanup();
   const v=$('video'),live=typeOf(x)==='live',thumb=logoOf(x);
   $('extActions').classList.add('hidden');
@@ -4538,7 +4561,8 @@ function plan(x){
   /* v20: dedupe by kind+url (was url only, which silently dropped legitimate fallbacks that
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
-  const addTrans=(label,url,front=false)=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(url,profile);if(t)add('hls',label+' Transcoded',t,front)};
+  const transcodeInput=(url)=>{try{return x&&x._stalkerCmd?(streamRelayUrl(url,x)||url):url}catch(e){return url}};
+  const addTrans=(label,url,front=false)=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(transcodeInput(url),profile);if(t)add('hls',label+' Transcoded',t,front)};
   /* A live item can already carry a resolved playable URL instead of an Xtream stream_id — M3U
      playlist entries always do (parsed straight off the .m3u), and Stalker/MAG channels do once
      stalkerResolve() has exchanged their one-shot "cmd" for a real link. Xtream's own directUrl()
@@ -4569,6 +4593,7 @@ function plan(x){
        already works for it. */
     let magRelay='';
     try{ if(x._stalkerCmd) magRelay=streamRelayUrl(raw,x); }catch(e){}
+    if(x&&x._stalkerCmd&&transcoderBase())addTrans('Live',raw,true);
     if(magRelay){
       if(isM3u8){add('hls','Stream Relay',magRelay);if(tsOk)add('mpegts','Stream Relay TS',magRelay);}
       else{if(tsOk)add('mpegts','Stream Relay TS',magRelay);add('hls','Stream Relay',magRelay);}
@@ -4835,7 +4860,7 @@ async function tryPlans(plans,i){
   v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
   const attachAt=Date.now();
   const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null};
-  const startBudget=transcoded?35000:20000;
+  const startBudget=transcoded?130000:20000;
   const bufEnd=()=>{try{return v.buffered.length?v.buffered.end(v.buffered.length-1):0}catch(e){return 0}};
   const overlay=(state,title,text,spin)=>{if(E.overlayState===state)return;E.overlayState=state;$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.toggle('hidden',!spin);$('stateTitle').textContent=title;$('stateText').textContent=text};
   const showPlaying=()=>{if(E.overlayState==='playing'&&E.shownMuted===v.muted)return;E.overlayState='playing';E.shownMuted=v.muted;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
@@ -7256,7 +7281,7 @@ if($('catList'))$('catList').addEventListener('click',e=>{
    every automatic reconnect until Login is tapped. */
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();setSignedOut(true);$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>backToCategories();$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
-$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current)tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(nativeAppUrl(S.current))}],0)};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Player 1 ready — MKV plays here in the app':'⚠️ Player 1 '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
+$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Player 1 ready — MKV plays here in the app':'⚠️ Player 1 '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
    toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
    always shows the muted icon the user can tap to turn sound on. */
