@@ -209,7 +209,10 @@
     }
 
     var direct = String(D.streamUrlOf(item) || '').trim();
-    var forms  = direct ? D.xtreamForms(direct) : null;
+    /* v19.67: tell xtreamForms which section this item belongs to. Extensionless playlist links
+       carry only /user/pass/id, so omitting the type rewrites Movies/Series as /live/... siblings. */
+    var itemType = live ? 'live' : String((item && item._type) || '').toLowerCase();
+    var forms  = (direct && D.xtreamForms) ? D.xtreamForms(direct, itemType) : null;
     var cont   = String(item.container_extension || '').replace(/^\./, '').toLowerCase();
 
     if (live) {
