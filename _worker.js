@@ -85,9 +85,9 @@ function looksLikeM3u8(target, upstream) {
   if (/mpegurl|m3u8/.test(ct)) return true;
   return /\.m3u8(?:$|\?)/i.test(target.pathname + target.search);
 }
-function rewriteM3u8(text, baseUrl, selfOrigin) {
+function rewriteM3u8(text, baseUrl, selfOrigin, relaySuffix) {
   const prox = u => {
-    try { return selfOrigin + '/proxy?url=' + encodeURIComponent(new URL(u, baseUrl).href); }
+    try { return selfOrigin + '/proxy?url=' + encodeURIComponent(new URL(u, baseUrl).href) + (relaySuffix || ''); }
     catch { return u; }
   };
   return text.split(/\r?\n/).map(line => {
@@ -184,7 +184,12 @@ async function handleProxy(request) {
       responseHeaders.set('content-type', 'application/vnd.apple.mpegurl');
       responseHeaders.set('cache-control', 'no-store');
       const origin = new URL(request.url).origin;
-      return new Response(rewriteM3u8(text, upstream.url || target.href, origin), {
+      const mac = qs.get('mac') || '';
+      const token = (qs.get('token') || '').trim();
+      const relaySuffix = (qs.get('stb') === '1' && /^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(mac))
+        ? '&stb=1&mac=' + encodeURIComponent(mac.toUpperCase()) + (token && /^[\w.\-]{1,256}$/.test(token) ? '&token=' + encodeURIComponent(token) : '') + (uaMode === 'browser' ? '&ua=browser' : '')
+        : (uaMode === 'browser' ? '&ua=browser' : '');
+      return new Response(rewriteM3u8(text, upstream.url || target.href, origin, relaySuffix), {
         status: upstream.status,
         headers: responseHeaders
       });

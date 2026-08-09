@@ -192,20 +192,22 @@
        It is a plain relay, not a re-encode: same bytes, different egress IP. Nothing about the MAC,
        the handshake or the token is involved — this is purely which address the video is fetched
        from once the portal has already issued the link. */
-    function magRelay(url) {
+    function streamRelay(url) {
       if (!url || !D.streamRelayUrl) return '';
-      try { return D.streamRelayUrl(url) || ''; } catch (e) { return ''; }
+      try { return D.streamRelayUrl(url, item) || ''; } catch (e) { return ''; }
     }
-    var useMagRelay = !!(D.isMag && D.isMag(item));
+    var useStreamRelayFirst = !!(D.isMag && D.isMag(item));
+    function addStreamRelay(url, label) {
+      var sr = streamRelay(url);
+      if (sr) add(sr, { label: label + ' via stream relay', claim: formatFromUrl(url) });
+    }
     function addPair(url, label) {
       if (!url) return;
-      if (useMagRelay) {
-        var mr = magRelay(url);
-        if (mr) add(mr, { label: label + ' via stream relay', claim: formatFromUrl(url) });
-      }
+      if (useStreamRelayFirst) addStreamRelay(url, label);
       if (!D.blocked(url)) add(url, { label: label });
       var relay = D.proxyUrl(url);
       if (relay) add(relay, { label: label + ' via relay', claim: formatFromUrl(url) });
+      if (!useStreamRelayFirst) addStreamRelay(url, label);
     }
 
     var direct = String(D.streamUrlOf(item) || '').trim();

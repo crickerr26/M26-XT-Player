@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.5';
+const SERVER_BUILD = '13.6';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -668,12 +668,13 @@ function relayFetch(target, req, res, hops) {
      count of how many were made. This server runs on ordinary hosting with entirely different
      IPs, so the same handshake through here is simply a different visitor. */
   let stbMac = '';
+  let stbToken = '';
   try {
     const q = new URL(req.url, 'http://x').searchParams;
     if (q.get('stb') === '1') {
       const m = q.get('mac') || '';
       if (/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/.test(m)) stbMac = m.toUpperCase();
-      const tok = (q.get('token') || '').trim();
+      stbToken = (q.get('token') || '').trim();
       if (stbMac) {
         /* v13.3 (server build): kept in step with _worker.js. On the `ua=browser` pass this relay
            must look like a browser all the way down — the MAG User-Agent AND the MAG model header
@@ -689,7 +690,7 @@ function relayFetch(target, req, res, hops) {
         headers.cookie = 'mac=' + stbMac + '; stb_lang=en; timezone=UTC';
         /* Ministra checks the Referer on some builds — a box always arrives from its own /c/ UI. */
         headers.referer = t.protocol + '//' + t.host + '/c/';
-        if (tok && /^[\w.\-]{1,256}$/.test(tok)) headers.authorization = 'Bearer ' + tok;
+        if (stbToken && /^[\w.\-]{1,256}$/.test(stbToken)) headers.authorization = 'Bearer ' + stbToken;
       }
     }
   } catch (e) {}
@@ -753,7 +754,14 @@ function relayFetch(target, req, res, hops) {
         let text = Buffer.concat(chunks).toString('utf8');
         if (/#EXTM3U/.test(text)) {
           const self = relayBaseUrl(req);
-          const prox = u => { try { return self + '/proxy?url=' + encodeURIComponent(new URL(u, t.href).href); } catch (e) { return u; } };
+          const magRelay = stbMac
+            ? '&stb=1&mac=' + encodeURIComponent(stbMac) + (stbToken ? '&token=' + encodeURIComponent(stbToken) : '')
+            : '';
+          const uaRelay = uaMode === 'browser' ? '&ua=browser' : '';
+          const prox = u => {
+            try { return self + '/proxy?url=' + encodeURIComponent(new URL(u, t.href).href) + magRelay + uaRelay; }
+            catch (e) { return u; }
+          };
           text = text.split(/\r?\n/).map(line => {
             const s = line.trim();
             if (!s) return line;
