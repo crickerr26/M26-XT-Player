@@ -640,8 +640,11 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .extActions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
 .extActions .pillbtn{height:38px;font-size:13px}
 .field select{width:100%;height:44px;border-radius:13px;background:#edf4fb;color:#132033;border:1px solid #d9e5f2;padding:0 10px;outline:0;font:inherit}
-.playerModes{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
-body.noSeries .playerModes{grid-template-columns:1fr}
+/* v19.64: three categories now (Live/Movies/Series), so the grid fits three and falls back to two
+   when a playlist has no Series tab. */
+.playerModes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
+@media(max-width:520px){.playerModes{grid-template-columns:1fr}}
 .playerModes .pm{min-width:0}
 .playerModes .pm span{display:block;font-size:10px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:5px;text-transform:uppercase}
 /* --- v22: PWA install popup --- */
@@ -1395,7 +1398,12 @@ body.noSeries .playerModes{grid-template-columns:1fr}
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><div class="playerModes"><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"><option value="auto">Auto (Player 1)</option><option value="vlc">KMPlayer</option></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"><option value="auto">Auto (Player 1)</option><option value="vlc">KMPlayer</option></select></div></div><p class="nativeText" style="margin-top:6px">Auto plays every category in Player 1, the built-in engine. Pick KMPlayer to force Movies or Series to open there instead. Live TV always plays in Player 1 — KMPlayer drops live channels mid-view, so it's a per-row button there instead of a category default. The per-row KMPlayer button next to any title launches it there on demand.</p></div><div class="field nativeField"><label>Player 1 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in Player 1. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><!-- v19.64 (owner request: "all the videos should play on the inbuilt and external players
+     according to the user preference"): ALL THREE categories choose, and the choices are built
+     from the PLAYERS registry at runtime rather than hard-coded here. Two bugs died with the old
+     markup: the options were written by hand and still said "KMPlayer" for the value 'vlc' after
+     v19.63 split those into separate players, and Live TV had no selector at all. -->
+<div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"></select></div></div><p class="nativeText" style="margin-top:6px" id="playerModeHint">Choose which player each category opens in. <b>Player 1</b> is the built-in engine and plays inside the app. The others hand the stream to that app on this device. Whatever you pick here is what a tap on the title does — the per-row buttons still launch any player on demand, for one title, without changing this.</p><p class="nativeText" style="margin-top:6px;opacity:.75" id="playerModeLiveNote">On Live TV an external player is your choice to make, but be aware some of them drop live channels after a while; Player 1 is the steadier option there.</p></div><div class="field nativeField"><label>Player 1 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in Player 1. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -1651,7 +1659,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.63.1';
+const APP_VERSION='19.64.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4658,10 +4666,16 @@ async function playItem(item,fromAlternative=false){
      setting in Stream Tools can send Movies/Series to VLC instead — Live TV never defaults to
      VLC (it drops live channels mid-view), so Live always plays here regardless of that setting.
      To open VLC for one live channel anyway, use the per-row button. */
+  /* v19.64: the category's chosen player, whatever it is, including on Live TV (owner request:
+     "all the videos should play on the inbuilt and external players according to the user
+     preference"). The old code resolved a two-value setting and then silently forced Live back to
+     the built-in player, so a customer who picked an external player for Live watched the app
+     ignore them with nothing on screen to say why. The caveat about external players dropping
+     live channels is now stated in Stream Tools instead of being enforced behind their back.
+     playerModeFor() still refuses a player this device cannot run, which is the one override
+     worth keeping — it fails closed onto Player 1 rather than launching nothing. */
   const t=typeOf(x);
-  const pm=(S.playerModes&&S.playerModes[t])||'auto';
-  let mode=(pm==='vlc')?'vlc':'basic';
-  if(t==='live'&&mode==='vlc')mode='basic';
+  const mode=playerModeFor(t);
   await routePlayback(x,mode,fromAlternative?true:false);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the row/episode
@@ -7542,7 +7556,9 @@ if($('conflictClose'))$('conflictClose').onclick=function(){$('conflictModal').c
    the current channel HERE (on a 1-connection line, the newest connection claims the slot and
    the provider drops the other device). Skips the chooser so it resumes in the same player. */
 if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').classList.remove('show');$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Taking over';$('stateText').textContent='Logging out the other device and reconnecting here...';resumeCurrent()};
-if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes.vod='auto';S.playerModes.series='auto';try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}['modeVod','modeSeries'].forEach(id=>{const s=$(id);if(s)s.value='auto'});$('nativeSheet').classList.remove('show');toast('Movies and Series reset to Auto (Player 1)')};
+/* v19.64: resets all three categories, Live included, and re-reads the selects from the registry
+   so the reset leaves the UI showing what was actually stored. */
+if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes.live='auto';S.playerModes.vod='auto';S.playerModes.series='auto';try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}try{initPlayerModeSelects()}catch(e){}$('nativeSheet').classList.remove('show');toast('Every category reset to '+playerLabel('basic'))};
 /* v19.44: date/time on the category ("What do you want to watch?") screen head, ticking once a
    minute — a second timer would repaint 60x more often than the display can even show. */
 (function(){
@@ -7640,11 +7656,37 @@ maybeStartActivationWatch();
 /* v19.8: init the Movies/Series player selects after restore() has loaded saved modes. There is
    no Live TV select any more — Live never defaults to VLC (see playItem()), so a selector with
    one meaningful choice would be pointless there; VLC on a live channel is a per-row tap only. */
-[['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{const el=$(id);if(!el)return;
-  const saved=(S.playerModes[t]==='vlc')?'vlc':'auto';
-  el.value=el.querySelector('option[value="'+saved+'"]')?saved:'auto';
-  el.onchange=()=>{S.playerModes[t]=el.value;try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}toast('Player for '+(t==='vod'?VOD_LABEL:'Series')+' updated')};
-});
+/* ── v19.64: ONE SELECTOR PER CATEGORY, BUILT FROM THE REGISTRY ──────────────────────────────
+   The options are generated from PLAYERS filtered by what this device can actually run, so the
+   list can never drift from the registry again — the hand-written markup this replaces still
+   offered a single option labelled "KMPlayer" whose value was 'vlc', which after v19.63 split
+   those into two players meant the label and the launcher disagreed.
+   Live TV gets a selector too (owner request). It used to be excluded on the grounds that an
+   external player drops live channels; that is a caveat worth stating, which the sheet now does
+   in words, not a reason to refuse the choice. */
+function playerModeFor(t){
+  const raw=String((S.playerModes&&S.playerModes[t])||'auto');
+  /* 'auto' is the historical value for "the built-in player" and is still what a reset writes. */
+  if(raw==='auto'||raw==='browser'||raw==='basic')return 'basic';
+  /* Only honour a player that exists AND runs here — a preference saved on a phone must not
+     leave a desktop trying to launch something with no desktop target. */
+  return playerRuns(raw,deviceKind())?raw:'basic';
+}
+function initPlayerModeSelects(){
+  const runnable=playersFor(deviceKind());
+  [['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{
+    const el=$(id);if(!el)return;
+    el.innerHTML=runnable.map(m=>'<option value="'+m+'">'+(m==='basic'?(PLAYERS[m].label+' (in the app)'):PLAYERS[m].label)+'</option>').join('');
+    el.value=playerModeFor(t);
+    el.onchange=()=>{
+      S.playerModes[t]=el.value;
+      try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}
+      const label=(t==='live'?'Live TV':(t==='vod'?VOD_LABEL:'Series'));
+      toast(label+' will open in '+playerLabel(el.value));
+    };
+  });
+}
+initPlayerModeSelects();
 </script>
 <!-- v22: PWA install layer — asks to save Media26 to the phone with its own icon -->
 <div class="a2hs" id="a2hs">
