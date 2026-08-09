@@ -1,3 +1,4 @@
+
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -8,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.4';
+const SERVER_BUILD = '13.5';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -23,7 +24,9 @@ const WATERMARK = process.env.WATERMARK_PATH || path.join(__dirname, 'image_482e
 const HAS_WATERMARK = (() => { try { return fs.existsSync(WATERMARK); } catch { return false; } })();
 const WM_OPACITY = process.env.WATERMARK_OPACITY || '0.5';
 function reencodesVideo(profile) { return profile !== 'audio' && profile !== 'copy' && profile !== 'remux' && profile !== 'fastvod'; }
-const SESSION_TTL_MS = Number(process.env.SESSION_TTL_MS || 30 * 60 * 1000);
+/* v19.63: the session idle window moved down to IDLE_TTL_MS, next to cleanup() where it is used —
+   two constants for one thing is how a 30-minute leak survived being read. The SESSION_TTL_MS env
+   var still works and still overrides it. */
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN || '';
 
@@ -114,8 +117,17 @@ function normalizeCode(raw) {
    to provision: the admin had nothing to type in the field and the request was rejected. Records
    written before this have no `kind`, so it is inferred from whether a username was stored, and an
    old dashboard that sends no `kind` keeps behaving exactly as it did. */
+/* v19.63: a THIRD kind, 'm3uurl' — "the URL field already IS a complete M3U playlist link", so the
+   app fetches it directly and never attempts a MAG handshake for it. It is deliberately a NEW name
+   rather than a reuse of 'm3u': 'm3u' has meant MAC-only/Stalker in this store since v13.0 and
+   there are live records written that way, so redefining it would silently turn every MAC-bound
+   customer into a playlist customer overnight. Every value that normalized to something before
+   still normalizes to exactly the same thing. */
 function normalizeKind(raw, user) {
-  const k = String(raw || '').trim().toLowerCase();
+  /* Punctuation is stripped so 'm3u_url' / 'm3u-url' / 'M3U URL' all land on one value — the two
+     dashboards and the app each spell it slightly differently. */
+  const k = String(raw || '').trim().toLowerCase().replace(/[\s_-]/g, '');
+  if (k === 'm3uurl' || k === 'm3ulink' || k === 'playlist') return 'm3uurl';
   if (k === 'm3u' || k === 'mac' || k === 'stalker' || k === 'mag') return 'm3u';
   if (k === 'xtream' || k === 'xtreme') return 'xtream';
   return String(user || '').trim() ? 'xtream' : 'm3u';
@@ -123,9 +135,18 @@ function normalizeKind(raw, user) {
 /* One validator for both write paths, so activate and create can never disagree about what a
    usable line looks like. Returns an error string, or '' when the line is fine. */
 function validateLine(url, user, kind) {
-  if (!String(url || '').trim()) return 'Portal URL is required.';
-  if (kind !== 'm3u' && !String(user || '').trim()) {
+  const u = String(url || '').trim();
+  if (!u) return 'Portal URL is required.';
+  /* Only the username/password kind carries a username. Neither a MAC-bound line nor a ready-made
+     playlist link has one, and demanding it made both impossible to provision. */
+  if (kind !== 'm3u' && kind !== 'm3uurl' && !String(user || '').trim()) {
     return 'Username is required for a username/password line. For a MAC-only line choose that type — it signs in by MAC and has no username.';
+  }
+  /* A playlist line is only useful if the stored value is fetchable as-is. A bare host typed into
+     this kind by mistake fails much later, on the customer's device, as an unexplained empty
+     playlist — so it is rejected here, where the seller can still see and fix it. */
+  if (kind === 'm3uurl' && !/^https?:\/\//i.test(u)) {
+    return 'An M3U playlist line needs the full playlist link, starting with http:// or https://.';
   }
   return '';
 }
@@ -521,16 +542,58 @@ async function waitForFile(file, ms = 8000) {
   return false;
 }
  
+/* ── v19.63 (server 13.5): AN ABANDONED TRANSCODE IS A STOLEN CONNECTION SLOT ────────────────
+   Every session here is a live ffmpeg process pulling from the CUSTOMER'S OWN IPTV line, and an
+   IPTV line permits a small number of simultaneous connections — often one or two. Nothing ended
+   a session when the viewer stopped watching or changed channel: the only exit was the idle
+   sweep, and SESSION_TTL_MS defaulted to THIRTY MINUTES. So a couple of taps could leave several
+   ffmpeg processes each holding a slot on the line for half an hour, and the provider's streamer
+   then correctly refused the next request:
+     403 — "Streamer protection system doesn't allow you to watch this content."
+   Measured on the live service: 7 sessions held, flat across a 3-minute poll, while every fresh
+   create_link came back with a valid URL that could not be opened. Nothing upstream was blocking
+   the account — the account's own allowance was being consumed by our leftovers, and every retry
+   made it worse by starting one more.
+   Three changes, all pulling the same way:
+     1. IDLE_TTL — an HLS player re-reads the playlist every few seconds, so silence for 45s means
+        the viewer has gone. 30 minutes was never a viewer, it was a leak.
+     2. MAX_SESSIONS — a hard ceiling. Over it, the least-recently-used session is ended first, so
+        the newest viewer is served instead of everyone being starved by stale ones.
+     3. endSession() — one path for stopping a session, so a slot is always released the same way.
+   SESSION_TTL_MS still overrides the default for anyone who deliberately wants longer. */
+const IDLE_TTL_MS = Number(process.env.SESSION_TTL_MS || 45 * 1000);
+const MAX_SESSIONS = Number(process.env.MAX_SESSIONS || 4);
+function endSession(id, why) {
+  const session = sessions.get(id);
+  if (!session) return false;
+  try { if (session.child && !session.exited) session.child.kill('SIGTERM'); } catch (e) {}
+  try { fs.rmSync(session.dir, { recursive: true, force: true }); } catch (e) {}
+  sessions.delete(id);
+  if (why) console.log('[session] ended ' + id + ' (' + why + ')');
+  return true;
+}
 function cleanup() {
   const now = Date.now();
   for (const [id, session] of sessions) {
-    if (now - session.lastAccess < SESSION_TTL_MS) continue;
-    if (session.child && !session.exited) session.child.kill('SIGTERM');
-    fs.rmSync(session.dir, { recursive: true, force: true });
-    sessions.delete(id);
+    if (now - session.lastAccess >= IDLE_TTL_MS) endSession(id, 'idle');
+  }
+  /* Still over the ceiling after the idle sweep: end the stalest first. */
+  if (sessions.size > MAX_SESSIONS) {
+    const byAge = Array.from(sessions.entries()).sort((a, b) => a[1].lastAccess - b[1].lastAccess);
+    for (const [id] of byAge.slice(0, sessions.size - MAX_SESSIONS)) endSession(id, 'over capacity');
   }
 }
-setInterval(cleanup, 60 * 1000).unref();
+/* Ten seconds, not sixty: with a 45s idle window a minute-long sweep interval means a slot can sit
+   held for nearly two minutes after the viewer left — long enough to refuse their next channel. */
+setInterval(cleanup, 10 * 1000).unref();
+/* Release every slot on shutdown. Render restarts the service on each deploy, and without this the
+   ffmpeg children could outlive the parent and keep the line saturated with no way to reach them. */
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, () => {
+    for (const [id] of sessions) endSession(id, 'shutdown');
+    process.exit(0);
+  });
+}
  
 function parseJsonBody(req) {
   return new Promise((resolve, reject) => {
@@ -825,6 +888,32 @@ const server = http.createServer(async (req, res) => {
         return json(res, 200, { status: lic.status || 'pending' });
       }
 
+      /* CUSTOMER: "Clear registered users" on the sign-in screen. Empties the device list for the
+         caller's OWN code and re-registers the calling device in the same write, so the customer
+         ends up as the only device on their line rather than locked out of it entirely.
+         This is deliberately its own route instead of the app calling /api/admin/update: that route
+         can rewrite, block or bulk-delete ANY code in the store, and a button on the customer's
+         sign-in screen must never need that much reach. Keeping them separate also means putting
+         the admin routes behind a key later does not break this button. */
+      if (u.pathname === '/api/devices/reset') {
+        const body = await parseJsonBody(req);
+        const code = normalizeCode(body.code);
+        const deviceId = String(body.deviceId || '').trim().slice(0, 80);
+        if (!code || !deviceId) return json(res, 400, { error: 'A valid 8-digit code (or MAC address) and device are required.' });
+        const lic = await licGet(code);
+        if (!lic) return json(res, 404, { error: 'This code is not registered yet.' });
+        const had = (lic.devices || []).length;
+        lic.devices = [deviceId];
+        /* Same reasoning as op='reset-devices': a DEVICE_LIMIT block exists *because* the list was
+           full, so emptying it is the remedy. A seller's manual block has no blockedAt and stays. */
+        if (lic.status === 'blocked' && lic.blockedAt) {
+          lic.status = lic.url ? 'active' : 'pending';
+          delete lic.blockedAt;
+        }
+        await licSet(code, lic);
+        return json(res, 200, { ok: true, cleared: had, devices: 1, deviceLimit: DEVICE_LIMIT, status: lic.status });
+      }
+
       // ADMIN: activate a code — bind the IPTV credentials you created to the customer's 8-digit code
       // or MAC-address device ID (accepts either — see normalizeCode).
       if (u.pathname === '/api/admin/activate') {
@@ -918,7 +1007,9 @@ const server = http.createServer(async (req, res) => {
           /* An empty password field means "leave it alone" — /api/admin/list never returns the
              stored password, so the dashboard cannot pre-fill it and a blank box must not wipe it. */
           if (body.pass != null && String(body.pass).trim() !== '') lic.pass = String(body.pass).trim();
-          if (kind === 'm3u') lic.pass = '';
+          /* Neither of the passwordless kinds should keep a password left over from a line that
+             used to be username/password — it would be handed back to the app on every activate. */
+          if (kind === 'm3u' || kind === 'm3uurl') lic.pass = '';
           if (body.days != null && String(body.days) !== '') {
             const days = Number(body.days || 0);
             lic.expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
@@ -929,9 +1020,23 @@ const server = http.createServer(async (req, res) => {
           return json(res, 200, { ok: true, status: lic.status, kind: lic.kind, devices: (lic.devices || []).length });
         }
 
-        if (op === 'block') lic.status = 'blocked';
-        else if (op === 'unblock') lic.status = lic.url ? 'active' : 'pending';
-        else if (op === 'reset-devices') lic.devices = [];
+        if (op === 'block') { lic.status = 'blocked'; delete lic.blockedAt; }
+        else if (op === 'unblock') { lic.status = lic.url ? 'active' : 'pending'; delete lic.blockedAt; }
+        else if (op === 'reset-devices') {
+          lic.devices = [];
+          /* v19.63: clearing the devices now LIFTS a device-limit block. Emptying the list while
+             leaving status='blocked' made this operation look like it had done nothing: the
+             customer's app polls /api/activate seconds later, is told 'blocked' again, and the
+             seller repeats the reset. Being full of devices is the entire reason the limit block
+             exists, so removing them is its remedy.
+             A code the seller blocked BY HAND (op='block') stays blocked — only 'unblock' undoes
+             that. blockedAt is what tells the two apart: the DEVICE_LIMIT path in /api/activate
+             stamps it, the manual path above deliberately clears it. */
+          if (lic.status === 'blocked' && lic.blockedAt) {
+            lic.status = lic.url ? 'active' : 'pending';
+            delete lic.blockedAt;
+          }
+        }
         else return json(res, 400, { error: 'Unknown operation.' });
         await licSet(code, lic);
         return json(res, 200, { ok: true, status: lic.status, devices: (lic.devices || []).length });
@@ -961,7 +1066,13 @@ const server = http.createServer(async (req, res) => {
     if (u.pathname === '/health') {
       /* Report capabilities so the app can tell a CURRENT server (fast copy-mode MKV) from an old
          one. 'fastvod' is the quick copy-video profile; its presence here means MKV plays fast. */
-      return json(res, 200, { ok: true, sessions: sessions.size, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'hd1080', 'hd720', 'vod', 'remux', 'copy', 'audio'], activation: LICENSING_ENABLED });
+      /* `kinds` lets the two dashboards tell a server that understands the 'm3uurl' line type from
+         one still on an older deploy — otherwise picking "M3U Playlist" would store a line that
+         silently normalizes back to MAC-only and never signs anybody in. */
+      /* idleTtlMs/maxSessions are reported so it is possible to tell, from outside, whether the
+         running service actually has the v19.63 session reaping — a stuck `sessions` count with a
+         30-minute window is the signature of the connection-slot leak. */
+      return json(res, 200, { ok: true, sessions: sessions.size, idleTtlMs: IDLE_TTL_MS, maxSessions: MAX_SESSIONS, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'hd1080', 'hd720', 'vod', 'remux', 'copy', 'audio'], kinds: ['xtream', 'm3uurl', 'm3u'], activation: LICENSING_ENABLED });
     }
 
     // Same-origin CORS relay: /proxy?url=<encoded target>. index.html tries this
@@ -1106,3 +1217,4 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Smarter IPTV transcoder listening on ${PORT}`);
 });
+ 
