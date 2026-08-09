@@ -1659,7 +1659,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.77.0';
+const APP_VERSION='19.78.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1923,7 +1923,7 @@ function proxyUrl(u){
    sending only /proxy?url= for the actual video request. Some portals then accepted the
    create_link call and refused the media fetch because the MAC identity disappeared between the
    portal and the stream node. */
-function streamRelayUrl(u,x){
+function streamRelayUrl(u,x,uaMode){
   if(!u)return '';
   const rb=relayBase();if(!rb)return '';
   let out=rb+'/proxy?url='+encodeURIComponent(u);
@@ -1934,6 +1934,7 @@ function streamRelayUrl(u,x){
       if(mac)out+='&stb=1&mac='+encodeURIComponent(mac)+(tok?'&token='+encodeURIComponent(tok):'');
     }
   }catch(e){}
+  if(uaMode==='browser')out+='&ua=browser';
   return out;
 }
 /* v16.9: guard the shared HLS relay the same way proxyUrl() guards itself. Concatenating an empty
@@ -4561,8 +4562,8 @@ function plan(x){
   /* v20: dedupe by kind+url (was url only, which silently dropped legitimate fallbacks that
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
-  const transcodeInput=(url)=>{try{return x&&x._stalkerCmd?(streamRelayUrl(url,x)||url):url}catch(e){return url}};
-  const addTrans=(label,url,front=false)=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(transcodeInput(url),profile);if(t)add('hls',label+' Transcoded',t,front)};
+  const transcodeInput=(url,uaMode)=>{try{return x&&x._stalkerCmd?(streamRelayUrl(url,x,uaMode)||url):url}catch(e){return url}};
+  const addTrans=(label,url,front=false,uaMode='')=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(transcodeInput(url,uaMode),profile);if(t)add('hls',label+' Transcoded',t,front)};
   /* A live item can already carry a resolved playable URL instead of an Xtream stream_id — M3U
      playlist entries always do (parsed straight off the .m3u), and Stalker/MAG channels do once
      stalkerResolve() has exchanged their one-shot "cmd" for a real link. Xtream's own directUrl()
@@ -4592,11 +4593,17 @@ function plan(x){
        transcoder is configured — an Xtream/M3U live link still leads with the direct proxy that
        already works for it. */
     let magRelay='';
+    let magBrowserRelay='';
     try{ if(x._stalkerCmd) magRelay=streamRelayUrl(raw,x); }catch(e){}
-    if(x&&x._stalkerCmd&&transcoderBase())addTrans('Live',raw,true);
+    try{ if(x._stalkerCmd) magBrowserRelay=streamRelayUrl(raw,x,'browser'); }catch(e){}
+    if(x&&x._stalkerCmd&&transcoderBase()){addTrans('Live Browser',raw,true,'browser');addTrans('Live',raw,true);}
     if(magRelay){
       if(isM3u8){add('hls','Stream Relay',magRelay);if(tsOk)add('mpegts','Stream Relay TS',magRelay);}
       else{if(tsOk)add('mpegts','Stream Relay TS',magRelay);add('hls','Stream Relay',magRelay);}
+    }
+    if(magBrowserRelay){
+      if(isM3u8){add('hls','Stream Relay Browser',magBrowserRelay);if(tsOk)add('mpegts','Stream Relay Browser TS',magBrowserRelay);}
+      else{if(tsOk)add('mpegts','Stream Relay Browser TS',magBrowserRelay);add('hls','Stream Relay Browser',magBrowserRelay);}
     }
     if(isM3u8){add('hls','Direct HLS',durl);if(tsOk)add('mpegts','Direct TS',durl);}
     else{if(tsOk)add('mpegts','Direct TS',durl);add('hls','Direct HLS',durl);}
