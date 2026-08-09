@@ -1659,7 +1659,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.64.0';
+const APP_VERSION='19.65.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4115,24 +4115,96 @@ function showNativePopup(reason='This stream needs server transcoding for smooth
    button, so it never competes with playback for the connection slot. There is no account-status
    /expiry/connection-count check any more — that came from Xtream's player_api.php, which this
    build no longer calls. */
+/* ── v19.65: THE CONNECTION TEST REPORTS THE PANEL'S ACTUAL ANSWER ───────────────────────────
+   This test used to collapse the whole result into one boolean — `reached=!!(r&&r.ok)` — and then
+   GUESS at the reason in prose: "no response (the panel may be busy, or this connection slot may
+   already be in use)". A 403 "Streamer protection system doesn't allow you to watch this
+   content", an expired line's 401, a 404 on a dead channel, and a host that is simply unreachable
+   ALL printed that one sentence. The status code is the only thing that separates them, and the
+   only diagnostic a phone-only customer can run was throwing it away — so a line that is refusing
+   connections and an app-side bug were indistinguishable from the device where it matters.
+   It now prints the STATUS CODE, and when the panel answers with text instead of video, the first
+   line of what it said — a panel writes its refusal there in words.
+   Two routes are tested because a failure means a different thing on each:
+     · via relay — fetched server-side, so no browser CORS sits in the way. THIS is the
+                   trustworthy verdict on the line.
+     · direct    — from the browser. An Xtream panel sends no CORS headers, so a failure here is
+                   NORMAL and proves nothing; it is labelled as such rather than reported as a
+                   fault, which is the trap the old single-route test fell into.
+   Only the headers are needed, so the body is cancelled the moment it is clear it is video: on a
+   line that permits one connection, a diagnostic that holds a slot open is its own bug. The body
+   is read only when the answer is NOT video — i.e. exactly when it is an error message. */
+function doctorFetch(u,ms){
+  /* No custom headers: a Range header would make this a preflighted cross-origin request, and a
+     panel that fails the OPTIONS tells us nothing about the stream. Plain GET stays a "simple
+     request" and actually reaches the server. Timeout via race, not AbortSignal — see the note on
+     fetchWithTimeout: a signal cannot be cloned across some WebView fetch bridges. */
+  let t;
+  return Promise.race([
+    fetch(u,{cache:'no-store',mode:'cors'}),
+    new Promise((_,rej)=>{t=setTimeout(()=>rej(Object.assign(Error('timed out'),{name:'TimeoutError'})),ms)})
+  ]).finally(()=>clearTimeout(t));
+}
+async function doctorProbe(u){
+  const out={status:0,ok:false,note:'',ct:''};
+  try{
+    const r=await doctorFetch(u,15000);
+    out.status=r.status||0;
+    out.ok=!!(r.ok||r.status===206);
+    out.ct=String((r.headers&&r.headers.get&&r.headers.get('content-type'))||'').toLowerCase();
+    if(/video|mpegurl|mp2t|octet-stream|matroska/.test(out.ct)){
+      /* Real stream bytes — let go of the connection immediately rather than draining a film. */
+      try{r.body&&r.body.cancel&&r.body.cancel()}catch(e){}
+    }else{
+      try{
+        const txt=await r.text();
+        out.note=String(txt||'').replace(/<[^>]*>/g,' ').split(/\r?\n/).map(s=>s.trim()).filter(Boolean)[0]||'';
+        if(out.note.length>150)out.note=out.note.slice(0,150)+'…';
+      }catch(e){}
+    }
+  }catch(e){
+    out.note=(e&&e.name==='TimeoutError')?'timed out':((e&&e.message)||'blocked');
+  }
+  return out;
+}
+/* Turn the relay's status into the sentence that actually names the fault. The relay is used for
+   the verdict because it is the route with nothing in front of it. */
+function doctorVerdict(p){
+  if(p.ok)return '<b>The line is answering.</b> Your provider is serving this stream, so a playback failure is on the app side — not your provider.';
+  if(p.status===401||p.status===403||p.status===511)
+    return '<b>Your provider refused this stream (HTTP '+p.status+').</b> That is the panel saying no, not a slow app — usually the line is already streaming on another device (connection limit), has expired, or this content is not in the package.';
+  if(p.status===404)return '<b>This channel address is dead (HTTP 404).</b> The playlist lists it but the panel no longer serves it.';
+  if(p.status>=500)return '<b>The panel itself is erroring (HTTP '+p.status+').</b> That is their server, not this app — try again shortly.';
+  return '<b>The stream host could not be reached at all</b> ('+esc(p.note||'no response')+'). The panel answered the playlist but not the stream node.';
+}
 async function streamDoctor(){
   const lines=[];const put=()=>{$('nativeText').innerHTML=lines.join('<br>')};
   if(!S.url||!(S.user&&S.pass)&&!stalkerMac()){$('nativeText').textContent='Log in first, then run the test.';return}
-  lines.push('1. Playlist: testing...');put();
+  lines.push('1. Playlist: testing…');put();
   let ok=false;
   try{ok=await loadPlaylistSource()}catch(e){}
   lines[0]=ok?('1. Playlist: OK — '+S.m3u.total.toLocaleString()+' entries'):'1. Playlist: could not re-fetch just now — using what is already loaded';
   put();
-  if(S.live.length){
-    lines.push('2. Live stream: testing...');put();
-    const u=S.live[0].direct_source||'';
-    let reached=false;
-    if(u){try{const r=await fetchWithTimeout(proxyUrl(u)||u,15000);reached=!!(r&&r.ok)}catch(e){}}
-    lines[lines.length-1]=u
-      ?(reached?'2. Live stream test: OK — the panel answered the first channel’s stream address':'2. Live stream test: no response (the panel may be busy, or this connection slot may already be in use)')
-      :'2. Live stream test: no channel address to test';
-    put();
-  }
+
+  const target=(S.live&&S.live[0])||(S.vod&&S.vod[0])||null;
+  const u=target?String(target.direct_source||target.stream_url||'').trim():'';
+  if(!u){lines.push('2. Stream test: no stream address in the playlist to test');put();return}
+
+  lines.push('2. Testing “'+esc(nameOf(target))+'”…');put();
+  const relay=proxyUrl(u);
+  const viaRelay=await doctorProbe(relay||u);
+  lines[lines.length-1]='2. Stream test — “'+esc(nameOf(target))+'”';
+  lines.push('&nbsp;&nbsp;• via relay: '+(viaRelay.status?('HTTP '+viaRelay.status):'no response')
+    +(viaRelay.note?' — '+esc(viaRelay.note):'')+(viaRelay.ok&&viaRelay.ct?' ('+esc(viaRelay.ct)+')':''));
+  put();
+
+  const direct=await doctorProbe(u);
+  lines.push('&nbsp;&nbsp;• direct from this device: '+(direct.status?('HTTP '+direct.status):('blocked by the browser'+(direct.note?' ('+esc(direct.note)+')':'')))
+    +(direct.status?'':' — normal for a panel with no CORS headers, not a fault'));
+  put();
+
+  lines.push('3. '+doctorVerdict(viaRelay));
+  put();
 }
 function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live TV, Movies or Series and tap an item.');try{if(transcoderBase()){testTranscoder()}else{setTStatus('idle','No transcoder URL set')}}catch(e){}}
 function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pause, Rewind, Forward and the scrubber for live;
