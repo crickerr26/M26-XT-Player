@@ -1659,7 +1659,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.65.0';
+const APP_VERSION='19.66.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1868,13 +1868,36 @@ function isBareIpUrl(u){
     return /^\d{1,3}(\.\d{1,3}){3}$/.test(h)||h.indexOf(':')>=0;   /* IPv4, or a bracketed IPv6 */
   }catch(e){return false}
 }
+/* ── v19.66: THE BARE-IP RELAY NEEDS NO CONFIGURATION ────────────────────────────────────────
+   The comment directly above is the whole reason this branch exists: Cloudflare's fetch() REFUSES
+   a literal IP ("error code: 1003"), so the same-origin worker relay can never deliver a segment
+   for a bare-IP line however valid its token is. The branch then guarded the only route that CAN
+   work behind `if(tb)` — a transcoder URL the customer had TYPED IN — and when that field was
+   empty it fell through to `PROXY`, i.e. straight back to the Cloudflare relay it had just
+   established cannot serve this URL.
+   For a panel that hands out every link as a bare IP over http (measured: sw4u/redproibo-style
+   lines issue `http://198.144.x.x:8080/<hash>/index.m3u8?token=…` for Live, Movies AND Series),
+   that left an https-served app with exactly two candidates and both dead on arrival — the direct
+   address blocked as mixed content, and the relay answering 1003. Nothing played, in any
+   category, on any device, and the failure looked like a broken player rather than an unset
+   field most customers have never opened.
+   DEFAULT_TRANSCODER is this app's own `/transcoder` pass-through, which _worker.js forwards to
+   the Render service — ordinary hosting, ordinary IP, no 1003. licenseBase() has always fallen
+   back to it; this path simply never did. Now the typed value is preferred when present and the
+   built-in pass-through is used otherwise, so a bare-IP line plays out of the box.
+   Hostnames are untouched: they keep the faster, cheaper same-origin worker. */
+function relayBase(){
+  try{
+    const tb=(typeof transcoderBase==='function')&&transcoderBase();
+    if(tb)return String(tb).replace(/\/+$/,'');
+  }catch(e){}
+  return String(DEFAULT_TRANSCODER||'').replace(/\/+$/,'');
+}
 function proxyUrl(u){
   if(!u)return '';
   if(isBareIpUrl(u)){
-    try{
-      const tb=(typeof transcoderBase==='function')&&transcoderBase();
-      if(tb)return String(tb).replace(/\/+$/,'')+'/proxy?url='+encodeURIComponent(u);
-    }catch(e){}
+    const rb=relayBase();
+    if(rb)return rb+'/proxy?url='+encodeURIComponent(u);
   }
   return PROXY+encodeURIComponent(u);
 }
@@ -4302,10 +4325,13 @@ function configureInbuiltPlayer(){
        whether this title came from a Stalker portal, and the transcoder's plain pass-through
        relay address for it. See the note in m26player2.js catalog(). */
     isMag:x=>!!(x&&x._stalkerCmd),
+    /* v19.66: relayBase(), not transcoderBase() — a MAG stream node blocks Cloudflare exactly the
+       way a bare IP does, so this route must not depend on the customer having typed a transcoder
+       URL either. Same reasoning as proxyUrl(); see the note there. */
     streamRelayUrl:u=>{
       try{
-        const tb=(typeof transcoderBase==='function')&&transcoderBase();
-        return (tb&&u)?(tb.replace(/\/+$/,'')+'/proxy?url='+encodeURIComponent(u)):'';
+        const rb=relayBase();
+        return (rb&&u)?(rb+'/proxy?url='+encodeURIComponent(u)):'';
       }catch(e){return ''}
     },
     getResume:x=>(S.resume&&S.resume[keyOf(x)])||0,
@@ -4536,7 +4562,7 @@ function plan(x){
        transcoder is configured — an Xtream/M3U live link still leads with the direct proxy that
        already works for it. */
     let magRelay='';
-    try{ const tb=(typeof transcoderBase==='function')&&transcoderBase(); if(x._stalkerCmd&&tb) magRelay=tb.replace(/\/+$/,'')+'/proxy?url='+encodeURIComponent(raw); }catch(e){}
+    try{ const rb=relayBase(); if(x._stalkerCmd&&rb) magRelay=rb+'/proxy?url='+encodeURIComponent(raw); }catch(e){}
     if(magRelay){
       if(isM3u8){add('hls','Stream Relay',magRelay);if(tsOk)add('mpegts','Stream Relay TS',magRelay);}
       else{if(tsOk)add('mpegts','Stream Relay TS',magRelay);add('hls','Stream Relay',magRelay);}
@@ -4573,7 +4599,7 @@ function plan(x){
     const isM3u8=/\.m3u8(?:$|\?)/i.test(raw);
     /* v16.6: MAG VOD nodes block Cloudflare exactly like live — relay through the transcoder first. */
     let magRelay='';
-    try{ const tb=(typeof transcoderBase==='function')&&transcoderBase(); if(tb) magRelay=tb.replace(/\/+$/,'')+'/proxy?url='+encodeURIComponent(raw); }catch(e){}
+    try{ const rb=relayBase(); if(rb) magRelay=rb+'/proxy?url='+encodeURIComponent(raw); }catch(e){}
     if(magRelay)add(isM3u8?'hls':'native','Stream Relay',magRelay);
     add(isM3u8?'hls':'native','Direct',durl);
     /* a cross-origin non-HLS file also needs the CORS relay for the browser to read it */
