@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.8';
+const SERVER_BUILD = '13.9';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -738,6 +738,16 @@ function relayFetch(target, req, res, hops) {
       try { next = new URL(loc, t).href; } catch (e) {}
       if (next) return relayFetch(next, req, res, hops + 1);
       return json(res, 502, { error: 'Bad redirect from upstream' });
+    }
+    if ((up.statusCode === 401 || up.statusCode === 403) && stbMac && uaMode !== 'browser' && hops < 5) {
+      up.resume();
+      let retryUrl = req.url;
+      try {
+        const rq = new URL(req.url, 'http://x');
+        rq.searchParams.set('ua', 'browser');
+        retryUrl = rq.pathname + rq.search;
+      } catch (e) {}
+      return relayFetch(t.href, { method: req.method, headers: req.headers, url: retryUrl }, res, hops + 1);
     }
     const outHeaders = {
       'access-control-allow-origin': CORS_ORIGIN,
