@@ -18,7 +18,12 @@ function withCors(headers) {
   out.set('access-control-allow-origin', '*');
   out.set('access-control-allow-methods', 'GET,HEAD,POST,OPTIONS');
   out.set('access-control-allow-headers', 'accept,content-type,range,authorization,x-admin-key');
-  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location');
+  /* v19.41: `retry-after` joins the list so the APP can read it. A portal behind Cloudflare answers
+     an over-eager sign-in with 429 + error 1015 and states exactly how long to stay away — 1236s,
+     and 3510s if you knock again during it. The client could not see that header (a cross-origin
+     response only exposes what is named here), so it fell back to a hard-coded 45-second cooldown
+     and re-armed the ban roughly 27 times before it would have expired on its own. */
+  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location,retry-after');
   out.set('cross-origin-resource-policy', 'cross-origin');
   out.set('timing-allow-origin', '*');
   return out;

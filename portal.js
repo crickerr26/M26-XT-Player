@@ -351,8 +351,25 @@
 
   /* A Stalker channel's "cmd" is not a URL — it is a token the portal exchanges for a one-shot
      stream link, which is why a MAG playlist cannot simply be copied out. */
+  /* v19.63: TAKE THE URL, DO NOT GUESS THE PREFIX.
+     A Stalker "cmd" is a player directive, not a bare address: the portal names the engine it
+     wants the box to use in front of the URL — "ffmpeg http://…", "auto http://…",
+     "mpegts http://…", "ffrt3 http://…", "extension http://…". Which word appears is per-panel and
+     the vocabulary is open-ended, so stripping the single literal "ffmpeg " left every other
+     prefix attached. The value then failed stalkerPickUrl's ^https?:// test, the link was thrown
+     away, and the customer was told "the portal accepted the request but returned no link for
+     this title" — about a channel that was working perfectly.
+     Measured live on sw4u.net: create_link answered
+       auto http://198.144.155.34:9101/<hash>/index.m3u8?token=<token>
+     and every single channel reported "This channel didn't start".
+     Pulling out the first http(s) substring is prefix-agnostic, so a panel that invents a new
+     engine name tomorrow keeps working. When there is no URL at all — a relative
+     "/media/file_<id>.mpg" command, which is a real shape — the original ffmpeg-stripping
+     behaviour is kept exactly as it was. */
   function stalkerStreamCmd(ch) {
-    const cmd = String((ch && (ch.cmd || ch.url)) || '');
+    const cmd = String((ch && (ch.cmd || ch.url)) || '').trim();
+    const m = /https?:\/\/\S+/i.exec(cmd);
+    if (m) return m[0];
     return cmd.replace(/^ffmpeg\s+/i, '').trim();
   }
 
