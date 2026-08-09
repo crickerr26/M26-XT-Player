@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.7';
+const SERVER_BUILD = '13.8';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -172,6 +172,41 @@ function whatsappAlert(text) {
 fs.mkdirSync(MEDIA_ROOT, { recursive: true });
 
 const sessions = new Map();
+function redactDebugText(text) {
+  return String(text || '')
+    .replace(/https?:\/\/[^\s'"<>]+/gi, '[url]')
+    .replace(/\b[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}\b/g, '[mac]')
+    .replace(/\bBearer\s+[\w.\-]+/gi, 'Bearer [token]')
+    .replace(/(token=)[^&\s]+/gi, '$1[token]')
+    .replace(/(password=)[^&\s]+/gi, '$1[password]')
+    .replace(/(username=)[^&\s]+/gi, '$1[username]');
+}
+function sessionDebug(session) {
+  let playlistExists = false, playlistBytes = 0, segments = 0, files = 0;
+  try {
+    const st = fs.statSync(session.playlist);
+    playlistExists = st.isFile();
+    playlistBytes = st.size;
+    if (playlistExists) {
+      const text = fs.readFileSync(session.playlist, 'utf8');
+      segments = (text.match(/#EXTINF:/g) || []).length;
+    }
+  } catch (e) {}
+  try { files = fs.readdirSync(session.dir).length; } catch (e) {}
+  return {
+    id: session.id,
+    profile: session.profile,
+    ageMs: Date.now() - session.created,
+    idleMs: Date.now() - session.lastAccess,
+    exited: !!session.exited,
+    exitCode: session.exitCode,
+    playlistExists,
+    playlistBytes,
+    segments,
+    files,
+    logTail: redactDebugText(session.log).slice(-1200)
+  };
+}
 const mime = {
   '.m3u8': 'application/vnd.apple.mpegurl',
   '.ts': 'video/mp2t',
@@ -1081,6 +1116,10 @@ const server = http.createServer(async (req, res) => {
          running service actually has the v19.63 session reaping — a stuck `sessions` count with a
          30-minute window is the signature of the connection-slot leak. */
       return json(res, 200, { ok: true, sessions: sessions.size, idleTtlMs: IDLE_TTL_MS, maxSessions: MAX_SESSIONS, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'hd1080', 'hd720', 'vod', 'remux', 'copy', 'audio'], kinds: ['xtream', 'm3uurl', 'm3u'], activation: LICENSING_ENABLED });
+    }
+
+    if (u.pathname === '/debug/sessions') {
+      return json(res, 200, { ok: true, build: SERVER_BUILD, sessions: Array.from(sessions.values()).map(sessionDebug) });
     }
 
     // Same-origin CORS relay: /proxy?url=<encoded target>. index.html tries this

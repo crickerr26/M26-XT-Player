@@ -1659,7 +1659,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.76.0';
+const APP_VERSION='19.77.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1741,7 +1741,7 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -4849,6 +4849,7 @@ function resumeCurrent(){if(S.current)routePlayback(S.current,'basic',false)}
 async function tryPlans(plans,i){
   const v=$('video');
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
+  if(i===0)S.lastPreviewError='';
   cleanup();
   const token=++S.seq,p=plans[i],live=typeOf(S.current)==='live',transcoded=/Transcoded/i.test(p.label);
   /* between attempts, give the origin a beat to release the previous slot */
@@ -4863,6 +4864,7 @@ async function tryPlans(plans,i){
   const startBudget=transcoded?130000:20000;
   const bufEnd=()=>{try{return v.buffered.length?v.buffered.end(v.buffered.length-1):0}catch(e){return 0}};
   const overlay=(state,title,text,spin)=>{if(E.overlayState===state)return;E.overlayState=state;$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.toggle('hidden',!spin);$('stateTitle').textContent=title;$('stateText').textContent=text};
+  const noteRouteError=why=>{S.lastPreviewError=String(p.label+': '+(why||'failed')).replace(/https?:\/\/\S+/g,'[url]').slice(0,180);$('netStatus').textContent=S.lastPreviewError};
   const showPlaying=()=>{if(E.overlayState==='playing'&&E.shownMuted===v.muted)return;E.overlayState='playing';E.shownMuted=v.muted;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const nextPlan=()=>{if(token!==S.seq)return;tryPlans(plans,i+1)};
   const mseLive=live&&!transcoded&&(p.kind==='mpegts'||(p.kind==='hls'&&window.Hls&&Hls.isSupported()));
@@ -4881,7 +4883,7 @@ async function tryPlans(plans,i){
       if(!E.tapShown){E.tapShown=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)}
     });
   };
-  v.onerror=()=>{if(token===S.seq&&!E.started)nextPlan()};
+  v.onerror=()=>{if(token===S.seq&&!E.started){noteRouteError('media element error');nextPlan()}};
   try{
     if(p.kind==='mpegts'){
       if(!window.mpegts||!mpegts.isSupported()){nextPlan();return}
@@ -4899,7 +4901,7 @@ async function tryPlans(plans,i){
          liveBufferLatencyChasing:false,liveBufferLatencyMaxLatency:10,liveBufferLatencyMinRemain:2}
       );
       S.ts.attachMediaElement(v);
-      S.ts.on(mpegts.Events.ERROR,()=>{if(token===S.seq&&!E.started)nextPlan()});
+      S.ts.on(mpegts.Events.ERROR,(type,detail)=>{if(token===S.seq&&!E.started){noteRouteError([type,detail].filter(Boolean).join(' ')||'mpegts error');nextPlan()}});
       S.ts.load();
     }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
       try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
@@ -4918,10 +4920,13 @@ async function tryPlans(plans,i){
       let mediaRecovered=false,netRetries=0;
       S.hls.on(Hls.Events.ERROR,(e,d)=>{
         if(token!==S.seq||!d||!d.fatal)return;
+        const code=d.response&&d.response.code;
+        const why=(d.details||d.type||'HLS error')+(code?' HTTP '+code:'');
         /* 401/403 on a segment mid-play: only on a genuine 1-connection line does this mean
            "another device took the single slot". On a multi-connection account it's a transient
            error, so fall through to normal reconnect/next instead of falsely blaming another device. */
         if(singleConnLine()&&E.started&&d.response&&(d.response.code===401||d.response.code===403)){showAccountConflict();return}
+        noteRouteError(why);
         if(!E.started){nextPlan();return}
         try{
           if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&netRetries<4){netRetries++;S.hls.startLoad(-1)}
@@ -4969,9 +4974,9 @@ async function tryPlans(plans,i){
         $('stateTitle').textContent='Buffering';
         $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(be/1.2*100))+'%';
       }
-      if(now-attachAt>startBudget){nextPlan();return}
+      if(now-attachAt>startBudget){noteRouteError('startup timeout');nextPlan();return}
     }else if(!E.started){
-      if(now-attachAt>startBudget){nextPlan();return}
+      if(now-attachAt>startBudget){noteRouteError('startup timeout');nextPlan();return}
       if(!E.tapShown)overlay('load','Loading',nameOf(S.current||{})||'Connecting...',true);
     }else if(stalled>2500){
       /* v52: a user just seeked (button or scrubber) — the buffering that follows is normal,
@@ -5069,7 +5074,7 @@ function fail(msg){
     toast('Codec needs transcoder');
   }else if(hasTrans){
     $('stateTitle').textContent='Stream unavailable';
-    $('stateText').textContent='This stream did not produce playable HLS. Try another channel or check the transcoder server.';
+    $('stateText').textContent='This stream did not produce playable HLS.'+(S.lastPreviewError?' Last route: '+S.lastPreviewError+'.':' Try another channel or check the transcoder server.');
     $('miniMeta').textContent='Preview failed';
     toast('Preview playback failed');
   }else if(isApple){
