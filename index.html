@@ -1659,7 +1659,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.78.0';
+const APP_VERSION='19.79.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4796,7 +4796,15 @@ function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.video
 async function playItem(item,fromAlternative=false){
   S.audioOnly=false;
   let x=smoothLiveStart(item);
-  if(typeOf(x)==='series'&&!x.episode_num){openEpisodePicker(x);return}
+  /* v19.79.0: an EPISODE is not a show. The guard below exists to turn a tap on a series POSTER
+     into the episode picker, and it used to recognise an episode solely by `episode_num` — a
+     field only the Stalker path sets (stalkerLoadSeries) and the removed Xtream API used to
+     return. Episodes parsed out of an M3U (portal.js, `_m3uEpisodes`) carry `episode_id` and a
+     `direct_source` but no number, so every one of them failed this test: tapping an episode
+     re-opened the picker it was tapped from and NOTHING ever played. Since the app is M3U-only
+     for playlist lines, that was all of Series playback in Player 1. A show carries `series_id`
+     and its episode array; an episode carries `episode_id` — test for the episode instead. */
+  if(typeOf(x)==='series'&&!x.episode_num&&!x.episode_id){openEpisodePicker(x);return}
   if(!fromAlternative)S.altTried=new Set([keyOf(x)]);
   /* v19.8: tapping the channel/movie/series NAME plays in Player 1 by default. The per-category
      setting in Stream Tools can send Movies/Series to VLC instead — Live TV never defaults to
