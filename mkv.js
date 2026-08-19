@@ -203,14 +203,42 @@
     const n = samples.length;
     const dts = samples.map(s => s.pts).sort((a, b) => a - b);
 
+    /* The final sample's duration comes from where the NEXT fragment begins, so consecutive
+       fragments meet exactly instead of leaving a gap the browser has to paper over. */
+    const dur = new Array(n);
+    for (let i = 0; i < n; i++) {
+      dur[i] = Math.max(1, (i + 1 < n) ? (dts[i + 1] - dts[i])
+        : (nextDts != null ? (nextDts - dts[i]) : (track.defaultDuration || 40)));
+    }
+
+    /* ── v21.0: FRAGMENTS MUST NOT OVERLAP, AND ON AN OPEN GOP THEY DID. ──────────────────────
+       Every fragment's decode timeline was rebuilt from ITS OWN samples — the i-th slot taking the
+       i-th smallest presentation time in that fragment. In a closed-GOP encode that lines up
+       exactly with where the previous fragment ended. A real broadcast/IPTV encode uses OPEN GOPs,
+       where the frames following a keyframe in decode order include leading B-frames that are
+       PRESENTED before it, referencing the GOP before. Their timestamps are lower, so each new
+       fragment started 1-3 frames BEFORE the previous one finished — measured on an open-GOP
+       H.264 High file: every fragment after the first overlapped by 40-120ms. A SourceBuffer
+       rejects an overlapping fragment outright, which is what reached the customer as
+       "Buffer error on avc1.64001f" on a file that is in every other way fine.
+       So the decode clock now runs forward across fragments: a fragment starts where the last one
+       ended, and the overlap is absorbed out of its earliest sample durations rather than added to
+       the front, so the fragment still ENDS where its own timestamps say it should and the
+       displacement cannot accumulate over a two-hour film. Nothing is dropped or re-ordered — the
+       samples and their composition offsets are untouched. */
+    let base = dts[0];
+    let overlap = 0;
+    if (track._nextDts != null && track._nextDts > base) { overlap = track._nextDts - base; base = track._nextDts; }
+    for (let i = 0; overlap > 0 && i < n; i++) {
+      const take = Math.min(overlap, dur[i] - 1);
+      if (take > 0) { dur[i] -= take; overlap -= take; }
+    }
+
     const trunEntries = new Uint8Array(n * 16);
     const dv = new DataView(trunEntries.buffer);
+    let clock = base;
     for (let i = 0; i < n; i++) {
-      /* The final sample's duration comes from where the NEXT fragment begins, so consecutive
-         fragments meet exactly instead of leaving a gap the browser has to paper over. */
-      const dur = (i + 1 < n) ? (dts[i + 1] - dts[i])
-        : (nextDts != null ? Math.max(1, nextDts - dts[i]) : (track.defaultDuration || 40));
-      dv.setUint32(i * 16, Math.max(1, dur));
+      dv.setUint32(i * 16, dur[i]);
       dv.setUint32(i * 16 + 4, samples[i].data.length);
       // Non-keyframes are marked non-sync and depend on other samples.
       dv.setUint32(i * 16 + 8, samples[i].key ? 0x02000000 : 0x01010000);
@@ -219,11 +247,13 @@
          it out ("Buffer error on avc1..."). The whole presentation timeline is therefore delayed
          by a constant `shift`, big enough that no sample is ever displayed before its decode
          time. The same shift is applied to every track, so audio and video stay in sync. */
-      dv.setInt32(i * 16 + 12, samples[i].pts + (shift || 0) - dts[i]);
+      dv.setInt32(i * 16 + 12, samples[i].pts + (shift || 0) - clock);
+      clock += dur[i];
     }
+    track._nextDts = clock;   /* where the next fragment of this track must begin */
 
     const tfhd = box('tfhd', u32(0x020000), u32(track.id));   // default-base-is-moof
-    const tfdt = box('tfdt', u32(0x01000000), u64(dts[0]));   // version 1, 64-bit DECODE time
+    const tfdt = box('tfdt', u32(0x01000000), u64(base));     // version 1, 64-bit DECODE time
     /* version 1 (signed composition offsets) + data-offset, sample-duration, sample-size,
        sample-flags and sample-composition-time-offset all present.
        v20.6: the flag word said 0x1701, and the composition-offset bit is 0x800 — 0x1000 is not a
@@ -643,8 +673,11 @@
        only ever grows — held on the remuxer so audio and video are delayed by the same amount and
        stay in sync. In practice it settles within the first GOP. */
     const ordered = out.map(s => s.pts).sort((a, b) => a - b);
-    let need = 0;
-    for (let i = 0; i < out.length; i++) need = Math.max(need, ordered[i] - out[i].pts);
+    /* v21.0: include the overlap the fragment is about to be pushed forward by (see fragment()),
+       otherwise the first leading B-frame of an open GOP lands with a negative offset. */
+    const _overlap = (track._nextDts != null && track._nextDts > ordered[0]) ? (track._nextDts - ordered[0]) : 0;
+    let need = _overlap;
+    for (let i = 0; i < out.length; i++) need = Math.max(need, ordered[i] - out[i].pts + _overlap);
     if (need > (this.ctsShift || 0)) this.ctsShift = need;
 
     /* The boundary only closes the fragment correctly if it lies strictly after its last frame.
