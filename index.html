@@ -1706,7 +1706,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.8';
+const APP_VERSION='20.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4686,11 +4686,34 @@ function plan(x){
      pass-through relay first (a MAG stream node answers ordinary hosting where it refuses
      Cloudflare, see v16.6), then our own /proxy. Only ever added for a file that IS Matroska and
      only when this browser can actually run the decoder. */
+  /* v20.9: OUR OWN ORIGIN FIRST. This led with the transcoder's pass-through relay, which is a
+     separate service that sleeps, cold-starts and — on the reported account — answers 503. So the
+     first attempt at the one route that needs no server at all was being spent on a server, and a
+     dead one. /proxy is served by _worker.js on the very origin this page came from: same-origin,
+     no CORS to negotiate, nothing to wake. It leads now; the relay stays behind it for the case
+     the relay is the address a provider's stream node will actually answer (see v16.6). */
+  /* v20.9: and it carries the BOX IDENTITY. A MAG stream node identifies the caller by the
+     mac= cookie, which a browser fetch cannot set cross-origin — /proxy has always been able to
+     add it server-side from stb=1&mac=&token= (see _worker.js), and streamRelayUrl() has always
+     sent them, but proxyUrl() does not. So the same-origin route was asking a Ministra node for a
+     file with no idea who was asking, while the relay route asked properly. Same identity, both
+     addresses. */
+  const magProxy=u=>{
+    let out=proxyUrl(u);
+    try{
+      if(x&&x._stalkerCmd&&out){
+        const mac=(S.stalker&&S.stalker.mac)||stalkerMac();
+        const tok=(S.stalker&&S.stalker.token)||'';
+        if(mac)out+='&stb=1&mac='+encodeURIComponent(mac)+(tok?'&token='+encodeURIComponent(tok):'');
+      }
+    }catch(e){}
+    return out;
+  };
   const addMkv=(label,url)=>{
     if(!url||!global_mkvReady())return;
+    add('mkv',label,magProxy(url));
     let r='';try{r=streamRelayUrl(url,x);}catch(e){}
     if(r)add('mkv',label+' (relay)',r);
-    add('mkv',label,proxyUrl(url));
   };
   const addTrans=(label,url,front=false,uaMode='')=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(transcodeInput(url,uaMode),profile);if(t)add('hls',label+' Transcoded',t,front)};
   /* A live item can already carry a resolved playable URL instead of an Xtream stream_id — M3U
@@ -5063,7 +5086,16 @@ async function tryPlans(plans,i){
      genuine NotAllowedError: it put "Tap play to start" on screen and never called play() again.
      AbortError is now ignored (the canplay retry below covers it) and every rejection re-arms
      the tap, so the prompt only ever appears when the browser really is waiting for a gesture. */
-  const showTap=()=>{if(token!==S.seq)return;E.tapShown=true;S.awaitingTap=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)};
+  /* v20.9: the prompt is only honest once there is something a tap could start. A route that has
+     attached but holds no data yet rejects play() too, and putting "Tap play to start" up then
+     asks the customer to fix something a tap cannot fix — while hiding the fact that the route is
+     still loading (or is about to be dropped for its budget). Data first, then the prompt. */
+  const showTap=()=>{
+    if(token!==S.seq)return;
+    let ready=false;try{ready=(v.readyState>=2)||bufEnd()>0;}catch(e){}
+    if(!ready)return;
+    E.tapShown=true;S.awaitingTap=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false);
+  };
   const attempt=()=>{
     if(token!==S.seq)return;
     if(!v.paused&&!v.ended)return;
@@ -5339,6 +5371,15 @@ function attemptEvidence(){
   if(x&&x._stalkerCmd&&!x.direct_source){
     out+=' Your portal would not issue a link for this title — '+(S.stalkerLastError||'it returned no link')+'.';
   }
+  /* v20.9: on a Matroska title, whether this device can run the in-app decoder at all is the
+     first thing worth knowing — an iPhone below iOS 17.1 has no MediaSource of any kind, and no
+     route in the list can change that. Say it here rather than making someone find the Yez Player
+     line in Stream Tools. */
+  try{
+    if(x&&mkvLike(String(x.container_extension||'').replace(/^\./,'').toLowerCase())&&!global_mkvReady()){
+      out+=' In-app MKV decoder: '+mkvEngineStatus()+'.';
+    }
+  }catch(e){}
   const errs=(Array.isArray(S.routeErrors)?S.routeErrors:[]).filter(Boolean);
   if(!errs.length)return out+(S.lastPreviewError?(' Last route: '+S.lastPreviewError+'.'):'');
   out+=' '+errs.length+' route'+(errs.length===1?'':'s')+' tried. First: '+errs[0]+'.';
