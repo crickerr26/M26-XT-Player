@@ -1434,7 +1434,20 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
      from the PLAYERS registry at runtime rather than hard-coded here. Two bugs died with the old
      markup: the options were written by hand and still said "KMPlayer" for the value 'vlc' after
      v19.63 split those into separate players, and Live TV had no selector at all. -->
-<div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"></select></div></div><p class="nativeText" style="margin-top:6px" id="playerModeHint">Choose which player each category opens in. <b>Yez Player</b> is the built-in engine and plays inside the app. The others hand the stream to that app on this device. Whatever you pick here is what a tap on the title does — the per-row buttons still launch any player on demand, for one title, without changing this.</p><p class="nativeText" style="margin-top:6px;opacity:.75" id="playerModeLiveNote">On Live TV an external player is your choice to make, but be aware some of them drop live channels after a while; Yez Player is the steadier option there.</p></div><div class="field nativeField"><label>Yez Player (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in Yez Player. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"></select></div></div><p class="nativeText" style="margin-top:6px" id="playerModeHint">Choose which player each category opens in. <b>Yez Player</b> is the built-in engine and plays inside the app. The others hand the stream to that app on this device. Whatever you pick here is what a tap on the title does — the per-row buttons still launch any player on demand, for one title, without changing this.</p><p class="nativeText" style="margin-top:6px;opacity:.75" id="playerModeLiveNote">On Live TV an external player is your choice to make, but be aware some of them drop live channels after a while; Yez Player is the steadier option there.</p></div><div class="field nativeField"><label>Yez Player (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV and HEVC films play right here on the device, with no server involved and nothing to set up. Anything else means this browser is too old to decode them in the app, and those titles need the conversion server or an external player.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button></div>
+  <!-- ── v20.8 (owner request): A CUSTOMER IS NEVER ASKED TO DEPLOY A SERVER. ──────────────────
+       "Deploy free transcoder" sat next to a red light with a five-step Render walkthrough, as
+       the headline remedy on a screen every user can open — a job nobody can ask a paying
+       customer to do, and one that is not theirs: this app has ONE shared transcoder and keeping
+       it up is the operator's job. The copy now says what is actually true since v20.6 — MKV and
+       HEVC decode in the app, with no server involved — and the deploy route is folded away
+       behind Advanced, where the person running the app can still reach it. -->
+  <p class="nativeText" style="margin-top:6px">Films play in the app without this server: <b>Yez Player decodes MKV and HEVC here on the device</b>. The server is only used to shrink a 4K title to 1080p, and for the rare file in a format this device has no decoder for at all. A red light does not stop your movies — those few titles offer VLC instead.</p>
+  <button class="pillbtn" id="transcoderAdvBtn" type="button" style="margin-top:8px;font-size:12px;height:32px">Advanced — run my own transcoder</button>
+  <div id="transcoderAdv" class="hidden" style="margin-top:8px">
+    <a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a>
+    <p class="nativeText" style="margin-top:6px">For whoever operates this app, not for viewers. Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL → paste it above → tap <b>Test</b>.</p>
+  </div></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -1693,7 +1706,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.7';
+const APP_VERSION='20.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4988,7 +5001,8 @@ async function tryPlans(plans,i){
   if(i>0&&live){$('netStatus').textContent='Switching path';await new Promise(r=>setTimeout(r,1500));if(token!==S.seq)return}
   $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
   /* reset element state, including handlers older modes left behind */
-  v.onwaiting=v.onstalled=v.onsuspend=v.ontimeupdate=v.onplaying=v.onerror=null;
+  v.onwaiting=v.onstalled=v.onsuspend=v.ontimeupdate=v.onplaying=v.onerror=v.oncanplay=null;
+  S.awaitingTap=false;
   v.muted=false;v.loop=false;v.autoplay=false;v.preload='auto';
   v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
   const attachAt=Date.now();
@@ -5039,24 +5053,37 @@ async function tryPlans(plans,i){
        "down" flag immediately rather than waiting for it to age out, so the very next MKV gets the
        transcoder in its proper leading position again. */
     try{if(transcoded&&window.YezPlayer&&YezPlayer.noteTranscoderUp)YezPlayer.noteTranscoderUp()}catch(e){}
-    E.overlayState='playing';E.shownMuted=v.muted;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
+    E.overlayState='playing';E.shownMuted=v.muted;S.awaitingTap=false;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const nextPlan=()=>{if(token!==S.seq)return;tryPlans(plans,i+1)};
   const mseLive=live&&!transcoded&&(p.kind==='mpegts'||(p.kind==='hls'&&window.Hls&&Hls.isSupported()));
   /* autoplay waterfall: unmuted -> muted -> tap prompt */
+  /* v20.8: A REJECTED play() IS NOT AUTOMATICALLY A PERMISSION PROBLEM. play() rejects with
+     AbortError when our own load interrupts it — which is routine on a route that has just
+     attached a MediaSource and has no data yet — and the old code treated that identically to a
+     genuine NotAllowedError: it put "Tap play to start" on screen and never called play() again.
+     AbortError is now ignored (the canplay retry below covers it) and every rejection re-arms
+     the tap, so the prompt only ever appears when the browser really is waiting for a gesture. */
+  const showTap=()=>{if(token!==S.seq)return;E.tapShown=true;S.awaitingTap=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)};
   const attempt=()=>{
     if(token!==S.seq)return;
+    if(!v.paused&&!v.ended)return;
     const pr=v.play();
-    if(pr&&pr.catch)pr.catch(()=>{
+    if(pr&&pr.then)pr.then(()=>{S.awaitingTap=false;},err=>{
       if(token!==S.seq)return;
+      if(err&&err.name==='AbortError')return;      /* our own load, not the user's permission */
       if(!E.mutedTried){
         E.mutedTried=true;v.muted=true;
         const p2=v.play();
-        if(p2&&p2.catch)p2.catch(()=>{if(token===S.seq&&!E.tapShown){E.tapShown=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)}});
+        if(p2&&p2.then)p2.then(()=>{S.awaitingTap=false;},e2=>{if(e2&&e2.name==='AbortError')return;showTap()});
         return;
       }
-      if(!E.tapShown){E.tapShown=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)}
+      showTap();
     });
   };
+  /* The first play() often lands before the decoder has anything to show — especially on the
+     in-app Matroska route, where the first fragment is still being remuxed. Try again the moment
+     the element says it can play, so a title that needed nothing but patience starts by itself. */
+  v.oncanplay=()=>{if(token!==S.seq||E.started)return;if(v.paused)attempt();};
   /* v20.0: DO NOT LET ONE ROUTE'S DEATH KILL THE NEXT ONE.
      Pointing the element at a new src aborts the previous load, and the abort arrives as an
      `error` event on the SAME element — so the route that had just started was cancelled by its
@@ -5339,7 +5366,7 @@ function fail(msg){
     const _transOnly=_errs.length&&_errs.every(e=>/Transcoded/i.test(e))&&/\b(50\d|52\d|408)\b/.test(_errs.join(' '));
     $('stateTitle').textContent=_transOnly?'Transcoder server is down':'Stream unavailable';
     $('stateText').textContent=(_transOnly
-      ?'This title needs the transcoder server and it is not answering. Open Settings ▸ Stream Tools and tap Test transcoder — if it is not green, tap Deploy free transcoder and follow the steps there.'
+      ?'This title is in a format this device cannot decode on its own, and the conversion server is not answering right now. Try again in a few minutes, or open this title in VLC.'
       :'This stream did not produce playable HLS.')+(attemptEvidence()||' Try another channel or check the transcoder server.');
     $('miniMeta').textContent='Preview failed';
     toast('Preview playback failed');
@@ -7653,7 +7680,42 @@ if($('catList'))$('catList').addEventListener('click',e=>{
    every automatic reconnect until Login is tapped. */
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();setSignedOut(true);$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>backToCategories();$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
-$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Yez Player ready — MKV plays here in the app':'⚠️ Yez Player '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
+$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Yez Player ready — MKV plays here in the app':'⚠️ Yez Player '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();
+if($('transcoderAdvBtn'))$('transcoderAdvBtn').onclick=()=>{const b=$('transcoderAdv');if(!b)return;const open=b.classList.toggle('hidden');$('transcoderAdvBtn').textContent=open?'Advanced — run my own transcoder':'Hide advanced';};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};/* ── v20.8: "TAP THE VIDEO ONCE TO BEGIN PLAYBACK" NOW BEGINS PLAYBACK. ─────────────────────────
+   It did not. The prompt appears when the browser refuses to autoplay, and the only tap handler on
+   the player unmuted the element and toggled the control bar — nothing anywhere called play(). So
+   the one instruction on screen did nothing, and a title that was attached, decoded and one gesture
+   away from playing looked exactly like a title that had failed. The overlay itself is
+   pointer-events:none, but its message block is not, and a customer naturally taps the words — so
+   both the video and the message start playback while that prompt is up. */
+function tapToStart(){
+  const v=$('video');
+  if(!v||!S.current||!S.awaitingTap)return false;
+  if(!v.paused&&!v.ended)return false;
+  /* The tap IS the gesture the browser was holding out for, so ask for sound back: the muted
+     retry in the waterfall above is what silenced the element, not the customer. */
+  v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;
+  const started=()=>{S.awaitingTap=false;try{$('overlay').style.display='none'}catch(e){}};
+  const pr=v.play();
+  if(pr&&pr.then)pr.then(started,()=>{
+    /* Sound is what the browser objects to; keep the picture and say so. */
+    if(!v.paused)return;
+    v.muted=true;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.muted;
+    const p2=v.play();
+    if(p2&&p2.then)p2.then(()=>{started();armUnmute();},()=>{});
+  });
+  return true;
+}
+$('video').onclick=()=>{const v=$('video');if(!S.current)return;if(tapToStart())return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};
+(function(){
+  const st=document.querySelector('.player-overlay .state');
+  if(!st)return;
+  st.addEventListener('click',e=>{
+    /* never steal a tap meant for Open in VLC / Play here instead / Copy link */
+    if(e.target&&e.target.closest&&e.target.closest('button'))return;
+    tapToStart();
+  });
+})();if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
    toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
    always shows the muted icon the user can tap to turn sound on. */
