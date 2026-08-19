@@ -1693,7 +1693,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.5';
+const APP_VERSION='20.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4668,6 +4668,17 @@ function plan(x){
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
   const transcodeInput=(url,uaMode)=>{try{return x&&x._stalkerCmd?(streamRelayUrl(url,x,uaMode)||url):url}catch(e){return url}};
+  /* v20.6: the same address, handed to the in-app Matroska decoder. It reads the file itself with
+     fetch(), so it needs an address that answers with CORS headers — the transcoder's plain
+     pass-through relay first (a MAG stream node answers ordinary hosting where it refuses
+     Cloudflare, see v16.6), then our own /proxy. Only ever added for a file that IS Matroska and
+     only when this browser can actually run the decoder. */
+  const addMkv=(label,url)=>{
+    if(!url||!global_mkvReady())return;
+    let r='';try{r=streamRelayUrl(url,x);}catch(e){}
+    if(r)add('mkv',label+' (relay)',r);
+    add('mkv',label,proxyUrl(url));
+  };
   const addTrans=(label,url,front=false,uaMode='')=>{const profile=type==='live'?'live':(isMkv?'fastvod':'vod');const t=transcodeUrl(transcodeInput(url,uaMode),profile);if(t)add('hls',label+' Transcoded',t,front)};
   /* A live item can already carry a resolved playable URL instead of an Xtream stream_id — M3U
      playlist entries always do (parsed straight off the .m3u), and Stalker/MAG channels do once
@@ -4743,6 +4754,11 @@ function plan(x){
     /* v16.6: MAG VOD nodes block Cloudflare exactly like live — relay through the transcoder first. */
     let magRelay='';
     try{ magRelay=streamRelayUrl(raw,x); }catch(e){}
+    /* v20.6: an .mkv leads with the in-app decoder. No browser this app runs in has a Matroska
+       demuxer of its own, so the native routes below cannot play one — they are kept because a
+       provider's ".mkv" is regularly something else entirely, and this route steps aside in under
+       a second when the header says so. */
+    if(isMkv&&!isM3u8)addMkv('MKV In-App',raw);
     if(magRelay)add(isM3u8?'hls':'native','Stream Relay',magRelay);
     add(isM3u8?'hls':'native','Direct',durl);
     /* a cross-origin non-HLS file also needs the CORS relay for the browser to read it */
@@ -4843,6 +4859,9 @@ function plan(x){
          this provider's stream node answering Cloudflare egress with "error code: 1003 / 403"
          while ordinary hosting fetched the same link with HTTP 200, and both /proxy and the shared
          relay are Cloudflare Workers. */
+      /* v20.6: before any of the server-side routes below — this one needs neither the relay's
+         MKV→HLS remux nor the transcoder to be awake. */
+      addMkv('MKV In-App',direct||rawMkv);
       if(direct){
         addTrans('MKV',direct);
         add('hls','Direct Relay',liveHlsUrl(direct));
@@ -4887,6 +4906,7 @@ function plan(x){
       if(!browserSafeExt(preferred))addTrans(preferred.toUpperCase(),preferredUrl);
       add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase(),preferredUrl);
       add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase()+' Proxy',proxyUrl(preferredUrl));
+      if(isMkv)addMkv('MKV In-App',direct||preferredUrl||rawMkv);
       ['mp4','m3u8','ts','mkv'].filter(e=>e!==preferred).forEach(e=>{
         const u=directUrl(x,e);
         if(e==='mkv'||e==='ts')addTrans(e.toUpperCase(),u);
@@ -5101,6 +5121,33 @@ async function tryPlans(plans,i){
           else if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&!mediaRecovered){mediaRecovered=true;S.hls.recoverMediaError()}
           else nextPlan();
         }catch(err){nextPlan()}
+      });
+    }else if(p.kind==='mkv'){
+      /* ── v20.6: THE IN-APP MATROSKA DECODER IS BACK IN THE CASCADE. ───────────────────────────
+         mkv.js parses Matroska and remuxes it to fragmented MP4 in JavaScript, feeding this same
+         <video> through MediaSource (ManagedMediaSource on iOS 17.1+) — nothing re-encoded, no
+         server involved. It was reachable only through M26Player2/Yez Player's own engine, and
+         v19.74 rebuilt Player 1 around tryPlans() instead, which knows three kinds: mpegts, hls
+         and native. So from v19.74 an .mkv had NOWHERE to decode: Safari has no Matroska demuxer,
+         every native route fails at once, and the only survivors were the relay's MKV→HLS remux
+         and the ffmpeg transcoder — which is why an MKV title sat on "Loading video" for the whole
+         130-second transcoder budget whenever that service was cold or down.
+         Nothing is removed here: the relay and transcoder routes still follow, unchanged, if this
+         one cannot decode the file (a rejected header fails in well under a second). */
+      if(!(window.Media26Mkv&&Media26Mkv.supported())){nextPlan();return}
+      /* Attaching a ManagedMediaSource throws unless remote playback is off — see mkv.js. */
+      try{v.disableRemotePlayback=true;v.setAttribute('disableremoteplayback','')}catch(e){}
+      try{v.removeAttribute('crossorigin')}catch(e){}
+      Media26Mkv.play(v,p.url,{
+        onInfo:info=>{
+          if(token!==S.seq||!info)return;
+          if(info.audioDropped)toast('Playing video — this file’s audio track was rejected by the device.');
+          else if(info.unsupportedAudio)toast('Playing video — this file’s '+String(info.unsupportedAudio).replace(/^A_/,'')+' audio can’t be decoded in-app.');
+        }
+      }).catch(e=>{
+        if(token!==S.seq)return;   /* our own teardown, not this route's verdict */
+        noteRouteError('in-app Matroska: '+((e&&e.message)||'unsupported'));
+        nextPlan();
       });
     }else{
       /* native playback: Safari HLS (iPhone without MMS) and progressive files */
