@@ -507,7 +507,13 @@
 
   Machine.prototype.start = function () {
     var self = this;
-    this.candidates = catalog(this.item, this.video);
+    /* v20.0: the route plan is now overridable. Yez Player (yezplayer.js) supplies the same
+       catalogue with each address expanded through its host ladder — the panel-port variants that
+       decide whether a line plays at all on providers that gate one port and serve another. The
+       hook is additive: with no planner configured this is exactly the catalogue as before. */
+    var planned = catalog(this.item, this.video);
+    if (D.planCandidates) { try { planned = D.planCandidates(planned, this.item, this.video) || planned; } catch (e) {} }
+    this.candidates = planned;
     this.to('resolving');
     if (!this.candidates.length) return this.giveUp(D.noRouteReason ? D.noRouteReason(this.item) : '');
     (function beat() {

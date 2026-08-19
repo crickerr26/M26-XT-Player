@@ -13,6 +13,7 @@
 <script src="mkv.js"></script>
 <script src="portal.js"></script>
 <script src="m26player2.js"></script>
+<script src="yezplayer.js"></script>
 <script src="mpegts.min.js"></script>
 <script>
 /* v15.7: load the CDN copy of an engine by CHECKING WHETHER IT IS ACTUALLY THERE, not by waiting
@@ -373,6 +374,21 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @media(max-width:760px){
   .rowActions{gap:4px}
   .qp{height:32px;min-width:42px;padding:0 9px;font-size:10px}.qpico{width:19px;height:19px}
+}
+/* v19.79: the channel name rendered at ZERO width on every desktop size.
+   .rowActions is flex-shrink:0 and measures a fixed 132px (44+44+34 plus two 5px gaps),
+   while .cardText carries min-width:0 — so in the card's `52px 1fr auto` grid the text
+   column is the only thing that can give, and at the old 210px minimum it gave
+   everything: 210 - 20 padding - 20 gaps - 52 poster - 132 actions = -14px, leaving
+   .cardText 33px at 1280 and 0px at 771. The name was in the DOM the whole time,
+   clipped by .ctitle's overflow:hidden, so rows read as a stray "LI - ts" fragment.
+   Fix both ends: don't let a second column form until a card can actually hold a name,
+   and floor the text column so it can never be squeezed to nothing again.
+   Mobile (<=760px) is untouched — it is already a full-width single column and correct. */
+@media(min-width:761px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(360px,1fr))}
+  .card{grid-template-columns:52px minmax(120px,1fr) auto}
+  .ctitle{overflow-wrap:anywhere}
 }
 /* ===================== v89: Home hub (post-login landing) ===================== */
 .home{position:fixed;inset:0;z-index:15;display:grid;place-items:center;overflow:hidden;padding:24px max(18px,env(safe-area-inset-left)) calc(78px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.16),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),radial-gradient(circle at 50% 108%,rgba(45,212,191,.16),transparent 46%),linear-gradient(160deg,#0a1220,#0d1a2e 55%,#0a1220)}
@@ -1403,7 +1419,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
      from the PLAYERS registry at runtime rather than hard-coded here. Two bugs died with the old
      markup: the options were written by hand and still said "KMPlayer" for the value 'vlc' after
      v19.63 split those into separate players, and Live TV had no selector at all. -->
-<div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"></select></div></div><p class="nativeText" style="margin-top:6px" id="playerModeHint">Choose which player each category opens in. <b>Player 1</b> is the built-in engine and plays inside the app. The others hand the stream to that app on this device. Whatever you pick here is what a tap on the title does — the per-row buttons still launch any player on demand, for one title, without changing this.</p><p class="nativeText" style="margin-top:6px;opacity:.75" id="playerModeLiveNote">On Live TV an external player is your choice to make, but be aware some of them drop live channels after a while; Player 1 is the steadier option there.</p></div><div class="field nativeField"><label>Player 1 (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in Player 1. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+<div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"></select></div></div><p class="nativeText" style="margin-top:6px" id="playerModeHint">Choose which player each category opens in. <b>Yez Player</b> is the built-in engine and plays inside the app. The others hand the stream to that app on this device. Whatever you pick here is what a tap on the title does — the per-row buttons still launch any player on demand, for one title, without changing this.</p><p class="nativeText" style="margin-top:6px;opacity:.75" id="playerModeLiveNote">On Live TV an external player is your choice to make, but be aware some of them drop live channels after a while; Yez Player is the steadier option there.</p></div><div class="field nativeField"><label>Yez Player (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV films play right here with no server involved. Anything else means the device falls back to the transcoder, which is what makes cold starts slow.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField"><label>Transcoder server URL</label><input id="transcoderUrl" placeholder="https://your-transcoder-domain.com"><div class="transcoderStatusRow"><span class="tStatus" id="transcoderStatus" data-state="idle">Not checked</span><button class="pillbtn" id="transcoderTestBtn" type="button">Test transcoder</button><a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener">Deploy free transcoder</a></div><p class="nativeText" style="margin-top:6px">MKV / HEVC movies need this server to play in Yez Player. <b>Yellow/red light?</b> Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL it gives you → paste it above (replace what's there) → tap <b>Test</b>. Green = movies play here automatically.</p></div><div class="field nativeField"><label>Transcoder access token</label><input id="transcoderToken" placeholder="Optional private token" autocomplete="off"></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -1443,7 +1459,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       <div class="eqBand"><span>Mid</span><input type="range" id="eqMid" min="-12" max="12" step="1" value="0"><b id="eqMidV">0</b></div>
       <div class="eqBand"><span>Treble</span><input type="range" id="eqTreble" min="-12" max="12" step="1" value="0"><b id="eqTrebleV">0</b></div>
     </div>
-    <p class="nativeText" id="eqNote" style="margin-top:8px">Colour mode and equalizer apply instantly to Player 1.</p>
+    <p class="nativeText" id="eqNote" style="margin-top:8px">Colour mode and equalizer apply instantly to Yez Player.</p>
   </div>
   <div class="setSection"><label class="setLabel">Share profile</label>
     <p class="nativeText" style="margin:2px 0 8px">Set up Media26 on another device without typing anything. Scan the code (or type it) on the other phone and its playlist loads automatically.</p>
@@ -1659,7 +1675,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='19.78.0';
+const APP_VERSION='20.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3957,11 +3973,14 @@ function deviceKind(){const ua=navigator.userAgent||'';if(/android/i.test(ua))re
    stay gone. VLC runs on every platform (android/ios/desktop), unlike KMPlayer which had no
    desktop target, so there is no per-device pruning needed here for it. */
 const PLAYERS={
+  /* v20.0: the inbuilt player is Yez Player (yezplayer.js). Same slot, same key — `basic` is the
+     stored value in every saved per-category default and in PLAYER_KEY, so the id must not change
+     or every customer's preference silently stops resolving. Only what the customer SEES changes. */
   basic:{
-    label:'Player 1', kind:'internal',
+    label:'Yez Player', kind:'internal',
     platforms:['android','ios','desktop'],
     icon:'<svg class="qpico" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>',
-    btnClass:'qp-here', title:'Play here in the app'
+    btnClass:'qp-here', title:'Play here in Yez Player'
   },
   /* v19.63 (owner report: "inbuild the vlc player its not appearing too"): VLC IS BACK, AND IT IS
      BACK ON DESKTOP. v19.62 repurposed this slot to launch KMPlayer and, because KMPlayer ships no
@@ -4300,7 +4319,16 @@ function paintActiveCard(){
   const now=g.querySelector('[data-key="'+sel+'"]');if(now)now.classList.add('active');
 }
 function setCurrentItem(x){S.current=x;pushRecent(x);paintActiveCard();if($('ovTitle'))$('ovTitle').textContent=nameOf(x);$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls();updateMediaSession(x);paintNowPlayingChip()}
-async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(plan(x),0)}
+async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(yezRoutes(x),0)}
+/* v20.0: every route the inbuilt player will try, after Yez Player has expanded each one through
+   its host ladder (yezplayer.js). This is the single place the app decides WHICH addresses exist
+   for an item, so it is the only place the expansion has to be applied — playItemPreview() is the
+   live path for Live TV, Movies and Series alike. Fails safe: if yezplayer.js did not load, the
+   original plan is used unchanged and playback behaves exactly as before. */
+function yezRoutes(x){
+  const base=plan(x);
+  try{return (window.YezPlayer&&YezPlayer.expand)?(YezPlayer.expand(base)||base):base}catch(e){return base}
+}
 /* v14.0: say WHO refused. When every route fails the last thing tried is the transcoder, so its
    error was reported as THE reason — complete with "free servers sleep when idle, wait ~30s",
    which sent the user chasing a transcoder problem that did not exist. But ffmpeg's log carries
@@ -4334,10 +4362,20 @@ function liveFailMessage(transErr){
    What remains here is the binding: which of this app's helpers the player may use, and what the
    preview panel shows while it runs. playItemBasic() keeps its name so every existing caller —
    routePlayback, "Play here instead", the per-row play button — is untouched. */
+/* v20.0: Yez Player is the inbuilt player. It drives the same proven decode engine but plans the
+   route itself, adding the panel-default-port variant of every address (see yezplayer.js) — which
+   is what makes a line whose playlist advertises a gated port play at all, in-page, on web and on
+   mobile alike. Resolved once, defensively: if yezplayer.js ever fails to load, the app falls back
+   to driving the engine directly rather than losing playback entirely. */
+function inbuiltEngine(){
+  if(typeof YezPlayer!=='undefined'&&YezPlayer)return YezPlayer;
+  if(typeof M26Player2!=='undefined'&&M26Player2)return M26Player2;
+  return null;
+}
 let _playerConfigured=false;
 function configureInbuiltPlayer(){
   if(_playerConfigured)return true;
-  if(typeof M26Player2==='undefined')return false;
+  if(!inbuiltEngine())return false;
   const deps={
     video:()=>$('video'),
     /* cleanup() bumps S.seq on every new request; the engine compares against it so a stale
@@ -4369,7 +4407,7 @@ function configureInbuiltPlayer(){
       ?('your portal would not issue a link for this title — '+(S.stalkerLastError||'it returned no link'))
       :'this title has no playable stream address in the current playlist'
   };
-  M26Player2.configure(deps);
+  inbuiltEngine().configure(deps);
   _playerConfigured=true;return true;
 }
 /* Shown when every route this device can decode has been tried. It names the real reason rather
@@ -4484,7 +4522,7 @@ async function playItemBasic(x){
   cleanup();
   const v=$('video'),live=typeOf(x)==='live',thumb=logoOf(x);
   $('extActions').classList.add('hidden');
-  if(!configureInbuiltPlayer()){playbackFailed(x,live,'Player 1 did not load — check your connection and reopen the app');return}
+  if(!configureInbuiltPlayer()){playbackFailed(x,live,'Yez Player did not load — check your connection and reopen the app');return}
   let spinTimer=null;
   const showLoading=()=>{
     spinTimer=null;
@@ -4508,8 +4546,9 @@ async function playItemBasic(x){
     $('overlay').style.display='none';
     spinTimer=setTimeout(showLoading,900);
   }
-  $('netStatus').textContent=M26Player2.name;
-  M26Player2.play(x,playerStateHooks(M26Player2.name,clearSpin,why=>{clearSpin();playbackFailed(x,live,why);}));
+  const ENGINE=inbuiltEngine();
+  $('netStatus').textContent=ENGINE.name;
+  ENGINE.play(x,playerStateHooks(ENGINE.name,clearSpin,why=>{clearSpin();playbackFailed(x,live,why);}));
 }
 /* The transcoder profile that matches the chosen ceiling. 'original' means never downscale. */
 function qualityProfile(){const q=S.quality||'auto';if(q==='720')return'hd720';if(q==='1080'||q==='auto')return'hd1080';return''}
@@ -4869,9 +4908,34 @@ async function tryPlans(plans,i){
   const attachAt=Date.now();
   const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null};
   const startBudget=transcoded?130000:20000;
+  /* v20.0 (Yez Player): DO NOT ABANDON A ROUTE THAT IS DEMONSTRABLY WORKING.
+     The budget was a flat stopwatch, and on a real customer line it expired on the one route that
+     was actually playing. Measured on redproibo.online: the panel's continuous MPEG-TS arrives at
+     ~250 KB/s, and mpegts.js holds a 2 MB initial stash before it emits anything — about 8s of the
+     20s budget spent before the first sample, on top of connect and demux. The element had already
+     reported videoWidth 1048 x 576, so the stream was decoding, and the route was dropped anyway
+     with "startup timeout" — after which the next route re-opened the origin and the panel, which
+     allows ONE connection, answered 401. So the timeout did not just lose a good route, it poisoned
+     every route behind it.
+     Evidence of progress is video the decoder has actually described (videoWidth) or media in the
+     buffer. Given either, the route earns a grace extension instead of being cut off; given
+     neither, it still fails on the original budget exactly as before. */
+  const YEZ_GRACE=25000;
+  const yezProgressing=()=>{try{return v.videoWidth>0||bufEnd()>0}catch(e){return false}};
+  const overBudget=()=>{
+    const el=Date.now()-attachAt;
+    if(el<=startBudget)return false;
+    if(yezProgressing()&&el<=startBudget+YEZ_GRACE)return false;
+    return true;
+  };
   const bufEnd=()=>{try{return v.buffered.length?v.buffered.end(v.buffered.length-1):0}catch(e){return 0}};
   const overlay=(state,title,text,spin)=>{if(E.overlayState===state)return;E.overlayState=state;$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.toggle('hidden',!spin);$('stateTitle').textContent=title;$('stateText').textContent=text};
-  const noteRouteError=why=>{S.lastPreviewError=String(p.label+': '+(why||'failed')).replace(/https?:\/\/\S+/g,'[url]').slice(0,180);$('netStatus').textContent=S.lastPreviewError};
+  const noteRouteError=why=>{
+    /* v20.0: teach Yez Player which host:port refused us, so the next attempt — and every
+       attempt after a reload — leads with the port that answers instead of spending this line's
+       single upstream connection on the one that does not. See yezplayer.js GATE MEMORY. */
+    try{window.YezPlayer&&YezPlayer.noteRefusal&&YezPlayer.noteRefusal(p.url,why)}catch(e){}
+    S.lastPreviewError=String(p.label+': '+(why||'failed')).replace(/https?:\/\/\S+/g,'[url]').slice(0,180);$('netStatus').textContent=S.lastPreviewError};
   const showPlaying=()=>{if(E.overlayState==='playing'&&E.shownMuted===v.muted)return;E.overlayState='playing';E.shownMuted=v.muted;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const nextPlan=()=>{if(token!==S.seq)return;tryPlans(plans,i+1)};
   const mseLive=live&&!transcoded&&(p.kind==='mpegts'||(p.kind==='hls'&&window.Hls&&Hls.isSupported()));
@@ -4890,7 +4954,25 @@ async function tryPlans(plans,i){
       if(!E.tapShown){E.tapShown=true;overlay('tap','Tap play to start','Tap the video once to begin playback.',false)}
     });
   };
-  v.onerror=()=>{if(token===S.seq&&!E.started){noteRouteError('media element error');nextPlan()}};
+  /* v20.0: DO NOT LET ONE ROUTE'S DEATH KILL THE NEXT ONE.
+     Pointing the element at a new src aborts the previous load, and the abort arrives as an
+     `error` event on the SAME element — so the route that had just started was cancelled by its
+     predecessor's corpse. Measured on this line: the gated :8080 movie URL answers a deceptive
+     "200 OK" carrying an HTML error page and zero bytes, the element rejected it, and the good
+     default-port route was killed 0.3s later before it could read a byte — while on its own that
+     same URL reaches `playing` at 1280x544 in 1.5s.
+     MEDIA_ERR_ABORTED is never this route's verdict, and an error event with no v.error at all is
+     not evidence of anything. Both are ignored. MEDIA_ERR_SRC_NOT_SUPPORTED is reported in full
+     because it is exactly what a panel serving HTML-under-200 looks like from here, and it is what
+     teaches Yez Player that the port is refusing us. */
+  v.onerror=()=>{
+    if(token!==S.seq||E.started)return;
+    const me=v.error;
+    if(!me||me.code===1)return;                 /* 1 = MEDIA_ERR_ABORTED: our own switch */
+    const NAMES={2:'network error',3:'decode error',4:'src not supported'};
+    noteRouteError('media element '+(NAMES[me.code]||('error '+me.code)));
+    nextPlan();
+  };
   try{
     if(p.kind==='mpegts'){
       if(!window.mpegts||!mpegts.isSupported()){nextPlan();return}
@@ -4908,7 +4990,12 @@ async function tryPlans(plans,i){
          liveBufferLatencyChasing:false,liveBufferLatencyMaxLatency:10,liveBufferLatencyMinRemain:2}
       );
       S.ts.attachMediaElement(v);
-      S.ts.on(mpegts.Events.ERROR,(type,detail)=>{if(token===S.seq&&!E.started){noteRouteError([type,detail].filter(Boolean).join(' ')||'mpegts error');nextPlan()}});
+      /* v20.0: carry mpegts.js's HTTP status into the message. The library reports it in the
+         third argument and it was being dropped, so a refusal that plainly said 511 reached the
+         customer as "HttpStatusCodeInvalid" — unreadable, and invisible to Yez Player's gate
+         memory, which needs the number to know a port is being refused rather than a stream
+         being broken. The HLS handler below has always appended it; these now agree. */
+      S.ts.on(mpegts.Events.ERROR,(type,detail,info)=>{if(token===S.seq&&!E.started){const code=info&&info.code;noteRouteError(([type,detail].filter(Boolean).join(' ')||'mpegts error')+(code?' HTTP '+code:''));nextPlan()}});
       S.ts.load();
     }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
       try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
@@ -4945,6 +5032,21 @@ async function tryPlans(plans,i){
       /* native playback: Safari HLS (iPhone without MMS) and progressive files */
       try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
       if(p.kind==='hls'&&!(window.Hls&&Hls.isSupported())&&!nativeHls(v)){nextPlan();return}
+      /* v20.0: THE ELEMENT MUST NOT BE IN CORS MODE FOR A DIRECT PANEL FILE.
+         The <video> is authored crossorigin="anonymous", which makes the browser fetch the media
+         as a CORS request and DISCARD any response that comes back without an
+         Access-Control-Allow-Origin header. Panels do not send one — measured on this line, the
+         movie answers a clean "206 Partial Content" with no CORS headers at all — so the element
+         threw the file away and the route died in half a second. The identical URL, with the
+         attribute removed, reaches `playing` at 1280x544 in 1.5s.
+         CORS mode buys nothing here: nothing reads these pixels back, and our own /proxy always
+         sends the header anyway. So it is dropped for a cross-origin address and kept for a
+         same-origin one, where it is free. */
+      try{
+        let xo=false;try{xo=new URL(p.url,location.href).origin!==location.origin}catch(e){}
+        if(xo)v.removeAttribute('crossorigin');
+        else v.setAttribute('crossorigin','anonymous');
+      }catch(e){}
       v.src=p.url;v.load();
     }
   }catch(e){nextPlan();return}
@@ -4981,9 +5083,9 @@ async function tryPlans(plans,i){
         $('stateTitle').textContent='Buffering';
         $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(be/1.2*100))+'%';
       }
-      if(now-attachAt>startBudget){noteRouteError('startup timeout');nextPlan();return}
+      if(overBudget()){noteRouteError('startup timeout');nextPlan();return}
     }else if(!E.started){
-      if(now-attachAt>startBudget){noteRouteError('startup timeout');nextPlan();return}
+      if(overBudget()){noteRouteError('startup timeout');nextPlan();return}
       if(!E.tapShown)overlay('load','Loading',nameOf(S.current||{})||'Connecting...',true);
     }else if(stalled>2500){
       /* v52: a user just seeked (button or scrubber) — the buffering that follows is normal,
@@ -7293,7 +7395,7 @@ if($('catList'))$('catList').addEventListener('click',e=>{
    every automatic reconnect until Login is tapped. */
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();setSignedOut(true);$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>backToCategories();$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
-$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Player 1 ready — MKV plays here in the app':'⚠️ Player 1 '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
+$('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Yez Player ready — MKV plays here in the app':'⚠️ Yez Player '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};$('video').onclick=()=>{const v=$('video');if(!S.current)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};if($('muteBtn'))$('muteBtn').onclick=()=>{const v=$('video');v.muted=!v.muted;$('muteBtn').innerHTML=v.muted?ICONS.muted:ICONS.unmuted};
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
    toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
    always shows the muted icon the user can tap to turn sound on. */
@@ -7651,12 +7753,12 @@ applyColour(savedColour());updateVolPct();
     var icon='▶',title='',text='',actions='';
     if(d==='ios'){
       icon='▶';
-      title='Player 1 ready';
+      title='Yez Player ready';
       text='Channels play right here in the app \u2014 buffering over one steady connection, no extra app needed.';
       actions='';
     }else if(d==='android'){
       icon='▶';
-      title='Player 1 ready';
+      title='Yez Player ready';
       text='Channels play right here in the app \u2014 buffering over one steady connection, no extra app needed.';
       actions='';
     }else if(d==='tv'){
