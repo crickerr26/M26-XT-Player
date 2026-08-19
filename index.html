@@ -1716,7 +1716,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='21.2';
+const APP_VERSION='21.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2119,7 +2119,7 @@ function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,raw:S.rawUrl||S
 function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.raw||c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalizeTranscoder(q):(normalizeTranscoder(store.getItem(TRANSCODER_KEY)||'')||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
    media26-transcoder-*.onrender.com — including services that are alive and current — so a URL
    typed into Stream Tools by hand was silently erased on the next load and there was no way to
-   point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;/* v19.27: A PINNED PREVIEW DEPLOYMENT IS A TIME BOMB. Opening a commit- or branch-preview URL
+   point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;/* v21.3: media26-transcoder-mlxq is now KNOWN dead — it is not in the Render dashboard at all,   and both this app and the admin page had it pinned. A device that stored it keeps 503ing on   every transcoded route until it is replaced, so migrate it to this app's own /transcoder   path, which since v21.2 resolves whichever service is actually alive. Still not a catch-all:   a host someone deliberately typed is left alone. */if(/media26-transcoder-mlxq\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;/* v19.27: A PINNED PREVIEW DEPLOYMENT IS A TIME BOMB. Opening a commit- or branch-preview URL
    once (…-smarteriptv.gz-inzi84.workers.dev) saved THAT origin as the transcoder base, because the
    default is simply location.origin + '/transcoder'. It keeps working for a while, which is why it
    goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
