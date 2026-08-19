@@ -1693,7 +1693,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.3';
+const APP_VERSION='20.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6495,6 +6495,24 @@ async function stalkerHandshake(base,mac,creds){
   fin.tried=tried;
   throw fin;
 }
+/* v20.4: the evidence line for the empty-channel verdict above — the portal's own reply, described
+   rather than dumped, and never long enough to bury the sentence it is attached to. */
+function _stalkerEmptyNote(chRes,genres){
+  try{
+    const js=chRes&&chRes.js;
+    let what;
+    if(js===undefined||js===null)what='nothing at all';
+    else if(Array.isArray(js))what='an empty list';
+    else if(typeof js==='object'){
+      const keys=Object.keys(js).slice(0,6).join(', ')||'no fields';
+      what='{'+keys+'}'
+        +((js.total_items!=null)?(', total_items='+js.total_items):'')
+        +(Array.isArray(js.data)?(', data='+js.data.length+' items'):'');
+    }
+    else what=String(js).slice(0,60);
+    return 'What it sent: get_all_channels → '+what+'; get_genres → '+(((genres&&genres.length)||0))+' genres.';
+  }catch(e){return '';}
+}
 async function stalkerLogin(base,mac,creds){
   /* This is a sign-in, so it is entitled to hold for a cooldown rather than fail on one. login()
      has usually opened the attempt already; the silent reconnect on relaunch has not, and gets its
@@ -6512,7 +6530,20 @@ async function stalkerLogin(base,mac,creds){
     const genres=(genresRes&&genresRes.js)||[];
     const chRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_all_channels',JsHttpRequest:'1-xml'});
     const chList=(chRes&&chRes.js&&(chRes.js.data||chRes.js))||[];
-    if(!Array.isArray(chList)||!chList.length)throw new Error('The portal accepted this MAC but returned no channels — ask your provider to confirm it is bound to an active subscription (and, if the line uses a username and password, that those are correct).');
+    if(!Array.isArray(chList)||!chList.length){
+      /* ── v20.4: SAY WHAT THE PORTAL ACTUALLY SENT BACK. ──────────────────────────────────────
+         Reaching here means the hard part WORKED: the handshake issued a token, get_profile (and
+         do_auth on a login+password line) was satisfied, and the portal then answered
+         get_all_channels with nothing this app could read. Two completely different situations
+         end up on this line — a line with no channels on it (the provider's side), and a portal
+         whose reply is in a shape the `js.data || js` read above does not cover (ours) — and the
+         old wording blamed the provider for both, with nothing in it to tell them apart. It costs
+         one string to make the next screenshot decide it: how many genres came back, and what
+         get_all_channels actually replied. Nothing about the route changes. */
+      const e=new Error('The portal accepted this MAC and issued a token, but its channel list came back empty — ask your provider to confirm this line is bound to an active subscription with channels on it (and, if the line uses a username and password, that those are correct). '+_stalkerEmptyNote(chRes,genres));
+      e.profile='empty-channels';
+      throw e;
+    }
     const norm=Media26Portal.stalkerChannelsToApp(chList,genres);
     return {base,mac,endpoint,token,live:norm.live,liveCats:norm.liveCats};
   }finally{ if(ownsAttempt)portalEndAttempt(); }
