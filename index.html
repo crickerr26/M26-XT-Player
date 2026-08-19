@@ -1693,7 +1693,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.6';
+const APP_VERSION='20.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4981,7 +4981,7 @@ function resumeCurrent(){if(S.current)routePlayback(S.current,'basic',false)}
 async function tryPlans(plans,i){
   const v=$('video');
   if(!plans[i]){if(await tryLiveAlternative())return;fail('This stream is unavailable. Try another channel version.');return}
-  if(i===0)S.lastPreviewError='';
+  if(i===0){S.lastPreviewError='';S.routeErrors=[];}
   cleanup();
   const token=++S.seq,p=plans[i],live=typeOf(S.current)==='live',transcoded=/Transcoded/i.test(p.label);
   /* between attempts, give the origin a beat to release the previous slot */
@@ -5024,7 +5024,16 @@ async function tryPlans(plans,i){
     /* v20.1: and whether the transcoder itself is answering. While it is down its routes sink to
        last, so an MKV stops spending its 130-second start budget on a service that is not there. */
     try{window.YezPlayer&&YezPlayer.noteTranscoder&&YezPlayer.noteTranscoder(p.url,why)}catch(e){}
-    S.lastPreviewError=String(p.label+': '+(why||'failed')).replace(/https?:\/\/\S+/g,'[url]').slice(0,180);$('netStatus').textContent=S.lastPreviewError};
+    /* v20.7: EVERY ROUTE'S VERDICT IS KEPT, NOT JUST THE LAST ONE. This line used to overwrite
+       S.lastPreviewError on each attempt, so the summary a customer finally saw named whichever
+       route happened to be last — the transcoder — and reported ITS error ("HTTP 503") as the
+       reason the title would not play, while the six routes before it, the ones that say what the
+       PANEL answered, went unreported. Same rule as the sign-in path in CLAUDE.md: never let a
+       later failure erase an earlier one's evidence. */
+    const _line=String(p.label+': '+(why||'failed')).replace(/https?:\/\/\S+/g,'[url]').slice(0,180);
+    if(!Array.isArray(S.routeErrors))S.routeErrors=[];
+    S.routeErrors.push(_line);
+    S.lastPreviewError=_line;$('netStatus').textContent=_line};
   const showPlaying=()=>{if(E.overlayState==='playing'&&E.shownMuted===v.muted)return;
     /* v20.1: a transcoded route that reaches PLAYING is proof the service is back — clear the
        "down" flag immediately rather than waiting for it to age out, so the very next MKV gets the
@@ -5289,6 +5298,26 @@ function showAccountConflict(msg){
    conflict rather than guess. */
 function singleConnLine(){return false;}
 async function checkAccountConflict(){return false;}
+/* v20.7: what the whole attempt actually found, in the order it found it.
+   - A MAG/Stalker title whose create_link produced no link cannot play by ANY route: the address
+     simply does not exist yet. The portal's own words for that are recorded in S.stalkerLastError
+     by stalkerResolve() and, since v19.74 rebuilt Player 1 around tryPlans(), were shown nowhere —
+     the one dep that used them (noRouteReason) belongs to the engine that no longer runs. They
+     lead the message now, because they are the cause and everything after them is a consequence.
+   - Then the FIRST route refusal, which is the one that describes the panel, and the last, which
+     is usually our own transcoder. */
+function attemptEvidence(){
+  const x=S.current;
+  let out='';
+  if(x&&x._stalkerCmd&&!x.direct_source){
+    out+=' Your portal would not issue a link for this title — '+(S.stalkerLastError||'it returned no link')+'.';
+  }
+  const errs=(Array.isArray(S.routeErrors)?S.routeErrors:[]).filter(Boolean);
+  if(!errs.length)return out+(S.lastPreviewError?(' Last route: '+S.lastPreviewError+'.'):'');
+  out+=' '+errs.length+' route'+(errs.length===1?'':'s')+' tried. First: '+errs[0]+'.';
+  if(errs.length>1)out+=' Last: '+errs[errs.length-1]+'.';
+  return out;
+}
 function fail(msg){
   /* v39: if a LIVE stream died, check whether the account's one slot is now held by another
      device (our own connection is already torn down here) and, if so, explain it. */
@@ -5303,14 +5332,21 @@ function fail(msg){
     $('miniMeta').textContent='Codec unsupported';
     toast('Codec needs transcoder');
   }else if(hasTrans){
-    $('stateTitle').textContent='Stream unavailable';
-    $('stateText').textContent='This stream did not produce playable HLS.'+(S.lastPreviewError?' Last route: '+S.lastPreviewError+'.':' Try another channel or check the transcoder server.');
+    /* v20.7: when every route that failed WAS the transcoder, and it answered 5xx, the title is
+       not the problem and neither is the panel — our own helper service is down. Say that, and
+       point at the button that fixes it, instead of "did not produce playable HLS". */
+    const _errs=(Array.isArray(S.routeErrors)?S.routeErrors:[]).filter(Boolean);
+    const _transOnly=_errs.length&&_errs.every(e=>/Transcoded/i.test(e))&&/\b(50\d|52\d|408)\b/.test(_errs.join(' '));
+    $('stateTitle').textContent=_transOnly?'Transcoder server is down':'Stream unavailable';
+    $('stateText').textContent=(_transOnly
+      ?'This title needs the transcoder server and it is not answering. Open Settings ▸ Stream Tools and tap Test transcoder — if it is not green, tap Deploy free transcoder and follow the steps there.'
+      :'This stream did not produce playable HLS.')+(attemptEvidence()||' Try another channel or check the transcoder server.');
     $('miniMeta').textContent='Preview failed';
     toast('Preview playback failed');
   }else if(isApple){
     /* On Apple without transcoder: give a clear, actionable message — not "Transcoder needed" */
     $('stateTitle').textContent='Stream not supported';
-    $('stateText').textContent='This stream uses a codec or container that Safari cannot play directly. Try a different channel, or use the Stream Tools menu to set a transcoder server for full compatibility.';
+    $('stateText').textContent='This stream uses a codec or container that Safari cannot play directly. Try a different channel, or use the Stream Tools menu to set a transcoder server for full compatibility.'+attemptEvidence();
     $('miniMeta').textContent='Unsupported stream';
     toast('Try another channel or set transcoder');
   }else{
