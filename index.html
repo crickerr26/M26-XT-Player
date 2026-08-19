@@ -659,6 +659,14 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
    panel's padding so its opaque background covers the full width (and the rounded corners) as
    content passes underneath. */
 .nativePanel .episodeHead{position:sticky;top:0;z-index:4;margin:calc(-1 * var(--sheetPad)) calc(-1 * var(--sheetPad)) 10px;padding:var(--sheetPad);background:var(--panel);border-radius:20px 20px 0 0;box-shadow:0 1px 0 var(--line)}
+/* v20.3: A BUTTON THAT IS BUSY HAS TO LOOK BUSY. Nothing anywhere styled :disabled, so
+   "Connect to Portal" sat there mid-sign-in looking exactly like an untapped button — same
+   gradient, same label — while the only progress text sat below the fold at the bottom of the
+   sheet. Every further tap then hit a disabled button and did nothing at all, which is precisely
+   what a stuck sign-in looked like from the customer's side. */
+.pillbtn:disabled{opacity:.62;cursor:default}
+.pillbtn:disabled:active{transform:none}
+.pillbtn.working::before{content:'';flex:none;width:15px;height:15px;border-radius:50%;border:2px solid currentColor;border-top-color:transparent;animation:spin .8s linear infinite}
 .nativePanel .nativeActions{margin-top:12px}
 .extActions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
 .extActions .pillbtn{height:38px;font-size:13px}
@@ -1568,12 +1576,15 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   </div>
   <p class="nativeText portalNote">A portal URL, login and password is all most lines need.</p>
   <div class="nativeActions" style="margin-top:4px"><button class="pillbtn primary" id="xtreamGo" type="button" style="width:100%">Connect to Portal</button></div>
+  <!-- v20.3: the sign-in message belongs NEXT TO the button that starts the sign-in. It used to
+       sit under "Save portal for one-tap login", i.e. off the bottom of a phone screen, so
+       "Connecting…" and every verdict after it were written where the customer was not looking. -->
+  <div class="err" id="xtreamErr" style="min-height:0"></div>
   <!-- v19.29: saving is its own action, not a side effect of a successful sign-in. A line that is
        correct but whose portal is having a bad minute could not be saved at all before, so the
        customer retyped it every attempt. Saved rows appear on the sign-in screen and sign in on
        one tap. -->
   <div class="nativeActions" style="margin-top:8px"><button class="pillbtn" id="xtreamSave" type="button" style="width:100%">Save portal for one-tap login</button></div>
-  <div class="err" id="xtreamErr" style="min-height:0"></div>
   <!-- v19.24: THE DEVICE ID, TO BE READ OUT — NOT TYPED IN. The MAC input was removed on purpose
        and stays removed: a customer should never be asked to supply one. But a Ministra portal
        identifies a box BY its MAC, and a reseller panel carries a MAC field per line. When such a
@@ -1682,7 +1693,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.2';
+const APP_VERSION='20.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1731,6 +1742,20 @@ if('serviceWorker'in navigator){try{addEventListener('load',()=>{
    (favorites/credentials just won't survive a reload in those contexts). */
 const store=(()=>{try{const t='__m26t';localStorage.setItem(t,'1');localStorage.removeItem(t);return localStorage}catch{const m=new Map();return{getItem:k=>m.has(k)?m.get(k):null,setItem:(k,v)=>{m.set(k,String(v))},removeItem:k=>{m.delete(k)}}}})();
 const $=id=>document.getElementById(id);
+/* ── v20.3: THE SIGN-IN BUTTON MUST NEVER BE A DEAD BUTTON. ─────────────────────────────────────
+   Every control in this file is wired by a top-level statement near the END of one very long
+   script block, so a single statement above them throwing at runtime — a stored profile in a shape
+   paintProfiles() did not expect, an API this browser does not have — silently leaves "Connect to
+   Portal" and its × with no handler at all. The sheet still opens (bound earlier), the form still
+   types, and tapping the button does literally nothing: no message, no error, nothing to screenshot.
+   This listener is registered FIRST and calls the same hoisted functions, and it only acts when the
+   direct binding is genuinely absent, so it can never double-submit a sign-in. */
+document.addEventListener('click',function(e){
+  const t=e.target&&e.target.closest?e.target.closest('#xtreamGo,#xtreamClose'):null;
+  if(!t||t.onclick)return;
+  if(t.id==='xtreamGo'){if(!t.disabled){try{submitXtreamLogin();}catch(err){}}}
+  else{const sh=document.getElementById('xtreamSheet');if(sh)sh.classList.remove('show');}
+});
 const ICONS={
   gridView:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>',
   listView:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>',
@@ -7017,9 +7042,19 @@ if($('xtreamSave'))$('xtreamSave').onclick=()=>{
     :{kind:'mac',name:nm||macFmt(stalkerMac())||hostOf(root),url:root,raw:url,user:'',pass:'',mac:stalkerMac(),source:hostOf(root)});
   toast('Saved. It is on the sign-in screen now — one tap to connect.');
 };
+/* v20.3: bring a line into view by scrolling ITS OWN sheet, never scrollIntoView() — on iOS that
+   scrolls the document behind a fixed sheet and leaves the whole overlay offset. */
+function revealInSheet(el){
+  try{
+    const panel=el&&el.closest&&el.closest('.episodePanel');if(!panel)return;
+    const er=el.getBoundingClientRect(),pr=panel.getBoundingClientRect();
+    if(er.bottom>pr.bottom-6)panel.scrollTop+=(er.bottom-pr.bottom)+14;
+    else if(er.top<pr.top+6)panel.scrollTop-=(pr.top-er.top)+14;
+  }catch(e){}
+}
 function signInMsg(text,kind,opts){
   const el=$('xtreamErr');
-  if(el){el.textContent=text||'';el.classList.toggle('working',kind==='working'&&!!text);}
+  if(el){el.textContent=text||'';el.classList.toggle('working',kind==='working'&&!!text);if(text)revealInSheet(el);}
   const e2=$('err');
   if(e2&&kind!=='working'){e2.textContent=text||'';}
   showDeviceId(!!(opts&&opts.deviceId));   /* never hides it — see showDeviceId */
@@ -7093,7 +7128,11 @@ async function submitXtreamLogin(){
      non-credentials line must not carry a stale username through to the portal. On m3uurl, sending
      '' is also what lets login() read the identity back out of the pasted link itself. */
   const _useCreds=(_portalKind==='xtream');
-  const btn=$('xtreamGo');if(btn)btn.disabled=true;
+  /* v20.3: say it ON THE BUTTON. A sign-in walks a dozen playlist addresses and then the MAG
+     handshake, which is 20-60 seconds of real work; with the label unchanged and the progress line
+     off the bottom of the sheet, that was indistinguishable from a tap that never registered. */
+  const btn=$('xtreamGo');
+  if(btn){btn.disabled=true;btn.dataset.idle=btn.dataset.idle||btn.textContent;btn.textContent='Connecting…';btn.classList.add('working');}
   signInMsg('Connecting…','working');
   try{
     await login({creds:{portalUrl:url,username:_useCreds?user:'',password:_useCreds?pass:''},kind:_portalKind});
@@ -7134,7 +7173,7 @@ async function submitXtreamLogin(){
       }
     }
   }finally{
-    if(btn)btn.disabled=false;
+    if(btn){btn.disabled=false;btn.classList.remove('working');btn.textContent=btn.dataset.idle||'Connect to Portal';}
   }
 }
 /* ── v9.9 · ONE-STEP ACTIVATION-CODE LOGIN ──────────────────────────────────────
@@ -7240,7 +7279,7 @@ if($('actCodeBox')){
    whether or not one of the automatic paths is about to replace it, and a launch that ends up
    staying here (no saved session, or the last one was logged out of) would otherwise show no users
    at all until something else happened to repaint. */
-paintProfiles();
+try{paintProfiles();}catch(e){console.error('paintProfiles',e);}
 /* v19.25: the device id is painted at startup as well as when the sheet opens, so it can never
    be blank on a path that did not go through openXtreamSheet(). */
 try{if($('macRowMac'))$('macRowMac').textContent=macFmt(stalkerMac());if($('setMac'))$('setMac').textContent=macFmt(stalkerMac());}catch(e){}
