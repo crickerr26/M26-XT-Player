@@ -1693,7 +1693,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.4';
+const APP_VERSION='20.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6495,9 +6495,53 @@ async function stalkerHandshake(base,mac,creds){
   fin.tried=tried;
   throw fin;
 }
+/* ── v20.5 (owner approved): A SECOND WAY TO ASK FOR THE CHANNEL LIST. ─────────────────────────
+   get_all_channels is the one call this app used for live TV, and a portal that answers it with
+   an empty set ended the sign-in — even though the handshake, get_profile and do_auth had all
+   just succeeded. Ministra also serves live TV through get_ordered_list, the SAME paged endpoint
+   this file already uses for Movies and Series (see stalkerPaged), and on builds where
+   get_all_channels comes back empty that is where the channels actually are.
+   This is strictly additive: it runs only where the sign-in used to throw, it asks the same
+   portal on the same authenticated session, and if it also comes back empty the customer gets
+   the same verdict as before, now saying that both were tried. Nothing is removed or gated.
+   Bounded on purpose — a sign-in may not turn into a thousand-page sweep, so it stops at
+   STALKER_LIVE_PAGES pages (with max_page_items at the usual 14 that is still ~1,700 channels,
+   and portals that answer genre='*' in one page finish in a single request). Pages are held in
+   their own slots and flattened in order, so the channel order is the portal's, not the order
+   the four concurrent fetches happened to land in. */
+const STALKER_LIVE_PAGES=120;
+async function stalkerLiveViaOrderedList(endpoint,mac,token,onCount){
+  const ask=p=>stalkerJson(endpoint,mac,token,{type:'itv',action:'get_ordered_list',genre:'*',force_ch_link_check:'',fav:'0',sortby:'number',hd:'0',p:String(p),JsHttpRequest:'1-xml'}).catch(()=>null);
+  const dataOf=r=>{const js=r&&r.js;const d=(js&&(js.data||js))||[];return Array.isArray(d)?d:[];};
+  const first=await ask(1);
+  const head=dataOf(first);
+  if(!head.length)return [];
+  const js1=first&&first.js;
+  const total=Number(js1&&js1.total_items)||0;
+  const per=Number(js1&&js1.max_page_items)||head.length||1;
+  const last=Math.min(STALKER_LIVE_PAGES,total?Math.ceil(total/per):1);
+  const slots=[head];
+  if(last>1&&head.length>=per){
+    let next=2;
+    const worker=async()=>{
+      for(;;){
+        const p=next++;
+        if(p>last)return;
+        const d=dataOf(await ask(p));
+        slots[p-1]=d;
+        if(!d.length)return;
+        if(onCount){let n=0;for(const sl of slots){if(!sl)break;n+=sl.length;}try{onCount(n,total);}catch(e){}}
+      }
+    };
+    await Promise.all([worker(),worker(),worker(),worker()]);
+  }
+  const out=[];
+  for(const sl of slots){if(!sl)break;out.push.apply(out,sl);}
+  return total?out.slice(0,total):out;
+}
 /* v20.4: the evidence line for the empty-channel verdict above — the portal's own reply, described
    rather than dumped, and never long enough to bury the sentence it is attached to. */
-function _stalkerEmptyNote(chRes,genres){
+function _stalkerEmptyNote(chRes,genres,altNote){
   try{
     const js=chRes&&chRes.js;
     let what;
@@ -6510,7 +6554,7 @@ function _stalkerEmptyNote(chRes,genres){
         +(Array.isArray(js.data)?(', data='+js.data.length+' items'):'');
     }
     else what=String(js).slice(0,60);
-    return 'What it sent: get_all_channels → '+what+'; get_genres → '+(((genres&&genres.length)||0))+' genres.';
+    return 'What it sent: get_all_channels → '+what+'; get_genres → '+(((genres&&genres.length)||0))+' genres'+(altNote?('; '+altNote):'')+'.';
   }catch(e){return '';}
 }
 async function stalkerLogin(base,mac,creds){
@@ -6529,7 +6573,19 @@ async function stalkerLogin(base,mac,creds){
     const genresRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_genres',JsHttpRequest:'1-xml'}).catch(()=>null);
     const genres=(genresRes&&genresRes.js)||[];
     const chRes=await stalkerJson(endpoint,mac,token,{type:'itv',action:'get_all_channels',JsHttpRequest:'1-xml'});
-    const chList=(chRes&&chRes.js&&(chRes.js.data||chRes.js))||[];
+    let chList=(chRes&&chRes.js&&(chRes.js.data||chRes.js))||[];
+    let altNote='';
+    if(!Array.isArray(chList)||!chList.length){
+      /* v20.5: ask the other way before giving up — see stalkerLiveViaOrderedList above. */
+      let alt=[];
+      try{
+        alt=await stalkerLiveViaOrderedList(endpoint,mac,token,(n)=>{
+          try{const t='Loading your channels… '+n;load(true,t);signInMsg(t,'working');}catch(e){}
+        });
+      }catch(e){ altNote='get_ordered_list → '+((e&&e.message)||'no answer'); }
+      if(alt&&alt.length)chList=alt;
+      else if(!altNote)altNote='get_ordered_list → 0 channels';
+    }
     if(!Array.isArray(chList)||!chList.length){
       /* ── v20.4: SAY WHAT THE PORTAL ACTUALLY SENT BACK. ──────────────────────────────────────
          Reaching here means the hard part WORKED: the handshake issued a token, get_profile (and
@@ -6540,7 +6596,7 @@ async function stalkerLogin(base,mac,creds){
          old wording blamed the provider for both, with nothing in it to tell them apart. It costs
          one string to make the next screenshot decide it: how many genres came back, and what
          get_all_channels actually replied. Nothing about the route changes. */
-      const e=new Error('The portal accepted this MAC and issued a token, but its channel list came back empty — ask your provider to confirm this line is bound to an active subscription with channels on it (and, if the line uses a username and password, that those are correct). '+_stalkerEmptyNote(chRes,genres));
+      const e=new Error('The portal accepted this MAC and issued a token, but its channel list came back empty — ask your provider to confirm this line is bound to an active subscription with channels on it (and, if the line uses a username and password, that those are correct). '+_stalkerEmptyNote(chRes,genres,altNote));
       e.profile='empty-channels';
       throw e;
     }
