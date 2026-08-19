@@ -1716,7 +1716,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='21.3';
+const APP_VERSION='21.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4719,6 +4719,22 @@ function plan(x){
     }catch(e){}
     return out;
   };
+  /* ── v21.4: A VOD TITLE NEEDS ONE ROUTE THAT IS NOT ON CLOUDFLARE, AND FFMPEG IS NOT IT. ────
+     v16.6 measured this provider's stream node answering Cloudflare egress with "error code:
+     1003 / 403" while ordinary hosting fetched the identical link with HTTP 200 — and every route
+     a movie had, except one, is a Cloudflare Worker: /proxy is this app's own origin, and the
+     shared HLS relay is another Worker. The single exception was the ffmpeg transcoder, so when
+     that service was unreachable (it was pointed at a deleted Render host until v21.2) NOTHING
+     under Movies or Series could play, mkv and mp4 alike, however healthy the file was.
+     The transcoder box also runs a PLAIN pass-through relay — the same ordinary-hosting address
+     the panel accepts, but it only moves bytes: no re-encode, no cold ffmpeg, and byte ranges
+     intact so seeking still works. That is what a movie actually needs here, and it was reachable
+     from the Stalker branch only. Every VOD title gets it now, ahead of the transcoder. */
+  const addRelay=(label,url)=>{
+    if(!url)return;
+    let r='';try{r=streamRelayUrl(url,x);}catch(e){}
+    if(r)add(/\.m3u8(?:$|\?)/i.test(String(url))?'hls':'native',label,r);
+  };
   const addMkv=(label,url)=>{
     if(!url||!global_mkvReady())return;
     add('mkv',label,magProxy(url));
@@ -4908,6 +4924,7 @@ function plan(x){
       /* v20.6: before any of the server-side routes below — this one needs neither the relay's
          MKV→HLS remux nor the transcoder to be awake. */
       addMkv('MKV In-App',direct||rawMkv);
+      addRelay('Server Relay',direct||rawMkv);
       if(direct){
         addTrans('MKV',direct);
         add('hls','Direct Relay',liveHlsUrl(direct));
@@ -4934,6 +4951,8 @@ function plan(x){
          https URL that starts immediately (the proxy relays byte ranges, so seeking works). */
       const W=u=>blocked(u)?proxyUrl(u):u;
       if(direct)add(direct.includes('.m3u8')?'hls':'native','Direct',W(direct));
+      /* the one address on this list that is not a Cloudflare Worker — see addRelay above */
+      addRelay('Server Relay',direct||rawMp4);
       add('native','MP4',W(rawMp4));
       add('hls','HLS',W(rawM3u8));
       add('native','MP4 Proxy',proxyUrl(rawMp4));
@@ -4953,6 +4972,7 @@ function plan(x){
       add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase(),preferredUrl);
       add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase()+' Proxy',proxyUrl(preferredUrl));
       if(isMkv)addMkv('MKV In-App',direct||preferredUrl||rawMkv);
+      addRelay('Server Relay',direct||preferredUrl);
       ['mp4','m3u8','ts','mkv'].filter(e=>e!==preferred).forEach(e=>{
         const u=directUrl(x,e);
         if(e==='mkv'||e==='ts')addTrans(e.toUpperCase(),u);
