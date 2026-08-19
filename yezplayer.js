@@ -154,6 +154,82 @@
   }
   function forgetGates() { gated = {}; saveGate(); }
 
+  /* The address this device should actually use for a stream — the ladder's answer once the
+     original's port is known to be refused, otherwise the provider's own link untouched.
+     Sync, so anything that builds a URL can call it, including the external-player handoff. */
+  function preferredUrl(u) {
+    if (!isGated(u)) return u;
+    var alts = ladder(u);
+    return alts.length ? alts[0] : u;
+  }
+
+  /* Settle a host's port BEFORE handing the link to something we cannot observe.
+     The in-app player learns which port works by failing on it, but VLC is a different app — it
+     opens, gets the panel's refusal, and shows the customer a black screen with nothing reported
+     back here. So for an external handoff the verdict is established first, once per host, with a
+     single tiny ranged request that is thrown away. `probe(url)` is supplied by the app (it knows
+     the relay) and resolves true only if the ORIGINAL port really serves media. */
+  var verifying = {};
+  function verifyPort(u, probe) {
+    var k = hostPort(u);
+    if (!k || typeof probe !== 'function') return Promise.resolve(preferredUrl(u));
+    loadGate();
+    if (gated[k] !== undefined) return Promise.resolve(preferredUrl(u));   /* already settled */
+    if (!withoutPort(streamOf(u))) return Promise.resolve(u);
+    if (!verifying[k]) {
+      verifying[k] = Promise.resolve()
+        .then(function () { return probe(streamOf(u)); })
+        .then(function (ok) { gated[k] = ok ? 0 : Date.now(); saveGate(); })
+        .catch(function () {});
+    }
+    return verifying[k].then(function () { return preferredUrl(u); });
+  }
+
+  /* ── TRANSCODER HEALTH ────────────────────────────────────────────────────────────────────
+     A transcoded route carries a 130-second start budget, because waking a sleeping free instance
+     legitimately takes that long. When the service is not asleep but GONE, that budget is spent in
+     full on a route that cannot work — and for an MKV the transcoder is tried FIRST, because no
+     browser is assumed to decode Matroska. Measured with the service suspended: an MKV movie took
+     17.0s to start, 8.5s of it burned on the dead transcoder before anything else was tried.
+     So its state is remembered, briefly. While it is known down, transcoded routes go last instead
+     of first — never removed, so the moment the service is back a title that truly needs it still
+     finds it, and the flag ages out on its own. */
+  var TKEY = 'yez.transcoderDown.v1';
+  var TDOWN_TTL = 10 * 60 * 1000;
+  function transcoderDown() {
+    try {
+      var v = +(global.localStorage && global.localStorage.getItem(TKEY) || 0);
+      return !!(v && (Date.now() - v) < TDOWN_TTL);
+    } catch (e) { return false; }
+  }
+  function noteTranscoder(url, why) {
+    if (!/\/transcoder\//.test(String(url || ''))) return false;
+    try {
+      if (/\b(50[0-9]|52[0-9]|408)\b/.test(String(why || ''))) {
+        global.localStorage && global.localStorage.setItem(TKEY, String(Date.now()));
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+  function noteTranscoderUp() { try { global.localStorage && global.localStorage.removeItem(TKEY); } catch (e) {} }
+
+  var CONTAINER_RE = /\.(mkv|mp4|m4v|avi|mov|wmv|flv|ts)(?:$|[?#])/i;
+  /* How far back a route deserves to be pushed. Lower runs first; the sort is stable, so routes
+     that score the same keep the order the app chose for them. */
+  function penalty(r) {
+    var u = String(r.url || '');
+    /* A transcoder route is judged ONLY on whether the service is alive. Its input is a Matroska
+       file but its OUTPUT is HLS, which is exactly what hls.js is for — so it must never be caught
+       by the container rule below, or the one route that rescues a codec this device cannot decode
+       would sink for doing its job. */
+    if (/\/transcoder\//.test(u)) return transcoderDown() ? 2 : 0;
+    /* hls.js cannot play a Matroska or MP4 FILE — handing it one only spends a start budget before
+       the native element gets its turn. Measured: 5.7s of the 17s above. */
+    if (r.kind === 'hls' && CONTAINER_RE.test(streamOf(u)) && !/\.m3u8(?:$|[?#])/i.test(streamOf(u))) return 1;
+    return 0;
+  }
+
   /* ── EXPAND ───────────────────────────────────────────────────────────────────────────────
      A route list in, the same list with each entry followed immediately by its ladder.
      Shape-agnostic on purpose: index.html's plan() emits {kind,label,url} and the engine's
@@ -192,7 +268,13 @@
       }
     }
     for (var d = 0; d < demoted.length; d++) add(demoted[d]);
-    return out;
+    /* Stable ordering pass: routes that cannot work right now sink, routes keep their relative
+       order otherwise. Decorate-sort-undecorate, because Array#sort is only guaranteed stable on
+       modern engines and this has to hold on older phone browsers too. */
+    return out
+      .map(function (r, i) { return { r: r, i: i, p: penalty(r) }; })
+      .sort(function (a, b) { return (a.p - b.p) || (a.i - b.i); })
+      .map(function (e) { return e.r; });
   }
 
   /* The expansion is applied immediately after each original, never appended at the end: a gated
@@ -235,6 +317,13 @@
     noteRefusal: noteRefusal,
     isGated: isGated,
     forgetGates: forgetGates,
+    /* the address to hand an external app (VLC), and the one-shot check behind it */
+    preferredUrl: preferredUrl,
+    verifyPort: verifyPort,
+    /* transcoder health, so a dead helper stops costing 130s on every MKV */
+    transcoderDown: transcoderDown,
+    noteTranscoder: noteTranscoder,
+    noteTranscoderUp: noteTranscoderUp,
     ladder: ladder,
     plan: plan,
     hasInner: hasInner,

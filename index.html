@@ -1675,7 +1675,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='20.0';
+const APP_VERSION='20.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4034,8 +4034,33 @@ function externalStreamUrl(x){
   /* v19.0: the item's own type decides the section for a legacy extensionless link — without it a
      movie was handed to VLC/KMPlayer as .../live/... and never played. */
   let f=null;try{f=xtreamForms(direct,typeOf(x))}catch(e){f=null}
-  if(!f||f.ext)return direct;   /* not Xtream-shaped, or already carries its extension */
-  return typeOf(x)==='live'?f.ts:f.file(x.container_extension||'mp4');
+  /* v20.1: hand the external app the port that ANSWERS. xtreamForms canonicalises the path but
+     keeps the host verbatim, port and all — so VLC was being given exactly the address this panel
+     refuses: live came back 511, and a movie came back "200 OK" carrying an HTML page and zero
+     bytes. VLC opened, got that, and showed nothing, which reads as "VLC is broken". The in-app
+     player already routes around it; the external handoff never did. Same single owner, same
+     verdict. */
+  const pick=u=>{try{return (window.YezPlayer&&YezPlayer.preferredUrl)?YezPlayer.preferredUrl(u):u}catch(e){return u}};
+  if(!f||f.ext)return pick(direct);   /* not Xtream-shaped, or already carries its extension */
+  return pick(typeOf(x)==='live'?f.ts:f.file(x.container_extension||'mp4'));
+}
+/* v20.1: does the port the panel PRINTED actually serve media? One tiny ranged request through our
+   own relay, answered once per host and then remembered. This exists for the external handoff:
+   the in-app player learns a bad port by failing on it, but VLC is another app — it fails silently,
+   off where we cannot see it, so the verdict has to be settled before the link is handed over. */
+async function yezProbeOriginal(streamUrl){
+  let ctl=null;try{ctl=new AbortController()}catch(e){}
+  const t=setTimeout(()=>{try{ctl&&ctl.abort()}catch(e){}},6000);
+  try{
+    const r=await fetch(proxyUrl(streamUrl),{cache:'no-store',headers:{Range:'bytes=0-1'},signal:ctl?ctl.signal:undefined});
+    clearTimeout(t);
+    if(!r.ok&&r.status!==206)return false;
+    /* the deceptive case: HTTP 200 with an HTML error page instead of the file */
+    const ct=(r.headers.get('content-type')||'').toLowerCase();
+    if(/text\/html|application\/xhtml/.test(ct))return false;
+    return true;
+  }catch(e){clearTimeout(t);return false}
+  finally{try{ctl&&ctl.abort()}catch(e){}}
 }
 /* v13.2: the timeout is a parameter now. 8s is right for the small probes this serves (the
    stream doctor's playlist check), but a full IPTV M3U is tens of megabytes and never finished
@@ -4100,6 +4125,15 @@ async function playItemExternal(x,mode,armed){
      a second intent. */
   const token=S.seq;
   if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}
+  /* v20.1: settle this host's port before launching, so VLC gets a link that plays on the FIRST
+     tap rather than after the in-app player has happened to learn it. One request, once per host,
+     and only when the address actually names a port. */
+  try{
+    if(window.YezPlayer&&YezPlayer.verifyPort){
+      await YezPlayer.verifyPort(String(x.direct_source||x.stream_url||''),yezProbeOriginal);
+      if(token!==S.seq)return;   /* a newer tap won while we were checking */
+    }
+  }catch(e){}
   const u=externalStreamUrl(x),title=nameOf(x),d=deviceKind(),label=playerLabel(mode);
   S.extLaunch={x,mode};
   const thumb=logoOf(x);
@@ -4935,8 +4969,16 @@ async function tryPlans(plans,i){
        attempt after a reload — leads with the port that answers instead of spending this line's
        single upstream connection on the one that does not. See yezplayer.js GATE MEMORY. */
     try{window.YezPlayer&&YezPlayer.noteRefusal&&YezPlayer.noteRefusal(p.url,why)}catch(e){}
+    /* v20.1: and whether the transcoder itself is answering. While it is down its routes sink to
+       last, so an MKV stops spending its 130-second start budget on a service that is not there. */
+    try{window.YezPlayer&&YezPlayer.noteTranscoder&&YezPlayer.noteTranscoder(p.url,why)}catch(e){}
     S.lastPreviewError=String(p.label+': '+(why||'failed')).replace(/https?:\/\/\S+/g,'[url]').slice(0,180);$('netStatus').textContent=S.lastPreviewError};
-  const showPlaying=()=>{if(E.overlayState==='playing'&&E.shownMuted===v.muted)return;E.overlayState='playing';E.shownMuted=v.muted;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
+  const showPlaying=()=>{if(E.overlayState==='playing'&&E.shownMuted===v.muted)return;
+    /* v20.1: a transcoded route that reaches PLAYING is proof the service is back — clear the
+       "down" flag immediately rather than waiting for it to age out, so the very next MKV gets the
+       transcoder in its proper leading position again. */
+    try{if(transcoded&&window.YezPlayer&&YezPlayer.noteTranscoderUp)YezPlayer.noteTranscoderUp()}catch(e){}
+    E.overlayState='playing';E.shownMuted=v.muted;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const nextPlan=()=>{if(token!==S.seq)return;tryPlans(plans,i+1)};
   const mseLive=live&&!transcoded&&(p.kind==='mpegts'||(p.kind==='hls'&&window.Hls&&Hls.isSupported()));
   /* autoplay waterfall: unmuted -> muted -> tap prompt */
