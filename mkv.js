@@ -225,8 +225,14 @@
     const tfhd = box('tfhd', u32(0x020000), u32(track.id));   // default-base-is-moof
     const tfdt = box('tfdt', u32(0x01000000), u64(dts[0]));   // version 1, 64-bit DECODE time
     /* version 1 (signed composition offsets) + data-offset, sample-duration, sample-size,
-       sample-flags and sample-composition-time-offset all present. */
-    const trunHeader = cat([u32(0x01001701), u32(n)]);
+       sample-flags and sample-composition-time-offset all present.
+       v20.6: the flag word said 0x1701, and the composition-offset bit is 0x800 — 0x1000 is not a
+       flag at all. So every fragment WROTE four fields per sample (16 bytes) while ANNOUNCING
+       three (12), and any reader stepping the table by what the header declared drifted four bytes
+       further out of step with every sample: sizes read out of the middle of other fields, then
+       "invalid NAL unit size" and a fragment the browser rejects outright. That is why an .mkv
+       never actually played in-app and every MKV title ended up waiting on the transcoder. */
+    const trunHeader = cat([u32(0x01000F01), u32(n)]);
     const trafLen = 8 + tfhd.length + tfdt.length + (8 + trunHeader.length + 4 + trunEntries.length);
     const moofLen = 8 + (8 + 8) + trafLen;
     const dataOffset = moofLen + 8;
