@@ -4,13 +4,63 @@
    back unknown and MKV kept hitting a server that never received the HEVC fix.
    Override without a code change by setting a TRANSCODER_ORIGIN variable on the Worker/Pages
    project, so moving to a new Render service is a dashboard edit, not a redeploy of this file. */
-const DEFAULT_TRANSCODER_ORIGIN = 'https://media26-transcoder-mlxq.onrender.com';
-function transcoderOrigin(env) {
+/* ── v21.2: THE ADDRESS OF A SERVICE THAT NO LONGER EXISTS 503s EVERYTHING. ────────────────────
+   This constant named one Render service, and when that service is deleted or replaced — Render
+   appends a fresh suffix every time a blueprint is deployed under a name already in use, so
+   -mlxq / -xutt / no suffix are all the same app at different moments — every /transcoder request
+   answers 503. Both halves of that service go down together: the ffmpeg transcoder AND the
+   activation store, which is why "reachable but error 503" in the app and "could not reach the
+   server" on the admin screen arrived on the same day, with two perfectly healthy services sitting
+   in the dashboard.
+   So the origin is no longer one hard-coded guess. TRANSCODER_ORIGIN on the Worker still wins
+   outright when set; otherwise the candidates below are probed on /health and the first that
+   answers is used and remembered. Preference goes to one reporting activation: true — that is the
+   service holding the Upstash store the admin dashboard writes codes to, and picking a different
+   one would hand customers codes the live server has never heard of. Nothing is cached unless it
+   actually answered, so a service still cold-starting is retried rather than written off. */
+const TRANSCODER_CANDIDATES = [
+  'https://media26-transcoder.onrender.com',        /* the name render.yaml declares */
+  'https://media26-transcoder-xutt.onrender.com',
+  'https://media26-transcoder-mlxq.onrender.com'
+];
+const DEFAULT_TRANSCODER_ORIGIN = TRANSCODER_CANDIDATES[0];
+const TRANSCODER_PROBE_TTL_MS = 5 * 60 * 1000;
+let _tcOrigin = '', _tcAt = 0;
+
+function pinnedTranscoderOrigin(env) {
   try {
     const v = String((env && env.TRANSCODER_ORIGIN) || '').trim().replace(/\/+$/, '');
     if (/^https?:\/\//i.test(v)) return v;
   } catch (e) {}
-  return DEFAULT_TRANSCODER_ORIGIN;
+  return '';
+}
+
+/* The best origin known WITHOUT going to the network — used by the relay helpers, which run inside
+   a sign-in that must not wait on a health probe. */
+function transcoderOrigin(env) {
+  return pinnedTranscoderOrigin(env)
+    || ((_tcOrigin && Date.now() - _tcAt < TRANSCODER_PROBE_TTL_MS) ? _tcOrigin : DEFAULT_TRANSCODER_ORIGIN);
+}
+
+/* The authoritative one: probes the candidates when nothing is pinned or freshly known. */
+async function resolveTranscoderOrigin(env) {
+  const pinned = pinnedTranscoderOrigin(env);
+  if (pinned) return pinned;
+  if (_tcOrigin && Date.now() - _tcAt < TRANSCODER_PROBE_TTL_MS) return _tcOrigin;
+  let answered = '';
+  for (const o of TRANSCODER_CANDIDATES) {
+    let j = null;
+    try {
+      const r = await fetch(o + '/health', { method: 'GET', cf: { cacheTtl: 0 } });
+      if (!r || !r.ok) continue;
+      j = await r.json().catch(() => null);
+    } catch (e) { continue; }
+    if (!j || !j.ok) continue;
+    if (j.activation) { _tcOrigin = o; _tcAt = Date.now(); return o; }   /* holds the code store */
+    if (!answered) answered = o;
+  }
+  if (answered) { _tcOrigin = answered; _tcAt = Date.now(); return answered; }
+  return DEFAULT_TRANSCODER_ORIGIN;   /* nothing answered — do not remember a guess */
 }
 
 function withCors(headers) {
@@ -944,7 +994,7 @@ export default {
       return new Response(null, { status: 204, headers: withCors(new Headers()) });
     }
 
-    const origin = transcoderOrigin(env);
+    const origin = await resolveTranscoderOrigin(env);
     const upstreamPath = url.pathname.replace(/^\/transcoder/, '') || '/';
     const upstreamUrl = new URL(upstreamPath + url.search, origin);
     const headers = new Headers(request.headers);
