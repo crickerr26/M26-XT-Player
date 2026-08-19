@@ -138,7 +138,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='21.0';
+  var ADMIN_VERSION='21.1';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   var DEFAULT_BASE='https://media26-transcoder-mlxq.onrender.com';
   /* v10.4 migrated a stored URL still pointing at "xutt" (that generation's retired service) to
@@ -181,13 +181,20 @@
   /* What /health said this transcoder can do. `kinds` arrived in server v13.5; a server that does
      not report it predates the M3U Playlist line type — see applyKind's staleness warning. */
   var _serverKinds=null,_serverBuild='';
+  /* v21.1: "Could not reach the server" named nothing anyone could act on. Activation codes and
+     the transcoder are the SAME Render service, so when it is down both stop at once — which is
+     exactly what was reported: a red transcoder light in the app and this screen refusing to
+     activate a customer. Say which service, and what brings it back. A customer is never blocked
+     by this: signing in with the portal URL, login and password goes straight to their provider
+     and does not touch this server at all. */
+  var DOWN_MSG='• Activation service is not answering (this is the same Render service as the transcoder — when it sleeps or crashes, both stop). Open the Render dashboard and Resume / Manual Deploy the service, then reload this page. Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.';
   function checkConn(){
     var c=$('conn'); c.textContent='';
     fetch(base()+'/health').then(function(r){return r.json()}).then(function(j){
       if(j&&j.ok){ _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||''; var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]'; c.textContent = (j.activation ? '• Connected, activation ON.' : '• Connected, but activation is OFF (set the Upstash keys on the server).')+b; c.style.color = j.activation?'#4fe0a5':'#ffd25a'; }
-      else { _serverKinds=null; c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; }
+      else { _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; }
       applyKind(segKind('a_kindSeg'));
-    }).catch(function(){ _serverKinds=null; c.textContent='• Could not reach the server.'; c.style.color='#ff8a8a'; applyKind(segKind('a_kindSeg')); });
+    }).catch(function(){ _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; applyKind(segKind('a_kindSeg')); });
   }
 
   function api(path, body){
