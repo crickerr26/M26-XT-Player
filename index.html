@@ -1723,7 +1723,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='22.1';
+const APP_VERSION='22.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5183,20 +5183,21 @@ function plan(x){
          relay are Cloudflare Workers. */
       /* v20.6: before any of the server-side routes below — this one needs neither the relay's
          MKV→HLS remux nor the transcoder to be awake. */
-      /* ---- v22.1 (owner report, repeatedly): ON IPHONE THE SERVER COPY LEADS. --------------
-         The in-app Matroska decoder is the right idea - no server, no cold start - and on this
-         device it has now been through four separate real bugs, the last of which stopped it being
-         handed a single byte. It may well work today. But "MKV does not play" has been the
-         standing complaint for this whole cycle, and the app already has a route that has never
-         been in question: the transcoder's `fastvod` profile COPIES the video stream - no
-         re-encode, no quality loss, barely any CPU - and only re-wraps the container and converts
-         the audio to AAC. Safari plays that natively, like any HLS stream.
-         So on Apple it goes first and the in-app decoder is the fallback; everywhere else the
-         in-app path still leads, because MediaSource there has never been the problem. If the
-         server is down its routes sink on their own (YezPlayer.penalty), so this cannot strand a
-         customer whose transcoder is asleep - it costs one refused attempt. */
-      if(isApple&&(direct||rawMkv))addTrans('MKV',direct||rawMkv);
+      /* ---- v22.2: THE FIXED IN-APP DECODER LEADS, THE SERVER COPY IS RIGHT BEHIND IT. -------
+         v22.1 put the transcoder first on iPhone and gave the whole thing a 130-SECOND budget, so
+         when it did not produce a frame the customer watched "Loading video" for over two minutes
+         with nothing else tried. That IS the "loads but never plays" they reported. Undone.
+         The in-app decoder is instant and needs no server, and every real bug in it is fixed -
+         the last (v21.8) was the iOS ManagedMediaSource deadlock that stopped it being fed a
+         single byte, which is precisely what produced an endless spinner. It now has a 15-second
+         stall deadline of its own, so it can never hang: if it cannot draw a frame it fails FAST
+         to the server copy below. And the transcoder budget is cut from 130s to 45s (see
+         startBudget) so a hard title surfaces a real error in seconds, not minutes.
+         The transcoder's `fastvod` profile COPIES the video (no re-encode, no quality loss) and
+         only re-wraps the container + converts audio to AAC, so it is the reliable fallback for
+         a file the in-app decoder genuinely cannot take. */
       addMkv('MKV In-App',direct||rawMkv);
+      if(direct||rawMkv)addTrans('MKV',direct||rawMkv);
       addRelay('Server Relay',direct||rawMkv);
       if(direct){
         addTrans('MKV',direct);
@@ -5333,7 +5334,12 @@ async function tryPlans(plans,i){
   v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
   const attachAt=Date.now();
   const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null};
-  const startBudget=transcoded?130000:20000;
+  /* v22.2: 130s of "Loading video" is indistinguishable from "never plays", and on a file the
+     transcoder cannot serve it was exactly that. A warm conversion server copying a video stream
+     yields its first segment in a few seconds; 45s leaves generous room for a cold start while
+     guaranteeing a real verdict soon enough to act on. The in-app decoder keeps its own tighter
+     deadline (see mkv.js STALL_MS / this route's grace), so no MKV route can hang the player. */
+  const startBudget=transcoded?45000:20000;
   /* v20.0 (Yez Player): DO NOT ABANDON A ROUTE THAT IS DEMONSTRABLY WORKING.
      The budget was a flat stopwatch, and on a real customer line it expired on the one route that
      was actually playing. Measured on redproibo.online: the panel's continuous MPEG-TS arrives at
