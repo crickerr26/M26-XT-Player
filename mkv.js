@@ -411,6 +411,27 @@
   }
 
   MkvRemuxer.prototype.append = function (chunk) {
+    /* ── v22.4: REJECT A NON-MATROSKA BODY ON THE FIRST BYTES. ──────────────────────────────────
+       A real Matroska file begins with the EBML magic 1A 45 DF A3. When a provider blocks our
+       server fetch it answers with an HTML error page instead, and those bytes are still DATA — so
+       the player's "no data" stall deadline never fired, and this parser churned through the HTML
+       as garbage EBML for the whole route budget (~45s) before giving up, on every route in turn.
+       That is the minute-plus of "loading" on a movie the provider will not serve us. Four bytes
+       settle it: if the stream does not start with the EBML magic it is not Matroska, so fail at
+       once and let the cascade move on (and, quickly, reach the verdict/VLC offer). */
+    if (!this._magicChecked && (this.buf.length + chunk.length) >= 4) {
+      this._magicChecked = true;
+      const b0 = this.buf.length ? this.buf[0] : chunk[0];
+      const b1 = this.buf.length > 1 ? this.buf[1] : chunk[1 - this.buf.length];
+      const b2 = this.buf.length > 2 ? this.buf[2] : chunk[2 - this.buf.length];
+      const b3 = this.buf.length > 3 ? this.buf[3] : chunk[3 - this.buf.length];
+      if (!(b0 === 0x1A && b1 === 0x45 && b2 === 0xDF && b3 === 0xA3)) {
+        const head = [b0, b1, b2, b3].map(function (x) { return String.fromCharCode(x); }).join('');
+        this._notMatroska = 'not a Matroska stream (starts with "' + head.replace(/[^\x20-\x7e]/g, '.') + '") — the source likely returned an error page, not video';
+        return;   /* stop here; playMkv sees _notMatroska and fails the route immediately */
+      }
+    }
+    if (this._notMatroska) return;
     if (this.buf.length) {
       const merged = new Uint8Array(this.buf.length + chunk.length);
       merged.set(this.buf); merged.set(chunk, this.buf.length);
@@ -919,6 +940,7 @@
             if (fin) break;
             if (done) return;
             rx.append(value);
+            if (rx._notMatroska) return fail(new Error(rx._notMatroska));   /* v22.4: bail on an error page */
           }
           rx.flushAll();
           const close = () => { try { if (ms.readyState === 'open') ms.endOfStream(); } catch (_) {} };

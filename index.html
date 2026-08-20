@@ -1723,7 +1723,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='22.3';
+const APP_VERSION='22.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5781,6 +5781,22 @@ function fail(msg){
   $('netStatus').textContent='Preview failed';
   const d=$('details');
   if(d&&S.current)d.textContent='Smart STB, MX Player, IPTV Smarters, and VLC use native/FFmpeg decoders. A web preview needs the same idea on a server: FFmpeg converts MKV, HEVC/H.265, AC3, and unstable TS into browser-friendly HLS.';
+  /* ── v22.4: WHEN A MOVIE WON'T PLAY IN-APP, OFFER VLC RIGHT HERE. ────────────────────────────
+     For a title the provider serves only to a real device — every server route answered an error
+     page or a block, which is most of what "MKV never plays" has been — no amount of in-app work
+     can help: the bytes never reach us. VLC on the phone fetches the file directly, with none of
+     the https/CORS/datacenter limits a web page has, and plays it. The failure overlay used to
+     hide that button and leave the customer to hunt for the small per-row one; on a non-live
+     title it is now the headline action, sitting on the message that just failed. */
+  try{
+    if(S.current&&typeOf(S.current)!=='live'&&$('extActions')){
+      $('extActions').classList.remove('hidden');
+      EXTERNAL_MODES.forEach(m=>{const b=$(PLAYERS[m].extBtn);if(!b)return;b.disabled=false;b.style.opacity='';b.style.display=playerRuns(m,deviceKind())?'':'none';});
+      if($('extBrowser'))$('extBrowser').style.display='none';
+      if($('extCopy'))$('extCopy').style.display='';
+      const t=$('stateText');if(t&&!/VLC/i.test(t.textContent))t.textContent=t.textContent.replace(/\s*\(v[0-9.]+\)\s*$/,'')+' Tap VLC below to play it instantly. (v'+APP_VERSION+')';
+    }
+  }catch(e){}
 }
 function seekBy(sec){
   const v=$('video');
