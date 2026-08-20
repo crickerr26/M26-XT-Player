@@ -1723,7 +1723,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='22.2';
+const APP_VERSION='22.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3205,7 +3205,7 @@ function rememberEndpoint(base,user,url){
     store.setItem(ENDPOINT_KEY,JSON.stringify(m));
   }catch(e){}
 }
-async function fetchPlaylistViaFunction(base,user,pass){
+async function fetchPlaylistViaFunction(base,user,pass,onOpen){
   if(!SAME_ORIGIN_PROXY)return null;   /* not on an http(s) origin — no function available */
   /* v19.58 (owner report: a slow/hanging portal — any portal, not just one — freezes sign-in
      forever with no timeout here at all). This function's fetch is to OUR OWN worker, which in
@@ -3361,27 +3361,37 @@ async function fetchPlaylistViaFunction(base,user,pass){
      anything the app can be handed it and opened, and the remaining megabytes can keep filling the
      very same arrays behind a working screen. The counts refresh as they land, and the finished
      library is what gets cached. */
-  let handed=false;
+  /* ── v22.3: OPEN EARLY, BUT ONLY EVER RETURN AND CACHE THE COMPLETE LIBRARY. ─────────────────
+     v21.7 resolved this promise at HANDOVER — the moment ~200 titles were parsed — and returned
+     the still-growing model. The background-refresh caller then cached THAT snapshot, and
+     IndexedDB structure-clones it on the spot, so a partial library (the reported "did not load
+     fully" — 113 of 193) was written to disk and shown on the next launch. And on a small playlist
+     the whole open-early machinery buys nothing and only introduces that partial-state risk.
+     So the split is explicit now: `onOpen` fires ONCE, as soon as there are enough titles to open
+     the app on, and the caller uses it to paint and drop the loading screen. The promise itself
+     resolves only when parsing is COMPLETE, with the whole library — which is the only thing ever
+     cached, compared, or returned. Opening early and finishing correctly stop fighting. */
+  let opened=false;
   busy(true);
   let _busyDone=false;
   const _idle=()=>{if(_busyDone)return;_busyDone=true;busy(false);};
-  return await new Promise(resolve=>{
-    const settle=model=>{if(handed)return;handed=true;resolve({parsed:model,url:srcUrl,truncated:false,growing:true});};
-    parseM3UStream(r,(model,finished)=>{
-      if(!finished){
-        if(handed){playlistGrew(model);return true;}
-        if(model.total>=PLAYLIST_OPEN_AT){settle(model);return true;}
-        return false;
-      }
-      /* finished: the library is complete — refresh what is on screen and keep it for next launch */
-      try{if(S.m3u===model){S.m3u.total=model.total;renderAll&&renderAll();}}catch(e){}
-      try{libWrite(base,user,model,srcUrl);}catch(e){}
-      _idle();
-      settle(model);
-      return handed;
-    }).then(m=>{ _idle(); if(!handed){ if(m)settle(m); else resolve(null); } })
-      .catch(()=>{ _idle(); if(!handed)resolve(null); });
-  });
+  const model=await parseM3UStream(r,(m,finished)=>{
+    if(finished)return true;
+    if(!opened&&m.total>=PLAYLIST_OPEN_AT){opened=true;try{onOpen&&onOpen(m);}catch(e){}return true;}
+    if(opened){playlistGrew(m);return true;}
+    return false;
+  }).catch(()=>null);
+  _idle();
+  if(!model||!model.total){
+    /* nothing usable was ever handed over and the parse produced nothing */
+    if(opened)return null;
+    return null;
+  }
+  /* If the app was never opened early (a small playlist that finished before the threshold), let
+     the caller open on the complete model now. */
+  if(!opened){try{onOpen&&onOpen(model);}catch(e){}}
+  try{libWrite(base,user,model,srcUrl);}catch(e){}
+  return {parsed:model,url:srcUrl,truncated:false};
 }
 /* ── v16.8: A PLAYLIST SOURCE HAS ALL THREE SHELVES. ──────────────────────────────────────
    v16.3 folded a playlist's shows into the on-demand shelf and dropped the Series tab, on the
@@ -3550,7 +3560,11 @@ async function parseM3UStream(r,onGrow){
    authority: a cache miss, a stale cache, a full disk or a browser with no IndexedDB at all just
    means the normal sign-in runs exactly as before.
    Deliberately bounded: it holds ONE line's library, only when the browser will take it. */
-const LIB_DB='m26lib', LIB_STORE='playlists', LIB_TTL_MS=24*60*60*1000;
+/* v22.3: the store name carries a generation. Earlier versions could cache a PARTIAL library
+   (see the v22.3 note in fetchPlaylistViaFunction); bumping the name abandons every one of those
+   on this release, so no customer is shown a stale short library even once while the fix rolls
+   out. A fresh, complete library is written under the new name on the first sign-in. */
+const LIB_DB='m26lib2', LIB_STORE='playlists', LIB_TTL_MS=24*60*60*1000;
 function _libOpen(){
   return new Promise((res,rej)=>{
     try{
@@ -3610,10 +3624,13 @@ async function loadPlaylistSource(){
           /* refresh in the background; a failure changes nothing, the cache stays */
           try{
             fetchPlaylistViaFunction(_lineBase,_lineUser,S.pass).then(res=>{
-              if(res&&res.parsed&&res.parsed.total){
-                libWrite(_lineBase,_lineUser,res.parsed,res.url);
-                /* only swap it in if the provider actually changed something */
-                if(res.parsed.total!==hit.model.total&&adoptParsed(res.parsed,res.url)){try{renderAll&&renderAll()}catch(e){}}
+              /* v22.3: res.parsed is the COMPLETE library now, and it is already cached inside the
+                 function — so this only decides whether to swap what is on screen. Replace whenever
+                 the fresh full count differs from the cached one, up OR down, so a shrunk library
+                 (the "did not load fully" the customer saw from an earlier partial cache) self-heals
+                 on the next launch instead of persisting for the cache's whole lifetime. */
+              if(res&&res.parsed&&res.parsed.total&&res.parsed.total!==hit.model.total){
+                if(adoptParsed(res.parsed,res.url)){try{renderAll&&renderAll();updateHomeCounts&&updateHomeCounts();}catch(e){}}
               }
             }).catch(()=>{});
           }catch(e){}
@@ -3625,9 +3642,9 @@ async function loadPlaylistSource(){
   /* Preferred path: our own serverless function does the whole fetch. */
   let fnErr=null;
   try{
-    const res=await fetchPlaylistViaFunction(S.rawUrl||S.url,S.user,S.pass);
-    /* the library is cached by fetchPlaylistViaFunction when it is COMPLETE — never a half-read
-       copy that a relaunch would then show as the whole library */
+    /* open the app the instant there are enough titles; the awaited result is the COMPLETE library,
+       which is what finally lands and what gets cached (see fetchPlaylistViaFunction v22.3). */
+    const res=await fetchPlaylistViaFunction(S.rawUrl||S.url,S.user,S.pass,(m)=>{try{adoptParsed(m,S.playlistUrl||(S.rawUrl||S.url))}catch(e){}});
     if(res&&(res.parsed?adoptParsed(res.parsed,res.url):adopt(res.text,res.url)))return true;
   }catch(e){
     fnErr=e;
@@ -5487,6 +5504,21 @@ async function tryPlans(plans,i){
         if(token!==S.seq||!d||!d.fatal)return;
         const code=d.response&&d.response.code;
         const why=(d.details||d.type||'HLS error')+(code?' HTTP '+code:'');
+        /* ── v22.3: THE TRANSCODER ALREADY SAID WHY — READ IT. ──────────────────────────────────
+           A transcoded route that fails answers with a JSON body carrying ffmpeg's own error (the
+           `log`/`error` fields server.js puts on its 4xx/5xx), which is the single most useful line
+           in the whole cascade: "Server returned 403", "Connection refused", "no such host" — the
+           actual reason the provider's file could not be fetched. hls.js throws that body away with
+           the status code. Fetch it once, in the background, and fold it into the route's verdict
+           so the failure message names the cause instead of a bare HTTP number. */
+        if(transcoded&&/manifest/i.test(d.details||'')){
+          (async()=>{try{
+            const rr=await fetch(p.url,{cache:'no-store'});
+            const jt=await rr.text();
+            let msg='';try{const jj=JSON.parse(jt);msg=(jj&&(jj.error||''))+((jj&&jj.log)?(' — '+String(jj.log).replace(/\s+/g,' ').trim().slice(-160)):'');}catch(e){msg=jt.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim().slice(0,160);}
+            if(msg&&token===S.seq){S.lastPreviewError=String(p.label+': '+msg).slice(0,220);if(Array.isArray(S.routeErrors)&&S.routeErrors.length)S.routeErrors[S.routeErrors.length-1]=S.lastPreviewError;$('netStatus').textContent=S.lastPreviewError;}
+          }catch(e){}})();
+        }
         /* 401/403 on a segment mid-play: only on a genuine 1-connection line does this mean
            "another device took the single slot". On a multi-connection account it's a transient
            error, so fall through to normal reconnect/next instead of falsely blaming another device. */
