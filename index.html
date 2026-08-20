@@ -1716,7 +1716,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='21.8';
+const APP_VERSION='21.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2742,7 +2742,11 @@ async function login(opts){
     :{kind:'mac',name:_portalNamePending||macFmt(stalkerMac())||hostOf(S.url),url:S.url,raw:S.rawUrl||S.url,user:'',pass:'',mac:stalkerMac(),source:hostOf(S.url)});
   _portalNamePending='';
   if(signInCancelled(_tok))return;
-  $('login').classList.add('hidden');showHome();keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast(sourceLabel()+' loaded — '+S.live.length.toLocaleString()+' channels')}
+  /* v21.9: the screen comes down HERE, not after refreshAll(). The library has been adopted by
+     this point — the app is usable — and refreshAll() is a full re-slice of every tab over what
+     can be a six-figure catalogue. Leaving the loader up across it is what kept a customer staring
+     at "Loading your playlist..." with a working app sitting behind it. */
+  $('login').classList.add('hidden');showHome();load(false);keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast(sourceLabel()+' loaded — '+S.live.length.toLocaleString()+' channels')}
   catch(e){if(signInCancelled(_tok))return;if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{portalEndAttempt();endSignIn();load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
@@ -3163,6 +3167,7 @@ function playlistGrew(model){
     S.m3u.total=model.live.length+model.vod.length+model.series.length;
     if($('login')&&!$('login').classList.contains('hidden'))return;   /* still on the sign-in screen */
     renderAll&&renderAll();
+    try{updateHomeCounts&&updateHomeCounts();}catch(e){}
   }catch(e){}
 }
 const ENDPOINT_KEY='m26.endpoint.v1';
@@ -3434,6 +3439,13 @@ async function fetchPlaylistDirect(rawUrl,user,pass,budgetMs){
    merged by their stable id, so a show whose episodes straddle a chunk boundary stays ONE show
    with all of them, and categories are de-duplicated the same way. */
 const M3U_CHUNK_CHARS=4*1024*1024;
+/* v21.9: the FIRST slice is small on purpose. Parsing in 4 MB chunks meant nothing at all was
+   parsed until 4 MB had arrived — on a 65 MB playlist over mobile data that is many seconds of a
+   loading screen reading "3.3 MB..." with no titles behind it, because there were none yet and
+   so nothing to hand the app. 128 KB is around a thousand entries: more than enough to open on,
+   and it arrives almost immediately. Every slice after it is the full size, since by then the app
+   is already up and the only thing that matters is parsing efficiently. */
+const M3U_FIRST_CHUNK=128*1024;
 async function parseM3UStream(r,onGrow){
   const merged={live:[],vod:[],series:[],liveCats:[],vodCats:[],seriesCats:[],total:0};
   const seriesById=new Map(),catSeen={live:new Set(),vod:new Set(),series:new Set()};
@@ -3476,14 +3488,14 @@ async function parseM3UStream(r,onGrow){
   if(!reader){ absorb(await r.text()); }
   else{
     const dec=new TextDecoder('utf-8');
-    let buf='';
+    let buf='',chunkTarget=M3U_FIRST_CHUNK;
     for(;;){
       const {done,value}=await reader.read();
       if(done)break;
       seen+=value.byteLength;
       buf+=dec.decode(value,{stream:true});
       paint();
-      if(buf.length<M3U_CHUNK_CHARS)continue;
+      if(buf.length<chunkTarget)continue;
       /* cut after the last COMPLETE record: the last line that is an address, not a directive */
       let cut=-1,at=buf.lastIndexOf('\n');
       while(at>=0){
@@ -3495,6 +3507,7 @@ async function parseM3UStream(r,onGrow){
       if(cut<=0)continue;                       /* no complete record yet — keep filling */
       absorb(buf.slice(0,cut));
       buf=buf.slice(cut);
+      chunkTarget=M3U_CHUNK_CHARS;   /* opened; from here on, parse in efficient slices */
       paint();
     }
     buf+=dec.decode();
