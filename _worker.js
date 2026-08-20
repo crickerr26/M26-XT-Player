@@ -665,11 +665,33 @@ async function handlePlaylist(request, env) {
 
   /* Read and validate whatever answered — the portal directly or the relay standing in for it.
      Split out so both routes through attempt() judge the body by exactly the same rules. */
+  /* ── v21.5: THE PLAYLIST IS NO LONGER READ INTO MEMORY HERE. ─────────────────────────────────
+     This buffered the whole document as one string and stopped at 48 MB, which is how a full
+     catalogue came back with "some titles at the end were left out": a Worker gets ~128 MB, and
+     48 MB of UTF-8 is already ~96 MB once it is a JS string, so the cap was protecting the Worker
+     from itself rather than protecting anyone from a big playlist.
+     Nothing here needs the whole document. Only the FIRST few kilobytes decide whether this
+     candidate answered with an M3U, a Stalker portal or an error page. So sniff that much, then
+     hand the browser a stream that replays the sniffed head and pipes the rest straight through:
+     no cap, no truncation, and the Worker's memory no longer scales with the customer's library. */
+  const SNIFF_BYTES = 64 * 1024;
   const finish = async (upstream, target, useMac) => {
-    let text = '', truncated = false;
+    let head = null, text = '', rest = null;
     try {
-      const read = await readCapped(upstream, MAX_PLAYLIST_BYTES);
-      text = read.text; truncated = read.truncated;
+      rest = upstream.body && upstream.body.getReader();
+      if (!rest) {
+        text = await upstream.text();
+      } else {
+        const parts = []; let size = 0;
+        while (size < SNIFF_BYTES) {
+          const { done, value } = await rest.read();
+          if (done) { rest = null; break; }
+          parts.push(value); size += value.byteLength;
+        }
+        head = new Uint8Array(size);
+        let at = 0; for (const part of parts) { head.set(part, at); at += part.byteLength; }
+        text = new TextDecoder('utf-8').decode(head);
+      }
     } catch (e) {
       attempts.push({ endpoint: label(target, useMac), error: 'read failed: ' + String((e && e.message) || e).slice(0, 80) });
       return null;
@@ -695,10 +717,22 @@ async function handlePlaylist(request, env) {
       'content-type': 'audio/x-mpegurl; charset=utf-8',
       'cache-control': 'no-store',
       'x-m26-source': target.origin + target.pathname,
-      'x-m26-truncated': truncated ? '1' : '0'
+      'x-m26-truncated': '0'
     }));
     headersOut.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
-    return new Response(text, { status: 200, headers: headersOut });
+    /* Whole body already in hand (no streaming body on this response) — send it as it is. */
+    if (!rest) return new Response(head || text, { status: 200, headers: headersOut });
+    /* Otherwise: the sniffed head first, then the untouched remainder. */
+    const body = new ReadableStream({
+      start(controller) { controller.enqueue(head); },
+      async pull(controller) {
+        const { done, value } = await rest.read();
+        if (done) { controller.close(); return; }
+        controller.enqueue(value);
+      },
+      cancel(reason) { try { rest.cancel(reason); } catch (e) {} }
+    });
+    return new Response(body, { status: 200, headers: headersOut });
   };
 
   /* One candidate, one pass. Returns a Response on success, null to keep going. */
