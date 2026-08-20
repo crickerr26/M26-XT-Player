@@ -641,7 +641,24 @@ async function handlePlaylist(request, env) {
   const pass = (body.password != null && String(body.password) !== '') ? String(body.password) : sig.password;
   const hasCreds = !!user;
   const variant = String(body.variant || '').trim().toLowerCase();
-  const candidates = playlistCandidates(sig, user, pass, variant, mac);
+  let candidates = playlistCandidates(sig, user, pass, variant, mac);
+  /* ── v21.6: THE ADDRESS THAT WORKED LAST TIME GOES FIRST. ────────────────────────────────────
+     A panel serves its playlist on exactly ONE of these shapes, and which one never changes for a
+     given line — yet every sign-in re-walked the whole list from the top, paying for each refusal
+     before reaching the one address that has answered every day for months. The app now sends
+     back whatever answered last (see x-m26-endpoint below) and it is tried first; everything else
+     follows in the usual order, so a panel that moves its playlist still resolves, one walk later
+     and never worse than before. Only accepted when it points at the same host as the portal URL
+     being signed in to, so a stale hint can never redirect a login somewhere else. */
+  const hint = String(body.prefer || '').trim();
+  if (hint) {
+    try {
+      const h = new URL(hint);
+      if (/^https?:$/.test(h.protocol) && h.hostname === baseUrl.hostname && !PRIVATE_HOST.test(h.hostname)) {
+        candidates = [hint].concat(candidates.filter(c => c !== hint));
+      }
+    } catch (e) {}
+  }
   const attempts = [];
   let sawStalker = false, rejected = 0, limited = 0, blocked = 0, blockedBy = '';
   /* Shared across every candidate in this login: whether the portal's edge has already turned this
@@ -717,9 +734,10 @@ async function handlePlaylist(request, env) {
       'content-type': 'audio/x-mpegurl; charset=utf-8',
       'cache-control': 'no-store',
       'x-m26-source': target.origin + target.pathname,
+      'x-m26-endpoint': target.href,
       'x-m26-truncated': '0'
     }));
-    headersOut.set('access-control-expose-headers', 'x-m26-source,x-m26-truncated');
+    headersOut.set('access-control-expose-headers', 'x-m26-source,x-m26-endpoint,x-m26-truncated');
     /* Whole body already in hand (no streaming body on this response) — send it as it is. */
     if (!rest) return new Response(head || text, { status: 200, headers: headersOut });
     /* Otherwise: the sniffed head first, then the untouched remainder. */
@@ -851,9 +869,22 @@ async function handlePlaylist(request, env) {
 
   /* Pass 1: credentials only — identical to what has always worked, same endpoints, same order,
      same request count for any panel that answers. */
-  for (const candidate of candidates) {
-    const ok = await attempt(candidate, false);
-    if (ok) return ok;
+  /* ── v21.6: TWO AT A TIME, NOT ONE. ─────────────────────────────────────────────────────────
+     Walking these strictly one after another means the wait is the SUM of every refusal ahead of
+     the address that works — the single biggest part of a first sign-in. Asking two at once halves
+     that, and two is the whole of the increase: these panels sit behind protection that counts a
+     burst of requests as a sweep (see the rate-limit incident noted above), so this deliberately
+     stays a pair rather than the whole list at once. The moment one answers with a playlist the
+     rest of that pair is abandoned, and a 429 stops everything exactly as before. */
+  for (let i = 0; i < candidates.length; i += 2) {
+    const pair = candidates.slice(i, i + 2);
+    const results = await Promise.all(pair.map(c => attempt(c, false)));
+    const ok = results.find(Boolean);
+    if (ok) {
+      /* Anything else that answered in the same pair is a body nobody will read. */
+      for (const other of results) { if (other && other !== ok) { try { other.body && other.body.cancel(); } catch (e) {} } }
+      return ok;
+    }
     if (limited) return corsJson(200, { ok: false, status: 429, attempts, base: sig.root, reason: 'rate-limited' });
     if (exhausted()) break;
   }

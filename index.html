@@ -1716,7 +1716,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='21.5';
+const APP_VERSION='21.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3142,6 +3142,30 @@ function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='
    reject generic browser UAs). One request replaces five, and a failure comes back with the
    reason instead of silently returning ''. The old client-side walk stays as the fallback for
    any deploy where the function isn't present (local file:// use, older cached worker). */
+/* ── v21.6: WHICH ADDRESS SERVED THIS LINE LAST TIME. ─────────────────────────────────────────
+   A panel serves its playlist on exactly one of the shapes m3uCandidates() builds, and for a given
+   line that never changes — yet every sign-in re-walked the list from the top, paying for each
+   refusal ahead of the one address that has answered every day for months. Kept per line (portal +
+   login), never shown, and only ever used as a hint: the worker validates it against the portal
+   host it was asked to sign in to, and falls back to the full walk the moment it does not answer.
+   It carries the line's own credentials, exactly like the saved profile beside it in this same
+   storage, so it is nothing the device did not already hold. */
+const ENDPOINT_KEY='m26.endpoint.v1';
+function _endpointKey(base,user){return String(base||'').trim().toLowerCase()+'|'+String(user||'').trim().toLowerCase();}
+function _endpointMap(){try{return JSON.parse(store.getItem(ENDPOINT_KEY)||'{}')||{};}catch(e){return {};}}
+function recallEndpoint(base,user){try{return _endpointMap()[_endpointKey(base,user)]||'';}catch(e){return '';}}
+function rememberEndpoint(base,user,url){
+  if(!url||!/^https?:\/\//i.test(url))return;
+  try{
+    const m=_endpointMap();
+    if(m[_endpointKey(base,user)]===url)return;
+    m[_endpointKey(base,user)]=url;
+    /* one line's worth per entry, and never an unbounded list */
+    const keys=Object.keys(m);
+    if(keys.length>12)for(const k of keys.slice(0,keys.length-12))delete m[k];
+    store.setItem(ENDPOINT_KEY,JSON.stringify(m));
+  }catch(e){}
+}
 async function fetchPlaylistViaFunction(base,user,pass){
   if(!SAME_ORIGIN_PROXY)return null;   /* not on an http(s) origin — no function available */
   /* v19.58 (owner report: a slow/hanging portal — any portal, not just one — freezes sign-in
@@ -3175,9 +3199,12 @@ async function fetchPlaylistViaFunction(base,user,pass){
        sign-in is a portal URL, a login and a password, resolving through get.php. So send exactly
        that, and let a MAC be sent only by a line that has no login and is therefore identified by
        one. */
-    body:JSON.stringify(user
-      ?{url:base,username:user,password:pass}
-      :{url:base,username:user,password:pass,mac:stalkerMac()})
+    body:JSON.stringify(Object.assign(
+      user?{url:base,username:user,password:pass}
+          :{url:base,username:user,password:pass,mac:stalkerMac()},
+      /* v21.6: the address that served this exact line last time, so the worker can ask it first
+         instead of re-walking every shape (see x-m26-endpoint / rememberEndpoint). */
+      (function(){const h=recallEndpoint(base,user);return h?{prefer:h}:{};})()))
     });
   }catch(e){
     if(_timer)clearTimeout(_timer);
@@ -3286,6 +3313,8 @@ async function fetchPlaylistViaFunction(base,user,pass){
   /* v21.5: parsed as it arrives, never held whole. A full catalogue is 50-150 MB of text, and
      r.text() would hold all of it AND the model built from it at the same time — on a phone that
      is where a big library stops being openable. See parseM3UStream. */
+  /* Remember which address answered BEFORE the body is read: a slow parse must not lose it. */
+  try{rememberEndpoint(base,user,r.headers.get('x-m26-endpoint')||'');}catch(e){}
   const parsed=await parseM3UStream(r);
   return {parsed,url:r.headers.get('x-m26-source')||base,truncated:false};
 }
@@ -3388,6 +3417,18 @@ async function parseM3UStream(r){
       for(const c of p[t+'Cats']){if(catSeen[t].has(c.category_id))continue;catSeen[t].add(c.category_id);merged[t+'Cats'].push(c);}
     }
   };
+  /* v21.6: a spinner that says "Connecting..." for forty seconds reads as a hang. This is a
+     download of tens of megabytes followed by a parse of six figures of entries, and both are
+     measurable, so say so — the numbers climbing are the difference between waiting and worrying. */
+  let seen=0,lastPaint=0;
+  const paint=()=>{
+    const now=Date.now();
+    if(now-lastPaint<400)return;
+    lastPaint=now;
+    const mb=(seen/1048576).toFixed(1);
+    const n=merged.live.length+merged.vod.length+merged.series.length;
+    try{load(true,'Loading your playlist — '+mb+' MB'+(n?(', '+n.toLocaleString()+' titles'):'')+'...');}catch(e){}
+  };
   const reader=r.body&&r.body.getReader&&r.body.getReader();
   if(!reader){ absorb(await r.text()); }
   else{
@@ -3396,7 +3437,9 @@ async function parseM3UStream(r){
     for(;;){
       const {done,value}=await reader.read();
       if(done)break;
+      seen+=value.byteLength;
       buf+=dec.decode(value,{stream:true});
+      paint();
       if(buf.length<M3U_CHUNK_CHARS)continue;
       /* cut after the last COMPLETE record: the last line that is an address, not a directive */
       let cut=-1,at=buf.lastIndexOf('\n');
@@ -3409,6 +3452,7 @@ async function parseM3UStream(r){
       if(cut<=0)continue;                       /* no complete record yet — keep filling */
       absorb(buf.slice(0,cut));
       buf=buf.slice(cut);
+      paint();
     }
     buf+=dec.decode();
     absorb(buf);
@@ -3418,6 +3462,51 @@ async function parseM3UStream(r){
   merged.liveCats.sort(byName);merged.vodCats.sort(byName);merged.seriesCats.sort(byName);
   merged.total=merged.live.length+merged.vod.length+merged.series.length;
   return merged.total?merged:null;
+}
+/* ── v21.6: THE LIBRARY IS KEPT ON THE DEVICE, SO A RELAUNCH IS NOT A RE-DOWNLOAD. ────────────
+   Signing in re-fetched and re-parsed the entire playlist every single time, even when the app had
+   been closed for a minute — tens of megabytes over 5G before anything at all appears. The parsed
+   model is stored in IndexedDB (localStorage tops out around 5 MB, which a real catalogue passes
+   in its first thousand titles) under the line it belongs to, shown IMMEDIATELY on the next
+   launch, and refreshed in the background so a provider's additions still land. Nothing here is
+   authority: a cache miss, a stale cache, a full disk or a browser with no IndexedDB at all just
+   means the normal sign-in runs exactly as before.
+   Deliberately bounded: it holds ONE line's library, only when the browser will take it. */
+const LIB_DB='m26lib', LIB_STORE='playlists', LIB_TTL_MS=24*60*60*1000;
+function _libOpen(){
+  return new Promise((res,rej)=>{
+    try{
+      if(!('indexedDB' in window))return res(null);
+      const rq=indexedDB.open(LIB_DB,1);
+      rq.onupgradeneeded=()=>{try{rq.result.createObjectStore(LIB_STORE)}catch(e){}};
+      rq.onsuccess=()=>res(rq.result);
+      rq.onerror=()=>res(null);
+    }catch(e){res(null)}
+  });
+}
+function _libKey(base,user){return String(base||'').trim().toLowerCase()+'|'+String(user||'').trim().toLowerCase();}
+async function libRead(base,user){
+  const db=await _libOpen();if(!db)return null;
+  return new Promise(res=>{
+    try{
+      const tx=db.transaction(LIB_STORE,'readonly').objectStore(LIB_STORE).get(_libKey(base,user));
+      tx.onsuccess=()=>{
+        const v=tx.result;
+        if(!v||!v.savedAt||!v.model||!v.model.total)return res(null);
+        if(Date.now()-v.savedAt>LIB_TTL_MS)return res(null);
+        res(v);
+      };
+      tx.onerror=()=>res(null);
+    }catch(e){res(null)}
+  });
+}
+async function libWrite(base,user,model,srcUrl){
+  if(!model||!model.total)return;
+  const db=await _libOpen();if(!db)return;
+  try{
+    const tx=db.transaction(LIB_STORE,'readwrite');
+    tx.objectStore(LIB_STORE).put({savedAt:Date.now(),model,srcUrl:srcUrl||''},_libKey(base,user));
+  }catch(e){}
 }
 async function loadPlaylistSource(){
   if(typeof Media26Portal==='undefined')return false;
@@ -3432,11 +3521,37 @@ async function loadPlaylistSource(){
     try{ parsed=Media26Portal.parseM3U(text); }catch(e){ parsed=null; }
     return adoptParsed(parsed,srcUrl);
   };
+  /* v21.6: a library already on this device opens the app now, and is checked for changes behind
+     the screen. Only for a line that signs in with credentials — the shape this cache is keyed by. */
+  const _lineBase=S.rawUrl||S.url, _lineUser=S.user||'';
+  if(!S._skipLibCache){
+    try{
+      const hit=await libRead(_lineBase,_lineUser);
+      if(hit&&adoptParsed(hit.model,hit.srcUrl||_lineBase)){
+        setTimeout(()=>{
+          /* refresh in the background; a failure changes nothing, the cache stays */
+          try{
+            fetchPlaylistViaFunction(_lineBase,_lineUser,S.pass).then(res=>{
+              if(res&&res.parsed&&res.parsed.total){
+                libWrite(_lineBase,_lineUser,res.parsed,res.url);
+                /* only swap it in if the provider actually changed something */
+                if(res.parsed.total!==hit.model.total&&adoptParsed(res.parsed,res.url)){try{renderAll&&renderAll()}catch(e){}}
+              }
+            }).catch(()=>{});
+          }catch(e){}
+        },1500);
+        return true;
+      }
+    }catch(e){}
+  }
   /* Preferred path: our own serverless function does the whole fetch. */
   let fnErr=null;
   try{
     const res=await fetchPlaylistViaFunction(S.rawUrl||S.url,S.user,S.pass);
-    if(res&&(res.parsed?adoptParsed(res.parsed,res.url):adopt(res.text,res.url)))return true;
+    if(res&&(res.parsed?adoptParsed(res.parsed,res.url):adopt(res.text,res.url))){
+      try{libWrite(_lineBase,_lineUser,S.m3u,res.url);}catch(e){}
+      return true;
+    }
   }catch(e){
     fnErr=e;
   }
@@ -3514,7 +3629,11 @@ async function resyncSource(opts){
       resetFullCatalog();
       if(!quiet)load(true,'Refreshing your playlist…');
       let got=false;
+      /* v21.6: an explicit Refresh means "go and ask the provider" — never hand back the copy on
+         this device, which is the very thing the customer is trying to get past. */
+      S._skipLibCache=true;
       try{ got=await loadPlaylistSource(); }catch(e){ got=false; }
+      S._skipLibCache=false;
       /* A refresh that could not reach the provider must not empty the app. Keep what we had. */
       if(!got&&before)S.m3u=before;
       if(S.m3u&&before&&S.m3u!==before){
