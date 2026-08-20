@@ -1723,7 +1723,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='22.0';
+const APP_VERSION='22.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5183,6 +5183,19 @@ function plan(x){
          relay are Cloudflare Workers. */
       /* v20.6: before any of the server-side routes below — this one needs neither the relay's
          MKV→HLS remux nor the transcoder to be awake. */
+      /* ---- v22.1 (owner report, repeatedly): ON IPHONE THE SERVER COPY LEADS. --------------
+         The in-app Matroska decoder is the right idea - no server, no cold start - and on this
+         device it has now been through four separate real bugs, the last of which stopped it being
+         handed a single byte. It may well work today. But "MKV does not play" has been the
+         standing complaint for this whole cycle, and the app already has a route that has never
+         been in question: the transcoder's `fastvod` profile COPIES the video stream - no
+         re-encode, no quality loss, barely any CPU - and only re-wraps the container and converts
+         the audio to AAC. Safari plays that natively, like any HLS stream.
+         So on Apple it goes first and the in-app decoder is the fallback; everywhere else the
+         in-app path still leads, because MediaSource there has never been the problem. If the
+         server is down its routes sink on their own (YezPlayer.penalty), so this cannot strand a
+         customer whose transcoder is asleep - it costs one refused attempt. */
+      if(isApple&&(direct||rawMkv))addTrans('MKV',direct||rawMkv);
       addMkv('MKV In-App',direct||rawMkv);
       addRelay('Server Relay',direct||rawMkv);
       if(direct){
@@ -5496,6 +5509,20 @@ async function tryPlans(plans,i){
       /* Attaching a ManagedMediaSource throws unless remote playback is off — see mkv.js. */
       try{v.disableRemotePlayback=true;v.setAttribute('disableremoteplayback','')}catch(e){}
       try{v.removeAttribute('crossorigin')}catch(e){}
+      /* v22.1: the in-app decoder delays presentation by a constant so no frame is ever shown
+         before it is decoded, which means the buffered range can begin AFTER zero — and an element
+         parked at 0 with nothing there waits forever, which is "loading but never playing". mkv.js
+         nudges the playhead itself on its own updateend, but only while readyState is low and only
+         from inside the SourceBuffer; this is the same step taken from the app's side, where it
+         can also see a route that has data and still is not moving. */
+      const _seekIn=setInterval(()=>{
+        if(token!==S.seq){clearInterval(_seekIn);return;}
+        try{
+          if(v.currentTime>0.3&&!v.paused){clearInterval(_seekIn);return;}
+          const br=v.buffered;
+          if(br&&br.length&&v.currentTime+0.05<br.start(0)){v.currentTime=br.start(0)+0.01;}
+        }catch(e){}
+      },400);
       Media26Mkv.play(v,p.url,{
         onInfo:info=>{
           if(token!==S.seq||!info)return;
