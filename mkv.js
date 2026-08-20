@@ -761,8 +761,18 @@
          what has already played. */
       let aheadTarget = 30, evictKeep = 10;
 
+      /* v21.8: an address that accepts the connection and then sends nothing used to hold the
+         player on "Loading video" indefinitely — no bytes, no error, no verdict. Give it a
+         deadline: if nothing has been handed to the decoder in this long, this route is dead and
+         the player must be told so it can try the next one. */
+      let firstDataAt = 0;
+      const STALL_MS = 15000;
+      const stallTimer = setTimeout(function () {
+        if (!firstDataAt) fail(new Error('no data arrived from this address in ' + (STALL_MS / 1000) + 's'));
+      }, STALL_MS);
       function fail(e) {
         if (done) return; done = true;
+        try { clearTimeout(stallTimer); } catch (_) {}
         try { if (controller) controller.abort(); } catch (_) {}
         reject(e instanceof Error ? e : new Error(String(e)));
       }
@@ -849,6 +859,7 @@
         } catch (e) { fail(e); }
       };
       rx.onFragment = function (frag, track) {
+        firstDataAt = firstDataAt || Date.now();
         if (!sourceBuffers.has(track.id)) return;
         queues.get(track.id).push(frag);
         pump(track.id);
@@ -867,6 +878,22 @@
              and every fragment piles into the SourceBuffer — which on a 4K title means gigabytes
              of memory and constant quota errors. Once ~30s is buffered ahead of the playhead we
              stop pulling until it drains, so bandwidth goes to the part being watched. */
+          /* ── v21.8: THE FIRST BYTES ARE NEVER GATED. ──────────────────────────────────────────
+             streamingAllowed starts FALSE on iOS, because ManagedMediaSource is meant to tell us
+             when it wants data — and this loop refused to read a single byte until it did. But
+             WebKit only raises startstreaming when the element has media it is trying to play, and
+             the element had nothing, because nothing had been read. No data, so no signal; no
+             signal, so no data: the fetch sat still, no fragment was ever appended, nothing threw,
+             and the player showed "Loading video" for as long as anyone was willing to watch it.
+             That deadlock happens ONLY on iPhone — every other browser starts this flag true — so
+             every decoder fix before this one was correct and invisible, because on the reported
+             device the decoder was never fed at all.
+             The managed signal is for steady state, not for the first fill. Read unconditionally
+             until there is a real buffer to reason about, and only then let iOS's backpressure
+             decide when to pull more; and never let an empty buffer wait on a signal that cannot
+             come while it is empty. */
+          const PRIME_AHEAD = 12;   /* seconds buffered before iOS's own signal takes over */
+          let primed = false;
           const roomToRead = async function () {
             for (;;) {
               if (done) return false;
@@ -875,8 +902,14 @@
                 const b = video.buffered;
                 if (b.length) ahead = b.end(b.length - 1) - (video.currentTime || 0);
               } catch (_) {}
+              if (!primed) {
+                if (ahead < PRIME_AHEAD) return true;      /* fill first, ask questions later */
+                primed = true;
+              }
               // On iOS the browser's own signal wins; elsewhere fall back to the buffered window.
               if (streamingAllowed && ahead < aheadTarget) return true;
+              /* A managed source that has gone quiet must never leave the element starving. */
+              if (!streamingAllowed && ahead < PRIME_AHEAD) return true;
               await new Promise(function (r) { setTimeout(r, 250); });
             }
           };
