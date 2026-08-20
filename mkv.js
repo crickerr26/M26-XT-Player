@@ -301,6 +301,9 @@
     return 'mp4a.40.' + (objType || 2);
   }
 
+  /* About a second of video at any normal frame rate — enough for the decoder to start, small
+     enough that the wait is not felt. See the v21.7 note in _block. */
+  const FIRST_FRAGMENT_SAMPLES = 24;
   const VIDEO_CODECS = { 'V_MPEG4/ISO/AVC': 'avc', 'V_MPEGH/ISO/HEVC': 'hevc' };
   /* Apple devices decode Dolby Digital and Digital Plus natively inside MP4 — treating them as
      "no browser can decode this" cost the soundtrack on films that would have played with sound
@@ -633,6 +636,22 @@
       if (!track._sawKey) {
         if (!key) return;
         track._sawKey = true;
+      } else if (this.initSent && !track._firstOut && list.length >= FIRST_FRAGMENT_SAMPLES) {
+        /* ── v21.7: SHOW A PICTURE WITHOUT WAITING FOR THE WHOLE FIRST GOP. ───────────────────
+           Every cut here was made at a keyframe, so the first fragment could not close until the
+           SECOND keyframe arrived — one whole GOP. A broadcast film runs 10-second GOPs at 5
+           Mbit/s, so measured on exactly that: nothing was handed to the decoder until 6.1 MB and
+           ten seconds of film had been downloaded and parsed. On a phone that is several seconds
+           before the first frame on a fast connection and far longer on a slow one — past the
+           twenty-second budget the player gives a route, so the in-app decoder was being dropped
+           for "startup timeout" before it had ever been given the chance to draw anything. That is
+           an MKV that "does not play" while being perfectly fine.
+           The first fragment now closes after about a second of samples instead. It still STARTS
+           at a keyframe, so the decoder always begins on a frame it can decode; only the fragment
+           after it starts mid-GOP, which is exactly what every low-latency fMP4 stream does and is
+           safe here because the decode timeline runs continuously across fragments (v21.0). Every
+           later cut is at a keyframe as before. */
+        this._flush(track, pts);
       } else if (this.initSent && key && list.length >= (this.firstEmitted ? 48 : 12)) {
         this._flush(track, pts);
       }
@@ -689,6 +708,10 @@
     if (nextDts != null && nextDts <= lastPts) nextDts = lastPts + (track.defaultDuration || 40);
 
     this.firstEmitted = true;
+    /* Per TRACK, because firstEmitted is remuxer-wide: audio interleaves ahead of video and would
+       otherwise mark the video track as "already started" before it had emitted anything at all,
+       which is precisely what stopped the early first video fragment below from ever firing. */
+    track._firstOut = true;
     if (this.onFragment) this.onFragment(fragment(track, out, this.seq++, nextDts, this.ctsShift || 0), track);
   };
 
