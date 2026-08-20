@@ -1716,7 +1716,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='21.6';
+const APP_VERSION='21.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3150,6 +3150,21 @@ function ensureTypeLoaded(type){const loaded=type==='live'?S.loadedLive:type==='
    host it was asked to sign in to, and falls back to the full walk the moment it does not answer.
    It carries the line's own credentials, exactly like the saved profile beside it in this same
    storage, so it is nothing the device did not already hold. */
+/* How much of a playlist is enough to open the app on. One screen of titles is plenty — the rest
+   arrives behind it. */
+const PLAYLIST_OPEN_AT=200;
+let _growAt=0;
+function playlistGrew(model){
+  const now=Date.now();
+  if(now-_growAt<1500)return;
+  _growAt=now;
+  try{
+    if(S.m3u!==model)return;
+    S.m3u.total=model.live.length+model.vod.length+model.series.length;
+    if($('login')&&!$('login').classList.contains('hidden'))return;   /* still on the sign-in screen */
+    renderAll&&renderAll();
+  }catch(e){}
+}
 const ENDPOINT_KEY='m26.endpoint.v1';
 function _endpointKey(base,user){return String(base||'').trim().toLowerCase()+'|'+String(user||'').trim().toLowerCase();}
 function _endpointMap(){try{return JSON.parse(store.getItem(ENDPOINT_KEY)||'{}')||{};}catch(e){return {};}}
@@ -3315,8 +3330,30 @@ async function fetchPlaylistViaFunction(base,user,pass){
      is where a big library stops being openable. See parseM3UStream. */
   /* Remember which address answered BEFORE the body is read: a slow parse must not lose it. */
   try{rememberEndpoint(base,user,r.headers.get('x-m26-endpoint')||'');}catch(e){}
-  const parsed=await parseM3UStream(r);
-  return {parsed,url:r.headers.get('x-m26-source')||base,truncated:false};
+  const srcUrl=r.headers.get('x-m26-source')||base;
+  /* ── v21.7: THE APP OPENS ON THE FIRST TITLES, NOT THE LAST. ─────────────────────────────────
+     A 65 MB playlist held the whole app behind a loading screen for as long as it took to arrive.
+     Nothing about that wait is necessary: the model is built in place, so the moment it holds
+     anything the app can be handed it and opened, and the remaining megabytes can keep filling the
+     very same arrays behind a working screen. The counts refresh as they land, and the finished
+     library is what gets cached. */
+  let handed=false;
+  return await new Promise(resolve=>{
+    const settle=model=>{if(handed)return;handed=true;resolve({parsed:model,url:srcUrl,truncated:false,growing:true});};
+    parseM3UStream(r,(model,finished)=>{
+      if(!finished){
+        if(handed){playlistGrew(model);return true;}
+        if(model.total>=PLAYLIST_OPEN_AT){settle(model);return true;}
+        return false;
+      }
+      /* finished: the library is complete — refresh what is on screen and keep it for next launch */
+      try{if(S.m3u===model){S.m3u.total=model.total;renderAll&&renderAll();}}catch(e){}
+      try{libWrite(base,user,model,srcUrl);}catch(e){}
+      settle(model);
+      return handed;
+    }).then(m=>{ if(!handed){ if(m)settle(m); else resolve(null); } })
+      .catch(()=>{ if(!handed)resolve(null); });
+  });
 }
 /* ── v16.8: A PLAYLIST SOURCE HAS ALL THREE SHELVES. ──────────────────────────────────────
    v16.3 folded a playlist's shows into the on-demand shelf and dropped the Series tab, on the
@@ -3397,7 +3434,7 @@ async function fetchPlaylistDirect(rawUrl,user,pass,budgetMs){
    merged by their stable id, so a show whose episodes straddle a chunk boundary stays ONE show
    with all of them, and categories are de-duplicated the same way. */
 const M3U_CHUNK_CHARS=4*1024*1024;
-async function parseM3UStream(r){
+async function parseM3UStream(r,onGrow){
   const merged={live:[],vod:[],series:[],liveCats:[],vodCats:[],seriesCats:[],total:0};
   const seriesById=new Map(),catSeen={live:new Set(),vod:new Set(),series:new Set()};
   let sawAny=false;
@@ -3420,13 +3457,19 @@ async function parseM3UStream(r){
   /* v21.6: a spinner that says "Connecting..." for forty seconds reads as a hang. This is a
      download of tens of megabytes followed by a parse of six figures of entries, and both are
      measurable, so say so — the numbers climbing are the difference between waiting and worrying. */
-  let seen=0,lastPaint=0;
+  let seen=0,lastPaint=0,handedOver=false;
   const paint=()=>{
     const now=Date.now();
     if(now-lastPaint<400)return;
     lastPaint=now;
+    merged.total=merged.live.length+merged.vod.length+merged.series.length;
+    /* v21.7: once the app has taken this model and opened, the loading screen is gone and the
+       rest of the download belongs in the background — keep filling the same arrays, tell the
+       caller so it can refresh the counts, and never put the loader back over a working app. */
+    if(onGrow){try{handedOver=onGrow(merged,false)||handedOver;}catch(e){}}
+    if(handedOver)return;
     const mb=(seen/1048576).toFixed(1);
-    const n=merged.live.length+merged.vod.length+merged.series.length;
+    const n=merged.total;
     try{load(true,'Loading your playlist — '+mb+' MB'+(n?(', '+n.toLocaleString()+' titles'):'')+'...');}catch(e){}
   };
   const reader=r.body&&r.body.getReader&&r.body.getReader();
@@ -3461,7 +3504,9 @@ async function parseM3UStream(r){
   const byName=(a,b)=>String(a.category_name||'').localeCompare(String(b.category_name||''));
   merged.liveCats.sort(byName);merged.vodCats.sort(byName);merged.seriesCats.sort(byName);
   merged.total=merged.live.length+merged.vod.length+merged.series.length;
-  return merged.total?merged:null;
+  if(!merged.total)return null;
+  if(onGrow){try{onGrow(merged,true);}catch(e){}}
+  return merged;
 }
 /* ── v21.6: THE LIBRARY IS KEPT ON THE DEVICE, SO A RELAUNCH IS NOT A RE-DOWNLOAD. ────────────
    Signing in re-fetched and re-parsed the entire playlist every single time, even when the app had
@@ -3548,10 +3593,9 @@ async function loadPlaylistSource(){
   let fnErr=null;
   try{
     const res=await fetchPlaylistViaFunction(S.rawUrl||S.url,S.user,S.pass);
-    if(res&&(res.parsed?adoptParsed(res.parsed,res.url):adopt(res.text,res.url))){
-      try{libWrite(_lineBase,_lineUser,S.m3u,res.url);}catch(e){}
-      return true;
-    }
+    /* the library is cached by fetchPlaylistViaFunction when it is COMPLETE — never a half-read
+       copy that a relaunch would then show as the whole library */
+    if(res&&(res.parsed?adoptParsed(res.parsed,res.url):adopt(res.text,res.url)))return true;
   }catch(e){
     fnErr=e;
   }
