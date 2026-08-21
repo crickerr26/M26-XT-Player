@@ -176,6 +176,17 @@
       pending = null;
     }
 
+    /* v23.0: "newest uploads first" sort (owner request — a category filter like "Tamil Movies"
+       needs a button to reorder newest-to-oldest). An M3U carries no added/upload-date attribute
+       anywhere (see attrs() above — only tvg-name/tvg-logo/group-title/tvg-id are ever parsed), so
+       the only signal available at all is where an entry sits in the file. Most panels export
+       get.php in ascending id/insertion order, so the LAST entry listed for a title is the most
+       recently added one; `_recentRank` (0 = newest) is stamped in that reverse order so the app
+       can sort by it without knowing which provider produced the file. Live is left unranked —
+       recency has no meaning for a channel list. */
+    buckets.vod.forEach((x, i) => { x._recentRank = buckets.vod.length - 1 - i; });
+    buckets.series.forEach((x, i) => { x._recentRank = buckets.series.length - 1 - i; });
+
     const cats = t => Array.from(catMaps[t].values())
       .sort((a, b) => a.category_name.localeCompare(b.category_name));
     return {

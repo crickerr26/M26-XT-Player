@@ -183,6 +183,12 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .viewToggle svg{width:19px;height:19px}
 .viewToggle:active{transform:scale(.94)}
 @media(hover:hover){.viewToggle:hover{background:rgba(56,189,248,.14);color:#fff}}
+/* v23.0: "Newest first" sort toggle for Movies/Series — same square-button shape as the grid/list
+   toggle it sits next to, but gets its own lit-up "on" state (the view toggle has no such state,
+   it just swaps icon+label) so a filtered category (e.g. "Tamil Movies") makes it visually obvious
+   sorting is active. Hidden outright on Live TV, where "latest upload" has no meaning. */
+.sortToggle.hidden{display:none}
+.sortToggle.active{background:rgba(56,189,248,.22);color:#38bdf8;border-color:rgba(56,189,248,.45)}
 /* v5.6: compact portrait poster grid — 4 small tiles per row on phones, edge-to-edge (no wasted
    side margins), tiny name below. Matches the reference the owner shared. */
 .grid.gridview{grid-template-columns:repeat(4,1fr);align-content:start;gap:12px 8px;padding:4px 6px calc(20px + env(safe-area-inset-bottom));box-sizing:border-box;width:100%;max-width:100%;overflow-x:hidden}
@@ -1164,7 +1170,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           <div class="playerMenu hidden" id="playerMenu" role="menu" aria-label="Player settings"></div>
         </div>
       </section>
-      <section class="now"><div><h2 id="sectionTitle">Live Channels</h2><p id="sectionSub">0 items</p></div><div class="nowRight"><button class="viewToggle" id="viewToggle" type="button" aria-label="Grid or list view" title="Grid / list view"></button><div class="status" id="netStatus">Ready</div></div></section>
+      <section class="now"><div><h2 id="sectionTitle">Live Channels</h2><p id="sectionSub">0 items</p></div><div class="nowRight"><button class="viewToggle sortToggle hidden" id="sortToggle" type="button" aria-label="Sort by newest uploads" title="Sort: newest uploads first"></button><button class="viewToggle" id="viewToggle" type="button" aria-label="Grid or list view" title="Grid / list view"></button><div class="status" id="netStatus">Ready</div></div></section>
       <div class="recBanner hidden" id="recBanner">
         <button class="recClose" id="recClose" aria-label="Dismiss">×</button>
         <div class="recIcon" id="recIcon">▶</div>
@@ -1721,9 +1727,11 @@ const PLAYER_MODE_KEY='media26-player-mode-v1';
    'auto' = play everything in-app, but send 4K through the 1080p profile. */
 const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
+/* v23.0: per-tab "newest uploads first" sort for Movies/Series, independent of grid/list view. */
+const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='22.9';
+const APP_VERSION='23.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1817,9 +1825,11 @@ const ICONS={
   speed:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4a8 8 0 1 0 8 8"/><path d="M12 12l4-3"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/></svg>',
   audio:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V6l11-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>',
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
-  download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>'
+  download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>',
+  sortNew:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2.3h6"/></svg>',
+  sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,lastPreviewError:''};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -2130,7 +2140,25 @@ function keyOf(x){return typeOf(x)+':'+idOf(x)}
 function logoOf(x){return x.stream_icon||x.cover||x.movie_image||x.info?.movie_image||''}
 function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
 function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
-function countCat(cat){if(!cat)return list().length;return list().filter(x=>String(x.category_id||'')===String(cat)).length}
+/* v23.0 perf (owner report: "movies are taking too long to load"): countCat() used to re-filter
+   the WHOLE list from scratch for every single category — renderCats() and renderCatPage() both
+   call it once per category, so a provider with e.g. 60 Movie categories re-scanned the entire
+   catalogue 60 times over on every render. On a 200-render Stalker sweep of a 16,800-title
+   catalogue (see growGridInChunks' notes on that) that is on the order of 100M+ comparisons spent
+   purely on category badge counts. One pass builds every category's count at once; it is cached
+   against the exact array `list()` currently returns, so it is free on any render that hasn't
+   actually received new data (S.vod/S.series are always REPLACED, never mutated in place, so
+   `!==` on the array reference is a correct "did anything change" check). */
+let _catCountsCache={arr:null,tab:null,map:null};
+function catCounts(){
+  const arr=list();
+  if(_catCountsCache.arr===arr&&_catCountsCache.tab===S.tab)return _catCountsCache.map;
+  const m=new Map();
+  for(const x of arr){const k=String(x.category_id||'');m.set(k,(m.get(k)||0)+1)}
+  _catCountsCache={arr,tab:S.tab,map:m};
+  return m;
+}
+function countCat(cat){if(!cat)return list().length;return catCounts().get(String(cat))||0}
 /* v19.17: `raw` is what the customer actually typed, `url` the panel root derived from it. Both
    are kept: the root is what stream addresses are built from, and the raw string is the only thing
    that can replay a sign-in where the "portal URL" was itself the ready-made playlist link. */
@@ -2144,7 +2172,7 @@ function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('u
    goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
    a worker build frozen at whatever that commit was, until the preview is reaped and it 404s
    forever. A workers.dev transcoder is always meant to be this app's OWN origin, so any other
-   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}}
+   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
@@ -3015,6 +3043,12 @@ function mergeEntries(type,base,extra){
   };
   for(const x of (base||[]))push(x);
   for(const x of (extra||[]))push(x);
+  /* v23.0: each source's `_recentRank` (see portal.js's parseM3U) is only meaningful relative to
+     its OWN document — two merged documents of different lengths both start their ranking at 0, so
+     leaving the numbers as-is would interleave two unrelated scales instead of sorting anything
+     real. Renumbering by final position keeps the "newest first" sort internally consistent (and is
+     a no-op — same ranks as before — for the common case where there is only one source). */
+  if(type!=='live')out.forEach((x,i)=>{x._recentRank=out.length-1-i;});
   return out;
 }
 function mergeCats(base,extra){
@@ -3503,11 +3537,20 @@ async function parseM3UStream(r,onGrow){
      download of tens of megabytes followed by a parse of six figures of entries, and both are
      measurable, so say so — the numbers climbing are the difference between waiting and worrying. */
   let seen=0,lastPaint=0,handedOver=false;
+  /* v23.0: parseM3U (called by absorb(), above) stamps `_recentRank` per call — but each call here
+     only ever sees ONE 4MB chunk, so its ranks are relative to that chunk alone, not the file. Two
+     chunks both produce a "rank 0" item, and merged.vod/merged.series end up with several unrelated
+     0-based scales concatenated together once chunks are pushed in. Push order across chunks IS
+     still the true file order (absorb() only ever appends), so re-stamping by final array position
+     — same "last = newest" convention as parseM3U itself — is what makes the rank usable once the
+     document is more than one chunk, which any playlist over ~1,000 titles will be. */
+  const rerank=arr=>{for(let i=0;i<arr.length;i++)arr[i]._recentRank=arr.length-1-i;};
   const paint=()=>{
     const now=Date.now();
     if(now-lastPaint<400)return;
     lastPaint=now;
     merged.total=merged.live.length+merged.vod.length+merged.series.length;
+    rerank(merged.vod);rerank(merged.series);
     /* v22.0: the top indicator is the only thing this drives now — see busy(). */
     /* v21.7: once the app has taken this model and opened, the loading screen is gone and the
        rest of the download belongs in the background — keep filling the same arrays, tell the
@@ -3548,6 +3591,7 @@ async function parseM3UStream(r,onGrow){
   merged.liveCats.sort(byName);merged.vodCats.sort(byName);merged.seriesCats.sort(byName);
   merged.total=merged.live.length+merged.vod.length+merged.series.length;
   if(!merged.total)return null;
+  rerank(merged.vod);rerank(merged.series);
   if(onGrow){try{onGrow(merged,true);}catch(e){}}
   return merged;
 }
@@ -3881,7 +3925,14 @@ function resetProgress(type){if(S.progress&&S.progress[type]){S.progress[type].d
    rows. Driven straight off the per-type loading flags, so it appears and clears on its own. */
 function tabIsLoading(t){return t==='live'?S.loadingLive:t==='vod'?S.loadingVod:S.loadingSeries}
 function paintTabLoading(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.tab)));document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.cattab)));}
-function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;$('sectionSub').textContent=filtered().length.toLocaleString()+' items'}
+/* v23.0 perf: renderGrid() (called just below) already computes filtered() once and writes the
+   correct #sectionSub text itself — including the "N episodes" text for the episode-view case,
+   via renderEpisodeGrid(). A second filtered() call here used to re-run the full filter+sort just
+   to overwrite sectionSub with the SAME "N items" text (or, in the episode-view case, with the
+   WRONG text — silently clobbering "N episodes" back to the movie/series count). On a large
+   Stalker catalogue sweep renderAll() fires roughly 200 times while Movies loads (see
+   growGridInChunks' notes), so this was 200 extra full-array filter+sort passes for nothing. */
+function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
 function renderCats(){
   const rows=[
     `<button class="cat ${!S.cat?'active':''}" data-cat=""><span class="catStar spacer"></span><span class="catName">All</span><span class="catCount">${list().length}</span></button>`,
@@ -3899,7 +3950,20 @@ function renderCats(){
 }
 function baseFiltered(){const q=S.q.toLowerCase().trim();return list().filter(x=>{if(S.cat==='__fav'&&!S.favs.has(keyOf(x)))return false;if(S.cat==='__recent'&&!S.recent.includes(keyOf(x)))return false;if(!q&&S.cat&&S.cat!=='__fav'&&S.cat!=='__recent'&&String(x.category_id||'')!==String(S.cat))return false;if(q&&!nameOf(x).toLowerCase().includes(q))return false;return true})}
 function ordered(arr){const order=S.orders[S.tab]||[],pos=new Map(order.map((k,i)=>[k,i]));return arr.slice().sort((a,b)=>(pos.has(keyOf(a))?pos.get(keyOf(a)):999999)-(pos.has(keyOf(b))?pos.get(keyOf(b)):999999))}
-function filtered(){const base=baseFiltered();if(S.cat==='__recent'){const pos=new Map(S.recent.map((k,i)=>[k,i]));return base.slice().sort((a,b)=>(pos.get(keyOf(a))??999999)-(pos.get(keyOf(b))??999999))}return ordered(base)}
+/* v23.0: "newest uploads first" for Movies/Series (owner request — a filter like "Tamil Movies"
+   needs a button to reorder that category newest-to-oldest). There is no genuine upload-date field
+   to sort by for most sources (see CLAUDE.md: the app is M3U-only for signed-in lines, and an M3U
+   carries no added/tvg-added attribute at all — parseM3U in portal.js confirms this). The one signal
+   that exists everywhere is catalogue ORDER, so both loaders now stamp each item with `_recentRank`
+   (0 = newest) as they build it: portal.js reverses M3U push order (last-listed = newest, the
+   common convention for an ascending-id export), and stalkerLoadVod/stalkerLoadSeries keep arrival
+   order as-is (the portal is already asked for sortby:'added', newest first — see stalkerPaged's
+   own note on that). Sorting is then just "ascending by that rank", independent of source. */
+function sortModeOn(){return (S.tab==='vod'||S.tab==='series')&&S.sortModes&&S.sortModes[S.tab]==='latest'}
+function byRecency(arr){return arr.slice().sort((a,b)=>{const ra=a._recentRank==null?Infinity:a._recentRank,rb=b._recentRank==null?Infinity:b._recentRank;return ra-rb})}
+function filtered(){const base=baseFiltered();if(S.cat==='__recent'){const pos=new Map(S.recent.map((k,i)=>[k,i]));return base.slice().sort((a,b)=>(pos.get(keyOf(a))??999999)-(pos.get(keyOf(b))??999999))}if(sortModeOn())return byRecency(base);return ordered(base)}
+function toggleSortMode(){if(S.tab!=='vod'&&S.tab!=='series')return;const cur=(S.sortModes&&S.sortModes[S.tab])||'default';S.sortModes[S.tab]=cur==='latest'?'default':'latest';try{store.setItem(SORTMODE_KEY,JSON.stringify(S.sortModes))}catch(e){}renderGrid(true);if($('grid'))$('grid').scrollTop=0;toast(S.sortModes[S.tab]==='latest'?'Sorted: newest uploads first':'Sort: provider order')}
+function updateSortToggle(){const b=$('sortToggle');if(!b)return;const applicable=(S.tab==='vod'||S.tab==='series')&&!(S.tab==='series'&&S.episodeView&&S.episodeView.eps&&S.episodeView.eps.length);b.classList.toggle('hidden',!applicable);if(!applicable)return;const on=sortModeOn();b.classList.toggle('active',on);b.innerHTML=on?ICONS.sortNew:ICONS.sortDefault;b.title=on?'Sorted: newest uploads first (tap for provider order)':'Sort: newest uploads first';}
 function moveItem(k,dir){const arr=filtered(),keys=arr.map(keyOf),i=keys.indexOf(k),j=i+dir;if(i<0||j<0||j>=keys.length)return;[keys[i],keys[j]]=[keys[j],keys[i]];const old=S.orders[S.tab]||[];S.orders[S.tab]=[...keys,...old.filter(x=>!keys.includes(x))];saveOrders();renderGrid(true);toast('Order saved')}
 function yearOf(x){const src=String(x.year||x.releaseDate||x.releasedate||x.release_date||'').trim()||nameOf(x);const m=src.match(/(19|20)\d{2}/);return m?m[0]:''}
 function gridMeta(x){return yearOf(x)||typeOf(x).toUpperCase()}
@@ -3914,7 +3978,7 @@ function renderEpisodeGrid(){
   let html='<div class="epBar"><button class="epBack" type="button" data-epback="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>All series</button><span class="epBarName">'+esc(ev.name)+'</span></div>';
   html+=ev.eps.map((ep,i)=>{const active=S.current&&keyOf(S.current)===keyOf(ep);const logo=logoOf(ep)||ev.logo;return `<div class="card ${active?'active':''}" data-ep="${i}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(ep.name)}</div><div class="cmeta">${esc((ep.container_extension||'mp4').toUpperCase())}</div></div><div class="rowActions">${epPlayerButtons(i)}</div></div>`}).join('');
   g.innerHTML=html;
-  updateViewToggle();
+  updateViewToggle();updateSortToggle();
 }
 /* v19.44 (owner request): a channel with no logo no longer says "No Logo" — the centered channel
    number (already rendered for every live row, see .chNum/.gchNum above) is the whole fallback,
@@ -3969,7 +4033,7 @@ function renderGrid(force){
     _gridChunkToken++;   /* stop any earlier batch from appending under the message below */
     _gridSig='';
     g.innerHTML=tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+'</button></div>';
-    updateViewToggle();
+    updateViewToggle();updateSortToggle();
     return;
   }
   /* v5.1: poster-thumbnail grid — big artwork, title + year, favourite in the corner. */
@@ -3983,11 +4047,11 @@ function renderGrid(force){
   const sig=S.tab+'|'+mode+'|'+keyOf(arr[0]);
   if(!force&&renderedCount>0&&sig===_gridSig&&arr.length>=renderedCount){
     if(arr.length>renderedCount)growGridInChunks(g,arr,cardHtml,renderedCount);
-    updateViewToggle();
+    updateViewToggle();updateSortToggle();
     return;
   }
   g.innerHTML=arr.slice(0,GRID_CHUNK).map((x,i)=>cardHtml(x,i)).join('');
-  updateViewToggle();
+  updateViewToggle();updateSortToggle();
   growGridInChunks(g,arr,cardHtml,GRID_CHUNK);
   _gridSig=sig;
 }
@@ -7397,6 +7461,10 @@ async function stalkerLoadVod(){
     setProgress('vod',list.length,total);
     S.vod=list.map((it,i)=>({
       _type:'vod',
+      /* v23.0: "newest first" sort. stalkerPaged asks the portal for sortby:'added', and the
+         portal answers newest-first (see stalkerPaged's own note on that guarantee), so arrival
+         index IS the recency rank already — 0 stays "newest" all the way through. */
+      _recentRank:i,
       stream_id:'stv'+String(it.id||i),
       name:it.name||it.o_name||it.title||'Untitled',
       stream_icon:it.screenshot_uri||it.pic||'',
@@ -7432,6 +7500,7 @@ async function stalkerLoadSeries(){
       const cover=it.screenshot_uri||it.pic||'';
       return {
         _type:'series',
+        _recentRank:i,
         series_id:'sts'+String(it.id||i),
         name:it.name||it.o_name||it.title||'Untitled',
         cover:cover,stream_icon:cover,
@@ -8228,13 +8297,20 @@ $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.c
 $('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});$('search').oninput=e=>{S.q=e.target.value;S.episodeView=null;renderAll()};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;S.episodeView=null;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
+   grid rebuild) immediately — on a large Movies catalogue that is real work, and it ran once per
+   character, so typing "tamil" fired it 5 times in well under a second, each one blocking the next
+   keystroke from registering smoothly. Debounced to fire once 180ms after typing pauses, which is
+   short enough nobody perceives a delay but long enough to collapse a whole word into one render. */
+let _searchDebounce=0;
+$('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_searchDebounce=setTimeout(()=>{S.q=v;S.episodeView=null;renderAll()},180)};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;S.episodeView=null;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{
   /* episode-view (a single series' episodes shown under the player) */
   const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
   const xe=e.target.closest('[data-epmode]');if(xe){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(xe.dataset.epidx)];if(ep)playItemExternal(ep,xe.dataset.epmode,true);return}
   const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
   const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
+if($('sortToggle'))$('sortToggle').onclick=()=>toggleSortMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoSheet'))$('infoSheet').onclick=e=>{if(e.target.id==='infoSheet')$('infoSheet').classList.remove('show')};
