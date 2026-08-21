@@ -1072,9 +1072,24 @@ async function handlePlaylist(request, env) {
     /* the plain https edge — no port at all — then its panel ports */
     spots.push('https://' + baseUrl.hostname);
     for (const port of PANEL_PORTS_HTTPS) { if (port !== given) spots.push('https://' + baseUrl.hostname + ':' + port); }
+    /* v23.2 (owner report: a genuine XC login rate-limited here but signs in fine in other apps):
+       spots.length * 2 shapes tops out at 24 requests with NO budget at all — on a panel that never
+       explicitly refuses (no 403/429/rejection, just silence or 404 on every wrong door), this ran
+       every single one of them before giving up. This app's sign-in goes through ONE shared relay
+       (see CORS_RELAYS / SAME_ORIGIN_PROXY in index.html), so every one of these requests lands on
+       the provider from the same handful of egress IPs as every OTHER customer signing into that
+       same provider through this app — a 24-request sweep is 24 shots at whatever request budget
+       the provider allots that shared IP, stacked on top of Pass 1's 10 and whatever the MAG
+       handshake still has to spend (that one is load-bearing per CLAUDE.md and is NOT touched
+       here). Capped to the highest-yield spots — port 80 and the first few panel ports, already the
+       front of this list — rather than exhausting the long tail on a panel that was never going to
+       answer on port 2096 anyway. */
+    const PORT_SWEEP_BUDGET = 10;
+    let sweepSpent = 0;
     outer:
     for (const spot of spots) {
       for (const shape of [q + '&output=ts', q]) {
+        if (sweepSpent++ >= PORT_SWEEP_BUDGET) break outer;
         const ok = await attempt(spot + shape, false);
         if (ok) return ok;
         if (limited) return corsJson(200, { ok: false, status: 429, attempts, base: sig.root, reason: 'rate-limited' });
