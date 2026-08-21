@@ -1723,7 +1723,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='22.5';
+const APP_VERSION='22.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5275,6 +5275,30 @@ function plan(x){
   return p;
 }
 function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
+/* ── v22.6: NATIVE VLC BRIDGE (only inside the iOS wrapper app). ──────────────────────────────
+   When this same web app is loaded inside the Media26 native iOS shell (ios-app/), that shell
+   exposes a message handler, window.webkit.messageHandlers.m26vlc. It is ABSENT in every normal
+   browser, so all of this is dead weight there and changes nothing. When it IS present, a tapped
+   Movie or Series is handed to the shell's embedded MobileVLCKit player — which fetches the file
+   with the device's own network stack (no browser sandbox, no CORS, no mixed-content, no
+   datacenter block) and decodes any codec. That is the one thing a web page cannot do and a
+   native app can, and it is why these provider-locked movies play there and only there. */
+function nativeVlcBridge(){
+  try{return window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.m26vlc||null;}catch(e){return null;}
+}
+async function nativeVlcPlay(x){
+  const br=nativeVlcBridge();if(!br)return false;
+  /* A MAG title is a portal command, not a URL — exchange it for a real link first, exactly as the
+     VLC launch and the in-app player both do. */
+  try{if(x&&x._stalkerCmd)await stalkerResolve(x);}catch(e){}
+  let url='';try{url=externalStreamUrl(x);}catch(e){}
+  if(!url||!/^https?:\/\//i.test(url)){toast('No stream link for this title yet — tap again in a moment');return false;}
+  try{
+    br.postMessage({url:url,title:nameOf(x)||'',ua:(typeof PLAYER_UA==='string'?PLAYER_UA:'')});
+    toast('Opening '+ (nameOf(x)||'title') +' …');
+    return true;
+  }catch(e){return false;}
+}
 /* ── v22.5: LEARN THAT THIS LINE'S MOVIES NEED THE DEVICE PLAYER, THEN GO STRAIGHT THERE. ──────
    The provider streams VOD only to a real on-device app, never to a browser or to our relays (see
    the fetch-block diagnosis across v21.4-v22.4). No in-app route can ever play those files — but
@@ -5324,6 +5348,12 @@ async function playItem(item,fromAlternative=false){
      playerModeFor() still refuses a player this device cannot run, which is the one override
      worth keeping — it fails closed onto Player 1 rather than launching nothing. */
   const t=typeOf(x);
+  /* v22.6: inside the native iOS shell, Movies and Series play in the embedded VLC — the whole
+     reason the wrapper exists. Live TV stays on the in-app engine (steadier, per the owner rule).
+     No bridge (any normal browser) → this is skipped entirely and nothing changes. */
+  if((t==='vod'||t==='series')&&!fromAlternative&&nativeVlcBridge()){
+    if(await nativeVlcPlay(x))return;
+  }
   let mode=playerModeFor(t);
   /* v22.5: a movie/episode on a line whose VOD the provider only serves to a device — remembered
      from a prior block — opens in VLC straight away, but only when the customer has not set their
