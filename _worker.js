@@ -504,6 +504,18 @@ function edgeRefused(status) {
   return status === 403 || status === 429 || status === 503;
 }
 
+/* v22.8: a Cloudflare (or similar) BOT CHALLENGE served with a 200. A panel behind Cloudflare
+   answers this worker — a datacenter address — with a "checking your browser" interstitial that
+   carries HTTP 200, so edgeRefused() (which reads the STATUS) never fires, the body simply is not
+   a playlist, and the relay that reaches the same panel from an ordinary-hosting IP is never
+   tried. A phone on a home connection gets the real playlist, which is exactly the "works in
+   another app, not here" report. Spotting the interstitial lets us treat it as the block it is
+   and go out through the relay. Only ever tested on a body already known not to be a playlist. */
+function looksLikeChallenge(text) {
+  const head = String(text || '').slice(0, 4096);
+  return /just a moment|checking your browser|cf-browser-verification|__cf_chl|cf-chl-|cf_chl_opt|attention required|ddos protection by|enable javascript and cookies|please turn javascript on|_cf_chl_|challenge-platform/i.test(head);
+}
+
 /* v19.18: WHOSE security layer is it. A refusal answered by Cloudflare carries Cloudflare's own
    fingerprint — `server: cloudflare` and a cf-ray id — and saying so turns an unactionable "a
    security layer refused us" into something the provider can fix in one setting on their own
@@ -663,7 +675,7 @@ async function handlePlaylist(request, env) {
   let sawStalker = false, rejected = 0, limited = 0, blocked = 0, blockedBy = '';
   /* Shared across every candidate in this login: whether the portal's edge has already turned this
      worker away, and what state the second egress is in. */
-  const relay = { awake: false, dead: false, originBlocked: false, spent: 0, exhausted: false, uaTried: false, useBrowserUa: false, refused: false };
+  const relay = { awake: false, dead: false, originBlocked: false, spent: 0, exhausted: false, uaTried: false, useBrowserUa: false, refused: false, sawChallenge: false };
   wakeRelay(env, relay);
 
   /* Stop walking candidates when there is provably nothing left to learn from another request:
@@ -720,12 +732,16 @@ async function handlePlaylist(request, env) {
          were never tried, and the user was pushed into a MAC handshake instead of simply being
          logged in. It is only the answer if nothing else produces a playlist. */
       if (looksLikeStalkerPortal(text)) { sawStalker = true; return null; }
+      /* v22.8: a 200 bot-challenge is an edge block wearing an OK status — remember it so the
+         caller can retry this candidate through the relay (which our edgeRefused path already does
+         for a 4xx/5xx block, but never reached here). */
+      if (looksLikeChallenge(text)) relay.sawChallenge = true;
       /* Report WHAT came back instead of just "not a playlist" — an HTML challenge page, a login
          form or a panel error message are all diagnosable, and all look identical without this. */
       attempts.push({
         endpoint: label(target, useMac),
         status: upstream.status,
-        error: 'not an M3U playlist',
+        error: relay.sawChallenge ? 'a bot-check page, not a playlist (edge challenge)' : 'not an M3U playlist',
         got: text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 120)
       });
       return null;
@@ -810,6 +826,24 @@ async function handlePlaylist(request, env) {
       upstream = await fetch(target.href, { method: 'GET', headers, redirect: 'follow' });
     } catch (e) {
       attempts.push({ endpoint: label(target, useMac), error: String((e && e.message) || e).slice(0, 120) });
+      return null;
+    }
+    /* v22.8: a bot-challenge answered 200. finish() will set relay.sawChallenge; catch it and go
+       out through the relay for this same candidate, exactly as the 4xx/5xx edge path does. From
+       then on relay.originBlocked routes every remaining candidate through the relay too. */
+    if (upstream.ok && !relay.originBlocked && !relay.dead) {
+      const direct = await finish(upstream, target, useMac);
+      if (direct) return direct;
+      if (relay.sawChallenge) {
+        relay.originBlocked = true;
+        const relayed = await viaRelay(env, target, useMac, mac, relay);
+        if (relayed && relayed.ok) {
+          attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: 'bot-check page; retried via relay' });
+          return await finish(relayed, target, useMac);
+        }
+        attempts.push({ endpoint: label(target, useMac), status: upstream.status, note: relayed ? 'relay also ' + relayed.status : 'relay unreachable' });
+        if (relayed && edgeRefused(relayed.status)) relay.refused = true;
+      }
       return null;
     }
     /* v15.3: SECOND EGRESS. A 403/429/503 here is very often not the panel refusing the account
