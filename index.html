@@ -1747,7 +1747,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='23.2';
+const APP_VERSION='23.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2654,7 +2654,27 @@ async function login(opts){
        is no Stalker portal behind a get.php URL to hand a MAC to, so the handshake can only fail —
        and its failure is exactly what used to bury the playlist's own verdict under an unrelated
        "portal.php was refused" message (the v19.34 lesson). Every other line still reaches it. */
-    const _tryMag=stalkerMac()&&_plReason!=='rejected'&&_lineKind!=='m3uurl';
+    /* ── v23.3 (owner decision, after the v22.9/v23.2 rate-limit incident): 'rate-limited' JOINS
+       'rejected' AS A REASON THAT SKIPS THE HANDSHAKE. This is deliberately narrower than v19.33's
+       "credentials line never detours through the handshake", which broke a real Ministra account
+       and was reverted at v19.34/v19.41 — every OTHER reason (edge-blocked, no-playlist, a plain
+       404, an empty/unknown reason) still runs the handshake exactly as before, because those say
+       nothing about whether an Xtream backend exists there; a Ministra portal with no get.php at
+       all produces exactly those same reasons, and cutting the handshake off for them is precisely
+       what broke that account.
+       'rate-limited' is different in kind, not just severity: a 429 on get.php is the ORIGIN itself
+       (or its edge, standing in for it) answering that endpoint specifically — proof this line does
+       reach a real Xtream-capable service, not silence or a 404 that could just as easily be a
+       Ministra portal with no get.php at all. Running the handshake afterward cannot rescue a
+       throttled get.php; it only adds 20-30 more requests against the same provider, on a line that
+       already told us it is being throttled, and buries the one clean, correct verdict ("wait a
+       minute, try again") under a MAG handshake result about a MAC this Xtream account never had.
+       Confirmed on a real account: a login+password Xtream Codes line, rate-limited on get.php,
+       where the MAG handshake below did complete (token issued) but — as expected for a plain
+       Xtream account — returned zero channels, since this MAC was never bound to anything on that
+       portal's Stalker side. That handshake attempt was pure overhead layered onto an
+       already-throttled sign-in, not a second chance at anything. */
+    const _tryMag=stalkerMac()&&_plReason!=='rejected'&&_plReason!=='rate-limited'&&_lineKind!=='m3uurl';
     if(_tryMag){
       try{
         const mac=stalkerMac();

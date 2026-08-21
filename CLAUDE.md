@@ -106,8 +106,23 @@ What is true, and must stay true:
     ERASE the first one's evidence, so a customer saw "Attention Required! | Cloudflare" about
     `portal.php` while the thirteen playlist addresses went unreported. Both verdicts are now
     printed together. Never collapse them again.
-  - `_tryMag` fires for a credentials line only on a POSITIVE `stalker-portal` fingerprint, never
-    on a vague `no-playlist`/`edge-blocked` guess.
+  - `_tryMag` (in `login()`) fires for a credentials line on ANY playlist failure reason EXCEPT
+    `'rejected'` (401/403 — the portal positively refused these credentials) and, since v23.3,
+    `'rate-limited'` (429 on get.php). This is deliberately almost the v19.34/v19.41 rule, not the
+    v19.33 one: `edge-blocked`, `no-playlist`, a plain 404, or an unknown/empty reason ALL still run
+    the handshake, because none of them tell you whether an Xtream backend exists there — a
+    Ministra portal with no get.php at all produces exactly those same reasons, and gating on them
+    is what broke a real account at v19.33/pre-v19.41.
+    `'rate-limited'` is excluded because it is a different kind of evidence, not just a worse
+    outcome: a 429 on get.php means the origin (or its edge, standing in for it) answered that
+    specific endpoint — proof this line reaches a real Xtream-capable service — and running the
+    handshake afterward cannot rescue a throttled get.php, it only piles 20-30 more requests onto a
+    line that already told us it's being throttled, and buries the correct "wait a minute, try
+    again" verdict under an irrelevant MAG result. Owner-approved exception (v23.3), after this
+    played out on a real Xtream Codes account. If a future incident makes ANOTHER specific reason
+    look like it deserves the same treatment, treat that the same way this one was: get owner
+    sign-off first, and be certain the reason is positive evidence of an Xtream backend, not just an
+    absence of evidence either way — the latter is exactly what v19.33 got wrong.
 - **`ua=browser` must never carry MAG headers.** The browser fallback exists to get past bot
   protection that refuses the set-top-box identity, so it must send a full browser header set and
   **no `x-user-agent: Model: MAG250`**. That header sat below the if/else for years, went out on
