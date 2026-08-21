@@ -924,14 +924,28 @@ async function handlePlaylist(request, env) {
      `type=m3u_plus`, and asking only one of them is how a working endpoint reads as absent. */
   const PANEL_PORTS_HTTP = ['8080', '2082', '2086', '2095', '8880', '2052'];
   const PANEL_PORTS_HTTPS = ['2053', '2083', '2087', '2096', '8443'];
-  if (!blocked && !limited && !rejected && hasCreds && !baseUrl.port && !sig.playlist) {
+  /* ── v22.7: SWEEP OTHER PORTS EVEN WHEN THE SELLER GAVE ONE. ─────────────────────────────────
+     The gate was `!baseUrl.port`, so the sweep ran ONLY when no port was typed. But the single
+     most common shape a seller hands out is `host:8080` as the "portal URL" while the get.php
+     playlist actually answers on PORT 80 (or another panel port) — the :8080 they gave is the
+     Ministra/portal face, and it has no get.php at all. With a port given, the app tried only that
+     port, found nothing, and stopped — reporting "no playlist" on a line that signs in perfectly
+     on :80. Now the sweep runs whenever the given port produced nothing (still only after the
+     normal walk came up empty WITHOUT being blocked or rejected, so a working sign-in never spends
+     it), and it leads with the bare host — PORT 80 — which is exactly where that hidden get.php
+     lives. The port the seller typed is skipped in the sweep since the walk above already tried
+     it. */
+  if (!blocked && !limited && !rejected && hasCreds && !sig.playlist) {
     const u = encodeURIComponent(user), p = encodeURIComponent(pass);
     const q = '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus';
+    const given = baseUrl.port || '';
     const spots = [];
-    for (const port of PANEL_PORTS_HTTP) spots.push('http://' + baseUrl.hostname + ':' + port);
-    /* the plain https edge first — no port at all — then its panel ports */
+    /* port 80 first — the classic "portal on :8080, playlist on :80" case */
+    if (given !== '' && given !== '80') spots.push('http://' + baseUrl.hostname);
+    for (const port of PANEL_PORTS_HTTP) { if (port !== given) spots.push('http://' + baseUrl.hostname + ':' + port); }
+    /* the plain https edge — no port at all — then its panel ports */
     spots.push('https://' + baseUrl.hostname);
-    for (const port of PANEL_PORTS_HTTPS) spots.push('https://' + baseUrl.hostname + ':' + port);
+    for (const port of PANEL_PORTS_HTTPS) { if (port !== given) spots.push('https://' + baseUrl.hostname + ':' + port); }
     outer:
     for (const spot of spots) {
       for (const shape of [q + '&output=ts', q]) {
