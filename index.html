@@ -687,6 +687,12 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 @media(max-width:520px){.playerModes{grid-template-columns:1fr}}
 .playerModes .pm{min-width:0}
 .playerModes .pm span{display:block;font-size:10px;font-weight:900;letter-spacing:.4px;color:#617089;margin-bottom:5px;text-transform:uppercase}
+/* v23.1: Live TV's row is now a fixed label, not a <select> — same box as the Movies/Series
+   dropdowns it sits next to, minus the ability to change it (see the removal note above).
+   Selector is scoped as deep as the `.pm span` rule above it (same specificity weight, 2 classes)
+   plus this element's own class, so it wins over that rule's uppercase/10px/grey styling instead
+   of needing !important. */
+.playerModes .pm .pmFixed{display:flex;align-items:center;width:100%;height:44px;border-radius:13px;background:#edf4fb;color:#132033;border:1px solid #d9e5f2;padding:0 10px;font-size:14px;font-weight:600;text-transform:none;letter-spacing:normal;margin-bottom:0;box-sizing:border-box}
 /* --- v22: PWA install popup --- */
 .a2hs{position:fixed;inset:0;display:none;align-items:flex-end;justify-content:center;background:rgba(5,10,20,.55);z-index:200;padding:14px}
 .a2hs.show{display:flex}
@@ -1446,8 +1452,18 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
      according to the user preference"): ALL THREE categories choose, and the choices are built
      from the PLAYERS registry at runtime rather than hard-coded here. Two bugs died with the old
      markup: the options were written by hand and still said "KMPlayer" for the value 'vlc' after
-     v19.63 split those into separate players, and Live TV had no selector at all. -->
-<div class="playerModes"><div class="pm"><span>Live TV</span><select id="modeLive"></select></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"></select></div></div><p class="nativeText" style="margin-top:6px" id="playerModeHint">Choose which player each category opens in. <b>Yez Player</b> is the built-in engine and plays inside the app. The others hand the stream to that app on this device. Whatever you pick here is what a tap on the title does — the per-row buttons still launch any player on demand, for one title, without changing this.</p><p class="nativeText" style="margin-top:6px;opacity:.75" id="playerModeLiveNote">On Live TV an external player is your choice to make, but be aware some of them drop live channels after a while; Yez Player is the steadier option there.</p></div><div class="field nativeField"><label>Yez Player (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV and HEVC films play right here on the device, with no server involved and nothing to set up. Anything else means this browser is too old to decode them in the app, and those titles need the conversion server or an external player.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField">
+     v19.63 split those into separate players, and Live TV had no selector at all.
+     v23.1 (owner report: "live channels... pushing to VLC and the video disappearing"): the Live
+     selector this added is EXACTLY what CLAUDE.md's player-choice rule forbids — "Live TV never
+     defaults to VLC (it drops live channels mid-view), so Live only gets the row button" — and it
+     is the "drops mid-view" failure this bug report describes: a device with no VLC installed (or
+     a portal whose live links don't resolve for VLC) silently gets nothing once Live is defaulted
+     there, with no in-app fallback (see v21's note by playItemExternal on why there is deliberately
+     no auto-fallback). Removed; Live is fixed to the in-app player by default (playerModeFor()
+     enforces this even for a value already saved from before this fix), same as it always was
+     before v19.64. The per-row VLC button on a live channel is untouched — that stays a one-off,
+     explicit choice with its own working "did it open?" recovery UI. -->
+<div class="playerModes"><div class="pm"><span>Live TV</span><span class="pmFixed">Yez Player (in the app)</span></div><div class="pm"><span id="pmVodLabel">Movies</span><select id="modeVod"></select></div><div class="pm pm-series"><span>Series</span><select id="modeSeries"></select></div></div><p class="nativeText" style="margin-top:6px" id="playerModeHint">Choose which player Movies and Series open in. <b>Yez Player</b> is the built-in engine and plays inside the app. The others hand the stream to that app on this device. Whatever you pick here is what a tap on the title does — the per-row buttons still launch any player on demand, for one title, without changing this.</p><p class="nativeText" style="margin-top:6px;opacity:.75" id="playerModeLiveNote">Live TV always opens in Yez Player — an external player drops live channels mid-view. Tap a channel's own VLC button to send just that one channel there.</p></div><div class="field nativeField"><label>Yez Player (in-app engine)</label><p class="nativeText" id="mkvEngineLine" style="margin:0">Checking…</p><p class="nativeText" style="margin-top:6px;opacity:.75">When this says <b>ready</b>, MKV and HEVC films play right here on the device, with no server involved and nothing to set up. Anything else means this browser is too old to decode them in the app, and those titles need the conversion server or an external player.</p></div><div class="field nativeField"><label>Video quality on this device</label><select id="qualitySel" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:15px"><option value="auto">Auto — play HD, convert 4K to 1080p (recommended)</option><option value="1080">Always 1080p HD</option><option value="720">Always 720p (slowest connections)</option><option value="original">Original quality — keep 4K</option></select><p class="nativeText" style="margin-top:6px">4K films are 20-80 Mbit/s, which is why they buffer on mobile. Converting to 1080p needs the transcoder server (the phone cannot resize video itself), so 4K titles are sent there. Everything already 1080p or below still plays instantly in the app, untouched.</p></div><div class="field nativeField">
   <!-- ── v20.8 (owner request): A CUSTOMER IS NEVER ASKED TO DEPLOY A SERVER. ──────────────────
        "Deploy free transcoder" sat next to a red light with a five-step Render walkthrough, as
        the headline remedy on a screen every user can open — a job nobody can ask a paying
@@ -1731,7 +1747,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='23.0';
+const APP_VERSION='23.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5386,10 +5402,30 @@ function markVodExternalLine(on){
 }
 /* The device player to hand a blocked movie to — the first external player that runs here (VLC). */
 function preferredExternalMode(){try{return EXTERNAL_MODES.find(m=>playerRuns(m,deviceKind()))||'';}catch(e){return '';}}
+/* v20.7 (shared with fail() below, which is where this check originated): every route that failed
+   WAS the transcoder, and it answered 5xx/timeout — our own helper service is down, which says
+   nothing about whether the PROVIDER would serve this title to the device either. */
+function transcoderOnlyFailure(){
+  try{
+    const errs=(Array.isArray(S.routeErrors)?S.routeErrors:[]).filter(Boolean);
+    return !!errs.length&&errs.every(e=>/Transcoded/i.test(e))&&/\b(50\d|52\d|408)\b/.test(errs.join(' '));
+  }catch(e){return false;}
+}
 /* Does a failure verdict look like the provider refusing our servers (an error page, a block, a
-   gateway timeout) rather than a decode problem? Those are the ones only the device can fetch. */
+   gateway timeout) rather than a decode problem? Those are the ones only the device can fetch.
+   v23.1 (owner report: "movies... pushing to VLC and the video disappearing"): looksFetchBlocked's
+   own \b5\d\d\b test used to match a transcoder 5xx exactly the same as a provider's — so a
+   customer whose transcoder happened to be briefly down (a known, unrelated, temporary condition —
+   see fail()'s own "Transcoder server is down" message) got their line PERMANENTLY marked as
+   "needs VLC" (markVodExternalLine below has no auto-expiry), and every movie after that skipped
+   the in-app player for good. If VLC then can't play the raw un-transcoded source either — the
+   whole reason the title needed transcoding in the first place — the customer is left with nothing
+   on screen and no obvious way back (see v21's note by playItemExternal on why there is
+   deliberately no automatic fallback out of an external launch). Excluded here so a transcoder
+   blip can never trip this line into VLC-only mode. */
 function looksFetchBlocked(){
   try{
+    if(transcoderOnlyFailure())return false;
     const errs=(Array.isArray(S.routeErrors)?S.routeErrors:[]).join(' ');
     return /not a Matroska|error page|src not supported|\b40[13]\b|\b5\d\d\b|forbidden|manifestLoadError|not produce/i.test(errs);
   }catch(e){return false;}
@@ -5891,9 +5927,10 @@ function fail(msg){
   }else if(hasTrans){
     /* v20.7: when every route that failed WAS the transcoder, and it answered 5xx, the title is
        not the problem and neither is the panel — our own helper service is down. Say that, and
-       point at the button that fixes it, instead of "did not produce playable HLS". */
-    const _errs=(Array.isArray(S.routeErrors)?S.routeErrors:[]).filter(Boolean);
-    const _transOnly=_errs.length&&_errs.every(e=>/Transcoded/i.test(e))&&/\b(50\d|52\d|408)\b/.test(_errs.join(' '));
+       point at the button that fixes it, instead of "did not produce playable HLS".
+       v23.1: this check moved to transcoderOnlyFailure() so looksFetchBlocked() (a few hundred
+       lines up) can share it — see that function's note on why. */
+    const _transOnly=transcoderOnlyFailure();
     $('stateTitle').textContent=_transOnly?'Transcoder server is down':'Stream unavailable';
     $('stateText').textContent=(_transOnly
       ?'This title is in a format this device cannot decode on its own, and the conversion server is not answering right now. Try again in a few minutes, or open this title in VLC.'
@@ -8786,10 +8823,20 @@ maybeStartActivationWatch();
    list can never drift from the registry again — the hand-written markup this replaces still
    offered a single option labelled "KMPlayer" whose value was 'vlc', which after v19.63 split
    those into two players meant the label and the launcher disagreed.
-   Live TV gets a selector too (owner request). It used to be excluded on the grounds that an
-   external player drops live channels; that is a caveat worth stating, which the sheet now does
-   in words, not a reason to refuse the choice. */
+   v19.64 briefly gave Live TV a selector too (owner request), on the grounds that the caveat about
+   external players dropping live channels was worth stating in words rather than a reason to
+   refuse the choice. v23.1 undid that (see playerModeFor() and the .playerModes markup above) after
+   an owner report of exactly that failure — live channels defaulting to VLC and the video going
+   blank with no way back. Live is back to selector-free, matching this comment's original v19.8
+   description above (which is why that older text was never wrong, just briefly out of date). */
 function playerModeFor(t){
+  /* v23.1 (owner report: "live channels... pushing to VLC and the video disappearing"): Live never
+     defaults to an external player — CLAUDE.md is explicit that this drops channels mid-view, and
+     there is deliberately no auto-fallback if the external launch fails (see v21's note by
+     playItemExternal). Checked here, not just left to the removed selector, so a value a device
+     already saved before this fix (S.playerModes.live sitting at 'vlc' from Stream Tools) is
+     corrected too, with no reset needed. The per-row VLC button is untouched. */
+  if(t==='live')return 'basic';
   const raw=String((S.playerModes&&S.playerModes[t])||'auto');
   /* 'auto' is the historical value for "the built-in player" and is still what a reset writes. */
   if(raw==='auto'||raw==='browser'||raw==='basic')return 'basic';
@@ -8799,7 +8846,9 @@ function playerModeFor(t){
 }
 function initPlayerModeSelects(){
   const runnable=playersFor(deviceKind());
-  [['modeLive','live'],['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{
+  /* v23.1: 'modeLive' no longer exists (see the removal note by .playerModes above) — Live has no
+     selector to build, only Movies and Series. */
+  [['modeVod','vod'],['modeSeries','series']].forEach(([id,t])=>{
     const el=$(id);if(!el)return;
     el.innerHTML=runnable.map(m=>'<option value="'+m+'">'+(m==='basic'?(PLAYERS[m].label+' (in the app)'):PLAYERS[m].label)+'</option>').join('');
     el.value=playerModeFor(t);
