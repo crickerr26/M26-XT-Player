@@ -575,6 +575,98 @@ function wakeRelay(env, state) {
   } catch (e) {}
 }
 
+/* ── v22.9: XTREAM API (player_api.php) → M3U. ────────────────────────────────────────────────
+   Fetch the account, then the live + VOD categories and streams, and assemble the same m3u_plus a
+   working get.php would have returned — group-titles, logos, and canonical /live/ and /movie/
+   stream URLs the app already knows how to play. Server-side only (the browser cannot fetch an
+   http panel from an https page). Returns {m3u, endpoint} on success, {rejected:true} when the
+   panel says the login is not active, or null when the API is simply not there. */
+async function xtreamGet(base, user, pass, action, env, relay) {
+  const u = encodeURIComponent(user), p = encodeURIComponent(pass);
+  const url = base + '/player_api.php?username=' + u + '&password=' + p + (action ? '&action=' + action : '');
+  let r = null;
+  try {
+    r = await fetch(url, { headers: { 'user-agent': PLAYER_UA, 'accept': 'application/json,*/*' }, redirect: 'follow' });
+  } catch (e) { return null; }
+  let text = '';
+  try { text = r ? await r.text() : ''; } catch (e) { return null; }
+  /* Behind Cloudflare the API answers this worker with a 200 bot-check too — try the relay, exactly
+     as the get.php path does. */
+  if ((!r.ok || looksLikeChallenge(text)) && relay && !relay.dead) {
+    try {
+      const relayed = await viaRelay(env, new URL(url), false, '', relay);
+      if (relayed && relayed.ok) text = await relayed.text();
+    } catch (e) {}
+  }
+  if (!text) return null;
+  try { return JSON.parse(text); } catch (e) { return null; }
+}
+
+async function tryXtreamApi(env, baseUrl, user, pass, relay, mac, attempts) {
+  /* The bases most likely to answer the API: the host on its default port and on :8080, plus the
+     exact base the seller gave. Panel ports that came back 521 are dead and not worth another try. */
+  const host = baseUrl.hostname;
+  const given = baseUrl.origin;
+  const bases = [];
+  const add = b => { if (b && bases.indexOf(b) < 0) bases.push(b); };
+  add('http://' + host);
+  add('http://' + host + ':8080');
+  add(given);
+  add('https://' + host);
+
+  for (const base of bases) {
+    const info = await xtreamGet(base, user, pass, '', env, relay);
+    if (!info || !info.user_info) continue;                 /* not an Xtream API here */
+    const ui = info.user_info;
+    if (ui.auth === 0 || /disabled|expired|banned/i.test(String(ui.status || ''))) {
+      attempts.push({ endpoint: base + '/player_api.php', error: 'account not active (' + (ui.status || 'auth 0') + ')' });
+      return { rejected: true };
+    }
+    /* the streaming host/port the panel itself reports, when it gives one — otherwise this base */
+    let streamBase = base;
+    try {
+      const si = info.server_info || {};
+      if (si.url && si.port) streamBase = (si.https_port && base.startsWith('https') ? 'https://' : 'http://') + si.url + ':' + (base.startsWith('https') ? (si.https_port || si.port) : si.port);
+    } catch (e) {}
+
+    const [liveCats, vodCats, live, vod] = await Promise.all([
+      xtreamGet(base, user, pass, 'get_live_categories', env, relay),
+      xtreamGet(base, user, pass, 'get_vod_categories', env, relay),
+      xtreamGet(base, user, pass, 'get_live_streams', env, relay),
+      xtreamGet(base, user, pass, 'get_vod_streams', env, relay)
+    ]);
+    const catName = (arr) => {
+      const m = {};
+      if (Array.isArray(arr)) for (const c of arr) m[String(c.category_id)] = c.category_name || 'Other';
+      return m;
+    };
+    const liveMap = catName(liveCats), vodMap = catName(vodCats);
+    const u = encodeURIComponent(user), p = encodeURIComponent(pass);
+    const esc = (v) => String(v == null ? '' : v).replace(/[\r\n",]/g, ' ').trim();
+    const lines = ['#EXTM3U'];
+    let n = 0;
+    if (Array.isArray(live)) for (const s of live) {
+      const id = s.stream_id; if (id == null) continue;
+      const grp = liveMap[String(s.category_id)] || 'Live';
+      lines.push('#EXTINF:-1 tvg-id="' + esc(s.epg_channel_id) + '" tvg-logo="' + esc(s.stream_icon) + '" group-title="' + esc(grp) + '",' + esc(s.name));
+      lines.push(streamBase + '/live/' + u + '/' + p + '/' + id + '.ts');
+      n++;
+    }
+    if (Array.isArray(vod)) for (const s of vod) {
+      const id = s.stream_id; if (id == null) continue;
+      const grp = vodMap[String(s.category_id)] || 'Movies';
+      const ext = esc(s.container_extension) || 'mp4';
+      lines.push('#EXTINF:-1 tvg-logo="' + esc(s.stream_icon || s.cover) + '" group-title="' + esc(grp) + '",' + esc(s.name));
+      lines.push(streamBase + '/movie/' + u + '/' + p + '/' + id + '.' + ext);
+      n++;
+    }
+    if (!n) { attempts.push({ endpoint: base + '/player_api.php', error: 'API answered but listed no streams' }); continue; }
+    attempts.push({ endpoint: base + '/player_api.php', note: 'Xtream API: ' + n + ' streams' });
+    return { m3u: lines.join('\n') + '\n', endpoint: base + '/player_api.php' };
+  }
+  return null;
+}
+
 async function viaRelay(env, target, useMac, mac, state) {
   const st = state || {};
   if (st.dead) return null;                       /* already established it is not coming up */
@@ -992,6 +1084,30 @@ async function handlePlaylist(request, env) {
   }
 
   if (rejected) return corsJson(200, { ok: false, status: rejected, attempts, base: sig.root, reason: 'rejected' });
+
+  /* ── v22.9 (owner request, reverses v19.6): THE XTREAM API, WHEN get.php IS NOT THERE. ────────
+     A very large share of XC panels disable the raw M3U export (get.php 404s, which is exactly
+     what playshare.co does on every port) but keep the Xtream API — player_api.php — which is what
+     other XC apps read. v19.6 removed that API on purpose to go M3U-only; the owner has now asked
+     for it back so that any correct XC login loads regardless of how the panel is configured. It
+     is ADDITIVE: it runs only after get.php has produced nothing and nothing was blocked/rejected,
+     so a panel that serves get.php never reaches it. Live + VOD are built into an M3U here (series
+     needs a per-title episode call that a Worker cannot fan out to safely; it is a follow-up). */
+  if (!blocked && !limited && !rejected && hasCreds && !sig.playlist) {
+    const api = await tryXtreamApi(env, baseUrl, user, pass, relay, mac, attempts);
+    if (api && api.m3u) {
+      const headersOut = withCors(new Headers({
+        'content-type': 'audio/x-mpegurl; charset=utf-8',
+        'cache-control': 'no-store',
+        'x-m26-source': api.endpoint,
+        'x-m26-endpoint': api.endpoint,
+        'x-m26-truncated': '0'
+      }));
+      headersOut.set('access-control-expose-headers', 'x-m26-source,x-m26-endpoint,x-m26-truncated');
+      return new Response(api.m3u, { status: 200, headers: headersOut });
+    }
+    if (api && api.rejected) return corsJson(200, { ok: false, status: 401, attempts, base: sig.root, reason: 'rejected' });
+  }
 
   /* No playlist endpoint answered. Before giving up, make ONE deliberate probe of the base URL to
      identify what kind of server this actually is. This is a diagnostic, not another playlist
