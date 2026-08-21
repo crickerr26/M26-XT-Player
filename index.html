@@ -1723,7 +1723,7 @@ const VQUAL_KEY='media26-vquality-v1';
 const VIEWMODE_KEY='media26-view-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='22.4';
+const APP_VERSION='22.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5275,6 +5275,37 @@ function plan(x){
   return p;
 }
 function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
+/* ── v22.5: LEARN THAT THIS LINE'S MOVIES NEED THE DEVICE PLAYER, THEN GO STRAIGHT THERE. ──────
+   The provider streams VOD only to a real on-device app, never to a browser or to our relays (see
+   the fetch-block diagnosis across v21.4-v22.4). No in-app route can ever play those files — but
+   VLC on the phone fetches them directly and plays anything, which is exactly what an embedded
+   native player would do, minus the App Store. So rather than make the customer watch the in-app
+   cascade fail on every single movie and then hunt for VLC, the app LEARNS: the first time a
+   movie or episode on this line fails every in-app route with a fetch-block signature, it
+   remembers, and from then on a tap on a movie/episode opens VLC at once. Live TV is never
+   touched; a customer who has explicitly chosen a player for Movies/Series in Stream Tools is
+   never overridden; and it only ever engages where VLC actually runs. One tap, and it plays. */
+const VOD_EXT_KEY='m26.vodExternal.v1';
+function _vodExtKey(){return String((S.rawUrl||S.url||'')).trim().toLowerCase()+'|'+String(S.user||'').trim().toLowerCase();}
+function vodExternalLine(){try{const m=JSON.parse(store.getItem(VOD_EXT_KEY)||'{}');return !!m[_vodExtKey()];}catch(e){return false;}}
+function markVodExternalLine(on){
+  try{
+    const m=JSON.parse(store.getItem(VOD_EXT_KEY)||'{}');
+    if(on)m[_vodExtKey()]=1; else delete m[_vodExtKey()];
+    const keys=Object.keys(m);if(keys.length>24)for(const k of keys.slice(0,keys.length-24))delete m[k];
+    store.setItem(VOD_EXT_KEY,JSON.stringify(m));
+  }catch(e){}
+}
+/* The device player to hand a blocked movie to — the first external player that runs here (VLC). */
+function preferredExternalMode(){try{return EXTERNAL_MODES.find(m=>playerRuns(m,deviceKind()))||'';}catch(e){return '';}}
+/* Does a failure verdict look like the provider refusing our servers (an error page, a block, a
+   gateway timeout) rather than a decode problem? Those are the ones only the device can fetch. */
+function looksFetchBlocked(){
+  try{
+    const errs=(Array.isArray(S.routeErrors)?S.routeErrors:[]).join(' ');
+    return /not a Matroska|error page|src not supported|\b40[13]\b|\b5\d\d\b|forbidden|manifestLoadError|not produce/i.test(errs);
+  }catch(e){return false;}
+}
 async function playItem(item,fromAlternative=false){
   S.audioOnly=false;
   let x=smoothLiveStart(item);
@@ -5293,7 +5324,16 @@ async function playItem(item,fromAlternative=false){
      playerModeFor() still refuses a player this device cannot run, which is the one override
      worth keeping — it fails closed onto Player 1 rather than launching nothing. */
   const t=typeOf(x);
-  const mode=playerModeFor(t);
+  let mode=playerModeFor(t);
+  /* v22.5: a movie/episode on a line whose VOD the provider only serves to a device — remembered
+     from a prior block — opens in VLC straight away, but only when the customer has not set their
+     own Movies/Series player and VLC actually runs here. */
+  if((t==='vod'||t==='series')&&mode==='basic'&&!fromAlternative
+     && String((S.playerModes&&S.playerModes[t])||'auto')==='auto'
+     && vodExternalLine()){
+    const ext=preferredExternalMode();
+    if(ext){toast('Your provider streams movies to the player app — opening in '+playerLabel(ext));mode=ext;}
+  }
   await routePlayback(x,mode,fromAlternative?true:false);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the row/episode
@@ -5790,6 +5830,10 @@ function fail(msg){
      title it is now the headline action, sitting on the message that just failed. */
   try{
     if(S.current&&typeOf(S.current)!=='live'&&$('extActions')){
+      /* v22.5: this line's VOD is provider-blocked — remember it, so the NEXT movie opens straight
+         in VLC instead of failing the cascade again. Only on a real fetch-block, never a plain
+         decode miss, and only where an external player exists to hand it to. */
+      try{if(looksFetchBlocked()&&preferredExternalMode())markVodExternalLine(true);}catch(e){}
       $('extActions').classList.remove('hidden');
       EXTERNAL_MODES.forEach(m=>{const b=$(PLAYERS[m].extBtn);if(!b)return;b.disabled=false;b.style.opacity='';b.style.display=playerRuns(m,deviceKind())?'':'none';});
       if($('extBrowser'))$('extBrowser').style.display='none';
@@ -8533,7 +8577,7 @@ if($('conflictClose'))$('conflictClose').onclick=function(){$('conflictModal').c
 if($('conflictRetry'))$('conflictRetry').onclick=function(){$('conflictModal').classList.remove('show');$('overlay').style.display='grid';if($('stateProgress'))$('stateProgress').classList.remove('hidden');$('stateTitle').textContent='Taking over';$('stateText').textContent='Logging out the other device and reconnecting here...';resumeCurrent()};
 /* v19.64: resets all three categories, Live included, and re-reads the selects from the registry
    so the reset leaves the UI showing what was actually stored. */
-if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes.live='auto';S.playerModes.vod='auto';S.playerModes.series='auto';try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}try{initPlayerModeSelects()}catch(e){}$('nativeSheet').classList.remove('show');toast('Every category reset to '+playerLabel('basic'))};
+if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerModes.live='auto';S.playerModes.vod='auto';S.playerModes.series='auto';try{store.setItem(PLAYER_MODE_KEY,JSON.stringify(S.playerModes))}catch(e){}/* v22.5: also forget that this line's movies were sent to VLC, so the in-app player gets another chance (e.g. after the provider allows player access). */try{markVodExternalLine(false)}catch(e){}try{initPlayerModeSelects()}catch(e){}$('nativeSheet').classList.remove('show');toast('Every category reset to '+playerLabel('basic'))};
 /* v19.44: date/time on the category ("What do you want to watch?") screen head, ticking once a
    minute — a second timer would repaint 60x more often than the display can even show. */
 (function(){
