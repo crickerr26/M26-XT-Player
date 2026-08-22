@@ -1810,7 +1810,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.1';
+const APP_VERSION='24.2';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5850,6 +5850,10 @@ async function tryPlans(plans,i){
       if(!window.mpegts||!mpegts.isSupported()){nextPlan();return}
       /* iOS ManagedMediaSource requires AirPlay disabled on the element */
       try{v.disableRemotePlayback=true;v.setAttribute('disableremoteplayback','')}catch(e){}
+      /* v24.2 (owner report: PiP button did nothing on live channels): mpegts.min.js is patched
+         locally to actually pick ManagedMediaSource on real iOS Safari — see the banner comment
+         at the top of that file for why. Without ManagedMediaSource, WebKit has no PiP support
+         for this route at all, no matter what pip() in this file does. */
       S.ts=mpegts.createPlayer(
         {type:'mpegts',isLive:live,url:p.url,cors:true},
         {enableWorker:true,enableStashBuffer:true,
