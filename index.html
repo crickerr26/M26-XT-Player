@@ -438,13 +438,16 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .home-bg span:nth-child(4){width:210px;height:210px;right:12%;bottom:4%;background:radial-gradient(circle,#f59e0b,transparent 70%);animation-delay:-2s}
 @keyframes homeFloat{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(26px,-32px) scale(1.08)}66%{transform:translate(-22px,22px) scale(.94)}}
 .home-inner{position:relative;z-index:1;width:min(780px,100%);display:flex;flex-direction:column;align-items:center;gap:26px}
-.home-head{text-align:center;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
+/* v24.8 (owner request): the homeRise "rise up" entrance animation used a spring-overshoot easing
+   curve (cubic-bezier(.2,.8,.2,1)) that read as a bounce on the three big category cards —
+   removed from every home-screen element that used it, same request as v24.6's other animations. */
+.home-head{text-align:center}
 .home-brand{width:68px;height:68px;margin:0 auto 14px;border-radius:20px;background:linear-gradient(135deg,rgba(56,189,248,.2),rgba(45,212,191,.14));display:grid;place-items:center;box-shadow:0 12px 40px rgba(56,189,248,.28),inset 0 0 0 1px rgba(255,255,255,.08);animation:homeBrandPulse 3s ease-in-out infinite}
 .home-brand img{width:72%;height:72%;object-fit:contain}
 .home-head h1{font-size:clamp(22px,5.2vw,32px);font-weight:900;letter-spacing:-.6px;background:linear-gradient(90deg,#eaf6ff,#b9d4f4);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .home-head p{margin-top:6px;color:#93a7c7;font-size:14px;font-weight:600}
 .home-cards{width:100%;display:grid;grid-template-columns:1fr;gap:14px}
-.home-card{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;text-align:left;padding:20px;border-radius:22px;border:1px solid rgba(255,255,255,.1);color:#fff;min-height:106px;box-shadow:0 18px 40px rgba(0,0,0,.35);transition:transform .18s ease,box-shadow .18s ease;animation:homeRise .7s cubic-bezier(.2,.8,.2,1) both}
+.home-card{position:relative;overflow:hidden;display:flex;align-items:center;gap:16px;text-align:left;padding:20px;border-radius:22px;border:1px solid rgba(255,255,255,.1);color:#fff;min-height:106px;box-shadow:0 18px 40px rgba(0,0,0,.35);transition:transform .18s ease,box-shadow .18s ease}
 .home-card:nth-child(1){animation-delay:.06s}.home-card:nth-child(2){animation-delay:.14s}.home-card:nth-child(3){animation-delay:.22s}
 .home-card:active{transform:scale(.975)}
 @media(hover:hover){.home-card:hover{transform:translateY(-4px);box-shadow:0 26px 56px rgba(0,0,0,.46)}}
@@ -494,11 +497,11 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .home-sub-lines.hidden{display:none}
 .home-sub-line{font-size:10px;font-weight:600;letter-spacing:.2px;color:#5b7aa8}
 body.light .home-sub-line{color:#7186a6}
-.home-footer{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;padding:14px max(18px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:linear-gradient(180deg,rgba(10,18,32,0),rgba(10,18,32,.85) 40%);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.08)}
-.home-exit{height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800;animation:homeRise .7s ease .3s both}
+.home-footer{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;gap:10px;padding:14px max(18px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:linear-gradient(180deg,rgba(10,18,32,0),rgba(10,18,32,.85) 40%);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.08)}
+.home-exit{height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800}
 /* v7.8: settings gear on the home hub + settings sheet rows */
 .home-actions{position:absolute;top:calc(16px + env(safe-area-inset-top));right:calc(16px + env(safe-area-inset-right));z-index:6;display:flex;align-items:center;gap:10px}
-.home-settings{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#dce8fb;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .15s ease,background .15s ease;animation:homeRise .7s ease .1s both}
+.home-settings{width:44px;height:44px;border-radius:14px;display:grid;place-items:center;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);color:#dce8fb;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);transition:transform .15s ease,background .15s ease}
 .home-settings svg{width:22px;height:22px}
 .home-settings:active{transform:scale(.9)}
 #homeSettings:active{transform:scale(.9) rotate(35deg)}
@@ -1275,7 +1278,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       </button>
     </div>
   </div>
-  <div class="home-footer"><button class="home-exit" id="homeExit">Log out</button></div>
+  <div class="home-footer"><button class="home-exit" id="homeRefreshPlaylist" type="button">Refresh playlist</button><button class="home-exit" id="homeExit">Log out</button></div>
 </div>
 <div class="catpage hidden" id="catpage">
   <div class="home-bg"><span></span><span></span><span></span><span></span></div>
@@ -1823,7 +1826,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.7';
+const APP_VERSION='24.8';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -8678,6 +8681,29 @@ if($('catList'))$('catList').addEventListener('click',e=>{
 /* v17.0: same as the in-app Log out — end the session, keep the identity, and let the flag stop
    every automatic reconnect until Login is tapped. */
 if($('homeExit'))$('homeExit').onclick=()=>{if($('home'))$('home').classList.add('hidden');cleanup();setSignedOut(true);$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch()};
+/* v24.8 (owner request): "Refresh playlist" next to Log out — goes back to the provider for the
+   source document, the same real refresh resyncSource() already does for the per-tab Refresh
+   button (see its own note: re-slicing the copy already in memory is not a refresh at all on a
+   playlist line). Covers all three tabs at once rather than just whichever one is open, since a
+   home-screen refresh has no "current tab" of its own. */
+if($('homeRefreshPlaylist'))$('homeRefreshPlaylist').onclick=async()=>{
+  if(_resyncing){toast('Already refreshing…');return}
+  const btn=$('homeRefreshPlaylist'),prevText=btn.textContent;
+  const before=S.live.length+S.vod.length+S.series.length;
+  btn.disabled=true;btn.textContent='Refreshing…';
+  toast('Refreshing playlist…');
+  try{
+    await resyncSource({quiet:false});
+    await Promise.all([ensureTypeLoaded('live'),ensureTypeLoaded('vod'),ensureTypeLoaded('series')]);
+    const added=(S.live.length+S.vod.length+S.series.length)-before;
+    updateHomeCounts&&updateHomeCounts();
+    toast(added>0?('Playlist refreshed — '+added.toLocaleString()+' new item'+(added===1?'':'s')):'Playlist is up to date');
+  }catch(e){
+    toast((e&&e.message)||'Refresh failed — try again in a moment.');
+  }finally{
+    btn.disabled=false;btn.textContent=prevText;
+  }
+};
 (function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>backToCategories();$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
 $('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Yez Player ready — MKV plays here in the app':'⚠️ Yez Player '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();
 if($('transcoderAdvBtn'))$('transcoderAdvBtn').onclick=()=>{const b=$('transcoderAdv');if(!b)return;const open=b.classList.toggle('hidden');$('transcoderAdvBtn').textContent=open?'Advanced — run my own transcoder':'Hide advanced';};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};/* ── v20.8: "TAP THE VIDEO ONCE TO BEGIN PLAYBACK" NOW BEGINS PLAYBACK. ─────────────────────────
