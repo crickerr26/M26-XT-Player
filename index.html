@@ -1810,7 +1810,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.0';
+const APP_VERSION='24.1';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6225,7 +6225,18 @@ function pip(){
        `await v.play()` first, which on iPhone throws away the tap's user-gesture, so iOS
        then rejected PiP and the catch showed "tap the video to start it" — that WAS the bug.
        Now: nudge play WITHOUT awaiting (fire-and-forget) and call PiP in the same tick. */
-    if(typeof v.webkitSetPresentationMode==='function'){
+    /* v24.1 (owner report: PiP button does nothing): webkitSetPresentationMode EXISTS as a
+       function on every iOS <video> element regardless of whether PiP is actually possible for
+       the CURRENT source — the real capability check is webkitSupportsPresentationMode('picture-
+       in-picture'), the same gate the auto-PiP handler above already uses. This function skipped
+       that check, called webkitSetPresentationMode blind, and the inner catch swallowed whatever
+       it threw with no toast and no fallback — so on a route WebKit won't PiP right now (video
+       not yet in a PiP-eligible state is the common case on a freshly switched live channel), the
+       button visibly did nothing. Now: only take the WebKit path when WebKit itself reports the
+       mode supported, and if the call still throws, fall through to the standard API and finally
+       to a toast instead of going silent. */
+    const webkitReady=typeof v.webkitSetPresentationMode==='function'&&(typeof v.webkitSupportsPresentationMode!=='function'||v.webkitSupportsPresentationMode('picture-in-picture'));
+    if(webkitReady){
       try{if(v.paused)v.play().catch(()=>{})}catch(e){}
       try{v.webkitSetPresentationMode('picture-in-picture');return}catch(e){}
     }
@@ -6235,7 +6246,7 @@ function pip(){
       v.requestPictureInPicture().catch(()=>toast('Give the video a second to start, then tap PiP again'));
       return;
     }
-    toast('Picture-in-Picture isn’t available in this browser. On iPhone, open the site in Safari and try again, or use a player app’s own PiP.');
+    toast(v.readyState<2?'Give the video a second to start, then tap PiP again':'Picture-in-Picture isn’t available for this stream right now.');
   }catch(e){toast('Picture-in-Picture could not start on this device')}
 }
 /* v61: background play. MediaSession is the real mechanism: on Android/desktop it keeps AUDIO
