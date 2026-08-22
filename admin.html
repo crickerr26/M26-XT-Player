@@ -23,9 +23,11 @@
   .card{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:20px;padding:20px;margin-bottom:16px;box-shadow:0 12px 30px rgba(0,0,0,.28);backdrop-filter:blur(14px)}
   .card h2{font-size:15px;font-weight:600;margin:0 0 12px;color:var(--ink)}
   label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin:12px 0 6px}
-  input{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:13px 14px;font-size:15px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--ink);border-radius:12px;padding:13px 14px;font-size:15px;font-family:inherit;transition:border-color .15s,box-shadow .15s}
   input::placeholder{color:#6b7f9c}
-  input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(56,189,248,.20)}
+  input:focus,select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(56,189,248,.20)}
+  select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239caec8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;background-size:18px;padding-right:38px}
+  select option{background:var(--panel2);color:var(--ink)}
   .row{display:flex;gap:12px;flex-wrap:wrap}.row>div{flex:1;min-width:140px}
   button{cursor:pointer;border:0;border-radius:999px;font-weight:600;font-size:14px;padding:12px 20px;font-family:inherit;transition:box-shadow .15s,background .15s,transform .1s}
   button:active{transform:scale(.98)}
@@ -114,9 +116,36 @@
     </div>
     <p class="muted" id="a_kindNote" style="display:none;margin:10px 0 0"></p>
     <div class="warn" id="a_kindWarn" style="display:none"></div>
-    <!-- v19.60 (owner request): no expiry field — how long a line lasts is managed on the IPTV
-         admin's own provider panel (where the login/password was created and the MAC registered),
-         not duplicated here. A code stays active until that upstream login stops working. -->
+    <!-- v23.7 (owner request, reverses v19.60): back to an expiry field, on purpose. v19.60 removed
+         it on the reasoning that a code's lifetime was already governed upstream — whatever the
+         IPTV login/password on the provider's own panel was good for. The owner has since asked for
+         the opposite: a customer's access here must end on schedule EVEN IF the portal login/
+         password is still perfectly valid upstream — this app's own expiry is now the thing that
+         decides, not a mirror of the provider's. Both /api/admin/activate and /api/admin/create
+         already accept `days` server-side (server.js has carried it since the very first version of
+         this store) — this dashboard was the one piece not exposing it. 1-12 months, in 30-day
+         steps (the same "one month = 30 days" server.js's Stripe self-serve renewal already uses,
+         so a code's expiry always means the same thing everywhere in this system), plus a "No
+         expiry" escape hatch for the accounts that genuinely should not end on a schedule
+         (testers, special arrangements) — kept, not removed, since v19.60 was right that SOME
+         codes legitimately have no calendar-based lifetime, just not that none of them do. -->
+    <label>Subscription length</label>
+    <select id="a_days">
+      <option value="30" selected>1 month</option>
+      <option value="60">2 months</option>
+      <option value="90">3 months</option>
+      <option value="120">4 months</option>
+      <option value="150">5 months</option>
+      <option value="180">6 months</option>
+      <option value="210">7 months</option>
+      <option value="240">8 months</option>
+      <option value="270">9 months</option>
+      <option value="300">10 months</option>
+      <option value="330">11 months</option>
+      <option value="360">12 months</option>
+      <option value="0">No expiry (never)</option>
+    </select>
+    <p class="muted" style="margin-top:8px">This app stops signing the customer in once this expires — even if their portal login/password is still active with the provider. Re-activating the same code later (Activate below) resets this to a fresh period from that moment.</p>
     <button class="primary" id="a_new">✨ Create a new activated code</button>
     <button class="secondary" id="a_go">Activate the code/MAC the customer gave me</button>
     <div class="msg" id="a_msg"></div>
@@ -138,7 +167,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='23.6';
+  var ADMIN_VERSION='23.7';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -283,16 +312,22 @@
   function segKind(segId){var a=$(segId)&&$(segId).querySelector('.segBtn.active');return (a&&a.dataset.kind)||'xtream';}
   wireKindSeg('a_kindSeg');
   applyKind('xtream');
+  /* v23.7: "active until <date>" for the success message below, or "never expires" for the 0
+     (No expiry) option — so activating/creating a code confirms the SAME thing the seller just
+     picked, rather than leaving them to trust the dropdown silently did something. */
+  function expiryLabel(expiresAt){
+    return expiresAt ? (' Active until '+new Date(expiresAt).toLocaleDateString()+'.') : ' Never expires.';
+  }
 
   $('a_go').onclick=function(){
     var m=$('a_msg'); m.className='msg'; m.textContent='Activating…';
     $('a_warn').style.display='none'; $('a_newbox').style.display='none';
     api('/api/admin/activate',{
       code:$('a_code').value, url:$('a_url').value, user:$('a_user').value,
-      pass:$('a_pass').value, kind:segKind('a_kindSeg')
+      pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||30)
     }).then(function(r){
       if(r.j&&r.j.ok){
-        m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).';
+        m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).'+expiryLabel(r.j.expiresAt);
         showShareCode(r.j.code);
         /* No customer had ever registered this code, so nobody is waiting on it. Almost always a
            mistyped digit — check the code with the customer and try again. */
@@ -313,10 +348,10 @@
     $('a_newbox').style.display='none'; $('a_warn').style.display='none';
     api('/api/admin/create',{
       url:$('a_url').value, user:$('a_user').value,
-      pass:$('a_pass').value, kind:segKind('a_kindSeg')
+      pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||30)
     }).then(function(r){
       if(r.j&&r.j.ok){
-        m.className='msg ok'; m.textContent='✓ New code created and already active.';
+        m.className='msg ok'; m.textContent='✓ New code created and already active.'+expiryLabel(r.j.expiresAt);
         showShareCode(r.j.code);
       } else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
     }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });

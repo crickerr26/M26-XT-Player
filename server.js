@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.0';
+const SERVER_BUILD = '14.1';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -1190,7 +1190,7 @@ const server = http.createServer(async (req, res) => {
            happened was "a brand-new code was invented", not "the customer waiting on their screen was
            let in". A single mistyped digit produces exactly that: a phantom active code with 0 devices
            while the customer's real code sits pending forever. The UI warns loudly on this flag. */
-        return json(res, 200, { ok: true, code, status: 'active', created: !existing, devices: lic.devices.length, deviceLimit: DEVICE_LIMIT });
+        return json(res, 200, { ok: true, code, status: 'active', created: !existing, devices: lic.devices.length, deviceLimit: DEVICE_LIMIT, expiresAt: lic.expiresAt || 0 });
       }
 
       /* ADMIN: mint a BRAND-NEW code that is already active. This is the "sell a subscription"
@@ -1219,7 +1219,7 @@ const server = http.createServer(async (req, res) => {
           expiresAt: days > 0 ? Date.now() + days * 86400000 : 0
         };
         await licSet(code, lic);
-        return json(res, 200, { ok: true, code, status: 'active', devices: 0, deviceLimit: DEVICE_LIMIT });
+        return json(res, 200, { ok: true, code, status: 'active', devices: 0, deviceLimit: DEVICE_LIMIT, expiresAt: lic.expiresAt || 0 });
       }
 
       // ADMIN: block / unblock / reset devices / edit / delete a code (one or many).
