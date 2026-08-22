@@ -73,10 +73,23 @@ v19.6 (owner request): the Xtream Codes API (player_api.php — categories, VOD/
 account status) was removed entirely. The app is M3U-only now: sign-in always resolves through
 the panel's `get.php` playlist endpoint (server URL + username + password, which the app builds
 into an M3U URL — labelled "Server Login" in the UI) or a MAC-bound Stalker/MAG line, or a raw
-M3U URL/file pasted directly. Do not reintroduce `player_api.php` calls. The `xtream`/`'xtream'`
-identifiers that remain (`PROFILE_KINDS.xtream`, server.js `normalizeKind`) are kept only for
-backward compatibility with data already stored under that name — they mean "signed in with
-username/password", not "uses the Xtream API".
+M3U URL/file pasted directly. Do not reintroduce `player_api.php` calls outside the one scoped
+exception below. The `xtream`/`'xtream'` identifiers that remain (`PROFILE_KINDS.xtream`,
+server.js `normalizeKind`) are kept only for backward compatibility with data already stored
+under that name — they mean "signed in with username/password", not "uses the Xtream API".
+
+**v24.7 (owner-approved, scoped exception):** some panels only expose Series through the Xtream
+API and never in `get.php`'s M3U output at all — Live and Movies load fine, Series stays
+permanently empty, with no error to explain why (confirmed on a real line: another Xtream client,
+Smarters Player Lite, showed thousands of series on the same login that this app showed zero for).
+`xtreamSeriesFallback()` in index.html now calls `player_api.php` (`get_series_categories` +
+`get_series`), but ONLY as a last resort when a credentials line's Series tab comes back genuinely
+empty from both M3U documents — see the call site in `loadType()`. A show fetched this way has no
+episodes yet (Xtream splits that into a separate `get_series_info` call per show); those are
+fetched lazily in `openEpisodePicker()`'s `x._xtreamSeriesId` branch, only for a show the user
+actually opens. Sign-in, Live and Movies are completely untouched — they still never call
+`player_api.php`. If Movies ever needs the same treatment (a panel with Movies missing from the
+M3U too), that is a NEW ask-the-owner-first decision, not something this exception already covers.
 
 ## THE MAC / MAG PATH IS LOAD-BEARING. DO NOT TOUCH IT. (owner rule, v19.27)
 

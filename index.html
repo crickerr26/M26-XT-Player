@@ -1823,7 +1823,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.6';
+const APP_VERSION='24.7';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3236,6 +3236,50 @@ async function loadTypeFromFullPlaylist(type){
   if($(type==='vod'?'vodCount':'seriesCount'))$(type==='vod'?'vodCount':'seriesCount').textContent=arr.length.toLocaleString();
   renderAll();updateHomeCounts&&updateHomeCounts();
 }
+/* v24.7 (owner-approved, scoped exception to the v19.6 "M3U-only" rule — see CLAUDE.md's MAC/MAG
+   section neighbour for the same "ask the owner first" pattern this followed): fetches a
+   credentials line's Series list straight from the Xtream API, for panels that only expose Series
+   there and never in get.php's M3U output. Deliberately narrow — get_series_categories +
+   get_series only, called ONLY as a fallback when both M3U documents already came back with zero
+   series (see loadType). Sign-in, Live and Movies are completely untouched by this: they still
+   never call player_api.php. A show fetched this way has no episodes yet (Xtream splits that into
+   a separate get_series_info call per show) — see the x._xtreamSeriesId branch in
+   openEpisodePicker for where those get fetched, lazily, only for a show the user actually opens.
+   Uses fetchJsonChain — already-written retry/CORS-relay/auth-detection plumbing left over from
+   the pre-v19.6 Xtream implementation that had no other caller until now. Silent-by-design on
+   failure, matching every other fallback in this function: Series just stays empty, exactly as it
+   would have without this fallback existing at all. */
+let _xtreamSeriesFallbackTried=false;
+async function xtreamSeriesFallback(){
+  if(_xtreamSeriesFallbackTried||!S.url||!S.user)return;
+  _xtreamSeriesFallbackTried=true;
+  try{
+    const base=S.url+'/player_api.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass);
+    const [cats,series]=await Promise.all([
+      fetchJsonChain(base+'&action=get_series_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_series')
+    ]);
+    if(!Array.isArray(series)||!series.length)return;
+    const catNameById=new Map();
+    if(Array.isArray(cats))cats.forEach(c=>{if(c&&c.category_id!=null)catNameById.set(String(c.category_id),c.category_name||'Series');});
+    S.seriesCats=Array.isArray(cats)?cats.map(c=>({category_id:'xts'+String(c.category_id),category_name:c.category_name||'Series'})):[];
+    S.series=series.map((it,i)=>({
+      _type:'series',_recentRank:i,
+      series_id:'xts'+String(it.series_id!=null?it.series_id:i),
+      name:it.name||it.title||'Untitled',
+      cover:it.cover||'',stream_icon:it.cover||'',
+      category_id:'xts'+String(it.category_id!=null?it.category_id:'0'),
+      category_name:catNameById.get(String(it.category_id))||'Series',
+      plot:it.plot||'',
+      _xtreamSeriesId:it.series_id
+    }));
+    /* loadType('series') re-slices S.series from S.m3u.series at the TOP of every call, before
+       ever reaching this fallback — without persisting the result back in here too, the tab would
+       go back to empty the very next time it's opened, since S.m3u.series was never actually
+       updated (same reason loadTypeFromFullPlaylist calls this too). */
+    adoptIntoPlaylist('series',S.seriesCats,S.series);
+  }catch(e){/* silent by design — Series simply stays empty, same as every other fallback here */}
+}
 async function loadType(type){
   /* A playlist is one document: it is parsed once at login, so each tab is just a slice of it —
      Series included (v16.8; v16.3 short-circuited Series to empty here for playlist sources). */
@@ -3267,6 +3311,13 @@ async function loadType(type){
       renderAll();updateHomeCounts&&updateHomeCounts();
       try{
         await loadTypeFromFullPlaylist(type);
+        /* v24.7 (owner-approved, scoped exception to the v19.6 "M3U-only" rule — see CLAUDE.md):
+           some panels only carry Series through the Xtream API, never in get.php's M3U output at
+           all — Live and Movies load fine, Series stays permanently empty. Only tried once Series
+           comes back genuinely empty from BOTH M3U documents above, and only for a credentials
+           line (S.user set) — never for a MAC-only line, which has no username/password to call
+           player_api.php with. */
+        if(type==='series'&&S.user&&!(S.series&&S.series.length))await xtreamSeriesFallback();
       }finally{
         if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
         renderAll();updateHomeCounts&&updateHomeCounts();
@@ -4008,6 +4059,7 @@ function sourceLabel(){
 }
 async function refreshAll(){
   S.loadedLive=S.loadedVod=S.loadedSeries=false;
+  _xtreamSeriesFallbackTried=false;   /* v24.7: let a manual/session refresh retry it too */
   /* v7.7: get the app USABLE fast. Load Live TV (the landing tab) first and enter immediately, then
      preload Movies + Series in the BACKGROUND in parallel — so the whole catalog is in memory and
      switching tabs / searching / opening a title is instant, WITHOUT making the user wait through
@@ -4214,9 +4266,32 @@ async function openEpisodePicker(x){load(true,'Loading episodes...');try{/* v12.
      and travel with the show, so the picker opens instantly and without a request. */
   /* A Stalker season carries its episode numbers with it (see stalkerLoadSeries), so like the
      playlist case the picker opens with no extra request. */
-  const d=(x&&x._stalkerEpisodes)?{episodes:x._stalkerEpisodes}
-    :(x&&x._m3uEpisodes)?{episodes:x._m3uEpisodes}
-    :{episodes:[]};const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url||ep._stalkerCmd);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
+  let d;
+  if(x&&x._stalkerEpisodes){d={episodes:x._stalkerEpisodes};}
+  else if(x&&x._m3uEpisodes){d={episodes:x._m3uEpisodes};}
+  else if(x&&x._xtreamSeriesId){
+    /* v24.7: this show came from the Xtream API series fallback (xtreamSeriesFallback) — the
+       Xtream get_series action never returns episodes, only the show list; episodes come from a
+       PER-SHOW get_series_info call, made here lazily, only when the user actually opens a show,
+       exactly like a real Xtream client (fetching all shows' episodes upfront would be hundreds
+       of extra requests most of which are never opened). */
+    const info=await fetchJsonChain(S.url+'/player_api.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass)+'&action=get_series_info&series_id='+encodeURIComponent(x._xtreamSeriesId));
+    const bySeason=(info&&info.episodes)||{};
+    const eps=[];
+    Object.keys(bySeason).forEach(season=>{
+      (bySeason[season]||[]).forEach(ep=>{
+        if(!ep||ep.id==null)return;
+        const ext=String(ep.container_extension||'mp4').replace(/^\./,'').toLowerCase();
+        const title=ep.title||('Episode '+(ep.episode_num||''));
+        eps.push({_type:'series',episode_id:'xte'+String(ep.id),title:title,name:title,
+          direct_source:S.url+'/series/'+encodeURIComponent(S.user)+'/'+encodeURIComponent(S.pass)+'/'+ep.id+'.'+ext,
+          container_extension:ext,stream_icon:(ep.info&&ep.info.movie_image)||x.cover||'',
+          category_id:x.category_id,season:Number(season)||0,episode_num:ep.episode_num});
+      });
+    });
+    d={episodes:eps};
+  }
+  else{d={episodes:[]};}const eps=flattenEpisodes(d.episodes||d).map((ep,i)=>({...ep,name:ep.title||ep.name||('Episode '+(ep.episode_num||i+1)),_type:'series',_seriesName:nameOf(x)})).filter(ep=>idOf(ep)||ep.direct_source||ep.stream_url||ep._stalkerCmd);eps.sort((a,b)=>(Number(a.season||a.season_number||0)-Number(b.season||b.season_number||0))||(Number(a.episode_num||a.episode||0)-Number(b.episode_num||b.episode||0)));if(!eps.length)throw Error('No episodes found');$('episodeTitle').textContent=nameOf(x);
 /* v7.4: each episode row = tap the row to play in the Media26 built-in player (fast, optimistic
    start), plus a VLC button to open that episode in VLC. */
 $('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i}" role="button" tabindex="0"><div class="epInfo"><strong>${esc(ep.name)}</strong><span>${esc(ep.container_extension||'mp4')}</span></div>${epPlayerButtons(i,'epvlc')}</div>`).join('');
