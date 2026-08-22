@@ -426,7 +426,12 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .home{position:fixed;inset:0;z-index:15;display:grid;place-items:center;overflow:hidden;padding:24px max(18px,env(safe-area-inset-left)) calc(78px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:radial-gradient(circle at 15% 12%,rgba(56,189,248,.16),transparent 42%),radial-gradient(circle at 85% 18%,rgba(168,85,247,.16),transparent 38%),radial-gradient(circle at 50% 108%,rgba(45,212,191,.16),transparent 46%),linear-gradient(160deg,#0a1220,#0d1a2e 55%,#0a1220)}
 .home.hidden{display:none}
 .home-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none}
-.home-bg span{position:absolute;border-radius:50%;filter:blur(40px);opacity:.5;animation:homeFloat 15s ease-in-out infinite}
+/* v24.6 (owner request): the ambient background blobs and the card shine sweep below were the
+   only two continuously-running (infinite) animations on the home screen — removed per request,
+   and as a side benefit that's one less indefinite repaint loop running the whole time this screen
+   is open. Blobs keep their static glow/position, just don't drift/pulse any more; the shine sweep
+   is hidden outright since a moving highlight has no sensible "held still" version. */
+.home-bg span{position:absolute;border-radius:50%;filter:blur(40px);opacity:.5}
 .home-bg span:nth-child(1){width:300px;height:300px;left:-70px;top:6%;background:radial-gradient(circle,#38bdf8,transparent 70%)}
 .home-bg span:nth-child(2){width:250px;height:250px;right:-50px;top:20%;background:radial-gradient(circle,#a855f7,transparent 70%);animation-delay:-4s}
 .home-bg span:nth-child(3){width:280px;height:280px;left:18%;bottom:-70px;background:radial-gradient(circle,#2dd4bf,transparent 70%);animation-delay:-8s}
@@ -476,8 +481,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @media(prefers-reduced-motion:reduce){.hc-bar>i{animation-duration:2.6s}}
 .hc-arrow{font-size:24px;font-weight:900;opacity:.85;flex-shrink:0;transition:transform .18s ease}
 @media(hover:hover){.home-card:hover .hc-arrow{transform:translateX(5px)}}
-.hc-shine{position:absolute;top:0;left:-60%;width:45%;height:100%;background:linear-gradient(105deg,transparent,rgba(255,255,255,.3),transparent);transform:skewX(-18deg);animation:hcShine 5s ease-in-out infinite;pointer-events:none}
-.home-card:nth-child(2) .hc-shine{animation-delay:-1.6s}.home-card:nth-child(3) .hc-shine{animation-delay:-3.2s}
+.hc-shine{display:none}
 /* v19.49 (owner report): was centered above the heading, inside .home-inner's flow. Pinned to the
    screen's top-left corner instead, mirroring .home-actions' top-right placement on the same
    .home fixed layer, so it reads as a persistent clock rather than part of the greeting copy. */
@@ -1819,7 +1823,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.5';
+const APP_VERSION='24.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
