@@ -473,6 +473,14 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
    screen's top-left corner instead, mirroring .home-actions' top-right placement on the same
    .home fixed layer, so it reads as a persistent clock rather than part of the greeting copy. */
 .home-datetime{position:absolute;top:calc(16px + env(safe-area-inset-top));left:calc(18px + env(safe-area-inset-left));z-index:6;font-size:13px;font-weight:700;letter-spacing:.3px;color:#7fa8d9}
+/* v23.10 (owner request): the two independent subscriptions (IPTV playlist / app), as tiny text
+   right under the home-screen clock — visible the instant the app opens, no Stream Tools tap
+   needed. See paintHomeSubLines() in the script. Deliberately much smaller than the clock above
+   it: a status footnote, not a headline. */
+.home-sub-lines{position:absolute;top:calc(16px + env(safe-area-inset-top) + 20px);left:calc(18px + env(safe-area-inset-left));z-index:6;display:flex;flex-direction:column;gap:2px}
+.home-sub-lines.hidden{display:none}
+.home-sub-line{font-size:10px;font-weight:600;letter-spacing:.2px;color:#5b7aa8}
+body.light .home-sub-line{color:#7186a6}
 .home-footer{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;padding:14px max(18px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:linear-gradient(180deg,rgba(10,18,32,0),rgba(10,18,32,.85) 40%);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.08)}
 .home-exit{height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800;animation:homeRise .7s ease .3s both}
 /* v7.8: settings gear on the home hub + settings sheet rows */
@@ -1223,6 +1231,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </button>
   </div>
   <div class="home-datetime" id="homeDateTime"></div>
+  <div class="home-sub-lines hidden" id="homeSubLines"></div>
   <div class="home-inner">
     <div class="home-head">
       <div class="home-brand"><img src="image_482ee8.png" alt="Media26"></div>
@@ -1801,7 +1810,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='23.9';
+const APP_VERSION='24.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2933,7 +2942,7 @@ function paintNowPlayingChip(){
   $('npcMeta').textContent=live?'Live now':'Now playing';
   chip.classList.remove('hidden');
 }
-function showHome(){applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');paintNowPlayingChip();}
+function showHome(){applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');paintNowPlayingChip();try{paintHomeSubLines();}catch(e){}}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
    (All / Favorites / Recently Played + every category with its count + a favorite star).
    Tapping a category then drops into that category's channel grid. */
@@ -4792,6 +4801,43 @@ async function paintSubPanel(){
       field.classList.add('hidden');   /* blocked/disabled/pending: nothing self-serve to offer here */
     }
   }catch(e){iptvLine.textContent='Could not reach the activation server.';appLine.textContent='';}
+}
+/* v23.10 (owner request): the same two subscriptions as paintSubPanel(), but as a couple of tiny
+   footnote lines under the home-screen clock — so the customer sees where they stand without ever
+   opening Stream Tools. Reuses subDaysLeft() for the day math; kept deliberately terse (no dates,
+   no Renew button here — that stays inside Stream Tools) since this is a status footnote, not a
+   panel. Cached for a minute so navigating home↔category repeatedly doesn't refetch every time. */
+let _homeSubFetchedAt=0;
+async function paintHomeSubLines(force){
+  const el=$('homeSubLines');if(!el)return;
+  const code=actCodeGet(false);
+  if(!/^\d{8}$/.test(code)){el.classList.add('hidden');el.innerHTML='';return;}
+  if(!force&&el.dataset.painted==='1'&&Date.now()-_homeSubFetchedAt<60000)return;
+  _homeSubFetchedAt=Date.now();
+  try{
+    const {j}=await actApi('/api/activate',{code:code,deviceId:deviceUid()});
+    if(!j||!j.status)return;
+    const lines=[];
+    const dayWord=d=>d===1?'1 day':d+' days';
+    if(j.status==='active'||j.status==='app_expired'){
+      if(j.iptvExpiresAt){
+        const d=Math.max(0,subDaysLeft(j.iptvExpiresAt));
+        lines.push('IPTV subscription '+(d<=0?'expired':'ends in '+dayWord(d)));
+      }
+      if(j.status==='app_expired'){
+        lines.push('Media26 app subscription expired');
+      }else if(j.appExpiresAt){
+        const d=Math.max(0,subDaysLeft(j.appExpiresAt));
+        lines.push('Media26 app subscription '+(d<=0?'expired':'ends in '+dayWord(d)));
+      }
+    }else if(j.status==='expired'){
+      lines.push('IPTV subscription expired');
+    }
+    el.innerHTML='';
+    lines.forEach(t=>{const d=document.createElement('div');d.className='home-sub-line';d.textContent=t;el.appendChild(d);});
+    el.classList.toggle('hidden',lines.length===0);
+    el.dataset.painted='1';
+  }catch(e){}
 }
 if($('subRenewBtn'))$('subRenewBtn').onclick=startSubscriptionCheckout;
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show');paintSubPanel().catch(()=>{});}
