@@ -1810,7 +1810,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.2';
+const APP_VERSION='24.3';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5568,7 +5568,16 @@ function plan(x){
   }
   return p;
 }
-function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}v.pause();v.removeAttribute('src');v.load()}
+/* v24.3 (owner report, with a screenshot: audio/video kept running in the background — Dynamic
+   Island still showing "Now Playing" — after the player was closed): v24.2 made ManagedMediaSource
+   actually active for live channels for the first time, which means Picture-in-Picture (manual tap
+   AND the v32 auto-PiP-on-backgrounding handler) now genuinely enters a real system PiP window
+   instead of silently failing. cleanup() — the one function every teardown path already goes
+   through (Exit, sign out, and the start of every channel/title switch) — never told that window
+   to close, so it just kept playing indefinitely once orphaned from the page that opened it. Exit
+   PiP and clear MediaSession BEFORE tearing the element down, so nothing is left playing to a
+   window the app itself no longer has a reference to. */
+function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
 /* ── v22.6: NATIVE VLC BRIDGE (only inside the iOS wrapper app). ──────────────────────────────
    When this same web app is loaded inside the Media26 native iOS shell (ios-app/), that shell
    exposes a message handler, window.webkit.messageHandlers.m26vlc. It is ABSENT in every normal
