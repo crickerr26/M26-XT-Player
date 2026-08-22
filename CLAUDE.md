@@ -69,6 +69,28 @@ Single-page app, no build step — the deployed files are the source files.
 - `m26player2.js` (`M26Player2`, labelled "Player 1" in the UI) — the inbuilt player: probes a
   stream's real bytes and picks a decoder (native/hls.js/mpegts.js/mkv.js) from the evidence.
 
+## Minimum supported browser: Safari 13.4+ / iOS-iPadOS 13.4+ (owner-decided, v24.9)
+
+index.html, portal.js, m26player2.js, mkv.js and yezplayer.js use modern JS throughout —
+arrow functions, `async`/`await`, `let`/`const`, template literals, destructuring — and
+index.html specifically needs Safari 13.4+ for `?.`/`??` (removed once already at v24.9 after
+an iPad on iOS 9.3.5 showed a bare unstyled shell: the whole inline script is one syntax unit,
+so a single unparseable expression anywhere in it is a hard SyntaxError that stops the ENTIRE
+script before a single line runs — no sign-in card, no home screen, nothing hidden or shown,
+exactly that symptom). Below Safari 13.4 the failure is silent and total, not a degraded
+experience.
+
+**Do not attempt to chase this further down.** Investigated properly for a real 2012 iPad
+stuck on iOS 9.3.5 (Apple's own final build for that hardware, no MSE support in Safari at
+all, no security updates since 2016): fixing JUST the syntax would need an in-browser
+transpile layer (Babel, loaded conditionally, applied to all five modern-syntax files above,
+untestable from this environment) — and even that only gets the sign-in/browsing UI working.
+Playback would very likely still fail underneath for most content, because hls.js/mpegts.js/
+mkv.js all depend on MediaSource Extensions, an API iOS Safari did not have at all until years
+after iOS 9. Owner decision: that device is out of scope — use a newer device for that line —
+rather than build a real, untestable, whole-app-loading-path change for a UI-only partial fix.
+If this comes up again, this is why: it was already weighed and declined once, not overlooked.
+
 v19.6 (owner request): the Xtream Codes API (player_api.php — categories, VOD/series info,
 account status) was removed entirely. The app is M3U-only now: sign-in always resolves through
 the panel's `get.php` playlist endpoint (server URL + username + password, which the app builds
