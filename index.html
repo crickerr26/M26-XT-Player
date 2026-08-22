@@ -1826,7 +1826,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.8';
+const APP_VERSION='24.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1983,7 +1983,7 @@ function busy(on){
   if(el)el.classList.toggle('hidden',_busyCount===0);
 }
 function load(on,msg='Loading...'){$('loader').classList.toggle('show',!!on);$('loaderText').textContent=msg;paintLoaderCancel();}
-function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 /* ── v19.17: WHAT THE SELLER ACTUALLY HANDED OVER ──────────────────────────────────────────
    Kept deliberately identical to Media26Portal.parseSignIn (portal.js) and parseSignIn
    (_worker.js) — all three build playlist addresses out of the same "portal URL" string and so
@@ -2212,7 +2212,7 @@ async function fetchJsonChain(raw){
     :/Unexpected|JSON/i.test(main)?'Portal replied but not with valid data — double-check the portal URL (it must be the Xtream panel base URL, e.g. http://host:8080)'
     :'Could not reach the portal ('+main+'). Check the URL and your connection.');
 }
-function idOf(x){return String(x.stream_id??x.series_id??x.episode_id??x.id??'')}
+function idOf(x){return String(x.stream_id!=null?x.stream_id:x.series_id!=null?x.series_id:x.episode_id!=null?x.episode_id:x.id!=null?x.id:'')}
 function nameOf(x){return x.name||x.title||x.movie_name||'Untitled'}
 /* v19.50 (owner report): "the movies are not playing — fix this forever." Some titles never can:
    this provider pads its VOD catalogue with not-yet-released movies, printing the date right in
@@ -2232,7 +2232,7 @@ function futureReleaseAt(x){
 function releaseDateLabel(d){return d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}
 function typeOf(x){return x._type||S.tab}
 function keyOf(x){return typeOf(x)+':'+idOf(x)}
-function logoOf(x){return x.stream_icon||x.cover||x.movie_image||x.info?.movie_image||''}
+function logoOf(x){return x.stream_icon||x.cover||x.movie_image||(x.info&&x.info.movie_image)||''}
 function list(){return S.tab==='live'?S.live:S.tab==='vod'?S.vod:S.series}
 function cats(){return S.tab==='live'?S.liveCats:S.tab==='vod'?S.vodCats:S.seriesCats}
 /* v23.0 perf (owner report: "movies are taking too long to load"): countCat() used to re-filter
@@ -4128,7 +4128,7 @@ function ordered(arr){const order=S.orders[S.tab]||[],pos=new Map(order.map((k,i
    own note on that). Sorting is then just "ascending by that rank", independent of source. */
 function sortModeOn(){return (S.tab==='vod'||S.tab==='series')&&S.sortModes&&S.sortModes[S.tab]==='latest'}
 function byRecency(arr){return arr.slice().sort((a,b)=>{const ra=a._recentRank==null?Infinity:a._recentRank,rb=b._recentRank==null?Infinity:b._recentRank;return ra-rb})}
-function filtered(){const base=baseFiltered();if(S.cat==='__recent'){const pos=new Map(S.recent.map((k,i)=>[k,i]));return base.slice().sort((a,b)=>(pos.get(keyOf(a))??999999)-(pos.get(keyOf(b))??999999))}if(sortModeOn())return byRecency(base);return ordered(base)}
+function filtered(){const base=baseFiltered();if(S.cat==='__recent'){const pos=new Map(S.recent.map((k,i)=>[k,i]));return base.slice().sort((a,b)=>(pos.has(keyOf(a))?pos.get(keyOf(a)):999999)-(pos.has(keyOf(b))?pos.get(keyOf(b)):999999))}if(sortModeOn())return byRecency(base);return ordered(base)}
 function toggleSortMode(){if(S.tab!=='vod'&&S.tab!=='series')return;const cur=(S.sortModes&&S.sortModes[S.tab])||'default';S.sortModes[S.tab]=cur==='latest'?'default':'latest';try{store.setItem(SORTMODE_KEY,JSON.stringify(S.sortModes))}catch(e){}renderGrid(true);if($('grid'))$('grid').scrollTop=0;toast(S.sortModes[S.tab]==='latest'?'Sorted: newest uploads first':'Sort: provider order')}
 function updateSortToggle(){const b=$('sortToggle');if(!b)return;const applicable=(S.tab==='vod'||S.tab==='series')&&!(S.tab==='series'&&S.episodeView&&S.episodeView.eps&&S.episodeView.eps.length);b.classList.toggle('hidden',!applicable);if(!applicable)return;const on=sortModeOn();b.classList.toggle('active',on);b.innerHTML=on?ICONS.sortNew:ICONS.sortDefault;b.title=on?'Sorted: newest uploads first (tap for provider order)':'Sort: newest uploads first';}
 function moveItem(k,dir){const arr=filtered(),keys=arr.map(keyOf),i=keys.indexOf(k),j=i+dir;if(i<0||j<0||j>=keys.length)return;[keys[i],keys[j]]=[keys[j],keys[i]];const old=S.orders[S.tab]||[];S.orders[S.tab]=[...keys,...old.filter(x=>!keys.includes(x))];saveOrders();renderGrid(true);toast('Order saved')}
@@ -4421,8 +4421,8 @@ function xtreamForms(raw,type){
 }
 function playableUrl(u,type){return blocked(u)?proxyUrl(u):u}
 function proxiedMediaUrl(u){return proxyUrl(u)}
-function transcoderBase(){try{return normalizeTranscoder($('transcoderUrl')?.value||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
-function transcoderToken(){try{return ($('transcoderToken')?.value||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
+function transcoderBase(){try{const el=$('transcoderUrl');return normalizeTranscoder((el&&el.value)||store.getItem(TRANSCODER_KEY)||'')}catch{return''}}
+function transcoderToken(){try{const el=$('transcoderToken');return ((el&&el.value)||store.getItem(TRANSCODER_TOKEN_KEY)||'').trim()}catch{return''}}
 /* v15.6: no source URL, no transcode request. Without this an unbuildable stream link turned into
    a valid-looking /hls?url= call that made ffmpeg spend the full 50s cold-start budget failing on
    an empty input — time the player spent NOT trying the route that works. */
