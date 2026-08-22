@@ -94,3 +94,31 @@ the URL for this).
 | `PUBLIC_BASE_URL` | *(auto)* | Only needed behind a custom domain |
 | `ACCESS_TOKEN` | *(none)* | Lock the transcoder to yourself |
 | `SESSION_TTL_MS` | `1800000` | Idle session cleanup (30 min) |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | *(none)* | Activation-code store. Both required together to turn on licensing at all — an [Upstash](https://upstash.com) Redis database's REST URL/token (free tier is plenty). Unset = activation and self-serve renewal are both quietly disabled; playback is unaffected either way. |
+| `DEVICE_LIMIT` | `2` | Devices a single activation code may run on before it auto-blocks |
+| `CALLMEBOT_KEY` / `CALLMEBOT_PHONE` | *(none)* | WhatsApp alert on a device-limit block or a Stripe renewal — [CallMeBot](https://www.callmebot.com/blog/free-api-whatsapp-messages/) one-time opt-in key, and the phone number to message |
+| `STRIPE_SECRET_KEY` | *(none)* | Self-serve renewal (§ below). Your Stripe secret key (`sk_live_…` or `sk_test_…`) |
+| `STRIPE_WEBHOOK_SECRET` | *(none)* | Signing secret (`whsec_…`) for the webhook endpoint you point at `…/api/stripe-webhook` in the Stripe Dashboard |
+| `SUBSCRIPTION_PRICE_CAD_CENTS` | `200` | Price per renewal, in cents (200 = $2.00) |
+| `SUBSCRIPTION_CURRENCY` | `cad` | Any [Stripe-supported currency code](https://stripe.com/docs/currencies) |
+| `SUBSCRIPTION_DAYS` | `30` | Days one renewal adds to a code's expiry |
+
+### Self-serve subscription renewal (optional)
+
+Lets a customer who already has an activation code (see above) pay to extend it themselves,
+instead of asking you every month. It only ever extends a code's expiry — a payment can never
+create a new code or a new portal login; that part stays exactly the manual admin.html flow it
+always was. Needs both `UPSTASH_REDIS_REST_URL`/`UPSTASH_REDIS_REST_TOKEN` (already required for
+activation itself) and:
+
+1. In the [Stripe Dashboard](https://dashboard.stripe.com), copy your **secret key** →
+   `STRIPE_SECRET_KEY`.
+2. Add a webhook endpoint pointing at `https://<this-service>.onrender.com/api/stripe-webhook`,
+   listening for at least `checkout.session.completed`. Copy its **signing secret** →
+   `STRIPE_WEBHOOK_SECRET`.
+3. That's it — no Stripe Product or Price to create by hand, the checkout amount is built from
+   `SUBSCRIPTION_PRICE_CAD_CENTS`/`SUBSCRIPTION_CURRENCY` directly. Change those two env vars any
+   time to change the price; no redeploy of Stripe-side config needed.
+
+Until both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` are set, the Renew button simply never
+appears in the app — nothing else changes.

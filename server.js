@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '13.9';
+const SERVER_BUILD = '14.0';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -44,6 +44,110 @@ const CALLMEBOT_PHONE = process.env.CALLMEBOT_PHONE || '14164744994';
 const UPSTASH_URL = (process.env.UPSTASH_REDIS_REST_URL || '').replace(/\/+$/, '');
 const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || '';
 const LICENSING_ENABLED = !!(UPSTASH_URL && UPSTASH_TOKEN);
+
+/* ── v14.0: SELF-SERVE RENEWAL VIA STRIPE. ────────────────────────────────────────────────────
+   The existing activation-code store above already carries everything a subscription needs —
+   `expiresAt`, `status`, the portal credentials a customer's code unlocks — the owner just had to
+   push every renewal by hand (re-type `days` into admin.html and tell the customer). This adds a
+   customer-facing "pay to extend MY code" path that writes to the exact same field, so nothing
+   about the licence model changes: a payment can only ever push `expiresAt` further out on a code
+   that already exists and already has a portal bound to it (see /api/checkout below) — it can
+   never create a new code or a new portal login. Manual admin activation/extension in admin.html
+   is untouched and keeps working exactly as before, for codes the owner wants to hand out for
+   free, on a schedule Stripe doesn't know about, or via any other arrangement.
+   Talks to Stripe's plain REST API over https with Basic Auth (the secret key as the username,
+   per Stripe's docs) rather than the `stripe` npm package, for the same zero-dependency reason
+   Upstash above is plain HTTPS — one less thing to `npm install` into this Dockerfile.
+   Both env vars are required: the secret key to call the API, the webhook secret to verify that a
+   "payment succeeded" callback actually came from Stripe and not from anyone who can guess this
+   server's URL and POST it a fake success. Missing either disables the routes below (503) without
+   touching licensing, playback or transcoding. */
+const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || '';
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || '';
+const SUBSCRIPTION_ENABLED = !!(STRIPE_SECRET_KEY && STRIPE_WEBHOOK_SECRET && LICENSING_ENABLED);
+/* v14.0/app-v23.4 owner decision: $2.00 CAD buys 30 days, extended onto whatever the code's current
+   expiry already is (never reset to "now + 30" — paying a few days early never costs the customer
+   those days). One-time payment, not a Stripe recurring subscription: the customer taps Renew and
+   pays again next time they want another month, exactly as described when this was asked for
+   ("he will pay with the payment link and the app will work for that much of time") — no card is
+   ever charged automatically, no cancellation flow is needed, and there is no subscription object
+   for a failed renewal to leave dangling. */
+const SUBSCRIPTION_PRICE_CAD_CENTS = Number(process.env.SUBSCRIPTION_PRICE_CAD_CENTS || 200);
+const SUBSCRIPTION_DAYS = Number(process.env.SUBSCRIPTION_DAYS || 30);
+const SUBSCRIPTION_CURRENCY = (process.env.SUBSCRIPTION_CURRENCY || 'cad').toLowerCase();
+
+/* One HTTPS call to Stripe's API. Stripe's request bodies are form-encoded (not JSON) for every
+   endpoint used here, including nested objects — `line_items[0][price_data][unit_amount]` is the
+   real, documented way to express that shape as form fields, so flattenForm() below does that
+   conversion rather than JSON.stringify-ing the body. */
+function flattenForm(obj, prefix, out) {
+  out = out || [];
+  if (obj == null) return out;
+  if (Array.isArray(obj)) {
+    obj.forEach((v, i) => flattenForm(v, prefix + '[' + i + ']', out));
+  } else if (typeof obj === 'object') {
+    for (const k of Object.keys(obj)) flattenForm(obj[k], prefix ? prefix + '[' + k + ']' : k, out);
+  } else {
+    out.push(encodeURIComponent(prefix) + '=' + encodeURIComponent(String(obj)));
+  }
+  return out;
+}
+function stripeApi(method, path, fields) {
+  return new Promise((resolve, reject) => {
+    if (!STRIPE_SECRET_KEY) return reject(new Error('Stripe is not configured'));
+    const payload = Buffer.from(flattenForm(fields || {}, '', []).join('&'));
+    const options = {
+      method,
+      hostname: 'api.stripe.com',
+      path,
+      headers: {
+        authorization: 'Basic ' + Buffer.from(STRIPE_SECRET_KEY + ':').toString('base64'),
+        'content-type': 'application/x-www-form-urlencoded',
+        'content-length': payload.length
+      }
+    };
+    const rq = https.request(options, up => {
+      let data = '';
+      up.on('data', c => { data += c.toString(); });
+      up.on('end', () => {
+        let parsed = null;
+        try { parsed = JSON.parse(data || '{}'); } catch (e) { return reject(new Error('Bad response from Stripe')); }
+        if (up.statusCode >= 400) return reject(new Error((parsed && parsed.error && parsed.error.message) || ('Stripe error ' + up.statusCode)));
+        resolve(parsed);
+      });
+    });
+    rq.setTimeout(15000, () => rq.destroy(new Error('Stripe request timed out')));
+    rq.on('error', reject);
+    rq.end(payload);
+  });
+}
+/* Read the RAW body — parseJsonBody (below) parses straight to an object, but Stripe's webhook
+   signature is computed over the exact bytes it sent, so JSON.parse-and-restringify would very
+   possibly not reproduce them byte-for-byte (key order, whitespace) and every signature would
+   fail. Capped at the same 1MB parseJsonBody already enforces; a real Stripe event is a few KB. */
+function parseRawBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => { body += chunk.toString(); if (body.length > 1e6) { req.connection.destroy(); reject(new Error('Payload too large')); } });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+/* Stripe's documented webhook verification: the signed payload is "{timestamp}.{raw body}", HMAC-
+   SHA256'd with the endpoint's signing secret; the header carries one or more (t=…, v1=…) pairs so
+   a secret can be rotated without a gap. Constant-time compare against each v1, and a 5-minute
+   tolerance on the timestamp, both straight from Stripe's own reference implementation — this is
+   the one thing standing between "a payment happened" and "anyone who finds this URL can POST a
+   fake success and extend any code they know for free", so it is not optional and not loosened. */
+function verifyStripeSignature(rawBody, header, secret) {
+  const parts = String(header || '').split(',').reduce((m, p) => { const i = p.indexOf('='); if (i > 0) m[p.slice(0, i)] = p.slice(i + 1); return m; }, {});
+  const t = parts.t, v1 = parts.v1;
+  if (!t || !v1) return false;
+  if (Math.abs(Date.now() / 1000 - Number(t)) > 300) return false; // 5-minute replay window
+  const expected = crypto.createHmac('sha256', secret).update(t + '.' + rawBody, 'utf8').digest('hex');
+  const a = Buffer.from(expected), b = Buffer.from(v1);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 
 function redis(cmd) {
   // cmd is an array like ['SET','key','value'] — sent as a JSON body to the Upstash REST endpoint.
@@ -917,7 +1021,7 @@ const server = http.createServer(async (req, res) => {
         if (lic.status === 'pending') return json(res, 200, { status: 'pending' });
         if (lic.status === 'blocked') return json(res, 200, { status: 'blocked' });
         if (lic.status === 'disabled') return json(res, 200, { status: 'disabled' });
-        if (lic.expiresAt && Date.now() > lic.expiresAt) { lic.status = 'expired'; await licSet(code, lic); return json(res, 200, { status: 'expired' }); }
+        if (lic.expiresAt && Date.now() > lic.expiresAt) { lic.status = 'expired'; await licSet(code, lic); return json(res, 200, { status: 'expired', subscriptionEnabled: SUBSCRIPTION_ENABLED }); }
         if (lic.status === 'active') {
           const devices = lic.devices || [];
           const known = devices.indexOf(deviceId) >= 0;
@@ -935,10 +1039,106 @@ const server = http.createServer(async (req, res) => {
           /* v13.0: `kind` tells the app which sign-in it is being handed. On an M3U/MAG line
              username and password are empty by design, and the app completes the login with the
              device's own MAC instead — without this field it could not tell that apart from a
-             half-filled Xtream record. */
-          return json(res, 200, { status: 'active', kind: normalizeKind(lic.kind, lic.user), portalUrl: lic.url, username: lic.user, password: lic.pass, devices: (lic.devices || []).length, deviceLimit: DEVICE_LIMIT });
+             half-filled Xtream record.
+             v14.0: `expiresAt` (0 = never expires) and whether Stripe renewal is even configured on
+             this server, so the app can show "N days left" and a Renew button without a second
+             round trip just to learn whether the button should be there at all. */
+          return json(res, 200, { status: 'active', kind: normalizeKind(lic.kind, lic.user), portalUrl: lic.url, username: lic.user, password: lic.pass, devices: (lic.devices || []).length, deviceLimit: DEVICE_LIMIT, expiresAt: lic.expiresAt || 0, subscriptionEnabled: SUBSCRIPTION_ENABLED });
         }
         return json(res, 200, { status: lic.status || 'pending' });
+      }
+
+      /* CUSTOMER: pay to extend THEIR OWN, already-provisioned code. Creates a Stripe Checkout
+         Session for one $SUBSCRIPTION_PRICE_CAD_CENTS/SUBSCRIPTION_DAYS purchase and hands back
+         its URL for the app to open; the actual extension happens in /api/stripe-webhook below,
+         once Stripe confirms the payment actually went through — never here, since this route
+         alone is just "someone asked for a checkout link" and proves nothing was paid.
+         Deliberately narrow: refuses a code that does not exist yet, or one with no portal bound
+         to it (status 'pending') — there is nothing yet to renew, and mistaking a payment for a new
+         signup is exactly the mix-up this route exists to avoid (see the v14.0 note above). Also
+         refuses a device that has never been registered on this code — the same "known device"
+         check /api/activate already applies — so a stranger who happens to see 8 digits on someone
+         else's screen cannot spend money extending a stranger's line. */
+      if (u.pathname === '/api/checkout') {
+        if (!SUBSCRIPTION_ENABLED) return json(res, 503, { error: 'Self-serve renewal is not set up on this server yet.' });
+        const body = await parseJsonBody(req);
+        const code = normalizeCode(body.code);
+        const deviceId = String(body.deviceId || '').trim().slice(0, 80);
+        const origin = /^https:\/\/[^\s"'<>]+$/i.test(String(body.origin || '')) ? String(body.origin).replace(/\/+$/, '') : '';
+        if (!code || !deviceId) return json(res, 400, { error: 'A valid 8-digit code (or MAC address) and device are required.' });
+        if (!origin) return json(res, 400, { error: 'Missing or invalid origin.' });
+        const lic = await licGet(code);
+        if (!lic || !lic.url) return json(res, 404, { error: 'This code has nothing to renew yet — it needs to be activated by your seller first.' });
+        if ((lic.devices || []).indexOf(deviceId) < 0) return json(res, 403, { error: 'This device is not registered on this code.' });
+        /* Paying does not fix either of these — 'blocked' means too many devices (see
+           /api/devices/reset), 'disabled' was a deliberate admin call — so say that up front
+           instead of taking a payment that would land on an unusable code. */
+        if (lic.status === 'blocked') return json(res, 409, { error: 'This code is blocked (used on too many devices). Clear devices in the sign-in screen first, then renew.' });
+        if (lic.status === 'disabled') return json(res, 409, { error: 'This code has been disabled by your seller. Contact them before renewing.' });
+        let session;
+        try {
+          session = await stripeApi('POST', '/v1/checkout/sessions', {
+            mode: 'payment',
+            client_reference_id: code,
+            metadata: { code, deviceId },
+            success_url: origin + '/?sub=success',
+            cancel_url: origin + '/?sub=cancelled',
+            line_items: [{
+              quantity: 1,
+              price_data: {
+                currency: SUBSCRIPTION_CURRENCY,
+                unit_amount: SUBSCRIPTION_PRICE_CAD_CENTS,
+                product_data: { name: 'Media26 — ' + SUBSCRIPTION_DAYS + ' days access (code ' + code + ')' }
+              }
+            }]
+          });
+        } catch (e) { return json(res, 502, { error: 'Could not start checkout: ' + ((e && e.message) || 'Stripe did not answer.') }); }
+        return json(res, 200, { ok: true, url: session.url });
+      }
+
+      /* STRIPE: webhook callback. Configure this exact path (…/api/stripe-webhook) as the endpoint
+         URL in the Stripe Dashboard, listening for at least `checkout.session.completed`. Signature
+         verification (see verifyStripeSignature above) is the only thing standing between "Stripe
+         confirmed this was paid" and "a POST from anywhere claiming it was" — never skip it. */
+      if (u.pathname === '/api/stripe-webhook') {
+        if (!SUBSCRIPTION_ENABLED) return json(res, 503, { error: 'Self-serve renewal is not set up on this server yet.' });
+        const raw = await parseRawBody(req);
+        const sig = req.headers['stripe-signature'] || '';
+        if (!verifyStripeSignature(raw, sig, STRIPE_WEBHOOK_SECRET)) return json(res, 400, { error: 'Invalid signature' });
+        let event; try { event = JSON.parse(raw); } catch (e) { return json(res, 400, { error: 'Invalid payload' }); }
+        if (event.type === 'checkout.session.completed') {
+          const session = (event.data && event.data.object) || {};
+          if (session.payment_status === 'paid') {
+            const code = normalizeCode(session.client_reference_id || (session.metadata && session.metadata.code));
+            if (code) {
+              /* Idempotency: Stripe retries a webhook delivery until it gets a 200, so the SAME
+                 completed session can arrive more than once. `renewedSessions` remembers which
+                 Checkout Session ids have already been applied to this code, so a retry (or a
+                 customer double-clicking Renew and completing both) can never double-extend it. */
+              const lic = await licGet(code);
+              if (lic) {
+                const applied = Array.isArray(lic.renewedSessions) ? lic.renewedSessions : [];
+                if (applied.indexOf(session.id) < 0) {
+                  const base = (lic.expiresAt && lic.expiresAt > Date.now()) ? lic.expiresAt : Date.now();
+                  lic.expiresAt = base + SUBSCRIPTION_DAYS * 86400000;
+                  /* Only a natural EXPIRY self-clears on payment. 'blocked' (too many devices) and
+                     'disabled' (an admin's deliberate call) both need a human to actually resolve
+                     the real problem — extending expiresAt here is harmless either way (it just
+                     means the days aren't wasted once the admin does sort it out), but silently
+                     flipping status back to 'active' would undo a block/disable a payment does
+                     nothing to fix. */
+                  if (lic.status === 'expired') lic.status = 'active';
+                  applied.push(session.id);
+                  lic.renewedSessions = applied.slice(-20); // bounded — this is a dedupe list, not an invoice history
+                  await licSet(code, lic);
+                  whatsappAlert('💰 Media26: code ' + code + ' renewed via Stripe — now valid until ' + new Date(lic.expiresAt).toLocaleDateString() + '.');
+                }
+              }
+            }
+          }
+        }
+        // Stripe only needs a 200 to stop retrying; it does not read the body.
+        return json(res, 200, { received: true });
       }
 
       /* CUSTOMER: "Clear registered users" on the sign-in screen. Empties the device list for the
@@ -1125,7 +1325,7 @@ const server = http.createServer(async (req, res) => {
       /* idleTtlMs/maxSessions are reported so it is possible to tell, from outside, whether the
          running service actually has the v19.63 session reaping — a stuck `sessions` count with a
          30-minute window is the signature of the connection-slot leak. */
-      return json(res, 200, { ok: true, sessions: sessions.size, idleTtlMs: IDLE_TTL_MS, maxSessions: MAX_SESSIONS, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'hd1080', 'hd720', 'vod', 'remux', 'copy', 'audio'], kinds: ['xtream', 'm3uurl', 'm3u'], activation: LICENSING_ENABLED });
+      return json(res, 200, { ok: true, sessions: sessions.size, idleTtlMs: IDLE_TTL_MS, maxSessions: MAX_SESSIONS, version: 2, build: SERVER_BUILD, profiles: ['fastvod', 'hd1080', 'hd720', 'vod', 'remux', 'copy', 'audio'], kinds: ['xtream', 'm3uurl', 'm3u'], activation: LICENSING_ENABLED, subscriptions: SUBSCRIPTION_ENABLED });
     }
 
     if (u.pathname === '/debug/sessions') {

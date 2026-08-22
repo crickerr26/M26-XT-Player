@@ -1339,6 +1339,11 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           </div>
         </div>
         <div class="err" id="loginActCodeErr"></div>
+        <!-- v23.4: self-serve renewal — shown only once /api/activate reports this code expired
+             AND the server has Stripe configured (see subStatusLine() in the script). Hidden the
+             rest of the time; renewing a code that isn't expired belongs in Stream Tools instead
+             (paintSubPanel()), not here on the sign-in screen. -->
+        <button class="pillbtn primary" id="actRenewSub" type="button" style="width:100%;margin-top:8px;justify-content:center;display:none">Renew — $2 CAD / month</button>
         <div class="idRow">
           <label>MAC Address</label>
           <div class="idLine">
@@ -1486,7 +1491,13 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <input id="transcoderToken" placeholder="Optional private token" autocomplete="off">
     <a class="pillbtn primary" id="transcoderDeployBtn" href="https://render.com/deploy?repo=https://github.com/crickerr26/SMARTER-IPTV" target="_blank" rel="noopener" style="margin-top:10px">Deploy free transcoder</a>
     <p class="nativeText" style="margin-top:6px">For whoever operates this app, not for viewers. Tap <b>Deploy free transcoder</b> → on Render tap <b>Apply</b> and wait for <b>Live</b> → copy the <b>onrender.com</b> URL → paste it above → tap <b>Test</b>.</p>
-  </div></div><div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+  </div></div>
+  <!-- v23.4: subscription status + self-serve renewal — only meaningful for a device signed in via
+       an activation code (see paintSubPanel() in the script), so the whole field hides itself for
+       a line signed in with a portal URL/login typed directly, which this licensing store knows
+       nothing about. -->
+  <div class="field nativeField hidden" id="subField"><label>Subscription</label><p class="nativeText" id="subStatusLine" style="margin:0">Checking…</p><button class="pillbtn primary hidden" id="subRenewBtn" type="button" style="margin-top:8px;width:100%;justify-content:center">Renew — $2 CAD / month</button></div>
+  <div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -1747,7 +1758,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='23.3';
+const APP_VERSION='23.4';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4646,7 +4657,35 @@ async function playItemExternal(x,mode,armed){
       :'If your player did not open, tap "Open in '+label+'" below. If it IS playing, ignore this.';$('netStatus').textContent='Waiting';$('miniMeta').textContent='Waiting'}}
   );
 }
-function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show')}
+/* v23.4: subscription status + self-serve renewal, painted every time Stream Tools opens (this is
+   the one entry point for that sheet — playback-failure prompts and the settings menu both call
+   this same function). Hidden entirely for a line signed in by typed portal URL/login rather than
+   an activation code: this licensing store has no record of those at all, so there is nothing
+   truthful to show. */
+async function paintSubPanel(){
+  const field=$('subField'),line=$('subStatusLine'),btn=$('subRenewBtn');
+  if(!field||!line||!btn)return;
+  const code=actCodeGet(false);
+  if(!/^\d{8}$/.test(code)){field.classList.add('hidden');return;}
+  field.classList.remove('hidden');
+  line.textContent='Checking…';btn.classList.add('hidden');
+  try{
+    const {j}=await actApi('/api/activate',{code:code,deviceId:deviceUid()});
+    if(!j||!j.status){line.textContent='Could not check subscription status right now.';return;}
+    if(j.status==='active'){
+      const s=subStatusLine(j.expiresAt||0,j.subscriptionEnabled);
+      line.textContent=s.text;
+      btn.classList.toggle('hidden',!s.renew);
+    }else if(j.status==='expired'){
+      line.textContent=j.subscriptionEnabled?'Expired. Renew below to keep using this line.':'Expired. Contact your seller.';
+      btn.classList.toggle('hidden',!j.subscriptionEnabled);
+    }else{
+      field.classList.add('hidden');   /* blocked/disabled/pending: nothing self-serve to offer here */
+    }
+  }catch(e){line.textContent='Could not reach the activation server.';}
+}
+if($('subRenewBtn'))$('subRenewBtn').onclick=startSubscriptionCheckout;
+function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show');paintSubPanel().catch(()=>{});}
 /* v19.6: Connection test ("stream doctor") — answers WHY nothing plays, in plain words, from
    inside the app: whether the playlist (get.php) is still reachable, and whether the panel
    answers the first live channel's stream address at all. Runs only when the user taps the
@@ -6165,6 +6204,40 @@ async function actApi(path,body){
   let j={};try{j=await r.json();}catch(e){}
   return {status:r.status,j:j};
 }
+/* v23.4: self-serve renewal via Stripe. Extends THIS device's own activation code by however many
+   days server.js's SUBSCRIPTION_DAYS says a payment is worth — it can only ever push out the
+   expiry on a code that already exists and already has a portal bound to it (see /api/checkout in
+   server.js), never create a new code or a new portal login. Manual admin renewal in admin.html is
+   untouched; this is purely an additional, customer-driven way to do the same thing Stripe now
+   knows how to trigger on its own. Navigates the WHOLE page to Stripe's hosted checkout (rather
+   than window.open) because a new-tab popup is exactly the kind of thing an installed PWA/WebView
+   shell routinely blocks or mishandles — Stripe redirects back to this same origin (see the
+   ?sub=success/?sub=cancelled handling near the bottom of this script) once payment finishes. */
+async function startSubscriptionCheckout(){
+  const code=actCodeGet(false);
+  if(!/^\d{8}$/.test(code)){toast('No activation code on this device yet.');return;}
+  toast('Opening checkout…');
+  try{
+    const {status,j}=await actApi('/api/checkout',{code:code,deviceId:deviceUid(),origin:location.origin});
+    if(status===200&&j&&j.ok&&j.url){location.href=j.url;return;}
+    toast((j&&j.error)||'Could not start checkout — try again in a moment.');
+  }catch(e){toast('Could not reach the payment server.');}
+}
+function paintActRenewBtn(show){const b=$('actRenewSub');if(b)b.style.display=show?'':'none';}
+function subDaysLeft(expiresAt){
+  if(!expiresAt)return Infinity;   /* 0 = never expires */
+  return Math.ceil((expiresAt-Date.now())/86400000);
+}
+/* Shared by the pre-login activation card and the signed-in Stream Tools panel — one line of
+   status text plus whether a Renew button should be shown, from the same {expiresAt,
+   subscriptionEnabled} shape both /api/activate branches now return. */
+function subStatusLine(expiresAt,subscriptionEnabled){
+  if(!expiresAt)return {text:'This code never expires.',renew:false};
+  const d=subDaysLeft(expiresAt);
+  const when=new Date(expiresAt).toLocaleDateString();
+  if(d<=0)return {text:'Expired '+when+'.',renew:!!subscriptionEnabled};
+  return {text:(d===1?'1 day':d+' days')+' left (until '+when+').',renew:!!subscriptionEnabled&&d<=7};
+}
 let _actPoll=0,_actBusy=false;
 function stopActPoll(){if(_actPoll){clearInterval(_actPoll);_actPoll=0;}}
 /* v16.3: there is one place a status can go now — the line under the identity block on the
@@ -6181,6 +6254,7 @@ async function pollActivationOnce(){
   try{
     const {j}=await actApi('/api/activate',{code:code,deviceId:dev});
     const st=(j&&j.status)||'';
+    if(st!=='expired')paintActRenewBtn(false);   /* only the expired branch below turns it back on */
     /* v17.5: an M3U / MAG line activates with a portal address and NO username — the device MAC is
        the credential. Requiring j.username here meant such a line polled forever after the seller
        had already activated it. Accept it whenever this device holds a MAC to sign in with. */
@@ -6193,8 +6267,12 @@ async function pollActivationOnce(){
       try{await login({creds:{portalUrl:j.portalUrl,username:j.username||'',password:j.password||''},kind:j.kind});}catch(e){actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
     }else if(st==='blocked'){
       stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact your seller.');
-    }else if(st==='expired'||st==='disabled'){
-      stopActPoll();actSetStatus('bad','This code is '+st+'. Contact your seller.');
+    }else if(st==='expired'){
+      stopActPoll();
+      actSetStatus('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your seller.':'This code expired. Contact your seller.');
+      paintActRenewBtn(!!(j&&j.subscriptionEnabled));
+    }else if(st==='disabled'){
+      stopActPoll();actSetStatus('bad','This code is disabled. Contact your seller.');
     }else if(st==='invalid'){
       actSetStatus('','Waiting for your seller to activate this code…');   /* not registered yet — keep waiting */
     }else{
@@ -6250,6 +6328,7 @@ function sendIdsToWhatsApp(){
 }
 if($('actSendWa'))$('actSendWa').onclick=sendIdsToWhatsApp;
 if($('actReloadBtn'))$('actReloadBtn').onclick=()=>{try{toast('Refreshing…');}catch(e){}setTimeout(()=>{try{location.reload();}catch(e){}},250);};
+if($('actRenewSub'))$('actRenewSub').onclick=startSubscriptionCheckout;
 /* This card is now the first thing on the sign-in screen (owner request, v19.60), so its MAC/QR/
    link repaint every time the screen appears — hooked into maybeStartActivationWatch() below,
    the same place that already re-syncs the activation code on every login-screen show. */
@@ -8021,7 +8100,12 @@ async function activateWithCode(code,opts){
     return 'pending';
   }
   if(st==='blocked'){ if(!silent)loginActMsg('bad','This code is blocked — it was used on too many devices. Contact your seller.'); return st; }
-  if(st==='expired'||st==='disabled'){ if(!silent)loginActMsg('bad','This code is '+st+'. Contact your seller.'); return st; }
+  if(st==='expired'){
+    if(!silent)loginActMsg('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your seller.':'This code expired. Contact your seller.');
+    paintActRenewBtn(!!(j&&j.subscriptionEnabled));
+    return st;
+  }
+  if(st==='disabled'){ if(!silent)loginActMsg('bad','This code is disabled. Contact your seller.'); return st; }
   if(st==='invalid'){ if(!silent)loginActMsg('bad','That code is not recognised. Check it with your seller.'); return st; }
   if(!silent)loginActMsg('bad',(j&&j.error)||'Activation is unavailable right now. Try again in a moment.');
   return st||'error';
@@ -8767,6 +8851,20 @@ if($('nativeResetPlayer'))$('nativeResetPlayer').onclick=function(){S.playerMode
     check();
   };
   watch('err');watch('xtreamErr');
+})();
+/* v23.4: Stripe redirects back here (success_url/cancel_url in /api/checkout) once the customer
+   finishes checkout. The renewal itself already happened server-side, via the webhook, by the time
+   this page loads — this is purely a friendly landing message, not what applies the extension, so
+   it is safe even if the webhook is still a second or two behind the redirect. Query string is
+   scrubbed so a reload/share of this URL doesn't replay the toast. */
+(function(){
+  try{
+    const qs=new URLSearchParams(location.search);
+    const sub=qs.get('sub');
+    if(sub==='success')toast('Payment received — your access has been extended.');
+    else if(sub==='cancelled')toast('Checkout cancelled — no charge was made.');
+    if(sub){qs.delete('sub');const rest=qs.toString();history.replaceState(null,'',location.pathname+(rest?'?'+rest:'')+location.hash);}
+  }catch(e){}
 })();
 restore();renderAll();warmTranscoder();keepTranscoderWarm();
 /* v16.3: mint and show the activation code as soon as the sign-in screen is up, so the MAC and the
