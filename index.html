@@ -1758,7 +1758,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='23.4';
+const APP_VERSION='23.5';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4577,6 +4577,21 @@ async function playItemExternal(x,mode,armed){
       if(token!==S.seq)return;   /* a newer tap won while we were checking */
     }
   }catch(e){}
+  /* v23.5 (owner report: some live channels open in VLC, play a few seconds, then the video
+     disappears — reported on iPhone): the classic signature of a 1-connection-limited panel
+     kicking whichever connection it sees second. cleanup() just above stops the BROWSER's use of
+     the old connection instantly (video.load(), hls.js/mpegts.js .destroy()), but on a panel that
+     tracks connections server-side there is no guarantee it has actually registered that close in
+     the same instant — VLC's brand-new request can land while the panel still counts the old one
+     as live, sees two, and cuts one off a few seconds in. Gated on lastStreamStopAt being FRESH
+     (cleanup() only sets it when there was a real connection to tear down) so this never fires on
+     the first tap of a session, when nothing needs releasing. 350ms is short enough to still read
+     as the "instant" launch v7.1 asked for — this is a beat, not a new wait screen — while giving
+     a panel's own connection bookkeeping a moment to catch up before the new one arrives. */
+  if(typeOf(x)==='live'&&S.lastStreamStopAt&&Date.now()-S.lastStreamStopAt<1500){
+    await new Promise(r=>setTimeout(r,350));
+    if(token!==S.seq)return;   /* a newer tap won while we were waiting */
+  }
   const u=externalStreamUrl(x),title=nameOf(x),d=deviceKind(),label=playerLabel(mode);
   S.extLaunch={x,mode};
   const thumb=logoOf(x);
