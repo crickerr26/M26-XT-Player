@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.2';
+const SERVER_BUILD = '14.3';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -49,12 +49,18 @@ const LICENSING_ENABLED = !!(UPSTASH_URL && UPSTASH_TOKEN);
    The existing activation-code store above already carries everything a subscription needs —
    `expiresAt`, `status`, the portal credentials a customer's code unlocks — the owner just had to
    push every renewal by hand (re-type `days` into admin.html and tell the customer). This adds a
-   customer-facing "pay to extend MY code" path that writes to the exact same field, so nothing
-   about the licence model changes: a payment can only ever push `expiresAt` further out on a code
-   that already exists and already has a portal bound to it (see /api/checkout below) — it can
-   never create a new code or a new portal login. Manual admin activation/extension in admin.html
-   is untouched and keeps working exactly as before, for codes the owner wants to hand out for
-   free, on a schedule Stripe doesn't know about, or via any other arrangement.
+   customer-facing "pay to extend MY code" path. It can only ever act on a code that already
+   exists and already has a portal bound to it (see /api/checkout below) — it can never create a
+   new code or a new portal login. Manual admin activation/extension in admin.html is untouched
+   and keeps working exactly as before, for codes the owner wants to hand out for free, on a
+   schedule Stripe doesn't know about, or via any other arrangement.
+   v23.9 update: this payment used to extend the SAME `expiresAt` the admin's `days` field also
+   wrote — one shared expiry, two ways to push it out. The owner has since split that into two
+   independent subscriptions that both have to be current: `iptvExpiresAt` (the admin's own
+   product, unchanged) and `appExpiresAt` (written ONLY here, by an actual Stripe payment — see
+   iptvExpiryOf()/appExpiryOf() below for the full reasoning). A Stripe payment now only ever
+   touches appExpiresAt; it can no longer resurrect a line the admin expired, blocked or disabled
+   on the IPTV side, which sharing one field used to allow by accident.
    Talks to Stripe's plain REST API over https with Basic Auth (the secret key as the username,
    per Stripe's docs) rather than the `stripe` npm package, for the same zero-dependency reason
    Upstash above is plain HTTPS — one less thing to `npm install` into this Dockerfile.
@@ -192,6 +198,29 @@ async function licGet(code) {
 async function licSet(code, obj) {
   await redis(['SET', 'lic:' + code, JSON.stringify(obj)]);
 }
+
+/* ── v23.9 (owner decision): TWO INDEPENDENT SUBSCRIPTIONS ON ONE CODE. ──────────────────────
+   Until now a code carried exactly one `expiresAt`, extended either by the admin (a duration
+   they picked) or by Stripe (a $2 self-serve payment) — the two features shared one field. The
+   owner has since drawn a hard line between them, on purpose:
+     - the IPTV PLAYLIST subscription: the admin's own product — they set how long a customer's
+       portal access lasts (admin.html's dropdown, days -> iptvExpiresAt below), same as always.
+     - the APP subscription: Media26's own product on top of that — $2, paid directly by the
+       customer via Stripe (see /api/checkout / /api/stripe-webhook), tracked entirely separately.
+   BOTH must be unexpired for a code to sign in (see /api/activate below) — a customer can have a
+   perfectly valid IPTV line and still be asked to pay the app fee, or vice versa, and the two
+   have to be reported as two different reasons because the fix for each is different (contact
+   your seller vs. pay $2 in-app).
+   iptvExpiryOf() migrates every record written before this: they only ever had `expiresAt`, and
+   that value WAS the (admin-set) IPTV expiry in every one of them — there is nothing to migrate
+   for appExpiresAt, since paying for app access is a brand-new thing no old record could have
+   done. A record with no appExpiresAt at all (every pre-v23.9 code, and every new code until its
+   customer's first Stripe payment) is NOT gated on the app subscription at all — 0 there means
+   "not required yet", exactly like 0 already means "never expires" on the IPTV side. Nobody who
+   was working yesterday is locked out by this deploy; the app-subscription gate only starts
+   counting down for a code the moment ITS OWN customer actually pays once. */
+function iptvExpiryOf(lic) { return (lic && lic.iptvExpiresAt != null) ? lic.iptvExpiresAt : ((lic && lic.expiresAt) || 0); }
+function appExpiryOf(lic) { return (lic && lic.appExpiresAt) || 0; }
 
 /* Activation identifiers come in two shapes that share ONE licence store (same 'lic:' key
    namespace, same admin dashboard, same device-limit/expiry/WhatsApp-alert logic):
@@ -1021,7 +1050,18 @@ const server = http.createServer(async (req, res) => {
         if (lic.status === 'pending') return json(res, 200, { status: 'pending' });
         if (lic.status === 'blocked') return json(res, 200, { status: 'blocked' });
         if (lic.status === 'disabled') return json(res, 200, { status: 'disabled' });
-        if (lic.expiresAt && Date.now() > lic.expiresAt) { lic.status = 'expired'; await licSet(code, lic); return json(res, 200, { status: 'expired', subscriptionEnabled: SUBSCRIPTION_ENABLED, expiresAt: lic.expiresAt }); }
+        /* v23.9: the IPTV side is checked FIRST — it is the foundational thing (no portal, nothing
+           to watch regardless of the app fee), so its own status/message wins when it and the app
+           subscription are both expired at once. 'expired' keeps meaning exactly what it always
+           has (the admin-set/IPTV side); 'app_expired' is new and specifically means "the IPTV
+           line is fine, but this customer's own $2 app payment lapsed" — different cause, different
+           remedy (contact the seller vs. pay in-app), so the app is told which one to say. */
+        const iptvExp = iptvExpiryOf(lic);
+        if (iptvExp && Date.now() > iptvExp) { lic.status = 'expired'; await licSet(code, lic); return json(res, 200, { status: 'expired', subscriptionEnabled: SUBSCRIPTION_ENABLED, iptvExpiresAt: iptvExp }); }
+        const appExp = appExpiryOf(lic);
+        if (lic.status === 'active' && appExp && Date.now() > appExp) {
+          return json(res, 200, { status: 'app_expired', subscriptionEnabled: SUBSCRIPTION_ENABLED, iptvExpiresAt: iptvExp, appExpiresAt: appExp });
+        }
         if (lic.status === 'active') {
           const devices = lic.devices || [];
           const known = devices.indexOf(deviceId) >= 0;
@@ -1040,10 +1080,11 @@ const server = http.createServer(async (req, res) => {
              username and password are empty by design, and the app completes the login with the
              device's own MAC instead — without this field it could not tell that apart from a
              half-filled Xtream record.
-             v14.0: `expiresAt` (0 = never expires) and whether Stripe renewal is even configured on
-             this server, so the app can show "N days left" and a Renew button without a second
-             round trip just to learn whether the button should be there at all. */
-          return json(res, 200, { status: 'active', kind: normalizeKind(lic.kind, lic.user), portalUrl: lic.url, username: lic.user, password: lic.pass, devices: (lic.devices || []).length, deviceLimit: DEVICE_LIMIT, expiresAt: lic.expiresAt || 0, subscriptionEnabled: SUBSCRIPTION_ENABLED });
+             v14.0/v23.9: iptvExpiresAt (admin-set, 0 = never expires) and appExpiresAt (Stripe-set,
+             0 = no app payment made yet — not required) are reported separately now, plus whether
+             Stripe renewal is even configured on this server, so the app can show two independent
+             "N days left" counts and two independent Renew paths without extra round trips. */
+          return json(res, 200, { status: 'active', kind: normalizeKind(lic.kind, lic.user), portalUrl: lic.url, username: lic.user, password: lic.pass, devices: (lic.devices || []).length, deviceLimit: DEVICE_LIMIT, iptvExpiresAt: iptvExp, appExpiresAt: appExp, subscriptionEnabled: SUBSCRIPTION_ENABLED });
         }
         return json(res, 200, { status: lic.status || 'pending' });
       }
@@ -1119,19 +1160,20 @@ const server = http.createServer(async (req, res) => {
               if (lic) {
                 const applied = Array.isArray(lic.renewedSessions) ? lic.renewedSessions : [];
                 if (applied.indexOf(session.id) < 0) {
-                  const base = (lic.expiresAt && lic.expiresAt > Date.now()) ? lic.expiresAt : Date.now();
-                  lic.expiresAt = base + SUBSCRIPTION_DAYS * 86400000;
-                  /* Only a natural EXPIRY self-clears on payment. 'blocked' (too many devices) and
-                     'disabled' (an admin's deliberate call) both need a human to actually resolve
-                     the real problem — extending expiresAt here is harmless either way (it just
-                     means the days aren't wasted once the admin does sort it out), but silently
-                     flipping status back to 'active' would undo a block/disable a payment does
-                     nothing to fix. */
-                  if (lic.status === 'expired') lic.status = 'active';
+                  /* v23.9: writes appExpiresAt, never the IPTV side (lic.status / lic.iptvExpiresAt /
+                     legacy lic.expiresAt) — a Stripe payment is the APP subscription, full stop. It
+                     used to flip lic.status back to 'active' here, from the days when one expiry
+                     covered both; that would now be silently reactivating a line the ADMIN expired
+                     or blocked using nothing but the customer's own app payment, which is exactly
+                     the cross-contamination the owner asked to eliminate. If the IPTV side is
+                     separately expired/blocked/disabled, this payment still only buys app access —
+                     /api/activate reports that state independently, on its own next poll. */
+                  const base = (lic.appExpiresAt && lic.appExpiresAt > Date.now()) ? lic.appExpiresAt : Date.now();
+                  lic.appExpiresAt = base + SUBSCRIPTION_DAYS * 86400000;
                   applied.push(session.id);
                   lic.renewedSessions = applied.slice(-20); // bounded — this is a dedupe list, not an invoice history
                   await licSet(code, lic);
-                  whatsappAlert('💰 Media26: code ' + code + ' renewed via Stripe — now valid until ' + new Date(lic.expiresAt).toLocaleDateString() + '.');
+                  whatsappAlert('💰 Media26: code ' + code + ' — APP subscription renewed via Stripe, now valid until ' + new Date(lic.appExpiresAt).toLocaleDateString() + '.');
                 }
               }
             }
@@ -1179,18 +1221,19 @@ const server = http.createServer(async (req, res) => {
         const kind = normalizeKind(body.kind, user);
         const bad = validateLine(url, user, kind);
         if (bad) return json(res, 400, { error: bad });
-        const days = Number(body.days || 0); // 0 = never expires
+        const days = Number(body.days || 0); // 0 = never expires — this is the IPTV/playlist side only
         const existing = await licGet(code);
         const lic = existing || { code, devices: [], createdAt: Date.now() };
         lic.status = 'active'; lic.url = url; lic.user = user; lic.pass = pass; lic.kind = kind;
-        lic.expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
+        lic.iptvExpiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
+        delete lic.expiresAt; // fully migrated off the legacy shared field — see iptvExpiryOf()
         lic.activatedAt = Date.now();
         await licSet(code, lic);
         /* `created` tells the dashboard that NO customer had ever registered this code, so what just
            happened was "a brand-new code was invented", not "the customer waiting on their screen was
            let in". A single mistyped digit produces exactly that: a phantom active code with 0 devices
            while the customer's real code sits pending forever. The UI warns loudly on this flag. */
-        return json(res, 200, { ok: true, code, status: 'active', created: !existing, devices: lic.devices.length, deviceLimit: DEVICE_LIMIT, expiresAt: lic.expiresAt || 0 });
+        return json(res, 200, { ok: true, code, status: 'active', created: !existing, devices: lic.devices.length, deviceLimit: DEVICE_LIMIT, iptvExpiresAt: lic.iptvExpiresAt || 0 });
       }
 
       /* ADMIN: mint a BRAND-NEW code that is already active. This is the "sell a subscription"
@@ -1205,7 +1248,7 @@ const server = http.createServer(async (req, res) => {
         const kind = normalizeKind(body.kind, user);
         const bad = validateLine(url, user, kind);
         if (bad) return json(res, 400, { error: bad });
-        const days = Number(body.days || 0); // 0 = never expires
+        const days = Number(body.days || 0); // 0 = never expires — the IPTV/playlist side only
         let code = '';
         for (let tries = 0; tries < 20 && !code; tries++) {
           const candidate = String(crypto.randomInt(10000000, 100000000)); // 8 digits, no leading zero
@@ -1216,10 +1259,13 @@ const server = http.createServer(async (req, res) => {
         const lic = {
           code, status: 'active', url, user, pass, kind,
           devices: [], createdAt: Date.now(), activatedAt: Date.now(),
-          expiresAt: days > 0 ? Date.now() + days * 86400000 : 0
+          iptvExpiresAt: days > 0 ? Date.now() + days * 86400000 : 0
+          /* appExpiresAt deliberately absent — a brand-new code has no app-subscription payment
+             yet, and 0/absent means "not required", never "already expired". See the v23.9 note
+             above licGet/licSet. */
         };
         await licSet(code, lic);
-        return json(res, 200, { ok: true, code, status: 'active', devices: 0, deviceLimit: DEVICE_LIMIT, expiresAt: lic.expiresAt || 0 });
+        return json(res, 200, { ok: true, code, status: 'active', devices: 0, deviceLimit: DEVICE_LIMIT, iptvExpiresAt: lic.iptvExpiresAt || 0 });
       }
 
       // ADMIN: block / unblock / reset devices / edit / delete a code (one or many).
@@ -1265,7 +1311,8 @@ const server = http.createServer(async (req, res) => {
           if (kind === 'm3u' || kind === 'm3uurl') lic.pass = '';
           if (body.days != null && String(body.days) !== '') {
             const days = Number(body.days || 0);
-            lic.expiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
+            lic.iptvExpiresAt = days > 0 ? Date.now() + days * 86400000 : 0;   // IPTV/playlist side only
+            delete lic.expiresAt;   // fully migrated off the legacy shared field — see iptvExpiryOf()
           }
           /* A code that was only ever pending becomes usable the moment it has a line bound. */
           if (lic.status === 'pending' && lic.url) { lic.status = 'active'; lic.activatedAt = Date.now(); }

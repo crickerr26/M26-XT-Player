@@ -139,13 +139,18 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
 .versionBadge{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:999px;background:rgba(56,189,248,.16);border:1px solid rgba(56,189,248,.42);color:var(--blue);font-size:11px;font-weight:900;white-space:nowrap}.login-version{position:absolute;top:14px;left:14px;color:var(--blue);background:rgba(56,189,248,.16)}@media(max-width:760px){.versionBadge{height:22px;padding:0 7px;font-size:10px}.login-version{top:10px;left:10px}}.reorder{display:flex;gap:3px;justify-self:end;margin-right:4px}.move{width:24px;height:28px;border-radius:8px;background:rgba(255,255,255,.08);color:var(--soft);font-size:12px}.nativePanel{max-width:520px;margin:0 auto}.nativeText{color:var(--muted);font-size:13px;line-height:1.45}.nativeField{margin:10px 0}
 /* v23.8: subscription countdown — the day count is the headline (a stat tile, not a sentence),
    date and status text are supporting detail underneath. Lives in Stream Tools' dark panel, so it
-   borrows that panel's own accent colours rather than the light-theme .field tokens elsewhere. */
+   borrows that panel's own accent colours rather than the light-theme .field tokens elsewhere.
+   v23.9: this tile is now reused TWICE (IPTV playlist + App subscription — see #subField below),
+   so .subSectionLabel names which one a given tile belongs to. */
 .subCountdown{text-align:center;padding:14px 10px;margin-bottom:8px;border-radius:16px;background:linear-gradient(180deg,rgba(56,189,248,.10),rgba(45,212,191,.05));border:1px solid rgba(56,189,248,.22)}
 .subCountdown.hidden{display:none}
 .subCountNum{font-size:40px;font-weight:900;line-height:1;color:#e9eef7;font-variant-numeric:tabular-nums}
 .subCountdown.low .subCountNum{color:#fb7185}
 .subCountLabel{font-size:11.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-top:4px}
-.subCountDate{font-size:12px;color:#5b7aa8;margin-top:8px}.nativeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.nativeActions .pillbtn{text-decoration:none;justify-content:center}.portalHead{align-items:flex-start}.portalHeadMain{display:flex;align-items:center;gap:12px;min-width:0}.portalHeadMain h3{font-size:16.5px;font-weight:900}.portalSub{margin-top:2px;font-size:11.5px;color:var(--muted);font-weight:600}.portalIcon{flex:none;width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#38bdf8,#2dd4bf);display:grid;place-items:center;color:#04111e;box-shadow:0 10px 22px rgba(56,189,248,.3)}.portalIcon svg{width:23px;height:23px}.portalForm{margin-top:14px;padding:14px;border-radius:18px;background:linear-gradient(180deg,rgba(56,189,248,.08),rgba(45,212,191,.04));border:1px solid rgba(56,189,248,.2);display:grid;gap:12px}.portalField label{display:flex;align-items:baseline;gap:6px;font-size:10.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:6px}.portalOptional{font-size:9.5px;font-weight:700;letter-spacing:.2px;text-transform:none;color:#5b7aa8;opacity:.85}.portalInputWrap{display:flex;align-items:center;gap:10px;height:46px;padding:0 13px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);transition:border-color .15s ease,box-shadow .15s ease}.portalInputWrap:focus-within{border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.18)}.portalInputWrap svg{flex:none;width:18px;height:18px;color:#5b8ab8}/* v19.12: 16px is the floor, not a style choice — iOS Safari auto-zooms the whole page on focus of
+.subCountDate{font-size:12px;color:#5b7aa8;margin-top:8px}
+.subSectionLabel{font-size:11px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;color:#7c93b8;margin-bottom:8px}
+.subSection+.subSection{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.nativeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.nativeActions .pillbtn{text-decoration:none;justify-content:center}.portalHead{align-items:flex-start}.portalHeadMain{display:flex;align-items:center;gap:12px;min-width:0}.portalHeadMain h3{font-size:16.5px;font-weight:900}.portalSub{margin-top:2px;font-size:11.5px;color:var(--muted);font-weight:600}.portalIcon{flex:none;width:44px;height:44px;border-radius:14px;background:linear-gradient(135deg,#38bdf8,#2dd4bf);display:grid;place-items:center;color:#04111e;box-shadow:0 10px 22px rgba(56,189,248,.3)}.portalIcon svg{width:23px;height:23px}.portalForm{margin-top:14px;padding:14px;border-radius:18px;background:linear-gradient(180deg,rgba(56,189,248,.08),rgba(45,212,191,.04));border:1px solid rgba(56,189,248,.2);display:grid;gap:12px}.portalField label{display:flex;align-items:baseline;gap:6px;font-size:10.5px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:6px}.portalOptional{font-size:9.5px;font-weight:700;letter-spacing:.2px;text-transform:none;color:#5b7aa8;opacity:.85}.portalInputWrap{display:flex;align-items:center;gap:10px;height:46px;padding:0 13px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);transition:border-color .15s ease,box-shadow .15s ease}.portalInputWrap:focus-within{border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.18)}.portalInputWrap svg{flex:none;width:18px;height:18px;color:#5b8ab8}/* v19.12: 16px is the floor, not a style choice — iOS Safari auto-zooms the whole page on focus of
 any input under 16px and does not zoom back out on blur, which is exactly the "misaligned, hidden
 until you zoom out" report: the page was left zoomed in from focusing this sheet's fields at 14.5px.
 Same reason .searchbox input is pinned to 16px in the mobile media query above. */
@@ -1504,19 +1509,36 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   <!-- v23.4: subscription status + self-serve renewal — only meaningful for a device signed in via
        an activation code (see paintSubPanel() in the script), so the whole field hides itself for
        a line signed in with a portal URL/login typed directly, which this licensing store knows
-       nothing about. -->
+       nothing about.
+       v23.9 (owner decision: "Two independent expiries"): one activation code now carries TWO
+       subscriptions that can each be current or lapsed independently — the IPTV playlist itself
+       (the admin's own product: portal login, VOD/live catalogue; admin-controlled, no self-serve
+       renewal, "contact your seller" is the only fix) and the App subscription (this app's own
+       $2 CAD/month gate on top, Stripe-controlled, self-serve — the Renew button belongs ONLY to
+       this second tile, since paying $2 can never fix an IPTV-side lapse). Both tiles reuse the
+       same countdown stat-tile markup from v23.8; paintSubPanel() paints them independently from
+       iptvExpiresAt/appExpiresAt and hides either one on its own (a "no expiry" IPTV code, or a
+       code that has never engaged the app-subscription flow, i.e. appExpiresAt is still 0/absent). -->
   <div class="field nativeField hidden" id="subField"><label>Subscription</label>
-    <!-- v23.8 (owner request): a running "N days left" countdown, not just a sentence — the number
-         is the headline, the expiry date and status line are supporting detail. Hidden by default;
-         paintSubPanel() only reveals it for a code with a real expiry (never shown for "no expiry"
-         or while a fresh check is still in flight, so it can never flash a stale or wrong number). -->
-    <div class="subCountdown hidden" id="subCountdown">
-      <div class="subCountNum" id="subCountNum">—</div>
-      <div class="subCountLabel" id="subCountLabel">days left</div>
-      <div class="subCountDate" id="subCountDate"></div>
+    <div class="subSection">
+      <div class="subSectionLabel">IPTV playlist</div>
+      <div class="subCountdown hidden" id="iptvCountdown">
+        <div class="subCountNum" id="iptvCountNum">—</div>
+        <div class="subCountLabel" id="iptvCountLabel">days left</div>
+        <div class="subCountDate" id="iptvCountDate"></div>
+      </div>
+      <p class="nativeText" id="iptvStatusLine" style="margin:0">Checking…</p>
     </div>
-    <p class="nativeText" id="subStatusLine" style="margin:0">Checking…</p>
-    <button class="pillbtn primary hidden" id="subRenewBtn" type="button" style="margin-top:8px;width:100%;justify-content:center">Renew — $2 CAD / month</button>
+    <div class="subSection">
+      <div class="subSectionLabel">App subscription</div>
+      <div class="subCountdown hidden" id="appCountdown">
+        <div class="subCountNum" id="appCountNum">—</div>
+        <div class="subCountLabel" id="appCountLabel">days left</div>
+        <div class="subCountDate" id="appCountDate"></div>
+      </div>
+      <p class="nativeText" id="appStatusLine" style="margin:0">Checking…</p>
+      <button class="pillbtn primary hidden" id="subRenewBtn" type="button" style="margin-top:8px;width:100%;justify-content:center">Renew — $2 CAD / month</button>
+    </div>
   </div>
   <div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
@@ -1779,7 +1801,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='23.8';
+const APP_VERSION='23.9';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4710,43 +4732,66 @@ async function playItemExternal(x,mode,armed){
 /* v23.8: the "N days left" stat tile above the status line. Only shown for a code that actually
    HAS an expiry (0/falsy = "no expiry" from the admin's own dropdown — there is no countdown to
    run for one of those, so the tile stays hidden and the plain status line below it says "never
-   expires" instead). expiresAt in the past shows 0, not a negative number. */
-function paintSubCountdown(expiresAt){
-  const box=$('subCountdown');if(!box)return;
+   expires" instead). expiresAt in the past shows 0, not a negative number.
+   v23.9: this tile is now painted twice from one prefix ('iptv'/'app') — see paintSubPanel(). */
+function paintSubCountdown(prefix,expiresAt){
+  const box=$(prefix+'Countdown');if(!box)return;
   if(!expiresAt){box.classList.add('hidden');return;}
   const d=Math.max(0,subDaysLeft(expiresAt));
   box.classList.remove('hidden');
   box.classList.toggle('low',d<=7);
-  if($('subCountNum'))$('subCountNum').textContent=String(d);
-  if($('subCountLabel'))$('subCountLabel').textContent=d===1?'day left':'days left';
-  if($('subCountDate'))$('subCountDate').textContent=(d<=0?'Expired ':'Expires ')+new Date(expiresAt).toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
+  if($(prefix+'CountNum'))$(prefix+'CountNum').textContent=String(d);
+  if($(prefix+'CountLabel'))$(prefix+'CountLabel').textContent=d===1?'day left':'days left';
+  if($(prefix+'CountDate'))$(prefix+'CountDate').textContent=(d<=0?'Expired ':'Expires ')+new Date(expiresAt).toLocaleDateString(undefined,{month:'long',day:'numeric',year:'numeric'});
 }
+/* v23.9 (owner decision: "Two independent expiries"): a code now carries TWO subscriptions that
+   can each be current or lapsed on their own — the IPTV playlist (admin-controlled, iptvExpiresAt,
+   NEVER self-serve — a $2 app payment cannot fix a seller-side lapse, so that tile never shows the
+   Renew button) and the App subscription (appExpiresAt, Stripe-controlled, self-serve). /api/activate
+   only reports a single overall status: 'active'/'app_expired' both mean the IPTV side is fine
+   (checked first server-side), 'expired' means the IPTV side itself has lapsed — in that case the
+   server doesn't even send appExpiresAt, so the app tile has nothing to paint and is told so. */
 async function paintSubPanel(){
-  const field=$('subField'),line=$('subStatusLine'),btn=$('subRenewBtn');
-  if(!field||!line||!btn)return;
+  const field=$('subField'),iptvLine=$('iptvStatusLine'),appLine=$('appStatusLine'),btn=$('subRenewBtn');
+  if(!field||!iptvLine||!appLine||!btn)return;
   const code=actCodeGet(false);
   if(!/^\d{8}$/.test(code)){field.classList.add('hidden');return;}
   field.classList.remove('hidden');
-  line.textContent='Checking…';btn.classList.add('hidden');paintSubCountdown(0);
+  iptvLine.textContent='Checking…';appLine.textContent='Checking…';btn.classList.add('hidden');
+  paintSubCountdown('iptv',0);paintSubCountdown('app',0);
   try{
     const {j}=await actApi('/api/activate',{code:code,deviceId:deviceUid()});
-    if(!j||!j.status){line.textContent='Could not check subscription status right now.';return;}
-    if(j.status==='active'){
-      const s=subStatusLine(j.expiresAt||0,j.subscriptionEnabled);
-      line.textContent=s.text;
-      btn.classList.toggle('hidden',!s.renew);
-      paintSubCountdown(j.expiresAt||0);
+    if(!j||!j.status){iptvLine.textContent='Could not check subscription status right now.';appLine.textContent='Could not check subscription status right now.';return;}
+    if(j.status==='active'||j.status==='app_expired'){
+      /* IPTV side is confirmed fine whenever we get here at all — never a Renew button for it. */
+      const iptvS=subStatusLine(j.iptvExpiresAt||0,false);
+      iptvLine.textContent=iptvS.text;
+      paintSubCountdown('iptv',j.iptvExpiresAt||0);
+      if(j.status==='app_expired'){
+        appLine.textContent=j.subscriptionEnabled?'Expired. Renew below to keep using the app.':'Expired. Contact your seller.';
+        btn.classList.toggle('hidden',!j.subscriptionEnabled);
+        paintSubCountdown('app',j.appExpiresAt||Date.now());
+      }else if(!j.appExpiresAt){
+        /* opt-in: this code has never engaged the $2 flow — nothing lapsed, nothing to enforce. */
+        appLine.textContent='No app subscription yet.';
+        btn.classList.toggle('hidden',!j.subscriptionEnabled);
+        paintSubCountdown('app',0);
+      }else{
+        const appS=subStatusLine(j.appExpiresAt,j.subscriptionEnabled);
+        appLine.textContent=appS.text;
+        btn.classList.toggle('hidden',!appS.renew);
+        paintSubCountdown('app',j.appExpiresAt);
+      }
     }else if(j.status==='expired'){
-      line.textContent=j.subscriptionEnabled?'Expired. Renew below to keep using this line.':'Expired. Contact your seller.';
-      btn.classList.toggle('hidden',!j.subscriptionEnabled);
-      /* v14.0's 'expired' response didn't carry expiresAt (nothing needed it before); the tile
-         falls back to "now" so it still reads "0 days left, Expired <today>" rather than vanishing
-         — a code the customer just watched lapse should not go silent about it. */
-      paintSubCountdown(j.expiresAt||Date.now());
+      /* IPTV side itself has lapsed — seller-only fix, no Renew button anywhere on this tile. */
+      iptvLine.textContent='Expired. Contact your seller.';
+      paintSubCountdown('iptv',j.iptvExpiresAt||Date.now());
+      appLine.textContent='Unavailable while the IPTV playlist is expired.';
+      paintSubCountdown('app',0);
     }else{
       field.classList.add('hidden');   /* blocked/disabled/pending: nothing self-serve to offer here */
     }
-  }catch(e){line.textContent='Could not reach the activation server.';}
+  }catch(e){iptvLine.textContent='Could not reach the activation server.';appLine.textContent='';}
 }
 if($('subRenewBtn'))$('subRenewBtn').onclick=startSubscriptionCheckout;
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show');paintSubPanel().catch(()=>{});}
@@ -6333,7 +6378,7 @@ async function pollActivationOnce(){
   try{
     const {j}=await actApi('/api/activate',{code:code,deviceId:dev});
     const st=(j&&j.status)||'';
-    if(st!=='expired')paintActRenewBtn(false);   /* only the expired branch below turns it back on */
+    if(st!=='expired'&&st!=='app_expired')paintActRenewBtn(false);   /* only those two branches below turn it back on */
     /* v17.5: an M3U / MAG line activates with a portal address and NO username — the device MAC is
        the credential. Requiring j.username here meant such a line polled forever after the seller
        had already activated it. Accept it whenever this device holds a MAC to sign in with. */
@@ -6349,6 +6394,13 @@ async function pollActivationOnce(){
     }else if(st==='expired'){
       stopActPoll();
       actSetStatus('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your seller.':'This code expired. Contact your seller.');
+      paintActRenewBtn(!!(j&&j.subscriptionEnabled));
+    }else if(st==='app_expired'){
+      /* v23.9: IPTV playlist is fine (checked first, server-side) — it's this app's OWN $2/month
+         gate that lapsed. Blocks sign-in the same way 'expired' does, with its own wording so the
+         customer knows which of the two subscriptions to fix. */
+      stopActPoll();
+      actSetStatus('bad',j&&j.subscriptionEnabled?'Your app subscription expired. Renew below to keep using the app.':'Your app subscription expired. Contact your seller.');
       paintActRenewBtn(!!(j&&j.subscriptionEnabled));
     }else if(st==='disabled'){
       stopActPoll();actSetStatus('bad','This code is disabled. Contact your seller.');
@@ -8181,6 +8233,13 @@ async function activateWithCode(code,opts){
   if(st==='blocked'){ if(!silent)loginActMsg('bad','This code is blocked — it was used on too many devices. Contact your seller.'); return st; }
   if(st==='expired'){
     if(!silent)loginActMsg('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your seller.':'This code expired. Contact your seller.');
+    paintActRenewBtn(!!(j&&j.subscriptionEnabled));
+    return st;
+  }
+  if(st==='app_expired'){
+    /* v23.9: IPTV side is fine — this app's own $2/month subscription lapsed. Same blocking
+       treatment as 'expired', distinct wording so the customer knows which one to fix. */
+    if(!silent)loginActMsg('bad',j&&j.subscriptionEnabled?'Your app subscription expired. Renew below to keep using the app.':'Your app subscription expired. Contact your seller.');
     paintActRenewBtn(!!(j&&j.subscriptionEnabled));
     return st;
   }

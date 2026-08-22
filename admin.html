@@ -123,14 +123,17 @@
          password is still perfectly valid upstream — this app's own expiry is now the thing that
          decides, not a mirror of the provider's. Both /api/admin/activate and /api/admin/create
          already accept `days` server-side (server.js has carried it since the very first version of
-         this store) — this dashboard was the one piece not exposing it. 1-12 months, in 30-day
-         steps (the same "one month = 30 days" server.js's Stripe self-serve renewal already uses,
-         so a code's expiry always means the same thing everywhere in this system), plus a "No
-         expiry" escape hatch for the accounts that genuinely should not end on a schedule
-         (testers, special arrangements) — kept, not removed, since v19.60 was right that SOME
-         codes legitimately have no calendar-based lifetime, just not that none of them do. -->
-    <label>Subscription length</label>
+         this store) — this dashboard was the one piece not exposing it.
+         v23.9 (owner decision): renamed from "Subscription length" — this dropdown was, and still
+         is, ONLY the IPTV/playlist side (server.js's iptvExpiresAt). There is now a SEPARATE app
+         subscription (server.js's appExpiresAt) that the customer pays for directly in the app via
+         Stripe — nothing here sets or affects that one; it isn't this dashboard's job to. Added a
+         1-day trial option alongside the 1-12 months (30-day steps, matching the "one month = 30
+         days" the app subscription already uses) and the "No expiry" escape hatch for accounts
+         that genuinely should not end on a schedule (testers, special arrangements). -->
+    <label>IPTV playlist length</label>
     <select id="a_days">
+      <option value="1">1-day trial</option>
       <option value="30" selected>1 month</option>
       <option value="60">2 months</option>
       <option value="90">3 months</option>
@@ -145,7 +148,7 @@
       <option value="360">12 months</option>
       <option value="0">No expiry (never)</option>
     </select>
-    <p class="muted" style="margin-top:8px">This app stops signing the customer in once this expires — even if their portal login/password is still active with the provider. Re-activating the same code later (Activate below) resets this to a fresh period from that moment.</p>
+    <p class="muted" style="margin-top:8px">This app stops signing the customer in once this expires — even if their portal login/password is still active with the provider. Re-activating the same code later (Activate below) resets this to a fresh period from that moment. This is separate from the customer's own $2 app subscription, which they manage themselves in the app.</p>
     <button class="primary" id="a_new">✨ Create a new activated code</button>
     <button class="secondary" id="a_go">Activate the code/MAC the customer gave me</button>
     <div class="msg" id="a_msg"></div>
@@ -167,7 +170,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='23.8';
+  var ADMIN_VERSION='23.9';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -312,11 +315,13 @@
   function segKind(segId){var a=$(segId)&&$(segId).querySelector('.segBtn.active');return (a&&a.dataset.kind)||'xtream';}
   wireKindSeg('a_kindSeg');
   applyKind('xtream');
-  /* v23.7: "active until <date>" for the success message below, or "never expires" for the 0
-     (No expiry) option — so activating/creating a code confirms the SAME thing the seller just
-     picked, rather than leaving them to trust the dropdown silently did something. */
-  function expiryLabel(expiresAt){
-    return expiresAt ? (' Active until '+new Date(expiresAt).toLocaleDateString()+'.') : ' Never expires.';
+  /* v23.7/v23.9: "IPTV playlist active until <date>" for the success message below, or "never
+     expires" for the 0 (No expiry) option — so activating/creating a code confirms the SAME thing
+     the seller just picked, rather than leaving them to trust the dropdown silently did something.
+     Named for the field it actually reports now that there are two (server.js's iptvExpiresAt vs.
+     appExpiresAt) — this dashboard only ever sets the IPTV one. */
+  function iptvExpiryLabel(iptvExpiresAt){
+    return iptvExpiresAt ? (' IPTV playlist active until '+new Date(iptvExpiresAt).toLocaleDateString()+'.') : ' IPTV playlist never expires.';
   }
 
   $('a_go').onclick=function(){
@@ -327,7 +332,7 @@
       pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||30)
     }).then(function(r){
       if(r.j&&r.j.ok){
-        m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).'+expiryLabel(r.j.expiresAt);
+        m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).'+iptvExpiryLabel(r.j.iptvExpiresAt);
         showShareCode(r.j.code);
         /* No customer had ever registered this code, so nobody is waiting on it. Almost always a
            mistyped digit — check the code with the customer and try again. */
@@ -351,7 +356,7 @@
       pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||30)
     }).then(function(r){
       if(r.j&&r.j.ok){
-        m.className='msg ok'; m.textContent='✓ New code created and already active.'+expiryLabel(r.j.expiresAt);
+        m.className='msg ok'; m.textContent='✓ New code created and already active.'+iptvExpiryLabel(r.j.iptvExpiresAt);
         showShareCode(r.j.code);
       } else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
     }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
