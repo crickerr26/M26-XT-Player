@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.1';
+const SERVER_BUILD = '14.2';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -1021,7 +1021,7 @@ const server = http.createServer(async (req, res) => {
         if (lic.status === 'pending') return json(res, 200, { status: 'pending' });
         if (lic.status === 'blocked') return json(res, 200, { status: 'blocked' });
         if (lic.status === 'disabled') return json(res, 200, { status: 'disabled' });
-        if (lic.expiresAt && Date.now() > lic.expiresAt) { lic.status = 'expired'; await licSet(code, lic); return json(res, 200, { status: 'expired', subscriptionEnabled: SUBSCRIPTION_ENABLED }); }
+        if (lic.expiresAt && Date.now() > lic.expiresAt) { lic.status = 'expired'; await licSet(code, lic); return json(res, 200, { status: 'expired', subscriptionEnabled: SUBSCRIPTION_ENABLED, expiresAt: lic.expiresAt }); }
         if (lic.status === 'active') {
           const devices = lic.devices || [];
           const known = devices.indexOf(deviceId) >= 0;
