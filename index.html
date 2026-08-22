@@ -1758,7 +1758,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='23.5';
+const APP_VERSION='23.6';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4577,19 +4577,28 @@ async function playItemExternal(x,mode,armed){
       if(token!==S.seq)return;   /* a newer tap won while we were checking */
     }
   }catch(e){}
-  /* v23.5 (owner report: some live channels open in VLC, play a few seconds, then the video
-     disappears — reported on iPhone): the classic signature of a 1-connection-limited panel
+  /* v23.5/v23.6 (owner report: channels — any type, not just live — open in VLC, play a few
+     seconds, then the video disappears): the classic signature of a 1-connection-limited panel
      kicking whichever connection it sees second. cleanup() just above stops the BROWSER's use of
      the old connection instantly (video.load(), hls.js/mpegts.js .destroy()), but on a panel that
      tracks connections server-side there is no guarantee it has actually registered that close in
      the same instant — VLC's brand-new request can land while the panel still counts the old one
-     as live, sees two, and cuts one off a few seconds in. Gated on lastStreamStopAt being FRESH
+     as live, sees two, and cuts one off a few seconds in. v23.5 gated this to live only; v23.6
+     widens it to Movies/Series too — the same provider-side accounting applies to any connection
+     on a 1-connection line, not just live channels. Gated on lastStreamStopAt being FRESH
      (cleanup() only sets it when there was a real connection to tear down) so this never fires on
-     the first tap of a session, when nothing needs releasing. 350ms is short enough to still read
+     the first tap of a session, when nothing needs releasing. 500ms is still short enough to read
      as the "instant" launch v7.1 asked for — this is a beat, not a new wait screen — while giving
-     a panel's own connection bookkeeping a moment to catch up before the new one arrives. */
-  if(typeOf(x)==='live'&&S.lastStreamStopAt&&Date.now()-S.lastStreamStopAt<1500){
-    await new Promise(r=>setTimeout(r,350));
+     a panel's own connection bookkeeping a moment to catch up before the new one arrives.
+     IMPORTANT LIMIT, not fixed by this or any client-side change: once VLC has actually opened and
+     this page is backgrounded, the browser has NO further visibility into VLC at all — no event,
+     no callback, nothing. If VLC itself then loses the stream (the provider cuts it a few seconds
+     later for a reason unrelated to this handoff, or that specific stream is simply unstable),
+     this app cannot detect it, recover it, or even know it happened. This delay reduces the odds of
+     ever handing VLC a stream that was still being released — it cannot address a failure that
+     happens entirely inside VLC after the handoff, which is architecturally invisible from here. */
+  if(S.lastStreamStopAt&&Date.now()-S.lastStreamStopAt<1500){
+    await new Promise(r=>setTimeout(r,500));
     if(token!==S.seq)return;   /* a newer tap won while we were waiting */
   }
   const u=externalStreamUrl(x),title=nameOf(x),d=deviceKind(),label=playerLabel(mode);
@@ -5594,7 +5603,7 @@ async function tryPlans(plans,i){
   v.muted=false;v.loop=false;v.autoplay=false;v.preload='auto';
   v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
   const attachAt=Date.now();
-  const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null};
+  const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null,progressStreak:0};
   /* v22.2: 130s of "Loading video" is indistinguishable from "never plays", and on a file the
      transcoder cannot serve it was exactly that. A warm conversion server copying a video stream
      yields its first segment in a few seconds; 45s leaves generous room for a cold start while
@@ -5845,17 +5854,32 @@ async function tryPlans(plans,i){
     if(be>E.lastBuf+0.2){E.lastBuf=be;E.frozenAt=0}
     else if(!E.frozenAt)E.frozenAt=now;
     if(t>E.lastT+0.2){
-      E.lastT=t;E.lastProgress=now;
+      E.lastT=t;E.lastProgress=now;E.progressStreak++;
       if(!E.started&&t>0.3)E.started=true;
       if(E.started){
-        showPlaying();
-        /* one-time black-frame check: clock advancing with a 0-width video
-           means an undecodable video track (audio-only "playback") */
-        if(!E.videoChecked&&now-attachAt>8000){
-          E.videoChecked=true;
-          if(v.videoWidth===0){if(live){nextPlan();return}S.audioOnly=true;fail('Audio only');return}
+        /* v23.6 (owner report: "some videos are flickering in the inbuilt player"): a marginal
+           connection can deliver just enough to nudge currentTime forward for ONE tick, then stall
+           again before the next — which used to flip the overlay off (showPlaying, this call) and
+           back on (the stall branch below, once 2.5s of silence follows) every few seconds. That
+           read as the picture and a "Buffering" card flashing back and forth, not as a smooth
+           recovery. The very first time a route starts still shows playing on the FIRST tick of
+           progress (E.overlayState is 'load'/'tap'/'pre' then, never 'buffer'/'reconnect', so this
+           still opens promptly) — only a genuine RECOVERY from a visible stall now waits for two
+           consecutive ticks of forward progress (~1s) before declaring it over, so a connection
+           that cannot actually sustain playback stays honestly on "Buffering" instead of
+           flickering, while a real recovery still clears in about a second either way. */
+        if(E.overlayState!=='buffer'&&E.overlayState!=='reconnect'||E.progressStreak>=2){
+          showPlaying();
+          /* one-time black-frame check: clock advancing with a 0-width video
+             means an undecodable video track (audio-only "playback") */
+          if(!E.videoChecked&&now-attachAt>8000){
+            E.videoChecked=true;
+            if(v.videoWidth===0){if(live){nextPlan();return}S.audioOnly=true;fail('Audio only');return}
+          }
         }
       }
+    }else{
+      E.progressStreak=0;
     }
     const stalled=now-E.lastProgress;
     if(!E.playTried){
