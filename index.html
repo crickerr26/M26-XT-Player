@@ -1848,7 +1848,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.11';
+const APP_VERSION='24.12';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4978,8 +4978,17 @@ async function checkSubscriptionEnforcement(){
   }catch(e){}
 }
 function startSubscriptionEnforcement(){
-  if(_subEnforceTimer)return;
+  /* v24.12 (owner report: logged out of the expired-subscription modal, signed back in with the
+     same saved profile, and it loaded everything with no modal at all): this is a single-page
+     app — logging out never reloads the page, so _subEnforceTimer stays set from the FIRST
+     sign-in for the rest of the tab's life. The old `if(_subEnforceTimer)return;` guard sat
+     BEFORE the immediate check, so it also skipped that check on every later sign-in in the same
+     tab — the periodic 5-minute timer from the first session was technically still running, but a
+     re-login seconds after logging out had no way to get its own fresh, immediate answer. The
+     immediate check must run on every call (every sign-in); only the interval/listener setup
+     needs to happen once. */
   checkSubscriptionEnforcement();
+  if(_subEnforceTimer)return;
   _subEnforceTimer=setInterval(checkSubscriptionEnforcement,300000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkSubscriptionEnforcement();});
 }
