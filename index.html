@@ -180,6 +180,7 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .infoPanel{position:relative;width:100%;max-width:560px;margin:0 auto;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--panel);border:1px solid var(--line);border-radius:22px 22px 0 0;box-shadow:var(--shadow);animation:infoUp .32s cubic-bezier(.2,.8,.2,1)}
 @keyframes infoUp{from{transform:translateY(34px);opacity:.3}to{transform:translateY(0);opacity:1}}
 @media(min-width:620px){.infoSheet{align-items:center}.infoPanel{border-radius:22px;max-height:86vh}}
+.resumePanel{max-width:520px}.resumeBody{display:grid;gap:10px;padding:12px}.resumeTitle{font-size:14px;color:var(--muted);line-height:1.35;overflow-wrap:anywhere}.resumeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.resumeActions .pillbtn{height:46px}.resumeActions .primary{font-weight:900}@media(max-width:520px){.resumeActions{grid-template-columns:1fr}.resumeActions .pillbtn{height:48px}}
 .infoClose{position:absolute;top:12px;right:12px;z-index:4;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;font-size:22px;line-height:1;display:grid;place-items:center;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
 .infoHero{position:relative;padding:20px 18px;display:flex;gap:16px;align-items:flex-end;min-height:186px;overflow:hidden;border-radius:22px 22px 0 0}
 .infoHeroBg{position:absolute;inset:0;background-size:cover;background-position:center 20%;filter:blur(3px) brightness(.5);transform:scale(1.1)}
@@ -1487,6 +1488,18 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </div>
   </div>
 </div>
+<div class="episodeSheet" id="resumeChoiceSheet">
+  <div class="episodePanel resumePanel">
+    <div class="episodeHead"><h3>Resume playback</h3><button class="iconbtn" id="resumeClose" type="button" aria-label="Close">×</button></div>
+    <div class="resumeBody">
+      <p class="resumeTitle" id="resumeChoiceTitle"></p>
+      <div class="resumeActions">
+        <button class="pillbtn" id="resumeBegin" type="button">Start from beginning</button>
+        <button class="pillbtn primary" id="resumeContinue" type="button">Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="conflictModal" id="conflictModal">
   <div class="conflictCard">
     <div class="conflictIcon">⚠️</div>
@@ -1848,7 +1861,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.18';
+const APP_VERSION='24.19';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1946,7 +1959,7 @@ const ICONS={
   sortNew:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2.3h6"/></svg>',
   sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,lastPreviewError:''};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -4652,6 +4665,38 @@ function playerRuns(mode,device){const d=playerDef(mode);return !!(d&&d.platform
 const EXTERNAL_MODES=Object.keys(PLAYERS).filter(m=>PLAYERS[m].kind==='external');
 function isExternalMode(m){const d=playerDef(m);return !!(d&&d.kind==='external')}
 function playerLabel(mode){const d=playerDef(mode);if(!d)return'browser';return d.label}
+const RESUME_MIN_SECONDS=60;
+const RESUME_END_SECONDS=45;
+function fmtResumeTime(sec){
+  sec=Math.max(0,Math.floor(Number(sec)||0));
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;
+  return h?(h+':'+String(m).padStart(2,'0')+':'+String(s).padStart(2,'0')):(m+':'+String(s).padStart(2,'0'));
+}
+function resumeChoiceFor(x){
+  if(!x||typeOf(x)==='live')return 0;
+  const t=(S.resume&&S.resume[keyOf(x)])||0;
+  return t>=RESUME_MIN_SECONDS?t:0;
+}
+function showResumeChoice(x,pos){
+  return new Promise(resolve=>{
+    const sh=$('resumeChoiceSheet'),title=$('resumeChoiceTitle'),cont=$('resumeContinue');
+    if(!sh){resolve(pos||0);return}
+    const close=v=>{sh.classList.remove('show');resolve(v)};
+    if(title)title.textContent=nameOf(x)+' was left at '+fmtResumeTime(pos)+'.';
+    if(cont)cont.textContent='Continue from '+fmtResumeTime(pos);
+    const begin=$('resumeBegin'),xbtn=$('resumeClose');
+    if(begin)begin.onclick=()=>close(0);
+    if(cont)cont.onclick=()=>close(pos);
+    if(xbtn)xbtn.onclick=()=>close(null);
+    sh.onclick=e=>{if(e.target===sh)close(null)};
+    sh.classList.add('show');
+  });
+}
+async function choosePlaybackStart(x){
+  const pos=resumeChoiceFor(x);
+  if(!pos)return 0;
+  return await showResumeChoice(x,pos);
+}
 /* v23: live streams handed to VLC/external apps now use HLS (.m3u8) instead of raw .ts.
    A raw .ts stream is ONE long HTTP connection — any server hiccup or timeout kills it
    and the player goes black after a few minutes with no way to recover. HLS is fetched
@@ -5249,7 +5294,7 @@ function configureInbuiltPlayer(){
        way a bare IP does, so this route must not depend on the customer having typed a transcoder
        URL either. Same reasoning as proxyUrl(); see the note there. */
     streamRelayUrl:streamRelayUrl,
-    getResume:x=>(S.resume&&S.resume[keyOf(x)])||0,
+    getResume:x=>(S.resumeOverride&&Object.prototype.hasOwnProperty.call(S.resumeOverride,keyOf(x)))?S.resumeOverride[keyOf(x)]:((S.resume&&S.resume[keyOf(x)])||0),
     getLastSeekAt:()=>S.lastSeekAt||0,
     /* the quality menu, the seek bar and cleanup() all read S.hls/S.ts and S.timer, so the engine
        keeps them in step rather than owning a second copy of that state */
@@ -5887,6 +5932,11 @@ async function routePlayback(x,mode,fromAlternative){
     /* v84: for Movies/Series, launch the chosen app DIRECTLY inside the tap — no "freeing the
        connection" wait and no second chooser on the preview. Live keeps the gate for reliability. */
     await playItemExternal(x,mode,typeOf(x)!=='live');return;
+  }
+  if(typeOf(x)!=='live'){
+    const startAt=await choosePlaybackStart(x);
+    if(startAt==null)return;
+    S.resumeOverride[keyOf(x)]=startAt;
   }
   await playItemBasic(x);
 }
@@ -8911,7 +8961,7 @@ $('video').addEventListener('pause',showBar);
 $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.classList.remove('posterPreview');});
 /* v85: remember the play position of the current Movie/Series (session-only) so replaying it
    resumes where it left off. Cleared on refresh/force-close (it lives in memory). */
-$('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0;if(t>1&&isFinite(t))S.resume[keyOf(S.current)]=t;}});
+$('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0,d=v.duration||0;if(t>1&&isFinite(t)){if(d&&isFinite(d)&&d-t<RESUME_END_SECONDS){delete S.resume[keyOf(S.current)];delete S.resumeOverride[keyOf(S.current)];}else S.resume[keyOf(S.current)]=t;}}});
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
