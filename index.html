@@ -1370,7 +1370,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <div class="actCodeMore" id="actCodeMore">
       <p class="actCodeMoreHead">Activate this device</p>
       <p class="actCodeMoreSub">Give your seller the Device Key below — or let them scan the QR code — and your channels load automatically. No typing needed.</p>
-        <div class="idBlock hidden" id="actMacBlock">
+        <div class="idBlock" id="actMacBlock">
         <div class="idRow">
           <label for="actCodeBox">Activation Code</label>
           <div class="idLine">
@@ -1848,7 +1848,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.16';
+const APP_VERSION='24.17';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6718,13 +6718,16 @@ async function ensureActCode(){
    customer's message and a device-limit alert both land on the one number the owner actually
    watches. */
 const ADMIN_WA='14164744994';
+function adminActivationLink(code,mac){
+  return location.origin+'/admin.html?code='+encodeURIComponent(code)+'&mac='+encodeURIComponent(mac);
+}
 /* One message carries BOTH identifiers plus the admin link, because sending only one of the
    three was the single most common reason an activation stalled — the seller had part of what
    they needed and had to ask for the rest. */
 function sendIdsToWhatsApp(){
   const mac=macFmt(stalkerMac());
   const code=actCodeGet(false);
-  const link=location.origin+'/admin?code='+encodeURIComponent(code)+'&mac='+encodeURIComponent(mac);
+  const link=adminActivationLink(code,mac);
   const msg='Hi, please set up my Media26 XT Player.'
     +'\nMAC Address: '+mac
     +(/^\d{8}$/.test(code)?('\nActivation Code: '+code):'')
@@ -6743,7 +6746,7 @@ async function paintActivateCard(){
   if($('actMacCode'))$('actMacCode').textContent=macFmt(stalkerMac());
   const code=await ensureActCode();
   const mac=macFmt(stalkerMac());
-  const link=location.origin+'/admin?code='+encodeURIComponent(code)+'&mac='+encodeURIComponent(mac);
+  const link=adminActivationLink(code,mac);
   if($('actAdminLink'))$('actAdminLink').href=link;
   renderShareQr(link,'Open media26 player and enter the values above.','actQrBox').catch(()=>{});
 }
