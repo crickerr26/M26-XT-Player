@@ -160,13 +160,7 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
 any input under 16px and does not zoom back out on blur, which is exactly the "misaligned, hidden
 until you zoom out" report: the page was left zoomed in from focusing this sheet's fields at 14.5px.
 Same reason .searchbox input is pinned to 16px in the mobile media query above. */
-.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.macRow{margin-top:10px;padding:11px 12px;border-radius:13px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}.macRow.hidden{display:none}.macRow.urgent{background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.5)}.macRow.urgent .macRowLabel{color:#d9a441}.macRowLabel{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:7px}.macRowVal{display:flex;align-items:center;gap:9px}.macRowVal code{flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:.6px;overflow-wrap:anywhere}.macRowVal .pillbtn{flex:none;height:34px;padding:0 14px}.macRowHint{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}/* v19.63: line-type chooser on the portal sheet. Wraps rather than crushing three labels onto one
-   line on a narrow phone, and the active pill uses the same blue wash as .portalInputWrap:focus-within
-   so the selected type reads as "this is the field set you are filling in". */
-.portalKind{display:flex;flex-wrap:wrap;gap:6px;padding:4px;border-radius:14px;background:var(--panel2);border:1px solid var(--line)}
-.pkBtn{flex:1 1 96px;min-height:38px;padding:0 10px;border-radius:11px;background:transparent;border:0;color:var(--muted);font-weight:800;font-size:12.5px;white-space:nowrap;cursor:pointer;transition:background .15s ease,color .15s ease}
-.pkBtn.active{background:rgba(56,189,248,.18);color:var(--blue);box-shadow:inset 0 0 0 1px rgba(56,189,248,.32)}
-.portalKindHint{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted);font-weight:600}
+.portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.macRow{margin-top:10px;padding:11px 12px;border-radius:13px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}.macRow.hidden{display:none}.macRow.urgent{background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.5)}.macRow.urgent .macRowLabel{color:#d9a441}.macRowLabel{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:7px}.macRowVal{display:flex;align-items:center;gap:9px}.macRowVal code{flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:.6px;overflow-wrap:anywhere}.macRowVal .pillbtn{flex:none;height:34px;padding:0 14px}.macRowHint{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}
 .portalField.hidden{display:none}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
 </style>
 <style>
@@ -1691,21 +1685,12 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
        this device remembers the line by (see rememberProfile/_portalNamePending below); it is never
        sent to any server. v19.14 dropped the MAC field from this card entirely (owner request) — no
        MAC UI anywhere in the app now, see #login for what that means for stalkerMac(). -->
-  <!-- v19.63 (owner request): PICK THE LINE TYPE, the way IBO Pro does. The three routes below are
-       every route this app already had — nothing new is being spoken to, and there is still no
-       Xtream player_api.php call anywhere (see the v19.6 note at the top of CLAUDE.md). What the
-       chooser buys is (a) the customer stops guessing which boxes apply to the line they were sold,
-       and (b) sign-in stops spending time on the wrong route: a playlist link no longer waits on a
-       MAG handshake it will never need, and a MAC line no longer walks ~15 get.php candidates that
-       a Ministra portal does not have. That second half is a direct cut to the sign-in wait.
-       'Xtream Login' stays the default and is byte-for-byte the old behaviour, so a customer who
-       never touches this control sees exactly what they saw before. -->
-  <div class="portalKind" id="portalKindSeg">
-    <button type="button" class="pkBtn active" data-kind="xtream">Xtream Login</button>
-    <button type="button" class="pkBtn" data-kind="m3uurl">M3U Playlist</button>
-    <button type="button" class="pkBtn" data-kind="m3u">MAC Device</button>
-  </div>
-  <p class="portalKindHint" id="portalKindHint"></p>
+  <!-- v24.20 (owner request): the v19.63 line-type chooser (Xtream Login / M3U Playlist / MAC
+       Device) is gone — this sheet is Xtream credentials only now. login() still tries the MAG
+       handshake automatically as a fallback when get.php fails for a non-rejected reason (see
+       _tryMag in login() and the CLAUDE.md MAC/MAG note) — that connection code is untouched —
+       but there is no UI route left for a customer to sign in with a bare portal URL and no
+       username/password. -->
   <div class="portalForm">
     <div class="portalField">
       <label for="xtreamPortalName">Portal Name <span class="portalOptional">(optional)</span></label>
@@ -1861,7 +1846,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.19';
+const APP_VERSION='24.20';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -8324,7 +8309,7 @@ function openXtreamSheet(){
      arriving at a service that was still waking up. Pinging it when the form opens gives it the
      time the customer spends typing, so the fallback is live by the time it is needed. */
   try{warmTranscoder();}catch(e){}
-  try{applyPortalKind('xtream')}catch(e){}
+  try{applyPortalKind()}catch(e){}
   $('xtreamSheet').classList.add('show');
   try{$('xtreamPortalName').focus();}catch(e){}
 }
@@ -8418,11 +8403,9 @@ if($('xtreamSave'))$('xtreamSave').onclick=()=>{
   const pass=(($('xtreamPass')&&$('xtreamPass').value)||'');
   const nm=(($('xtreamPortalName')&&$('xtreamPortalName').value)||'').trim();
   if(!url){signInMsg('Enter the portal URL first, then save.','error');return;}
-  if(_portalKind==='xtream'&&(!user||!pass)){signInMsg('Enter the login and password your seller gave you.','error');return;}
+  if(!user||!pass){signInMsg('Enter the login and password your seller gave you.','error');return;}
   const root=normalize(url);
-  rememberProfile(_portalKind==='xtream'
-    ?{kind:'xtream',name:nm||user,url:root,raw:url,user:user,pass:pass,mac:'',source:hostOf(root)}
-    :{kind:'mac',name:nm||macFmt(stalkerMac())||hostOf(root),url:root,raw:url,user:'',pass:'',mac:stalkerMac(),source:hostOf(root)});
+  rememberProfile({kind:'xtream',name:nm||user,url:root,raw:url,user:user,pass:pass,mac:'',source:hostOf(root)});
   toast('Saved. It is on the sign-in screen now — one tap to connect.');
 };
 /* v20.3: bring a line into view by scrolling ITS OWN sheet, never scrollIntoView() — on iOS that
@@ -8442,48 +8425,18 @@ function signInMsg(text,kind,opts){
   if(e2&&kind!=='working'){e2.textContent=text||'';}
   if(opts&&opts.deviceId)showDeviceId(true);
 }
-/* ── v19.63: LINE TYPE ON THE PORTAL SHEET ───────────────────────────────────────────────────
-   Which of the three sign-in shapes the customer says they were sold. This is UI state plus a
-   routing hint — every value maps onto a route login() already had, and 'xtream' reproduces the
-   pre-19.63 behaviour exactly, so a customer who never touches the control is unaffected. */
-var _portalKind='xtream';
-var PORTAL_KIND_UI={
-  xtream:{urlLabel:'Portal URL',urlPh:'http://tv.example.cc:8080',creds:true,
-    urlHint:'The server address your provider gave you.',
-    hint:'Your provider gave you a server address, a login and a password. This is what most lines are.'},
-  m3uurl:{urlLabel:'M3U playlist link',urlPh:'http://tv.example.cc:8080/get.php?username=…&type=m3u_plus',creds:false,
-    urlHint:'Paste the whole link, exactly as your provider sent it.',
-    hint:'Your provider gave you one long playlist link with the login already inside it — nothing else to fill in. This is also the fastest to sign in, because the app never has to try the MAG handshake for it.'},
-  m3u:{urlLabel:'Portal URL',urlPh:'http://tv.example.cc:8080/c/',creds:false,
-    urlHint:'The portal address only — the Device ID below is what identifies you.',
-    hint:'Your provider registered THIS device’s ID on your line, so there is no username or password. If they have not registered it yet, send them the Device ID shown below.'}
-};
-function applyPortalKind(k){
-  _portalKind=PORTAL_KIND_UI[k]?k:'xtream';
-  const ui=PORTAL_KIND_UI[_portalKind];
-  const seg=$('portalKindSeg');
-  if(seg)seg.querySelectorAll('.pkBtn').forEach(b=>b.classList.toggle('active',b.dataset.kind===_portalKind));
-  if($('portalUrlLabel'))$('portalUrlLabel').textContent=ui.urlLabel;
-  if($('xtreamUrl'))$('xtreamUrl').placeholder=ui.urlPh;
-  if($('portalUrlHint'))$('portalUrlHint').textContent=ui.urlHint;
-  if($('portalFieldUser'))$('portalFieldUser').classList.toggle('hidden',!ui.creds);
-  if($('portalFieldPass'))$('portalFieldPass').classList.toggle('hidden',!ui.creds);
-  if($('portalKindHint'))$('portalKindHint').textContent=ui.hint;
-  /* On a MAC line the device ID is not a diagnostic shown after a failure — it IS the credential,
-     and nothing can work until the provider has registered it. Surface it the moment that type is
-     chosen rather than making the customer fail once to discover it. */
-  if(_portalKind==='m3u'){try{showDeviceId(false)}catch(e){}}
-  else{try{hideDeviceId()}catch(e){}}
+/* ── v24.20: the v19.63 line-type chooser is gone — this sheet is Xtream credentials only now
+   (owner request). applyPortalKind() stays as the one place that (re)sets the sheet's static
+   copy each time it opens, so a customer who backgrounded the app mid-edit still sees a clean
+   form. */
+function applyPortalKind(){
+  if($('portalUrlLabel'))$('portalUrlLabel').textContent='Portal URL';
+  if($('xtreamUrl'))$('xtreamUrl').placeholder='http://tv.example.cc:8080';
+  if($('portalUrlHint'))$('portalUrlHint').textContent='The server address your provider gave you.';
+  if($('portalFieldUser'))$('portalFieldUser').classList.remove('hidden');
+  if($('portalFieldPass'))$('portalFieldPass').classList.remove('hidden');
+  try{hideDeviceId()}catch(e){}
 }
-(function(){
-  const seg=$('portalKindSeg');if(!seg)return;
-  seg.addEventListener('click',function(e){
-    const b=e.target&&e.target.closest?e.target.closest('.pkBtn'):null;
-    if(!b)return;
-    applyPortalKind(b.dataset.kind);
-  });
-  applyPortalKind('xtream');
-})();
 async function submitXtreamLogin(){
   const url=(($('xtreamUrl')&&$('xtreamUrl').value)||'').trim();
   const user=(($('xtreamUser')&&$('xtreamUser').value)||'').trim();
@@ -8495,23 +8448,14 @@ async function submitXtreamLogin(){
      stale name can never leak into a later, unrelated sign-in. */
   _portalNamePending=(($('xtreamPortalName')&&$('xtreamPortalName').value)||'').trim();
   if($('xtreamErr'))$('xtreamErr').textContent='';
-  /* v17.7: THE SERVER URL IS THE ONLY REQUIRED FIELD. Demanding all three turned the one form
-     that works into a form a MAC-only customer could not submit at all — and login() has accepted
-     a URL with no username since v15.0, precisely because a MAG line has no username to give. */
-  if(!url){if($('xtreamErr'))$('xtreamErr').textContent=(_portalKind==='m3uurl'?'Paste the M3U playlist link your seller gave you.':'Enter the portal URL your seller gave you.');return;}
-  /* v19.63: check against the type the customer actually picked. A playlist line is only usable if
-     the value is fetchable exactly as pasted, and a MAC line has no credentials to demand — asking
-     for a username on a form that is not showing one is the old bug this control removes. */
-  if(_portalKind==='m3uurl'&&!/^https?:\/\//i.test(url)){
-    if($('xtreamErr'))$('xtreamErr').textContent='That does not look like a playlist link — it should start with http:// or https://. If your provider gave you a server address instead, choose “Xtream Login” above.';return;
-  }
-  if(_portalKind==='xtream'&&(!user||!pass)){
+  /* v24.20: Xtream credentials only — portal URL, login and password are all required now that
+     the M3U Playlist / MAC Device routes are gone from this sheet (owner request). login() still
+     falls back to the MAG handshake on its own if get.php fails (see the CLAUDE.md MAC/MAG note),
+     so a MAC-bound line still works as long as its login/password are entered here. */
+  if(!url){if($('xtreamErr'))$('xtreamErr').textContent='Enter the portal URL your seller gave you.';return;}
+  if(!user||!pass){
     if($('xtreamErr'))$('xtreamErr').textContent='Enter the login and password your seller gave you.';return;
   }
-  /* The credential boxes keep whatever was typed into them when the customer switches type, so a
-     non-credentials line must not carry a stale username through to the portal. On m3uurl, sending
-     '' is also what lets login() read the identity back out of the pasted link itself. */
-  const _useCreds=(_portalKind==='xtream');
   /* v20.3: say it ON THE BUTTON. A sign-in walks a dozen playlist addresses and then the MAG
      handshake, which is 20-60 seconds of real work; with the label unchanged and the progress line
      off the bottom of the sheet, that was indistinguishable from a tap that never registered. */
@@ -8519,7 +8463,7 @@ async function submitXtreamLogin(){
   if(btn){btn.disabled=true;btn.dataset.idle=btn.dataset.idle||btn.textContent;btn.textContent='Connecting…';btn.classList.add('working');}
   signInMsg('Connecting…','working');
   try{
-    await login({creds:{portalUrl:url,username:_useCreds?user:'',password:_useCreds?pass:''},kind:_portalKind});
+    await login({creds:{portalUrl:url,username:user,password:pass},kind:'xtream'});
     if($('login')&&$('login').classList.contains('hidden')){
       if($('xtreamErr'))$('xtreamErr').textContent='';
       $('xtreamSheet').classList.remove('show');
