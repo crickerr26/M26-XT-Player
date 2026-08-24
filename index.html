@@ -1498,6 +1498,22 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </div>
   </div>
 </div>
+<!-- v24.11 (owner report: the admin's IPTV expiry did nothing once a device was already signed
+     in — paintHomeSubLines() only ever printed a muted footnote, nothing actually stopped the
+     line). This modal is the enforcement: no dismiss button, no X, no tap-outside-to-close —
+     the only way out is Log out. checkSubscriptionEnforcement() shows it the moment /api/activate
+     reports the IPTV side has expired, whether that's caught on login, on a periodic recheck, or
+     on the app coming back to the foreground. -->
+<div class="conflictModal" id="subExpiredModal">
+  <div class="conflictCard">
+    <div class="conflictIcon">⛔</div>
+    <h3>Subscription Expired</h3>
+    <p>Subscription expired. Contact your IPTV service provider to reactivate.</p>
+    <div class="conflictActions">
+      <button class="pillbtn primary" id="subExpiredLogout" type="button">Log out</button>
+    </div>
+  </div>
+</div>
 <div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><!-- v19.64 (owner request: "all the videos should play on the inbuilt and external players
      according to the user preference"): ALL THREE categories choose, and the choices are built
      from the PLAYERS registry at runtime rather than hard-coded here. Two bugs died with the old
@@ -1832,7 +1848,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.10';
+const APP_VERSION='24.11';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2914,7 +2930,7 @@ async function login(opts){
      this point — the app is usable — and refreshAll() is a full re-slice of every tab over what
      can be a six-figure catalogue. Leaving the loader up across it is what kept a customer staring
      at "Loading your playlist..." with a working app sitting behind it. */
-  $('login').classList.add('hidden');showHome();load(false);keepTranscoderWarm();markSynced();startAutoSync();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast(sourceLabel()+' loaded — '+S.live.length.toLocaleString()+' channels')}
+  $('login').classList.add('hidden');showHome();load(false);keepTranscoderWarm();markSynced();startAutoSync();startSubscriptionEnforcement();try{await refreshAll();updateHomeCounts();}catch(re){toast((re&&re.message)||'Playlist refresh failed — tap Refresh to try again.')}if(expiredText)toast(expiredText);else toast(sourceLabel()+' loaded — '+S.live.length.toLocaleString()+' channels')}
   catch(e){if(signInCancelled(_tok))return;if(isRateLimitError(e))markRateLimited(70);$('err').textContent=e.message||'Could not connect';if($('login'))$('login').classList.remove('hidden')}finally{portalEndAttempt();endSignIn();load(false)}
 }
 /* v89: post-login Home hub — three animated category cards (Live / Movies / Series). */
@@ -4929,12 +4945,43 @@ async function paintHomeSubLines(force){
       }
     }else if(j.status==='expired'){
       lines.push('IPTV subscription expired');
+      showSubExpiredModal();   /* already home and already have the answer — no need to wait for the periodic check */
     }
     el.innerHTML='';
     lines.forEach(t=>{const d=document.createElement('div');d.className='home-sub-line';d.textContent=t;el.appendChild(d);});
     el.classList.toggle('hidden',lines.length===0);
     el.dataset.painted='1';
   }catch(e){}
+}
+/* v24.11: the actual enforcement. Blocks the WHOLE app, not just the home screen footnote — a
+   customer parked on Live TV or mid-playback for hours must still get caught, not only the moment
+   they happen to tap Home. Runs once right after sign-in, every 5 minutes after that, and again
+   whenever the app comes back to the foreground (closing the app for a day and reopening it must
+   not take up to 5 minutes to notice the line lapsed while it was closed). */
+function showSubExpiredModal(){
+  const m=$('subExpiredModal');if(!m||m.classList.contains('show'))return;
+  try{cleanup();}catch(e){}   /* subscription is over — nothing should keep playing behind the modal */
+  m.classList.add('show');
+}
+if($('subExpiredLogout'))$('subExpiredLogout').onclick=()=>{
+  $('subExpiredModal').classList.remove('show');
+  if($('homeExit'))$('homeExit').click();
+  else if($('logoutBtn'))$('logoutBtn').click();
+};
+let _subEnforceTimer=0;
+async function checkSubscriptionEnforcement(){
+  const code=actCodeGet(false);
+  if(!/^\d{8}$/.test(code))return;
+  try{
+    const {j}=await actApi('/api/activate',{code:code,deviceId:deviceUid()});
+    if(j&&j.status==='expired')showSubExpiredModal();
+  }catch(e){}
+}
+function startSubscriptionEnforcement(){
+  if(_subEnforceTimer)return;
+  checkSubscriptionEnforcement();
+  _subEnforceTimer=setInterval(checkSubscriptionEnforcement,300000);
+  document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkSubscriptionEnforcement();});
 }
 if($('subRenewBtn'))$('subRenewBtn').onclick=startSubscriptionCheckout;
 function showNativePopup(reason='This stream needs server transcoding for smooth preview playback.'){$('nativeText').textContent=reason;$('nativeSheet').classList.add('show');paintSubPanel().catch(()=>{});}
@@ -8107,7 +8154,7 @@ function adoptStalkerSession(res){
   rememberProfile({kind:'mac',name:_portalNamePending||_u||macFmt(res.mac)||hostOf(res.base),url:res.base,user:_u,pass:_p,mac:res.mac,source:hostOf(res.base),stalker:true});
   _portalNamePending='';
   if($('login'))$('login').classList.add('hidden');
-  showHome();keepTranscoderWarm();markSynced();startAutoSync();
+  showHome();keepTranscoderWarm();markSynced();startAutoSync();startSubscriptionEnforcement();
   renderAll();updateHomeCounts();
   /* Fetch them in the background so the home tiles show real counts without the user having to
      open each tab first. Failure is silent — the tab is simply empty, as before. */
