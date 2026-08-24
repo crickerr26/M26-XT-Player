@@ -1848,7 +1848,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.17';
+const APP_VERSION='24.18';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6535,7 +6535,39 @@ function armUnmute(){
   document.addEventListener('keydown',un,true);
 }
 function safeFileName(s){return String(s||'video').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,120)||'video'}
-function downloadCurrent(){
+function mimeForFile(fname){
+  const ext=String(fname||'').split('.').pop().toLowerCase();
+  if(ext==='mp4'||ext==='m4v')return 'video/mp4';
+  if(ext==='mov')return 'video/quicktime';
+  if(ext==='mkv')return 'video/x-matroska';
+  if(ext==='webm')return 'video/webm';
+  if(ext==='ts')return 'video/mp2t';
+  return 'video/mp4';
+}
+function downloadViaAnchor(url,fname){
+  const a=document.createElement('a');
+  a.href=url;a.download=fname;a.rel='noopener';
+  document.body.appendChild(a);a.click();a.remove();
+}
+async function shareVideoFile(url,fname){
+  if(!(navigator.share&&navigator.canShare&&window.File&&window.Blob))return false;
+  try{
+    toast('Preparing video for Save / Share...');
+    const r=await fetch(url,{cache:'no-store'});
+    if(!r.ok)throw Error('download failed');
+    const blob=await r.blob();
+    const type=blob.type||mimeForFile(fname);
+    const file=new File([blob],fname,{type});
+    if(!navigator.canShare({files:[file]}))return false;
+    await navigator.share({files:[file],title:fname,text:'Save this video to your phone.'});
+    toast('Use Save Video / Save to Files in the share sheet.');
+    return true;
+  }catch(e){
+    if(e&&String(e.name||'')==='AbortError')return true;
+    return false;
+  }
+}
+async function downloadCurrent(){
   const x=S.current;
   if(!x){toast('Open a movie or series first');return}
   if(typeOf(x)==='live'){toast('Downloads are for movies & series — live is a continuous stream');return}
@@ -6551,10 +6583,9 @@ function downloadCurrent(){
      BACKGROUND and, because the proxy forwards byte-range requests, it PAUSES on a network drop and
      resumes when you're back online instead of failing. Same on Android/desktop. */
   const url=(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw)+'&dl=1&name='+encodeURIComponent(fname);
-  const a=document.createElement('a');
-  a.href=url;a.download=fname;a.rel='noopener';
-  document.body.appendChild(a);a.click();a.remove();
-  toast('Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
+  if(mobile()&&await shareVideoFile(url,fname))return;
+  downloadViaAnchor(url,fname);
+  toast(mobile()?'Download started — open Files / Downloads, then use Share or Save Video if your browser offers it.':'Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
 $('loginBtn').onclick=login;/* v18.3: the toolbar Refresh goes back to the provider now (resyncSource), not just re-slice the copy already in memory — see the note there for why that was not a refresh at all on a playlist line. */$('refreshBtn').onclick=()=>refreshTab(S.tab||'live');
 /* v17.0: signing out ends the SESSION and keeps the identity, so the Login button has something to
