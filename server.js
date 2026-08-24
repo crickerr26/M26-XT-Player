@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.3';
+const SERVER_BUILD = '14.4';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -1343,6 +1343,11 @@ const server = http.createServer(async (req, res) => {
       }
 
       // ADMIN: list all codes (for the dashboard).
+      // v24.13 (owner request): the dashboard's new "Admin page" table shows each customer's
+      // username/password alongside their code, so — unlike before — the password is no longer
+      // stripped here. admin.html has no login of its own; it has always been "for whoever
+      // operates this app, not for viewers" (same trust level as the activate form, which already
+      // hands a password back in its own response), just kept to one code at a time until now.
       if (u.pathname === '/api/admin/list') {
         let cursor = '0'; const keys = [];
         do {
@@ -1353,7 +1358,7 @@ const server = http.createServer(async (req, res) => {
         } while (cursor !== '0' && keys.length < 2000);
         const items = [];
         for (const k of keys) {
-          try { const v = await redis(['GET', k]); if (v) { const o = JSON.parse(v); o.devices = (o.devices || []).length; delete o.pass; items.push(o); } } catch (e) {}
+          try { const v = await redis(['GET', k]); if (v) { const o = JSON.parse(v); o.devices = (o.devices || []).length; items.push(o); } } catch (e) {}
         }
         items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         return json(res, 200, { total: items.length, deviceLimit: DEVICE_LIMIT, codes: items });

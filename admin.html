@@ -57,13 +57,51 @@
   .prefillLabel{display:block;font-size:10.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--green);margin-bottom:5px}
   .prefillLine{display:flex;align-items:center;gap:8px}
   .prefillLine code{flex:1;min-width:0;background:rgba(0,0,0,.22);padding:8px 12px;border-radius:10px;color:var(--ink);font-size:14px;font-weight:700;font-family:"Roboto Mono",ui-monospace,monospace;letter-spacing:.5px;word-break:break-all}
+  /* v24.13: the top row (title + the new "Admin page" button) and the all-activations list it
+     opens. Each code renders as its own card, matching the rest of this page's mobile-first,
+     one-column-of-cards layout rather than a wide table that would need horizontal scrolling. */
+  .topRow{display:flex;align-items:flex-start;gap:14px;margin-bottom:20px}
+  .adminPageBtn{flex:none;background:var(--panel2);color:var(--blue);border:1px solid rgba(56,189,248,.35);border-radius:999px;padding:11px 18px;font-size:13px;white-space:nowrap}
+  .adminPageBtn:hover{background:rgba(56,189,248,.10)}
+  .admRow{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+  .admRowTop{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+  .admCode{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;font-weight:700;letter-spacing:1px}
+  .admFields{display:grid;gap:6px}
+  .admField{display:flex;gap:8px;font-size:13px;line-height:1.4}
+  .admField b{flex:none;width:78px;color:var(--ink-soft);font-weight:600}
+  .admField span{min-width:0;word-break:break-all}
+  .admToggle{flex:none;border-radius:999px;padding:8px 16px;font-size:12.5px;font-weight:700;border:1px solid var(--line)}
+  .admToggle.on{background:rgba(45,212,191,.16);color:var(--green);border-color:rgba(45,212,191,.4)}
+  .admToggle.off{background:rgba(251,113,133,.16);color:var(--red);border-color:rgba(251,113,133,.4)}
+  .admExpired{color:var(--red)}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Activate a Customer <span class="verbadge" id="adminVer"></span></h1>
-  <p class="sub">Enter the customer's activation code or MAC (from their app, or scanned from their QR), add their IPTV login, and activate — their app signs in on its own.</p>
+  <div class="topRow">
+    <div style="flex:1;min-width:0">
+      <h1>Activate a Customer <span class="verbadge" id="adminVer"></span></h1>
+      <p class="sub" style="margin-bottom:0">Enter the customer's activation code or MAC (from their app, or scanned from their QR), add their IPTV login, and activate — their app signs in on its own.</p>
+    </div>
+    <!-- v24.13 (owner request): a way to see every activated customer at a glance — username,
+         password, activation date, expiry date, and an on/off switch — instead of only being able
+         to look up one code at a time through the form below. Toggles a second view; the activate
+         form underneath is untouched. -->
+    <button type="button" class="adminPageBtn" id="admOpenBtn">Admin page</button>
+  </div>
 
+  <!-- All activated codes: hidden until "Admin page" is tapped, since most visits here are just
+       activating the one customer someone is on the phone with right now. -->
+  <div class="card" id="admListCard" style="display:none">
+    <h2 style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span>All activations <span class="muted" id="admCount" style="font-weight:400"></span></span>
+      <button type="button" class="mini" id="admRefresh">Refresh</button>
+    </h2>
+    <div class="msg" id="admListMsg"></div>
+    <div id="admList"></div>
+  </div>
+
+  <div id="admActivateCard">
   <div class="card">
     <h2>Transcoder server</h2>
     <label>Transcoder URL</label>
@@ -163,6 +201,7 @@
       </div>
     </div>
   </div>
+  </div>
 </div>
 <script>
   var $=function(id){return document.getElementById(id)};
@@ -170,7 +209,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.12';
+  var ADMIN_VERSION='24.13';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -323,6 +362,67 @@
   function iptvExpiryLabel(iptvExpiresAt){
     return iptvExpiresAt ? (' IPTV playlist active until '+new Date(iptvExpiresAt).toLocaleDateString()+'.') : ' IPTV playlist never expires.';
   }
+
+  /* ── v24.13: "Admin page" — every activated code at a glance ────────────────────────────────
+     Reuses the /api/admin/list and /api/admin/update endpoints server.js already had (list
+     dropped the password before now; see the v24.13 note on that route in server.js for why it
+     no longer does). This is purely a second view bolted onto the same page — no new routes for
+     activating/creating, no change to the form above. */
+  function escHtml(s){
+    return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]});
+  }
+  function fmtDate(ts){ return ts ? new Date(ts).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'}) : '—'; }
+  function admStatusOn(status){ return status!=='blocked'&&status!=='disabled'; }
+  function renderAdmList(codes){
+    var list=$('admList');
+    if(!codes.length){ list.innerHTML='<p class="muted">No activated codes yet.</p>'; return; }
+    list.innerHTML=codes.map(function(o){
+      var on=admStatusOn(o.status);
+      var iptv=o.iptvExpiresAt!=null?o.iptvExpiresAt:o.expiresAt;
+      var expired=iptv&&iptv<Date.now();
+      return '<div class="admRow" data-code="'+escHtml(o.code)+'">'
+        +'<div class="admRowTop"><span class="admCode">'+escHtml(o.code)+'</span>'
+        +'<button type="button" class="admToggle '+(on?'on':'off')+'" data-toggle="'+escHtml(o.code)+'" data-on="'+(on?'1':'0')+'">'+(on?'ON':'OFF')+'</button>'
+        +'</div><div class="admFields">'
+        +'<div class="admField"><b>Username</b><span>'+(escHtml(o.user)||'<span class="muted">—</span>')+'</span></div>'
+        +'<div class="admField"><b>Password</b><span>'+(escHtml(o.pass)||'<span class="muted">—</span>')+'</span></div>'
+        +'<div class="admField"><b>Activated</b><span>'+fmtDate(o.activatedAt)+'</span></div>'
+        +'<div class="admField"><b>Expires</b><span'+(expired?' class="admExpired"':'')+'>'+(iptv?fmtDate(iptv)+(expired?' (expired)':''):'Never')+'</span></div>'
+        +'</div></div>';
+    }).join('');
+  }
+  var _admLoaded=false;
+  function loadAdminList(){
+    var m=$('admListMsg'),cnt=$('admCount');
+    m.className='msg'; m.textContent='Loading…';
+    api('/api/admin/list',{}).then(function(r){
+      if(r.j&&Array.isArray(r.j.codes)){
+        m.textContent='';
+        cnt.textContent='('+r.j.total+')';
+        renderAdmList(r.j.codes);
+      } else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
+    }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
+  }
+  if($('admOpenBtn'))$('admOpenBtn').onclick=function(){
+    var showingList=$('admListCard').style.display!=='none';
+    $('admListCard').style.display=showingList?'none':'block';
+    $('admActivateCard').style.display=showingList?'':'none';
+    $('admOpenBtn').textContent=showingList?'Admin page':'Activate a customer';
+    if(!showingList&&!_admLoaded){ _admLoaded=true; loadAdminList(); }
+  };
+  if($('admRefresh'))$('admRefresh').onclick=loadAdminList;
+  if($('admList'))$('admList').addEventListener('click',function(e){
+    var b=e.target.closest('[data-toggle]'); if(!b) return;
+    var code=b.dataset.toggle, wasOn=b.dataset.on==='1';
+    b.disabled=true; b.textContent='…';
+    api('/api/admin/update',{code:code,op:wasOn?'block':'unblock'}).then(function(r){
+      b.disabled=false;
+      if(r.j&&r.j.ok){
+        var nowOn=admStatusOn(r.j.status);
+        b.className='admToggle '+(nowOn?'on':'off'); b.dataset.on=nowOn?'1':'0'; b.textContent=nowOn?'ON':'OFF';
+      } else { b.textContent=wasOn?'ON':'OFF'; alert('Could not update: '+serverErr(r)); }
+    }).catch(function(e){ b.disabled=false; b.textContent=wasOn?'ON':'OFF'; alert('Could not update: '+e.message); });
+  });
 
   $('a_go').onclick=function(){
     var m=$('a_msg'); m.className='msg'; m.textContent='Activating…';
