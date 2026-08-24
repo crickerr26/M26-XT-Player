@@ -419,6 +419,101 @@
     return { live: out, liveCats: Array.from(cats.values()) };
   }
 
+  /* Some Xtream-compatible panels authenticate through player_api.php but do not expose get.php
+     at all. Convert the API lists into the same model parseM3U returns so the rest of the app can
+     stay on the playlist-shaped path. */
+  function xtreamApiToModel(base, user, pass, data) {
+    const sig = parseSignIn(base);
+    const fallbackRoot = (sig.root || sig.typed || String(base || '').replace(/\/+$/, '')).replace(/\/+$/, '');
+    const serverRoot = (function () {
+      const info = (data && (data.serverInfo || data.server_info)) || null;
+      if (!info || !info.url) return '';
+      const proto = String(info.server_protocol || info.protocol || 'http').replace(/:$/, '').toLowerCase() || 'http';
+      const host = String(info.url || '').replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/\/+$/, '');
+      if (!host) return '';
+      const rawPort = String((proto === 'https' ? (info.https_port || info.port) : info.port) || '').trim();
+      const port = rawPort && !((proto === 'http' && rawPort === '80') || (proto === 'https' && rawPort === '443')) ? ':' + rawPort : '';
+      return proto + '://' + host.replace(/:\d+$/, '') + port;
+    })();
+    const root = serverRoot || fallbackRoot;
+    const u = encodeURIComponent(user || sig.username || '');
+    const p = encodeURIComponent(pass != null && pass !== '' ? pass : (sig.password || ''));
+    const liveCatsRaw = (data && data.liveCategories) || [];
+    const vodCatsRaw = (data && data.vodCategories) || [];
+    const seriesCatsRaw = (data && data.seriesCategories) || [];
+    const catMap = raw => {
+      const m = new Map();
+      (raw || []).forEach(c => {
+        if (!c || c.category_id == null) return;
+        m.set(String(c.category_id), c.category_name || c.name || 'Other');
+      });
+      return m;
+    };
+    const liveNames = catMap(liveCatsRaw), vodNames = catMap(vodCatsRaw), seriesNames = catMap(seriesCatsRaw);
+    const cats = (raw, prefix, fallback) => (raw || []).map(c => ({
+      category_id: prefix + String(c && c.category_id != null ? c.category_id : '0'),
+      category_name: (c && (c.category_name || c.name)) || fallback
+    })).sort((a, b) => a.category_name.localeCompare(b.category_name));
+    const live = ((data && data.liveStreams) || []).map((it, i) => {
+      const id = String(it && it.stream_id != null ? it.stream_id : i);
+      const cid = String(it && it.category_id != null ? it.category_id : '0');
+      return {
+        _type: 'live',
+        stream_id: 'xtl' + id,
+        name: (it && (it.name || it.title)) || 'Channel',
+        stream_icon: (it && it.stream_icon) || '',
+        category_id: 'xtl' + cid,
+        category_name: liveNames.get(cid) || 'Live',
+        direct_source: (it && it.direct_source) || (root + '/live/' + u + '/' + p + '/' + encodeURIComponent(id) + '.ts'),
+        container_extension: 'ts',
+        epg_channel_id: (it && it.epg_channel_id) || ''
+      };
+    });
+    const vod = ((data && data.vodStreams) || []).map((it, i) => {
+      const id = String(it && it.stream_id != null ? it.stream_id : i);
+      const cid = String(it && it.category_id != null ? it.category_id : '0');
+      const ext = String((it && it.container_extension) || 'mp4').replace(/^\./, '') || 'mp4';
+      return {
+        _type: 'vod',
+        _recentRank: i,
+        stream_id: 'xtv' + id,
+        name: (it && (it.name || it.title || it.movie_name)) || 'Movie',
+        stream_icon: (it && (it.stream_icon || it.movie_image)) || '',
+        category_id: 'xtv' + cid,
+        category_name: vodNames.get(cid) || 'Movies',
+        direct_source: (it && it.direct_source) || (root + '/movie/' + u + '/' + p + '/' + encodeURIComponent(id) + '.' + encodeURIComponent(ext)),
+        container_extension: ext,
+        rating: it && it.rating,
+        plot: (it && it.plot) || ''
+      };
+    });
+    const series = ((data && data.series) || []).map((it, i) => {
+      const id = String(it && it.series_id != null ? it.series_id : i);
+      const cid = String(it && it.category_id != null ? it.category_id : '0');
+      return {
+        _type: 'series',
+        _recentRank: i,
+        series_id: 'xts' + id,
+        name: (it && (it.name || it.title)) || 'Series',
+        cover: (it && (it.cover || it.stream_icon)) || '',
+        stream_icon: (it && (it.cover || it.stream_icon)) || '',
+        category_id: 'xts' + cid,
+        category_name: seriesNames.get(cid) || 'Series',
+        plot: (it && it.plot) || '',
+        _xtreamSeriesId: it && it.series_id
+      };
+    });
+    vod.forEach((x, i) => { x._recentRank = vod.length - 1 - i; });
+    series.forEach((x, i) => { x._recentRank = series.length - 1 - i; });
+    return {
+      live: live, vod: vod, series: series,
+      liveCats: cats(liveCatsRaw, 'xtl', 'Live'),
+      vodCats: cats(vodCatsRaw, 'xtv', 'Movies'),
+      seriesCats: cats(seriesCatsRaw, 'xts', 'Series'),
+      total: live.length + vod.length + series.length
+    };
+  }
+
   global.Media26Portal = {
     parseM3U: parseM3U,
     looksLikeM3U: looksLikeM3U,
@@ -433,7 +528,8 @@
     stalkerEndpoints: stalkerEndpoints,
     stalkerQuery: stalkerQuery,
     stalkerChannelsToApp: stalkerChannelsToApp,
-    stalkerStreamCmd: stalkerStreamCmd
+    stalkerStreamCmd: stalkerStreamCmd,
+    xtreamApiToModel: xtreamApiToModel
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = global.Media26Portal;
 })(typeof window !== 'undefined' ? window : globalThis);

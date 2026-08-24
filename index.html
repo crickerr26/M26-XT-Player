@@ -43,7 +43,7 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
 body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#607088;--soft:#26384f;--line:rgba(20,32,51,.11);--shadow:0 18px 45px rgba(27,39,62,.12)}
-.app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line);position:relative;overflow:hidden}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}.tab.loading::after,.cp-tab.loading::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:38%;border-radius:3px;background:linear-gradient(90deg,transparent,var(--green),var(--blue),transparent);animation:tabload 1.05s infinite ease-in-out;pointer-events:none}.tab.active.loading::after{background:linear-gradient(90deg,transparent,#fff,rgba(255,255,255,.55),transparent)}@keyframes tabload{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}.searchbox{padding:0 10px 10px}.searchbox input,.field input{width:100%;height:44px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:0 13px}.cats{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:0 10px 10px}.cat{width:100%;min-height:42px;border-radius:12px;background:transparent;color:var(--muted);display:flex;justify-content:space-between;align-items:center;text-align:left;padding:9px 11px;margin-bottom:5px}.cat.active{background:rgba(56,189,248,.14);color:var(--ink)}.cat{gap:10px}.catStar{flex-shrink:0;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;color:var(--soft);font-size:20px;line-height:1;border-radius:9px;background:rgba(255,255,255,.06)}.catStar.on{color:var(--amber);background:rgba(251,191,36,.16)}.catStar.spacer{opacity:0;background:none;pointer-events:none}.catStar:active{transform:scale(.9)}.catName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.catCount{flex-shrink:0;font-size:11px;color:var(--muted)}.main{display:grid;grid-template-rows:minmax(260px,48vh) auto auto minmax(0,1fr);gap:12px;min-width:0;min-height:0}.player{position:relative;background:#000;border-radius:18px;overflow:hidden;min-height:260px}.player video{width:100%;height:100%;object-fit:contain;background:#000;display:block}.player-overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(3,7,18,.35),rgba(3,7,18,.68));pointer-events:none}.state{text-align:center;max-width:80%;color:#dbeafe;display:flex;flex-direction:column;align-items:center}.state strong{display:block;font-size:20px;margin-bottom:6px}.state p{font-size:13px;color:#aebed2}.state-thumb{width:72px;height:72px;object-fit:cover;border-radius:14px;margin-bottom:12px;background:rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.35);flex-shrink:0}.state-progress{width:160px;height:5px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:16px;overflow:hidden;position:relative}.progress-bar{position:absolute;top:0;left:0;bottom:0;width:40%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;animation:pbar 1.5s infinite ease-in-out}@keyframes pbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}.playerbar{display:flex;position:absolute;left:10px;right:10px;bottom:10px;top:auto;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(5,10,20,.82);backdrop-filter:blur(16px);opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}.player.showbar .playerbar{opacity:1;pointer-events:auto}.player:fullscreen .playerbar,.player:-webkit-full-screen .playerbar{opacity:0;pointer-events:none}.player:fullscreen.showbar .playerbar,.player:-webkit-full-screen.showbar .playerbar{opacity:1;pointer-events:auto}.round{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.14);color:white;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px}.round:hover{background:rgba(255,255,255,.26)}.grow{flex:1;min-width:0}.now{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 4px}.now h2{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.now p{font-size:12px;color:var(--muted)}.status{font-size:12px;color:var(--muted);white-space:nowrap}.grid{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:10px;padding:2px}.card{min-height:76px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),var(--panel2));display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:10px;color:var(--ink);text-align:left;content-visibility:auto;contain-intrinsic-size:320px 78px}.card.active{outline:2px solid var(--blue);background:rgba(56,189,248,.14)}.poster{position:relative;width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}.poster img{width:100%;height:100%;object-fit:cover}
+.app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line);position:relative;overflow:hidden}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}.tab.loading::after,.cp-tab.loading::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:38%;border-radius:3px;background:linear-gradient(90deg,transparent,var(--green),var(--blue),transparent);animation:tabload 1.05s infinite ease-in-out;pointer-events:none}.tab.active.loading::after{background:linear-gradient(90deg,transparent,#fff,rgba(255,255,255,.55),transparent)}@keyframes tabload{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}.searchbox{padding:0 10px 10px}.searchbox input,.field input{width:100%;height:44px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:0 13px}.cats{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:0 10px 10px}.cat{width:100%;min-height:42px;border-radius:12px;background:transparent;color:var(--muted);display:flex;justify-content:space-between;align-items:center;text-align:left;padding:9px 11px;margin-bottom:5px}.cat.active{background:rgba(56,189,248,.14);color:var(--ink)}.cat{gap:10px}.catStar{flex-shrink:0;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;color:var(--soft);font-size:20px;line-height:1;border-radius:9px;background:rgba(255,255,255,.06)}.catStar.on{color:var(--amber);background:rgba(251,191,36,.16)}.catStar.spacer{opacity:0;background:none;pointer-events:none}.catStar:active{transform:scale(.9)}.catName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.catCount{flex-shrink:0;font-size:11px;color:var(--muted)}.main{display:grid;grid-template-rows:minmax(260px,48vh) auto auto minmax(0,1fr);gap:12px;min-width:0;min-height:0}.player{position:relative;background:#000;border-radius:18px;overflow:hidden;min-height:260px}.player video{width:100%;height:100%;object-fit:contain;background:#000;display:block}.player.pipFloat{position:fixed!important;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));width:min(360px,48vw);height:auto;aspect-ratio:16/9;min-height:0;z-index:120;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.58);outline:1px solid rgba(255,255,255,.16)}.player.pipFloat .playerbar{opacity:1;pointer-events:auto}.player.pipFloat .watermark{width:44px;bottom:56px}.player.pipFloat+.now{padding-right:min(380px,52vw)}.player-overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(3,7,18,.35),rgba(3,7,18,.68));pointer-events:none}.state{text-align:center;max-width:80%;color:#dbeafe;display:flex;flex-direction:column;align-items:center}.state strong{display:block;font-size:20px;margin-bottom:6px}.state p{font-size:13px;color:#aebed2}.state-thumb{width:72px;height:72px;object-fit:cover;border-radius:14px;margin-bottom:12px;background:rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.35);flex-shrink:0}.state-progress{width:160px;height:5px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:16px;overflow:hidden;position:relative}.progress-bar{position:absolute;top:0;left:0;bottom:0;width:40%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;animation:pbar 1.5s infinite ease-in-out}@keyframes pbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}.playerbar{display:flex;position:absolute;left:10px;right:10px;bottom:10px;top:auto;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(5,10,20,.82);backdrop-filter:blur(16px);opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}.player.showbar .playerbar{opacity:1;pointer-events:auto}.player:fullscreen .playerbar,.player:-webkit-full-screen .playerbar{opacity:0;pointer-events:none}.player:fullscreen.showbar .playerbar,.player:-webkit-full-screen.showbar .playerbar{opacity:1;pointer-events:auto}.round{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.14);color:white;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px}.round:hover{background:rgba(255,255,255,.26)}.grow{flex:1;min-width:0}.now{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 4px}.now h2{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.now p{font-size:12px;color:var(--muted)}.status{font-size:12px;color:var(--muted);white-space:nowrap}.grid{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:10px;padding:2px}.card{min-height:76px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),var(--panel2));display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:10px;color:var(--ink);text-align:left;content-visibility:auto;contain-intrinsic-size:320px 78px}.card.active{outline:2px solid var(--blue);background:rgba(56,189,248,.14)}.poster{position:relative;width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}.poster img{width:100%;height:100%;object-fit:cover}
 /* v19.44 (owner request): the channel number now sits CENTERED over the poster/gposter — on top
    of the logo when one loads, and alone (replacing the old "No Logo" text entirely) when it does
    not — rather than the v19.38 top-left corner badge. .chNum/.gchNum are position:absolute over
@@ -113,7 +113,7 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
    class for exactly as long as the undo is on offer, and takes it off again after. */
 .toast.tappable{pointer-events:auto;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1120px){.layout{grid-template-columns:290px 1fr}.info{display:none}.main{grid-template-rows:minmax(240px,44vh) auto auto minmax(0,1fr)}}
-@media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
+@media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.player.pipFloat{right:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:min(260px,58vw);border-radius:12px}.player.pipFloat+.now{padding-right:0}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
    which never matches in landscape (the width is > 760), so landscape fell back to the cramped
    desktop layout. Key on height instead and lay out a neat two-pane: big video on the left, a
@@ -1369,8 +1369,8 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <!-- ── ACTIVATION CODE (this app's own device pairing — not an IPTV sign-in route) ─────── -->
     <div class="actCodeMore" id="actCodeMore">
       <p class="actCodeMoreHead">Activate this device</p>
-      <p class="actCodeMoreSub">Give your seller the Device Key or MAC below — or let them scan the QR code — and your channels load automatically. No typing needed.</p>
-      <div class="idBlock">
+      <p class="actCodeMoreSub">Give your seller the Device Key below — or let them scan the QR code — and your channels load automatically. No typing needed.</p>
+        <div class="idBlock hidden" id="actMacBlock">
         <div class="idRow">
           <label for="actCodeBox">Activation Code</label>
           <div class="idLine">
@@ -1404,7 +1404,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
             </button>
           </div>
         </div>
-        <p class="macRowHint" style="margin:10px 2px 0">Send both values above to your seller — or let them scan this QR code / open the link below. They add your IPTV login and activate; your app signs in on its own, no typing needed here.</p>
+        <p class="macRowHint" style="margin:10px 2px 0">Send the Device Key above to your seller — or let them scan this QR code / open the link below. They add your IPTV login and activate; your app signs in on its own, no typing needed here.</p>
         <div class="shareQrWrap" style="margin-top:12px"><div id="actQrBox" class="shareQr"></div></div>
         <a id="actAdminLink" class="actAdminLink" href="#" target="_blank" rel="noopener">Open media26 player ›</a>
         <button class="idSend" id="actSendWa" type="button">
@@ -1848,7 +1848,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.13';
+const APP_VERSION='24.16';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2506,7 +2506,8 @@ async function login(opts){
      username or password in that flow at all. Require a portal URL, and then EITHER credentials or
      a MAC; the playlist fetch already carries the MAC either way. */
   if(!S.url)throw Error('Enter the portal URL your provider gave you.');
-  if((!S.user||!S.pass)&&!stalkerMac())throw Error('Enter either a username and password, or the MAC address your provider activated.');
+  if(_lineKind==='xtream'&&(!S.user||!S.pass))throw Error('Enter the login and password your provider gave you.');
+  if(_lineKind!=='xtream'&&(!S.user||!S.pass)&&!stalkerMac())throw Error('Enter either a username and password, or the MAC address your provider activated.');
   /* v18.0: ONE SIGN-IN, ONE OUTCOME. Both waiting rooms this function used to have — the portal
      rate-limit below and the request governor's cooldown (see portalGate) — used to end the
      sign-in with a countdown and ask the customer to come back and press the button again. That
@@ -3681,6 +3682,42 @@ async function fetchPlaylistDirect(rawUrl,user,pass,budgetMs){
   }
   return null;
 }
+/* v24.14: API-ONLY XTREAM FALLBACK. Some valid Xtream-compatible accounts authenticate through
+   player_api.php and return full Live/Movies/Series lists there, but their get.php playlist
+   endpoint is absent and every MAG path is 404. Keep the normal M3U-first login untouched; only
+   after those playlist routes fail, convert the API lists into the same model shape parseM3U
+   produces so the app can open a valid line instead of ending on an irrelevant MAG verdict. */
+async function xtreamApiLoginFallback(){
+  if(typeof Media26Portal==='undefined'||!Media26Portal.xtreamApiToModel)return false;
+  if(!S.user||!S.pass||!S.url)return false;
+  try{
+    const base=(S.url||'').replace(/\/+$/,'')+'/player_api.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass);
+    signInMsg('Playlist endpoint did not answer — checking the panel API…','working');
+    const info=await fetchJsonChain(base).catch(()=>null);
+    const userInfo=info&&info.user_info;
+    if(userInfo&&(String(userInfo.auth)==='0'||/^(disabled|banned|expired)$/i.test(String(userInfo.status||''))))return false;
+    const [liveCategories,liveStreams,vodCategories,vodStreams,seriesCategories,series]=await Promise.all([
+      fetchJsonChain(base+'&action=get_live_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_live_streams'),
+      fetchJsonChain(base+'&action=get_vod_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_vod_streams').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_series_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_series').catch(()=>[])
+    ]);
+    const parsed=Media26Portal.xtreamApiToModel(S.rawUrl||S.url,S.user,S.pass,{
+      serverInfo:info&&info.server_info,
+      liveCategories:liveCategories,liveStreams:liveStreams,
+      vodCategories:vodCategories,vodStreams:vodStreams,
+      seriesCategories:seriesCategories,series:series
+    });
+    if(!parsed||!parsed.total)return false;
+    S.source='m3u';S.m3u=parsed;S.playlistUrl=(S.url||'')+'/player_api.php';
+    try{libWrite(S.rawUrl||S.url,S.user,parsed,S.playlistUrl)}catch(e){}
+    return true;
+  }catch(e){
+    return false;
+  }
+}
 /* ── v21.5: READ A PLAYLIST OF ANY SIZE. ──────────────────────────────────────────────────────
    "This playlist is larger than the app can read in one go" was true of a 48 MB ceiling in the
    Worker (lifted in this same release) and would have become true again on the phone: the old
@@ -3890,6 +3927,9 @@ async function loadPlaylistSource(){
   try{
     const direct=await fetchPlaylistDirect(S.rawUrl||S.url,S.user,S.pass,20000);
     if(direct&&adopt(direct.text,direct.url))return true;
+  }catch(e){}
+  try{
+    if(await xtreamApiLoginFallback())return true;
   }catch(e){}
   /* Only now is the function's verdict the answer. */
   if(fnErr&&fnErr.message)throw fnErr;
@@ -5731,7 +5771,7 @@ function plan(x){
    down, so nothing is left playing to a window the app no longer has a reference to. Kept even
    though v24.4 reverted the change that made this reachable on iOS live TV specifically — this is
    the correct behavior for every other route PiP does work on. */
-function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
+function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;try{toggleInlinePip(false)}catch(e){}if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
 /* ── v22.6: NATIVE VLC BRIDGE (only inside the iOS wrapper app). ──────────────────────────────
    When this same web app is loaded inside the Media26 native iOS shell (ios-app/), that shell
    exposes a message handler, window.webkit.messageHandlers.m26vlc. It is ABSENT in every normal
@@ -5832,15 +5872,6 @@ async function playItem(item,fromAlternative=false){
     if(await nativeVlcPlay(x))return;
   }
   let mode=playerModeFor(t);
-  /* v22.5: a movie/episode on a line whose VOD the provider only serves to a device — remembered
-     from a prior block — opens in VLC straight away, but only when the customer has not set their
-     own Movies/Series player and VLC actually runs here. */
-  if((t==='vod'||t==='series')&&mode==='basic'&&!fromAlternative
-     && String((S.playerModes&&S.playerModes[t])||'auto')==='auto'
-     && vodExternalLine()){
-    const ext=preferredExternalMode();
-    if(ext){toast('Your provider streams movies to the player app — opening in '+playerLabel(ext));mode=ext;}
-  }
   await routePlayback(x,mode,fromAlternative?true:false);
 }
 /* dispatcher only — the same routing playItem always used, factored out so the row/episode
@@ -6388,10 +6419,25 @@ function seekBy(sec){
   $('playerBox').classList.add('showbar');
 }
 function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
+function toggleInlinePip(force){
+  const box=$('playerBox'),v=$('video');
+  if(!box||!v)return false;
+  const on=force==null?!box.classList.contains('pipFloat'):!!force;
+  $('playerBox').classList.toggle('pipFloat',on);
+  $('playerBox').classList.toggle('showbar',on);
+  if(on){
+    try{if(v.paused)v.play().catch(()=>{})}catch(e){}
+    toast('Mini player on');
+  }else if(force!==false){
+    toast('Mini player off');
+  }
+  return on;
+}
 function pip(){
   const v=$('video');
   try{
     if(!S.current){toast('Pick a channel first');return}
+    if($('playerBox')&&$('playerBox').classList.contains('pipFloat')){toggleInlinePip(false);return}
     if(document.pictureInPictureElement){document.exitPictureInPicture().catch(()=>{});return}
     if(v.webkitPresentationMode==='picture-in-picture'){try{v.webkitSetPresentationMode('inline')}catch(e){}return}
     /* v53: the PiP call MUST run synchronously inside this tap. The old code did
@@ -6416,10 +6462,10 @@ function pip(){
     /* Android Chrome / desktop: standard API (returns a promise, don't block the gesture) */
     if(document.pictureInPictureEnabled&&v.requestPictureInPicture){
       try{if(v.paused)v.play().catch(()=>{})}catch(e){}
-      v.requestPictureInPicture().catch(()=>toast('Give the video a second to start, then tap PiP again'));
+      v.requestPictureInPicture().catch(()=>toggleInlinePip(true));
       return;
     }
-    toast(v.readyState<2?'Give the video a second to start, then tap PiP again':'Picture-in-Picture isn’t available for this stream right now.');
+    return toggleInlinePip(true);
   }catch(e){toast('Picture-in-Picture could not start on this device')}
 }
 /* v61: background play. MediaSession is the real mechanism: on Android/desktop it keeps AUDIO
@@ -8194,7 +8240,7 @@ function openXtreamSheet(){
      arriving at a service that was still waking up. Pinging it when the form opens gives it the
      time the customer spends typing, so the fallback is live by the time it is needed. */
   try{warmTranscoder();}catch(e){}
-  try{showDeviceId(false);}catch(e){}
+  try{applyPortalKind('xtream')}catch(e){}
   $('xtreamSheet').classList.add('show');
   try{$('xtreamPortalName').focus();}catch(e){}
 }
@@ -8216,6 +8262,9 @@ function showDeviceId(urgent){
   if(h)h.textContent=urgent
     ?'Your portal does not recognise this device yet. Send this ID to your provider and ask them to register it on your line, then tap Connect again.'
     :'Send this to your IPTV provider and ask them to register it on your line. Then type the portal URL, login and password above and tap Connect. You never need to type this in yourself — it belongs to this browser, so use the same one each time.';
+}
+function hideDeviceId(){
+  const row=$('macRow');if(row){row.classList.add('hidden');row.classList.remove('urgent');}
 }
 /* One handler, both places. The clipboard API is refused often enough in a home-screen web app
    that the fallback is not optional: selecting the text lets a long-press Copy do the job. */
@@ -8285,8 +8334,9 @@ if($('xtreamSave'))$('xtreamSave').onclick=()=>{
   const pass=(($('xtreamPass')&&$('xtreamPass').value)||'');
   const nm=(($('xtreamPortalName')&&$('xtreamPortalName').value)||'').trim();
   if(!url){signInMsg('Enter the portal URL first, then save.','error');return;}
+  if(_portalKind==='xtream'&&(!user||!pass)){signInMsg('Enter the login and password your seller gave you.','error');return;}
   const root=normalize(url);
-  rememberProfile(user
+  rememberProfile(_portalKind==='xtream'
     ?{kind:'xtream',name:nm||user,url:root,raw:url,user:user,pass:pass,mac:'',source:hostOf(root)}
     :{kind:'mac',name:nm||macFmt(stalkerMac())||hostOf(root),url:root,raw:url,user:'',pass:'',mac:stalkerMac(),source:hostOf(root)});
   toast('Saved. It is on the sign-in screen now — one tap to connect.');
@@ -8306,7 +8356,7 @@ function signInMsg(text,kind,opts){
   if(el){el.textContent=text||'';el.classList.toggle('working',kind==='working'&&!!text);if(text)revealInSheet(el);}
   const e2=$('err');
   if(e2&&kind!=='working'){e2.textContent=text||'';}
-  showDeviceId(!!(opts&&opts.deviceId));   /* never hides it — see showDeviceId */
+  if(opts&&opts.deviceId)showDeviceId(true);
 }
 /* ── v19.63: LINE TYPE ON THE PORTAL SHEET ───────────────────────────────────────────────────
    Which of the three sign-in shapes the customer says they were sold. This is UI state plus a
@@ -8339,6 +8389,7 @@ function applyPortalKind(k){
      and nothing can work until the provider has registered it. Surface it the moment that type is
      chosen rather than making the customer fail once to discover it. */
   if(_portalKind==='m3u'){try{showDeviceId(false)}catch(e){}}
+  else{try{hideDeviceId()}catch(e){}}
 }
 (function(){
   const seg=$('portalKindSeg');if(!seg)return;
@@ -8370,7 +8421,7 @@ async function submitXtreamLogin(){
   if(_portalKind==='m3uurl'&&!/^https?:\/\//i.test(url)){
     if($('xtreamErr'))$('xtreamErr').textContent='That does not look like a playlist link — it should start with http:// or https://. If your provider gave you a server address instead, choose “Xtream Login” above.';return;
   }
-  if(_portalKind==='xtream'&&(!user||!pass)&&!stalkerMac()){
+  if(_portalKind==='xtream'&&(!user||!pass)){
     if($('xtreamErr'))$('xtreamErr').textContent='Enter the login and password your seller gave you.';return;
   }
   /* The credential boxes keep whatever was typed into them when the customer switches type, so a
@@ -8817,8 +8868,8 @@ const menusOpen=()=>{const q=$('qMenu'),m=$('playerMenu');return (q&&!q.classLis
    message. So while the overlay is visible, keep the bar hidden; the transport only appears on tap
    once a title is actually playing (overlay hidden). */
 const overlayUp=()=>{const o=$('overlay');return !!o&&o.style.display!=='none'};
-const hideBar=()=>{const pb=$('playerBox');if(!pb)return;clearTimeout(_barTimer);pb.classList.remove('showbar')};
-const showBar=()=>{const pb=$('playerBox');if(!pb||!S.current)return;if(overlayUp()){hideBar();return}pb.classList.add('showbar');clearTimeout(_barTimer);const v=$('video');_barTimer=setTimeout(()=>{if(v&&!v.paused&&!v.ended&&!menusOpen())pb.classList.remove('showbar')},2800)};
+const hideBar=()=>{const pb=$('playerBox');if(!pb)return;clearTimeout(_barTimer);if(pb.classList.contains('pipFloat'))return;pb.classList.remove('showbar')};
+const showBar=()=>{const pb=$('playerBox');if(!pb||!S.current)return;if(overlayUp()&&!pb.classList.contains('pipFloat')){hideBar();return}pb.classList.add('showbar');clearTimeout(_barTimer);const v=$('video');_barTimer=setTimeout(()=>{if(v&&!v.paused&&!v.ended&&!menusOpen()&&!pb.classList.contains('pipFloat'))pb.classList.remove('showbar')},2800)};
 const toggleBar=()=>{const pb=$('playerBox');if(!pb)return;pb.classList.contains('showbar')?hideBar():showBar()};
 $('playerBox').addEventListener('mousemove',showBar);
 $('video').addEventListener('playing',showBar);

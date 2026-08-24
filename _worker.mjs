@@ -301,13 +301,15 @@ function playlistCandidates(base, user, pass, variant, mac) {
      stalker_portal…" result. With a username in hand, only real playlist endpoints are worth
      asking. The bare URL stays a candidate in the no-credentials case above, where it is a
      directly-pasted playlist link. */
+  /* Do not append MAC-keyed playlist URLs for a username/password line. Those are a different
+     line identity, and the extra failed requests can push strict panels into 429 rate limits. */
   return [
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus&output=ts',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p + '&type=m3u',
     b + '/playlist/' + u + '/' + p + '/m3u_plus',
     b + '/get.php?username=' + u + '&password=' + p
-  ].concat(macPlaylistCandidates(b, mac));
+  ];
 }
 
 function looksLikePlaylist(text) {
