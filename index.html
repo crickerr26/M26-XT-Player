@@ -1861,7 +1861,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.19';
+const APP_VERSION='24.20';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1959,7 +1959,7 @@ const ICONS={
   sortNew:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2.3h6"/></svg>',
   sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,lastPreviewError:''};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -3220,7 +3220,7 @@ function mergeCats(base,extra){
    authoritative and is never touched. The request is made at most once per session (both tabs
    share this promise), and any failure is silent: the tabs are left exactly as they were. */
 let _fullCatalogPromise=null;
-function resetFullCatalog(){_fullCatalogPromise=null;}
+function resetFullCatalog(){_fullCatalogPromise=null;S.xtreamApiOnly=false;S.xtreamApiLoaded={};S.xtreamApiServerInfo=null;}
 function fullPlaylistCatalog(){
   if(_fullCatalogPromise)return _fullCatalogPromise;
   _fullCatalogPromise=(async()=>{
@@ -3349,14 +3349,17 @@ async function loadType(type){
       if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
       renderAll();updateHomeCounts&&updateHomeCounts();
       try{
-        await loadTypeFromFullPlaylist(type);
-        /* v24.7 (owner-approved, scoped exception to the v19.6 "M3U-only" rule — see CLAUDE.md):
-           some panels only carry Series through the Xtream API, never in get.php's M3U output at
-           all — Live and Movies load fine, Series stays permanently empty. Only tried once Series
-           comes back genuinely empty from BOTH M3U documents above, and only for a credentials
-           line (S.user set) — never for a MAC-only line, which has no username/password to call
-           player_api.php with. */
-        if(type==='series'&&S.user&&!(S.series&&S.series.length))await xtreamSeriesFallback();
+        if(S.xtreamApiOnly&&type!=='live')await xtreamApiLoadType(type);
+        else{
+          await loadTypeFromFullPlaylist(type);
+          /* v24.7 (owner-approved, scoped exception to the v19.6 "M3U-only" rule — see CLAUDE.md):
+             some panels only carry Series through the Xtream API, never in get.php's M3U output at
+             all — Live and Movies load fine, Series stays permanently empty. Only tried once Series
+             comes back genuinely empty from BOTH M3U documents above, and only for a credentials
+             line (S.user set) — never for a MAC-only line, which has no username/password to call
+             player_api.php with. */
+          if(type==='series'&&S.user&&!(S.series&&S.series.length))await xtreamSeriesFallback();
+        }
       }finally{
         if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
         renderAll();updateHomeCounts&&updateHomeCounts();
@@ -3705,31 +3708,59 @@ async function xtreamApiLoginFallback(){
   if(!S.user||!S.pass||!S.url)return false;
   try{
     const base=(S.url||'').replace(/\/+$/,'')+'/player_api.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass);
-    signInMsg('Playlist endpoint did not answer — checking the panel API…','working');
+    signInMsg('Playlist endpoint did not answer — loading Live TV from the panel API…','working');
     const info=await fetchJsonChain(base).catch(()=>null);
     const userInfo=info&&info.user_info;
     if(userInfo&&(String(userInfo.auth)==='0'||/^(disabled|banned|expired)$/i.test(String(userInfo.status||''))))return false;
-    const [liveCategories,liveStreams,vodCategories,vodStreams,seriesCategories,series]=await Promise.all([
+    const [liveCategories,liveStreams]=await Promise.all([
       fetchJsonChain(base+'&action=get_live_categories').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_live_streams'),
-      fetchJsonChain(base+'&action=get_vod_categories').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_vod_streams').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_series_categories').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_series').catch(()=>[])
+      fetchJsonChain(base+'&action=get_live_streams')
     ]);
     const parsed=Media26Portal.xtreamApiToModel(S.rawUrl||S.url,S.user,S.pass,{
       serverInfo:info&&info.server_info,
-      liveCategories:liveCategories,liveStreams:liveStreams,
-      vodCategories:vodCategories,vodStreams:vodStreams,
-      seriesCategories:seriesCategories,series:series
+      liveCategories:liveCategories,liveStreams:liveStreams
     });
     if(!parsed||!parsed.total)return false;
-    S.source='m3u';S.m3u=parsed;S.playlistUrl=(S.url||'')+'/player_api.php';
+    parsed._xtreamApiOnly=true;parsed._xtreamApiServerInfo=info&&info.server_info||null;
+    S.source='m3u';S.m3u=parsed;S.playlistUrl=(S.url||'')+'/player_api.php';S.xtreamApiOnly=true;S.xtreamApiLoaded={live:true};
+    S.xtreamApiServerInfo=parsed._xtreamApiServerInfo;
     try{libWrite(S.rawUrl||S.url,S.user,parsed,S.playlistUrl)}catch(e){}
     return true;
   }catch(e){
     return false;
   }
+}
+async function xtreamApiLoadType(type){
+  if(!S.xtreamApiOnly||type==='live'||!S.user||!S.pass||!S.url)return;
+  if(S.xtreamApiLoaded&&S.xtreamApiLoaded[type])return;
+  if(!S.xtreamApiLoaded)S.xtreamApiLoaded={};
+  const base=(S.url||'').replace(/\/+$/,'')+'/player_api.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass);
+  if(type==='vod'){
+    const [vodCategories,vodStreams]=await Promise.all([
+      fetchJsonChain(base+'&action=get_vod_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_vod_streams').catch(()=>[])
+    ]);
+    const parsed=Media26Portal.xtreamApiToModel(S.rawUrl||S.url,S.user,S.pass,{serverInfo:S.xtreamApiServerInfo,vodCategories:vodCategories,vodStreams:vodStreams});
+    if(parsed&&parsed.vod&&parsed.vod.length){
+      S.vodCats=parsed.vodCats;S.vod=parsed.vod;S.m3u.vodCats=parsed.vodCats;S.m3u.vod=parsed.vod;S.m3u._xtreamApiOnly=true;
+      S.m3u.total=(S.m3u.live.length||0)+(S.m3u.vod.length||0)+(S.m3u.series.length||0);
+      if($('vodCount'))$('vodCount').textContent=S.vod.length.toLocaleString();
+      try{libWrite(S.rawUrl||S.url,S.user,S.m3u,S.playlistUrl)}catch(e){}
+    }
+  }else if(type==='series'){
+    const [seriesCategories,series]=await Promise.all([
+      fetchJsonChain(base+'&action=get_series_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_series').catch(()=>[])
+    ]);
+    const parsed=Media26Portal.xtreamApiToModel(S.rawUrl||S.url,S.user,S.pass,{serverInfo:S.xtreamApiServerInfo,seriesCategories:seriesCategories,series:series});
+    if(parsed&&parsed.series&&parsed.series.length){
+      S.seriesCats=parsed.seriesCats;S.series=parsed.series;S.m3u.seriesCats=parsed.seriesCats;S.m3u.series=parsed.series;S.m3u._xtreamApiOnly=true;
+      S.m3u.total=(S.m3u.live.length||0)+(S.m3u.vod.length||0)+(S.m3u.series.length||0);
+      if($('seriesCount'))$('seriesCount').textContent=S.series.length.toLocaleString();
+      try{libWrite(S.rawUrl||S.url,S.user,S.m3u,S.playlistUrl)}catch(e){}
+    }
+  }
+  S.xtreamApiLoaded[type]=true;
 }
 /* ── v21.5: READ A PLAYLIST OF ANY SIZE. ──────────────────────────────────────────────────────
    "This playlist is larger than the app can read in one go" was true of a 48 MB ceiling in the
@@ -3887,6 +3918,9 @@ async function loadPlaylistSource(){
   const adoptParsed=(parsed,srcUrl)=>{
     if(!parsed||!parsed.total)return false;
     S.source='m3u'; S.m3u=parsed; S.playlistUrl=srcUrl;
+    S.xtreamApiOnly=!!parsed._xtreamApiOnly;
+    S.xtreamApiLoaded=S.xtreamApiOnly?{live:!!(parsed.live&&parsed.live.length),vod:!!(parsed.vod&&parsed.vod.length),series:!!(parsed.series&&parsed.series.length)}:{};
+    S.xtreamApiServerInfo=S.xtreamApiOnly?(parsed._xtreamApiServerInfo||null):null;
     return true;
   };
   const adopt=(text,srcUrl)=>{
