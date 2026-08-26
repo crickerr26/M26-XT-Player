@@ -1846,7 +1846,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.20';
+const APP_VERSION='24.21';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1956,6 +1956,33 @@ function armToastUndo(fn,ms){
   const clear=()=>{clearTimeout(t._u);t.onclick=null;t.classList.remove('tappable','show');};
   t.onclick=()=>{clear();try{fn();}catch(e){}};
   t._u=setTimeout(clear,ms||6000);
+  t._clear=clear;
+}
+/* v24.21: cancel a still-armed tappable toast from code, not just by tapping or timing out — used
+   to pull down the "tap to open it" activation prompt the instant the silent auto sign-in it was
+   backing up succeeds on its own, so a stale action never lingers over the app the customer is
+   now using. */
+function dismissToastAction(){const t=$('toast');if(t&&t._clear){try{t._clear();}catch(e){}}}
+/* v24.21: an activation resolving to 'active' is handled from two places — the 4s poll and the
+   visibilitychange/focus recheck — and both now show a tappable "activated" toast alongside the
+   silent auto sign-in, as a guaranteed manual way in when the automatic one stalls (owner report:
+   the screen sometimes does not visibly refresh on its own after the seller activates a code).
+   _actLoginBusy is shared between them so a tap during an already-in-flight attempt cannot start
+   a second, concurrent login() racing the first one over the same S.* fields — it only ever offers
+   a retry once the first attempt has actually finished (succeeded, failed, or thrown). */
+let _actLoginBusy=false;
+function armActivatedToast(creds,kind,onFail){
+  toast('Playlist activated — tap to open it');
+  armToastUndo(()=>{
+    if(_actLoginBusy){toast('Still connecting…');return;}
+    _actLoginBusy=true;
+    login({creds:creds,kind:kind}).catch(onFail).finally(()=>{_actLoginBusy=false;});
+  },60000);
+}
+async function autoActivatedLogin(creds,kind){
+  _actLoginBusy=true;
+  try{await login({creds:creds,kind:kind});dismissToastAction();}
+  finally{_actLoginBusy=false;}
 }
 /* ── v18.8: A SIGN-IN CAN BE CALLED OFF ─────────────────────────────────────────────────────
    The loader is used for two different things: ordinary loading, which is over in a moment and
@@ -6726,11 +6753,16 @@ async function pollActivationOnce(){
        had already activated it. Accept it whenever this device holds a MAC to sign in with. */
     if(st==='active'&&j.portalUrl&&(j.username||stalkerMac())){
       stopActPoll();actSetStatus('ok','Activated! Loading your playlist…');
+      const _creds={portalUrl:j.portalUrl,username:j.username||'',password:j.password||''},_kind=j.kind;
+      const _onFail=e=>actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');
+      /* v24.21: guaranteed manual way in alongside the automatic sign-in below — see the comment
+         on armActivatedToast(). */
+      armActivatedToast(_creds,_kind,_onFail);
       /* v19.63: carry the seller's own line type through. The activation path never opens the
          portal sheet, so without this an activated M3U-playlist or MAC line would sign in under
          the default 'xtream' routing and spend the customer's first thirty seconds on the one
          route their line does not use. j.kind is absent on older servers → falls back to 'xtream'. */
-      try{await login({creds:{portalUrl:j.portalUrl,username:j.username||'',password:j.password||''},kind:j.kind});}catch(e){actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');}
+      try{await autoActivatedLogin(_creds,_kind);}catch(e){_onFail(e);}
     }else if(st==='blocked'){
       stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact your seller.');
     }else if(st==='expired'){
@@ -8529,8 +8561,15 @@ async function activateWithCode(code,opts){
     setActCode(code);
     stopActPoll();
     loginActMsg('ok','Activated — loading your playlist…');
-    try{ await login({creds:{portalUrl:j.portalUrl,username:j.username||'',password:j.password||''}}); }
-    catch(e){ loginActMsg('bad',(e&&e.message)||'Activated, but the playlist could not load.'); }
+    const _creds={portalUrl:j.portalUrl,username:j.username||'',password:j.password||''};
+    const _onFail=e=>loginActMsg('bad',(e&&e.message)||'Activated, but the playlist could not load.');
+    /* v24.21: same guaranteed manual fallback as pollActivationOnce() — see the comment on
+       armActivatedToast(). This is the path actually hit when the customer backgrounds the app
+       to message their seller and returns (the visibilitychange/focus recheck below calls this
+       silently), which is exactly when a stalled auto sign-in has no other way to be noticed. */
+    armActivatedToast(_creds,undefined,_onFail);
+    try{ await autoActivatedLogin(_creds,undefined); }
+    catch(e){ _onFail(e); }
     return 'active';
   }
   if(st==='pending'){
