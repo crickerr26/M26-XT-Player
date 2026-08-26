@@ -1375,7 +1375,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <!-- ── ACTIVATION CODE (this app's own device pairing — not an IPTV sign-in route) ─────── -->
     <div class="actCodeMore" id="actCodeMore">
       <p class="actCodeMoreHead">Activate this device</p>
-      <p class="actCodeMoreSub">Give your seller the Device Key below — or let them scan the QR code — and your channels load automatically. No typing needed.</p>
+      <p class="actCodeMoreSub">Give your IPTV service provider the Device Key below — or let them scan the QR code — and your channels load automatically. No typing needed.</p>
         <div class="idBlock" id="actMacBlock">
         <div class="idRow">
           <label for="actCodeBox">Activation Code</label>
@@ -1410,12 +1410,12 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
             </button>
           </div>
         </div>
-        <p class="macRowHint" style="margin:10px 2px 0">Send the Device Key above to your seller — or let them scan this QR code / open the link below. They add your IPTV login and activate; your app signs in on its own, no typing needed here.</p>
+        <p class="macRowHint" style="margin:10px 2px 0">Send the Device Key above to your IPTV service provider — or let them scan this QR code / open the link below. They add your IPTV login and activate it, then a popup on this screen invites you to tap and sign in — no typing needed here.</p>
         <div class="shareQrWrap" style="margin-top:12px"><div id="actQrBox" class="shareQr"></div></div>
         <a id="actAdminLink" class="actAdminLink" href="#" target="_blank" rel="noopener">Open media26 player ›</a>
         <button class="idSend" id="actSendWa" type="button">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18" style="vertical-align:-4px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
-          Send my MAC &amp; code to my seller
+          Send my MAC &amp; code to my IPTV service provider
         </button>
         <button class="pillbtn" id="actReloadBtn" type="button" style="width:100%;margin-top:10px;justify-content:center">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16" style="vertical-align:-3px;margin-right:6px"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
@@ -1427,7 +1427,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <div class="loginActions">
       <button class="loginAction primary" id="portalConnectBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M7 21h10M12 17v4"/><path d="M6 9h4M6 12h7"/></svg></span>
-        <span class="la-tx"><b>Enter the Portal</b><small>Portal name, URL, login and password from your seller</small></span>
+        <span class="la-tx"><b>Enter the Portal</b><small>Portal name, URL, login and password from your IPTV service provider</small></span>
         <span class="la-ch">›</span>
       </button>
       <button class="loginAction" id="importM3uBtn" type="button">
@@ -1687,7 +1687,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   <div class="episodeHead portalHead">
     <div class="portalHeadMain">
       <span class="portalIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2.5"/><path d="M7 21h10M12 17v4"/><circle cx="7.2" cy="9.6" r=".6" fill="currentColor" stroke="none"/><circle cx="9.6" cy="9.6" r=".6" fill="currentColor" stroke="none"/><path d="M13.5 9.6h4.5"/></svg></span>
-      <div><h3>Enter the Portal</h3><p class="portalSub">Add the IPTV portal your seller gave you</p></div>
+      <div><h3>Enter the Portal</h3><p class="portalSub">Add the portal your IPTV service provider gave you</p></div>
     </div>
     <button class="iconbtn" id="xtreamClose">×</button>
   </div>
@@ -1802,7 +1802,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   <div class="welcomeCard">
     <div class="welcomeLogoWrap"><span class="welcomeRing"></span><img src="image_482ee8.png" alt="Media26" class="welcomeLogo"></div>
     <h2 class="welcomeTitle">Welcome to Media26</h2>
-    <p class="welcomeSub">Your seller just activated this line — tap below to sign in.</p>
+    <p class="welcomeSub">Your IPTV service provider just activated this line — tap below to sign in.</p>
     <button class="pillbtn primary welcomeBtn" id="welcomeLoginBtn" type="button">Click to Login</button>
     <div class="err" id="welcomeErr" style="min-height:0;margin-top:10px"></div>
   </div>
@@ -1869,7 +1869,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.22';
+const APP_VERSION='24.23';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2687,7 +2687,7 @@ async function login(opts){
        responding" is only half the story on a line that also has a MAC, and blaming our relay for
        a portal that rejected the MAC sends the customer to the wrong person. */
     throw Error(S.stalkerLastError
-      ? ('The main route did not complete, the MAC sign-in did not complete ('+S.stalkerLastError+'), and our backup relay is not responding right now. Try again in a few minutes; if your MAC is the problem your seller needs to bind '+macFmt(stalkerMac())+' on their panel.')
+      ? ('The main route did not complete, the MAC sign-in did not complete ('+S.stalkerLastError+'), and our backup relay is not responding right now. Try again in a few minutes; if your MAC is the problem your IPTV service provider needs to bind '+macFmt(stalkerMac())+' on their panel.')
       : 'Your portal only accepts connections through our backup relay, and that relay is not responding right now. This is our side, not your subscription or your MAC. Try again in a few minutes; if it keeps happening the transcoder service needs restarting (Stream Tools ▸ Test transcoder).');
   }
   if(pl){
@@ -5011,7 +5011,7 @@ async function paintSubPanel(){
       iptvLine.textContent=iptvS.text;
       paintSubCountdown('iptv',j.iptvExpiresAt||0);
       if(j.status==='app_expired'){
-        appLine.textContent=j.subscriptionEnabled?'Expired. Renew below to keep using the app.':'Expired. Contact your seller.';
+        appLine.textContent=j.subscriptionEnabled?'Expired. Renew below to keep using the app.':'Expired. Contact your IPTV service provider.';
         btn.classList.toggle('hidden',!j.subscriptionEnabled);
         paintSubCountdown('app',j.appExpiresAt||Date.now());
       }else if(!j.appExpiresAt){
@@ -5027,7 +5027,7 @@ async function paintSubPanel(){
       }
     }else if(j.status==='expired'){
       /* IPTV side itself has lapsed — seller-only fix, no Renew button anywhere on this tile. */
-      iptvLine.textContent='Expired. Contact your seller.';
+      iptvLine.textContent='Expired. Contact your IPTV service provider.';
       paintSubCountdown('iptv',j.iptvExpiresAt||Date.now());
       appLine.textContent='Unavailable while the IPTV playlist is expired.';
       paintSubCountdown('app',0);
@@ -6783,26 +6783,26 @@ async function pollActivationOnce(){
          route their line does not use. j.kind is absent on older servers → falls back to 'xtream'. */
       showWelcomePopup({portalUrl:j.portalUrl,username:j.username||'',password:j.password||''},j.kind);
     }else if(st==='blocked'){
-      stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact your seller.');
+      stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact your IPTV service provider.');
     }else if(st==='expired'){
       stopActPoll();
-      actSetStatus('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your seller.':'This code expired. Contact your seller.');
+      actSetStatus('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your IPTV service provider.':'This code expired. Contact your IPTV service provider.');
       paintActRenewBtn(!!(j&&j.subscriptionEnabled));
     }else if(st==='app_expired'){
       /* v23.9: IPTV playlist is fine (checked first, server-side) — it's this app's OWN $2/month
          gate that lapsed. Blocks sign-in the same way 'expired' does, with its own wording so the
          customer knows which of the two subscriptions to fix. */
       stopActPoll();
-      actSetStatus('bad',j&&j.subscriptionEnabled?'Your app subscription expired. Renew below to keep using the app.':'Your app subscription expired. Contact your seller.');
+      actSetStatus('bad',j&&j.subscriptionEnabled?'Your app subscription expired. Renew below to keep using the app.':'Your app subscription expired. Contact your IPTV service provider.');
       paintActRenewBtn(!!(j&&j.subscriptionEnabled));
     }else if(st==='disabled'){
-      stopActPoll();actSetStatus('bad','This code is disabled. Contact your seller.');
+      stopActPoll();actSetStatus('bad','This code is disabled. Contact your IPTV service provider.');
     }else if(st==='invalid'){
-      actSetStatus('','Waiting for your seller to activate this code…');   /* not registered yet — keep waiting */
+      actSetStatus('','Waiting for your IPTV service provider to activate this code…');   /* not registered yet — keep waiting */
     }else{
-      actSetStatus('','Waiting for your seller to activate this code…');
+      actSetStatus('','Waiting for your IPTV service provider to activate this code…');
     }
-  }catch(e){actSetStatus('','Waiting for your seller to activate this code…');}
+  }catch(e){actSetStatus('','Waiting for your IPTV service provider to activate this code…');}
   finally{_actBusy=false;}
 }
 function startActPoll(){stopActPoll();pollActivationOnce();_actPoll=setInterval(pollActivationOnce,4000);}
@@ -6872,7 +6872,7 @@ async function paintActivateCard(){
 async function beginActivationWatch(){
   const code=await ensureActCode();
   if(!/^\d{8}$/.test(code)){loginActMsg('bad','Could not reach the activation server — check your connection, then tap Refresh.');return;}
-  actSetStatus('','Waiting for your seller to activate this code…');
+  actSetStatus('','Waiting for your IPTV service provider to activate this code…');
   try{await actApi('/api/request',{code:code,deviceId:deviceUid()});}catch(e){}
   startActPoll();
 }
@@ -7331,7 +7331,7 @@ function stalkerFailMessage(e){
      only ever reaches a real MAC-bound line now (a login+password line never gets this far, see
      _tryMag's gating in login()), so the honest advice is to ask the seller to bind THIS mac, or
      to use a login and password instead if they have one. */
-  const hint=macIsAuto()?(' This device generated the MAC '+mac+' itself — ask your seller to bind this exact MAC, or sign in with a login and password instead, which does not depend on it.'):'';
+  const hint=macIsAuto()?(' This device generated the MAC '+mac+' itself — ask your IPTV service provider to bind this exact MAC, or sign in with a login and password instead, which does not depend on it.'):'';
   const tail=s=>s+hint;
   /* v16.1: the portal named the problem itself (see stalkerProfileProblem) — say that and stop.
      This has to come before every test below, because the checks that follow match on words like
@@ -8454,7 +8454,7 @@ if($('xtreamSave'))$('xtreamSave').onclick=()=>{
   const pass=(($('xtreamPass')&&$('xtreamPass').value)||'');
   const nm=(($('xtreamPortalName')&&$('xtreamPortalName').value)||'').trim();
   if(!url){signInMsg('Enter the portal URL first, then save.','error');return;}
-  if(!user||!pass){signInMsg('Enter the login and password your seller gave you.','error');return;}
+  if(!user||!pass){signInMsg('Enter the login and password your IPTV service provider gave you.','error');return;}
   const root=normalize(url);
   rememberProfile({kind:'xtream',name:nm||user,url:root,raw:url,user:user,pass:pass,mac:'',source:hostOf(root)});
   toast('Saved. It is on the sign-in screen now — one tap to connect.');
@@ -8503,9 +8503,9 @@ async function submitXtreamLogin(){
      the M3U Playlist / MAC Device routes are gone from this sheet (owner request). login() still
      falls back to the MAG handshake on its own if get.php fails (see the CLAUDE.md MAC/MAG note),
      so a MAC-bound line still works as long as its login/password are entered here. */
-  if(!url){if($('xtreamErr'))$('xtreamErr').textContent='Enter the portal URL your seller gave you.';return;}
+  if(!url){if($('xtreamErr'))$('xtreamErr').textContent='Enter the portal URL your IPTV service provider gave you.';return;}
   if(!user||!pass){
-    if($('xtreamErr'))$('xtreamErr').textContent='Enter the login and password your seller gave you.';return;
+    if($('xtreamErr'))$('xtreamErr').textContent='Enter the login and password your IPTV service provider gave you.';return;
   }
   /* v20.3: say it ON THE BUTTON. A sign-in walks a dozen playlist addresses and then the MAG
      handshake, which is 20-60 seconds of real work; with the label unchanged and the progress line
@@ -8534,7 +8534,7 @@ async function submitXtreamLogin(){
          no username field on it — advice the customer could not act on, about a field they were
          never asked to fill. Say what actually happened to the thing they DID supply. */
       if(!user&&!pass&&/username and password|check the username/i.test(msg)){
-        msg='This server would not issue a playlist for MAC '+macFmt(stalkerMac())+'. Either your seller has not finished binding it, or this line needs the username and password they were given — add them above and try again.';
+        msg='This server would not issue a playlist for MAC '+macFmt(stalkerMac())+'. Either your IPTV service provider has not finished binding it, or this line needs the username and password they were given — add them above and try again.';
       }
       /* v19.24: a Ministra portal asking for this line to be authenticated, on an account whose
          seller-side MAC field is empty, is the one situation where the device id is the answer —
@@ -8593,21 +8593,21 @@ async function activateWithCode(code,opts){
     startActPoll();
     return 'pending';
   }
-  if(st==='blocked'){ if(!silent)loginActMsg('bad','This code is blocked — it was used on too many devices. Contact your seller.'); return st; }
+  if(st==='blocked'){ if(!silent)loginActMsg('bad','This code is blocked — it was used on too many devices. Contact your IPTV service provider.'); return st; }
   if(st==='expired'){
-    if(!silent)loginActMsg('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your seller.':'This code expired. Contact your seller.');
+    if(!silent)loginActMsg('bad',j&&j.subscriptionEnabled?'This code expired. Renew below, or contact your IPTV service provider.':'This code expired. Contact your IPTV service provider.');
     paintActRenewBtn(!!(j&&j.subscriptionEnabled));
     return st;
   }
   if(st==='app_expired'){
     /* v23.9: IPTV side is fine — this app's own $2/month subscription lapsed. Same blocking
        treatment as 'expired', distinct wording so the customer knows which one to fix. */
-    if(!silent)loginActMsg('bad',j&&j.subscriptionEnabled?'Your app subscription expired. Renew below to keep using the app.':'Your app subscription expired. Contact your seller.');
+    if(!silent)loginActMsg('bad',j&&j.subscriptionEnabled?'Your app subscription expired. Renew below to keep using the app.':'Your app subscription expired. Contact your IPTV service provider.');
     paintActRenewBtn(!!(j&&j.subscriptionEnabled));
     return st;
   }
-  if(st==='disabled'){ if(!silent)loginActMsg('bad','This code is disabled. Contact your seller.'); return st; }
-  if(st==='invalid'){ if(!silent)loginActMsg('bad','That code is not recognised. Check it with your seller.'); return st; }
+  if(st==='disabled'){ if(!silent)loginActMsg('bad','This code is disabled. Contact your IPTV service provider.'); return st; }
+  if(st==='invalid'){ if(!silent)loginActMsg('bad','That code is not recognised. Check it with your IPTV service provider.'); return st; }
   if(!silent)loginActMsg('bad',(j&&j.error)||'Activation is unavailable right now. Try again in a moment.');
   return st||'error';
 }
@@ -8641,7 +8641,7 @@ if($('actRenew'))$('actRenew').onclick=async()=>{
   const now=actCodeGet(false);
   if(/^\d{8}$/.test(prev)&&/^\d{8}$/.test(now)&&prev!==now){
     window._m26PrevCode=prev;
-    toast('New code '+actFmt(now)+' — send it to your seller (tap to undo)');
+    toast('New code '+actFmt(now)+' — send it to your IPTV service provider (tap to undo)');
     armToastUndo(()=>{
       const p=window._m26PrevCode;if(!p)return;
       setActCode(p);paintActCode(p);
