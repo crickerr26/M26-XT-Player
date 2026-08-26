@@ -1636,6 +1636,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <div class="chipRow" id="eqRow">
       <button class="chip" data-eq="flat">Flat</button>
       <button class="chip" data-eq="bass">Bass boost</button>
+      <button class="chip" data-eq="jazz">Jazz</button>
       <button class="chip" data-eq="vocal">Vocal</button>
       <button class="chip" data-eq="treble">Treble</button>
       <button class="chip" data-eq="live">Live</button>
@@ -1869,7 +1870,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.23';
+const APP_VERSION='24.24';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6066,6 +6067,11 @@ async function tryPlans(plans,i){
        "down" flag immediately rather than waiting for it to age out, so the very next MKV gets the
        transcoder in its proper leading position again. */
     try{if(transcoded&&window.YezPlayer&&YezPlayer.noteTranscoderUp)YezPlayer.noteTranscoderUp()}catch(e){}
+    /* v24.24 (owner report: a movie's loading bar cycling through 10-11 routes before it plays):
+       the FIRST route on this host to actually reach PLAYING is remembered (see ROUTE MEMORY in
+       yezplayer.js) — this guard already fires this branch only once per attempt, so a route
+       cannot re-teach the same win on every progress tick. */
+    try{if(window.YezPlayer&&YezPlayer.noteRouteWon)YezPlayer.noteRouteWon(p.url,p.kind,p.label)}catch(e){}
     E.overlayState='playing';E.shownMuted=v.muted;S.awaitingTap=false;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   const nextPlan=()=>{if(token!==S.seq)return;tryPlans(plans,i+1)};
   const mseLive=live&&!transcoded&&(p.kind==='mpegts'||(p.kind==='hls'&&window.Hls&&Hls.isSupported()));
@@ -9073,7 +9079,7 @@ const COLOUR_FILTERS={standard:'none',cinema:'contrast(1.08) saturate(1.06) brig
 function savedColour(){try{return store.getItem(COLOUR_KEY)||'standard'}catch(e){return 'standard'}}
 function applyColour(mode){const v=$('video');if(!v)return;const f=COLOUR_FILTERS[mode]||'none';v.style.filter=f==='none'?'':f;try{store.setItem(COLOUR_KEY,mode)}catch(e){}document.querySelectorAll('#colourRow .chip').forEach(b=>b.classList.toggle('active',b.dataset.col===mode));}
 let _actx=null,_eqNodes=null,_eqReady=false;
-const EQ_PRESETS={flat:[0,0,0],bass:[9,1,-1],vocal:[-3,6,2],treble:[-2,0,8],live:[4,2,5]};
+const EQ_PRESETS={flat:[0,0,0],bass:[9,1,-1],vocal:[-3,6,2],treble:[-2,0,8],live:[4,2,5],jazz:[4,2,-2]};
 function ensureEq(){
   if(_eqReady)return true;const v=$('video');if(!v)return false;
   try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return false;

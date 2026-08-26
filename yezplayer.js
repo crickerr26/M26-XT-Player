@@ -214,11 +214,60 @@
   }
   function noteTranscoderUp() { try { global.localStorage && global.localStorage.removeItem(TKEY); } catch (e) {} }
 
+  /* ── ROUTE MEMORY ─────────────────────────────────────────────────────────────────────────
+     Which route SHAPE (kind + label, the ladder's " (default port)" suffix stripped so a win on
+     either port variant recognises its sibling) actually reached PLAYING last time, per provider
+     host. This is deliberately a SEPARATE, weaker signal from GATE MEMORY above: gate memory only
+     learns from an explicit refusal (511/403/401/src-not-supported) and never from a timeout,
+     because a timeout says nothing about the port and must not poison it (see the note by
+     isGated). But on a real line the "this movie takes ten tries" complaint is usually exactly
+     that — several routes that simply never start within their budget, which gate memory
+     correctly refuses to learn from and so repeats on every single play. Route memory never
+     removes or demotes anything; it only ever PROMOTES a shape already proven to work, so a wrong
+     or stale memory costs nothing beyond falling back to the walk this line always did. */
+  var RKEY = 'yez.wonRoute.v1';
+  var won = null;
+  function loadWon() {
+    if (won) return won;
+    won = {};
+    try {
+      var raw = global.localStorage && global.localStorage.getItem(RKEY);
+      if (raw) won = JSON.parse(raw) || {};
+    } catch (e) { won = {}; }
+    return won;
+  }
+  function saveWon() {
+    try { global.localStorage && global.localStorage.setItem(RKEY, JSON.stringify(won || {})); } catch (e) {}
+  }
+  function baseLabel(label) { return String(label || '').replace(/ \(default port\)$/, ''); }
+  function routeHost(u) {
+    try { return new URL(streamOf(u)).hostname; } catch (e) { return ''; }
+  }
+  /* Called by the app the moment a route actually reaches PLAYING. */
+  function noteRouteWon(url, kind, label) {
+    var h = routeHost(url);
+    if (!h) return;
+    loadWon();
+    won[h] = { kind: kind || '', label: baseLabel(label), ts: Date.now() };
+    saveWon();
+  }
+  function wonShape(u) {
+    var h = routeHost(u);
+    if (!h) return null;
+    loadWon();
+    return won[h] || null;
+  }
+
   var CONTAINER_RE = /\.(mkv|mp4|m4v|avi|mov|wmv|flv|ts)(?:$|[?#])/i;
   /* How far back a route deserves to be pushed. Lower runs first; the sort is stable, so routes
      that score the same keep the order the app chose for them. */
   function penalty(r) {
     var u = String(r.url || '');
+    /* A route matching a KNOWN WIN for this host jumps ahead of everything else below — including
+       the transcoder-alive and hls-on-container rules, which is right: nothing outranks a shape
+       this exact line has already proven works. */
+    var w = wonShape(u);
+    if (w && w.kind === (r.kind || '') && w.label === baseLabel(r.label || '')) return -1;
     /* A transcoder route is judged ONLY on whether the service is alive. Its input is a Matroska
        file but its OUTPUT is HLS, which is exactly what hls.js is for — so it must never be caught
        by the container rule below, or the one route that rescues a codec this device cannot decode
@@ -317,6 +366,9 @@
     noteRefusal: noteRefusal,
     isGated: isGated,
     forgetGates: forgetGates,
+    /* the app calls this the instant a route reaches PLAYING, so the next play on this host
+       leads with the shape already proven to work instead of re-walking the whole ladder */
+    noteRouteWon: noteRouteWon,
     /* the address to hand an external app (VLC), and the one-shot check behind it */
     preferredUrl: preferredUrl,
     verifyPort: verifyPort,
