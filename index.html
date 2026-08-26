@@ -162,6 +162,17 @@ until you zoom out" report: the page was left zoomed in from focusing this sheet
 Same reason .searchbox input is pinned to 16px in the mobile media query above. */
 .portalInputWrap input{flex:1;min-width:0;height:100%;background:transparent;border:0;outline:0;color:var(--ink);font-size:16px;padding:0}.portalHint{margin-top:6px;font-size:11px;line-height:1.4;color:var(--muted);font-weight:600}.macRow{margin-top:10px;padding:11px 12px;border-radius:13px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}.macRow.hidden{display:none}.macRow.urgent{background:rgba(251,191,36,.10);border-color:rgba(251,191,36,.5)}.macRow.urgent .macRowLabel{color:#d9a441}.macRowLabel{font-size:10px;font-weight:900;letter-spacing:.6px;text-transform:uppercase;color:#7c93b8;margin-bottom:7px}.macRowVal{display:flex;align-items:center;gap:9px}.macRowVal code{flex:1;min-width:0;font-family:ui-monospace,Menlo,monospace;font-size:15px;font-weight:800;color:var(--ink);letter-spacing:.6px;overflow-wrap:anywhere}.macRowVal .pillbtn{flex:none;height:34px;padding:0 14px}.macRowHint{margin-top:8px;font-size:11px;line-height:1.45;color:var(--muted);font-weight:600}.portalNote{margin-top:12px}
 .portalField.hidden{display:none}@media(max-width:760px){.card{grid-template-columns:32px minmax(0,1fr) 56px}.reorder{position:absolute;right:36px;top:50%;transform:translateY(-50%)}.move{width:24px;height:28px}.nativeActions{grid-template-columns:1fr}.nativePanel{max-height:70vh}}
+/* v24.22: the "activated" welcome popup. Centered rather than the usual bottom sheet, and reuses
+   the splash screen's own xtPop/xtGlow/xtSpin/xtRise keyframes (defined further down) so it reads
+   as the same brand moment as first launch instead of a new one-off animation. */
+.episodeSheet.welcomePopup{align-items:center;justify-content:center;padding:20px;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.welcomeCard{width:100%;max-width:340px;background:var(--panel);border:1px solid rgba(56,189,248,.3);border-radius:24px;padding:34px 26px 28px;text-align:center;box-shadow:var(--shadow);animation:xtPop .55s cubic-bezier(.34,1.56,.64,1) both}
+.welcomeLogoWrap{position:relative;width:92px;height:92px;margin:0 auto 18px;display:grid;place-items:center}
+.welcomeRing{position:absolute;inset:0;border-radius:50%;border:2px solid rgba(47,211,242,.3);border-top-color:#2fd3f2;animation:xtSpin 2.4s linear infinite}
+.welcomeLogo{width:58px;height:58px;object-fit:contain;position:relative;z-index:2;animation:xtGlow 2.2s ease-in-out infinite}
+.welcomeTitle{font-size:22px;font-weight:900;letter-spacing:-.3px;background:linear-gradient(135deg,#2fd3f2,#2dd4bf);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:8px;animation:xtRise .6s ease .15s both}
+.welcomeSub{font-size:13.5px;color:var(--muted);line-height:1.45;margin-bottom:22px;animation:xtRise .6s ease .25s both}
+.welcomeBtn{width:100%;height:50px;font-size:15px;font-weight:900;animation:xtRise .6s ease .35s both}
 </style>
 <style>
 /* --- v17 premium redesign layer: additive overrides only, original rules above stay intact --- */
@@ -1784,6 +1795,18 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   </div>
   <p class="nativeText" style="margin-top:12px;opacity:.7">Media26 XT Player · v<span id="setVer"></span></p>
 </div></div>
+<!-- v24.22 (owner request): activation no longer signs in on its own — the seller marking the code
+     active only reveals this popup, and login() runs solely off the Click to Login tap below. See
+     showWelcomePopup()/welcomeLogin() in the script. -->
+<div class="episodeSheet welcomePopup" id="welcomePopup">
+  <div class="welcomeCard">
+    <div class="welcomeLogoWrap"><span class="welcomeRing"></span><img src="image_482ee8.png" alt="Media26" class="welcomeLogo"></div>
+    <h2 class="welcomeTitle">Welcome to Media26</h2>
+    <p class="welcomeSub">Your seller just activated this line — tap below to sign in.</p>
+    <button class="pillbtn primary welcomeBtn" id="welcomeLoginBtn" type="button">Click to Login</button>
+    <div class="err" id="welcomeErr" style="min-height:0;margin-top:10px"></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script>
 /* v34: relay endpoints are now overridable. When the page is served over HTTPS but the
@@ -1846,7 +1869,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.21';
+const APP_VERSION='24.22';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1956,34 +1979,35 @@ function armToastUndo(fn,ms){
   const clear=()=>{clearTimeout(t._u);t.onclick=null;t.classList.remove('tappable','show');};
   t.onclick=()=>{clear();try{fn();}catch(e){}};
   t._u=setTimeout(clear,ms||6000);
-  t._clear=clear;
 }
-/* v24.21: cancel a still-armed tappable toast from code, not just by tapping or timing out — used
-   to pull down the "tap to open it" activation prompt the instant the silent auto sign-in it was
-   backing up succeeds on its own, so a stale action never lingers over the app the customer is
-   now using. */
-function dismissToastAction(){const t=$('toast');if(t&&t._clear){try{t._clear();}catch(e){}}}
-/* v24.21: an activation resolving to 'active' is handled from two places — the 4s poll and the
-   visibilitychange/focus recheck — and both now show a tappable "activated" toast alongside the
-   silent auto sign-in, as a guaranteed manual way in when the automatic one stalls (owner report:
-   the screen sometimes does not visibly refresh on its own after the seller activates a code).
-   _actLoginBusy is shared between them so a tap during an already-in-flight attempt cannot start
-   a second, concurrent login() racing the first one over the same S.* fields — it only ever offers
-   a retry once the first attempt has actually finished (succeeded, failed, or thrown). */
-let _actLoginBusy=false;
-function armActivatedToast(creds,kind,onFail){
-  toast('Playlist activated — tap to open it');
-  armToastUndo(()=>{
-    if(_actLoginBusy){toast('Still connecting…');return;}
-    _actLoginBusy=true;
-    login({creds:creds,kind:kind}).catch(onFail).finally(()=>{_actLoginBusy=false;});
-  },60000);
+/* v24.22 (owner request): activation NEVER signs in on its own any more. An activation resolving
+   to 'active' — from either the 4s poll or the visibilitychange/focus recheck — only reveals this
+   popup; login() runs exclusively off the Click to Login tap in welcomeLogin(). _actLoginBusy
+   guards against a double-tap firing two concurrent login() calls over the same S.* fields. */
+let _actPendingCreds=null,_actPendingKind=null,_actLoginBusy=false;
+function showWelcomePopup(creds,kind){
+  _actPendingCreds=creds;_actPendingKind=kind;
+  if($('welcomeErr'))$('welcomeErr').textContent='';
+  const el=$('welcomePopup');if(el)el.classList.add('show');
 }
-async function autoActivatedLogin(creds,kind){
+function hideWelcomePopup(){const el=$('welcomePopup');if(el)el.classList.remove('show');}
+async function welcomeLogin(){
+  if(_actLoginBusy||!_actPendingCreds)return;
   _actLoginBusy=true;
-  try{await login({creds:creds,kind:kind});dismissToastAction();}
-  finally{_actLoginBusy=false;}
+  const btn=$('welcomeLoginBtn');
+  if(btn){btn.disabled=true;btn.dataset.idle=btn.dataset.idle||btn.textContent;btn.textContent='Connecting…';}
+  if($('welcomeErr'))$('welcomeErr').textContent='';
+  try{
+    await login({creds:_actPendingCreds,kind:_actPendingKind});
+    hideWelcomePopup();
+  }catch(e){
+    if($('welcomeErr'))$('welcomeErr').textContent=(e&&e.message)||'Could not load your playlist. Try again.';
+  }finally{
+    _actLoginBusy=false;
+    if(btn){btn.disabled=false;btn.textContent=btn.dataset.idle||'Click to Login';}
+  }
 }
+if($('welcomeLoginBtn'))$('welcomeLoginBtn').onclick=welcomeLogin;
 /* ── v18.8: A SIGN-IN CAN BE CALLED OFF ─────────────────────────────────────────────────────
    The loader is used for two different things: ordinary loading, which is over in a moment and
    has nothing to cancel, and CONNECTING, which can run for a minute (waking the relay, waiting
@@ -6752,17 +6776,12 @@ async function pollActivationOnce(){
        the credential. Requiring j.username here meant such a line polled forever after the seller
        had already activated it. Accept it whenever this device holds a MAC to sign in with. */
     if(st==='active'&&j.portalUrl&&(j.username||stalkerMac())){
-      stopActPoll();actSetStatus('ok','Activated! Loading your playlist…');
-      const _creds={portalUrl:j.portalUrl,username:j.username||'',password:j.password||''},_kind=j.kind;
-      const _onFail=e=>actSetStatus('bad',(e&&e.message)||'Activated, but the playlist could not load.');
-      /* v24.21: guaranteed manual way in alongside the automatic sign-in below — see the comment
-         on armActivatedToast(). */
-      armActivatedToast(_creds,_kind,_onFail);
+      stopActPoll();actSetStatus('ok','Activated!');
       /* v19.63: carry the seller's own line type through. The activation path never opens the
          portal sheet, so without this an activated M3U-playlist or MAC line would sign in under
          the default 'xtream' routing and spend the customer's first thirty seconds on the one
          route their line does not use. j.kind is absent on older servers → falls back to 'xtream'. */
-      try{await autoActivatedLogin(_creds,_kind);}catch(e){_onFail(e);}
+      showWelcomePopup({portalUrl:j.portalUrl,username:j.username||'',password:j.password||''},j.kind);
     }else if(st==='blocked'){
       stopActPoll();actSetStatus('bad','This code is blocked — it was used on too many devices. Contact your seller.');
     }else if(st==='expired'){
@@ -8560,21 +8579,17 @@ async function activateWithCode(code,opts){
   if(st==='active'&&j.portalUrl&&(j.username||stalkerMac())){
     setActCode(code);
     stopActPoll();
-    loginActMsg('ok','Activated — loading your playlist…');
-    const _creds={portalUrl:j.portalUrl,username:j.username||'',password:j.password||''};
-    const _onFail=e=>loginActMsg('bad',(e&&e.message)||'Activated, but the playlist could not load.');
-    /* v24.21: same guaranteed manual fallback as pollActivationOnce() — see the comment on
-       armActivatedToast(). This is the path actually hit when the customer backgrounds the app
-       to message their seller and returns (the visibilitychange/focus recheck below calls this
-       silently), which is exactly when a stalled auto sign-in has no other way to be noticed. */
-    armActivatedToast(_creds,undefined,_onFail);
-    try{ await autoActivatedLogin(_creds,undefined); }
-    catch(e){ _onFail(e); }
+    loginActMsg('ok','Activated!');
+    /* v24.22: no automatic sign-in — see showWelcomePopup(). This is the path actually hit when
+       the customer backgrounds the app to message their seller and returns (the
+       visibilitychange/focus recheck below calls this silently), so the popup is what tells them
+       it is time to tap Click to Login. */
+    showWelcomePopup({portalUrl:j.portalUrl,username:j.username||'',password:j.password||''},undefined);
     return 'active';
   }
   if(st==='pending'){
     setActCode(code);
-    loginActMsg('','Not activated yet — waiting for the admin. Keep this page open and it will sign in on its own.');
+    loginActMsg('','Not activated yet — waiting for the admin. Keep this page open, and a popup will invite you to sign in the moment they activate it.');
     startActPoll();
     return 'pending';
   }
@@ -9417,8 +9432,9 @@ maybeStartActivationWatch();
   }
   /* v9.9: no saved playlist yet, but this device already holds an 8-digit code → keep polling in
      the background for the seller's activation, same as before — this is waiting for a first-time
-     setup to complete, not resuming a session that already worked, so it stays automatic. Once the
-     code resolves, activateWithCode signs in silently exactly as it always has. */
+     setup to complete, not resuming a session that already worked, so the CHECK stays automatic.
+     v24.22: signing in no longer does — once the code resolves, activateWithCode() shows the
+     welcome popup and waits for a tap, it does not call login() on its own any more. */
   (async function(){
     try{
       const code=(typeof actCodeGet==='function')?actCodeGet(false):'';
