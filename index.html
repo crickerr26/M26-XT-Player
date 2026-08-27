@@ -113,7 +113,7 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
    class for exactly as long as the undo is on offer, and takes it off again after. */
 .toast.tappable{pointer-events:auto;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1120px){.layout{grid-template-columns:290px 1fr}.info{display:none}.main{grid-template-rows:minmax(240px,44vh) auto auto minmax(0,1fr)}}
-@media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.player.pipFloat{right:10px;bottom:calc(76px + env(safe-area-inset-bottom));width:min(260px,58vw);border-radius:12px}.player.pipFloat+.now{padding-right:0}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
+@media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.player.pipFloat{left:12px;right:12px;bottom:calc(86px + env(safe-area-inset-bottom));width:auto;max-width:none;border-radius:14px;z-index:180}.player.pipFloat+.now{padding-right:0}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
    which never matches in landscape (the width is > 760), so landscape fell back to the cramped
    desktop layout. Key on height instead and lay out a neat two-pane: big video on the left, a
@@ -501,14 +501,15 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
    screen's top-left corner instead, mirroring .home-actions' top-right placement on the same
    .home fixed layer, so it reads as a persistent clock rather than part of the greeting copy. */
 .home-datetime{position:absolute;top:calc(16px + env(safe-area-inset-top));left:calc(18px + env(safe-area-inset-left));z-index:6;font-size:13px;font-weight:700;letter-spacing:.3px;color:#7fa8d9}
-/* v23.10 (owner request): the two independent subscriptions (IPTV playlist / app), as tiny text
-   right under the home-screen clock — visible the instant the app opens, no Stream Tools tap
-   needed. See paintHomeSubLines() in the script. Deliberately much smaller than the clock above
-   it: a status footnote, not a headline. */
-.home-sub-lines{position:absolute;top:calc(16px + env(safe-area-inset-top) + 20px);left:calc(18px + env(safe-area-inset-left));z-index:6;display:flex;flex-direction:column;gap:2px}
+/* v24.21: subscription status sits directly under the home-screen clock, readable at launch
+   without opening Stream Tools. The main line is the customer-facing days-remaining answer; any
+   app/playlist detail stays secondary. */
+.home-sub-lines{position:absolute;top:calc(16px + env(safe-area-inset-top) + 22px);left:calc(18px + env(safe-area-inset-left));z-index:6;display:flex;flex-direction:column;gap:2px}
 .home-sub-lines.hidden{display:none}
 .home-sub-line{font-size:10px;font-weight:600;letter-spacing:.2px;color:#5b7aa8}
+.home-sub-line.home-sub-main{font-size:12px;font-weight:800;color:#a9c8f0}
 body.light .home-sub-line{color:#7186a6}
+body.light .home-sub-line.home-sub-main{color:#476584}
 .home-footer{position:absolute;left:0;right:0;bottom:0;z-index:2;display:flex;justify-content:center;gap:10px;padding:14px max(18px,env(safe-area-inset-left)) calc(14px + env(safe-area-inset-bottom)) max(18px,env(safe-area-inset-right));background:linear-gradient(180deg,rgba(10,18,32,0),rgba(10,18,32,.85) 40%);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid rgba(255,255,255,.08)}
 .home-exit{height:42px;padding:0 24px;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#b7c6de;font-weight:800}
 /* v7.8: settings gear on the home hub + settings sheet rows */
@@ -1870,7 +1871,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.24';
+const APP_VERSION='24.25';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1968,7 +1969,7 @@ const ICONS={
   sortNew:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2.3h6"/></svg>',
   sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,lastPreviewError:''};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -3257,7 +3258,7 @@ function mergeCats(base,extra){
    authoritative and is never touched. The request is made at most once per session (both tabs
    share this promise), and any failure is silent: the tabs are left exactly as they were. */
 let _fullCatalogPromise=null;
-function resetFullCatalog(){_fullCatalogPromise=null;}
+function resetFullCatalog(){_fullCatalogPromise=null;S.xtreamApiOnly=false;S.xtreamApiLoaded={};S.xtreamApiServerInfo=null;}
 function fullPlaylistCatalog(){
   if(_fullCatalogPromise)return _fullCatalogPromise;
   _fullCatalogPromise=(async()=>{
@@ -3386,14 +3387,17 @@ async function loadType(type){
       if(type==='vod')S.loadingVod=true;else S.loadingSeries=true;
       renderAll();updateHomeCounts&&updateHomeCounts();
       try{
-        await loadTypeFromFullPlaylist(type);
-        /* v24.7 (owner-approved, scoped exception to the v19.6 "M3U-only" rule — see CLAUDE.md):
-           some panels only carry Series through the Xtream API, never in get.php's M3U output at
-           all — Live and Movies load fine, Series stays permanently empty. Only tried once Series
-           comes back genuinely empty from BOTH M3U documents above, and only for a credentials
-           line (S.user set) — never for a MAC-only line, which has no username/password to call
-           player_api.php with. */
-        if(type==='series'&&S.user&&!(S.series&&S.series.length))await xtreamSeriesFallback();
+        if(S.xtreamApiOnly&&type!=='live')await xtreamApiLoadType(type);
+        else{
+          await loadTypeFromFullPlaylist(type);
+          /* v24.7 (owner-approved, scoped exception to the v19.6 "M3U-only" rule — see CLAUDE.md):
+             some panels only carry Series through the Xtream API, never in get.php's M3U output at
+             all — Live and Movies load fine, Series stays permanently empty. Only tried once Series
+             comes back genuinely empty from BOTH M3U documents above, and only for a credentials
+             line (S.user set) — never for a MAC-only line, which has no username/password to call
+             player_api.php with. */
+          if(type==='series'&&S.user&&!(S.series&&S.series.length))await xtreamSeriesFallback();
+        }
       }finally{
         if(type==='vod')S.loadingVod=false;else S.loadingSeries=false;
         renderAll();updateHomeCounts&&updateHomeCounts();
@@ -3742,31 +3746,59 @@ async function xtreamApiLoginFallback(){
   if(!S.user||!S.pass||!S.url)return false;
   try{
     const base=(S.url||'').replace(/\/+$/,'')+'/player_api.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass);
-    signInMsg('Playlist endpoint did not answer — checking the panel API…','working');
+    signInMsg('Playlist endpoint did not answer — loading Live TV from the panel API…','working');
     const info=await fetchJsonChain(base).catch(()=>null);
     const userInfo=info&&info.user_info;
     if(userInfo&&(String(userInfo.auth)==='0'||/^(disabled|banned|expired)$/i.test(String(userInfo.status||''))))return false;
-    const [liveCategories,liveStreams,vodCategories,vodStreams,seriesCategories,series]=await Promise.all([
+    const [liveCategories,liveStreams]=await Promise.all([
       fetchJsonChain(base+'&action=get_live_categories').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_live_streams'),
-      fetchJsonChain(base+'&action=get_vod_categories').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_vod_streams').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_series_categories').catch(()=>[]),
-      fetchJsonChain(base+'&action=get_series').catch(()=>[])
+      fetchJsonChain(base+'&action=get_live_streams')
     ]);
     const parsed=Media26Portal.xtreamApiToModel(S.rawUrl||S.url,S.user,S.pass,{
       serverInfo:info&&info.server_info,
-      liveCategories:liveCategories,liveStreams:liveStreams,
-      vodCategories:vodCategories,vodStreams:vodStreams,
-      seriesCategories:seriesCategories,series:series
+      liveCategories:liveCategories,liveStreams:liveStreams
     });
     if(!parsed||!parsed.total)return false;
-    S.source='m3u';S.m3u=parsed;S.playlistUrl=(S.url||'')+'/player_api.php';
+    parsed._xtreamApiOnly=true;parsed._xtreamApiServerInfo=info&&info.server_info||null;
+    S.source='m3u';S.m3u=parsed;S.playlistUrl=(S.url||'')+'/player_api.php';S.xtreamApiOnly=true;S.xtreamApiLoaded={live:true};
+    S.xtreamApiServerInfo=parsed._xtreamApiServerInfo;
     try{libWrite(S.rawUrl||S.url,S.user,parsed,S.playlistUrl)}catch(e){}
     return true;
   }catch(e){
     return false;
   }
+}
+async function xtreamApiLoadType(type){
+  if(!S.xtreamApiOnly||type==='live'||!S.user||!S.pass||!S.url)return;
+  if(S.xtreamApiLoaded&&S.xtreamApiLoaded[type])return;
+  if(!S.xtreamApiLoaded)S.xtreamApiLoaded={};
+  const base=(S.url||'').replace(/\/+$/,'')+'/player_api.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass);
+  if(type==='vod'){
+    const [vodCategories,vodStreams]=await Promise.all([
+      fetchJsonChain(base+'&action=get_vod_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_vod_streams').catch(()=>[])
+    ]);
+    const parsed=Media26Portal.xtreamApiToModel(S.rawUrl||S.url,S.user,S.pass,{serverInfo:S.xtreamApiServerInfo,vodCategories:vodCategories,vodStreams:vodStreams});
+    if(parsed&&parsed.vod&&parsed.vod.length){
+      S.vodCats=parsed.vodCats;S.vod=parsed.vod;S.m3u.vodCats=parsed.vodCats;S.m3u.vod=parsed.vod;S.m3u._xtreamApiOnly=true;
+      S.m3u.total=(S.m3u.live.length||0)+(S.m3u.vod.length||0)+(S.m3u.series.length||0);
+      if($('vodCount'))$('vodCount').textContent=S.vod.length.toLocaleString();
+      try{libWrite(S.rawUrl||S.url,S.user,S.m3u,S.playlistUrl)}catch(e){}
+    }
+  }else if(type==='series'){
+    const [seriesCategories,series]=await Promise.all([
+      fetchJsonChain(base+'&action=get_series_categories').catch(()=>[]),
+      fetchJsonChain(base+'&action=get_series').catch(()=>[])
+    ]);
+    const parsed=Media26Portal.xtreamApiToModel(S.rawUrl||S.url,S.user,S.pass,{serverInfo:S.xtreamApiServerInfo,seriesCategories:seriesCategories,series:series});
+    if(parsed&&parsed.series&&parsed.series.length){
+      S.seriesCats=parsed.seriesCats;S.series=parsed.series;S.m3u.seriesCats=parsed.seriesCats;S.m3u.series=parsed.series;S.m3u._xtreamApiOnly=true;
+      S.m3u.total=(S.m3u.live.length||0)+(S.m3u.vod.length||0)+(S.m3u.series.length||0);
+      if($('seriesCount'))$('seriesCount').textContent=S.series.length.toLocaleString();
+      try{libWrite(S.rawUrl||S.url,S.user,S.m3u,S.playlistUrl)}catch(e){}
+    }
+  }
+  S.xtreamApiLoaded[type]=true;
 }
 /* ── v21.5: READ A PLAYLIST OF ANY SIZE. ──────────────────────────────────────────────────────
    "This playlist is larger than the app can read in one go" was true of a 48 MB ceiling in the
@@ -3924,6 +3956,9 @@ async function loadPlaylistSource(){
   const adoptParsed=(parsed,srcUrl)=>{
     if(!parsed||!parsed.total)return false;
     S.source='m3u'; S.m3u=parsed; S.playlistUrl=srcUrl;
+    S.xtreamApiOnly=!!parsed._xtreamApiOnly;
+    S.xtreamApiLoaded=S.xtreamApiOnly?{live:!!(parsed.live&&parsed.live.length),vod:!!(parsed.vod&&parsed.vod.length),series:!!(parsed.series&&parsed.series.length)}:{};
+    S.xtreamApiServerInfo=S.xtreamApiOnly?(parsed._xtreamApiServerInfo||null):null;
     return true;
   };
   const adopt=(text,srcUrl)=>{
@@ -5037,12 +5072,21 @@ async function paintSubPanel(){
     }
   }catch(e){iptvLine.textContent='Could not reach the activation server.';appLine.textContent='';}
 }
-/* v23.10 (owner request): the same two subscriptions as paintSubPanel(), but as a couple of tiny
-   footnote lines under the home-screen clock — so the customer sees where they stand without ever
-   opening Stream Tools. Reuses subDaysLeft() for the day math; kept deliberately terse (no dates,
-   no Renew button here — that stays inside Stream Tools) since this is a status footnote, not a
-   panel. Cached for a minute so navigating home↔category repeatedly doesn't refetch every time. */
+/* v24.21: readable days-remaining text under the home-screen clock. Reuses subDaysLeft() for the
+   day math; kept terse (no dates, no Renew button here — that stays inside Stream Tools) since
+   this is glanceable status, not a panel. Cached for a minute so navigating home↔category
+   repeatedly doesn't refetch every time. */
 let _homeSubFetchedAt=0;
+function homeSubscriptionLine(j){
+  if(!j||!j.status)return '';
+  if(j.status==='expired')return 'Subscription expired';
+  const expiresAt=j.iptvExpiresAt||j.appExpiresAt;
+  if(!expiresAt)return '';
+  const d=Math.max(0,subDaysLeft(expiresAt));
+  if(d<=0)return 'Subscription expired';
+  if(d===1)return 'Subscription: 1 day remaining';
+  return 'Subscription: '+d+' days remaining';
+}
 async function paintHomeSubLines(force){
   const el=$('homeSubLines');if(!el)return;
   const code=actCodeGet(false);
@@ -5053,24 +5097,25 @@ async function paintHomeSubLines(force){
     const {j}=await actApi('/api/activate',{code:code,deviceId:deviceUid()});
     if(!j||!j.status)return;
     const lines=[];
+    const mainLine=homeSubscriptionLine(j);
+    if(mainLine)lines.push({text:mainLine,main:true});
     const dayWord=d=>d===1?'1 day':d+' days';
     if(j.status==='active'||j.status==='app_expired'){
-      if(j.iptvExpiresAt){
+      if(!mainLine&&j.iptvExpiresAt){
         const d=Math.max(0,subDaysLeft(j.iptvExpiresAt));
-        lines.push('IPTV subscription '+(d<=0?'expired':'ends in '+dayWord(d)));
+        lines.push({text:'IPTV subscription '+(d<=0?'expired':'ends in '+dayWord(d))});
       }
       if(j.status==='app_expired'){
-        lines.push('Media26 app subscription expired');
-      }else if(j.appExpiresAt){
+        lines.push({text:'Media26 app subscription expired'});
+      }else if(j.appExpiresAt&&j.iptvExpiresAt){
         const d=Math.max(0,subDaysLeft(j.appExpiresAt));
-        lines.push('Media26 app subscription '+(d<=0?'expired':'ends in '+dayWord(d)));
+        lines.push({text:'Media26 app subscription '+(d<=0?'expired':'ends in '+dayWord(d))});
       }
     }else if(j.status==='expired'){
-      lines.push('IPTV subscription expired');
       showSubExpiredModal();   /* already home and already have the answer — no need to wait for the periodic check */
     }
     el.innerHTML='';
-    lines.forEach(t=>{const d=document.createElement('div');d.className='home-sub-line';d.textContent=t;el.appendChild(d);});
+    lines.forEach(line=>{const d=document.createElement('div');d.className='home-sub-line'+(line.main?' home-sub-main':'');d.textContent=line.text;el.appendChild(d);});
     el.classList.toggle('hidden',lines.length===0);
     el.dataset.painted='1';
   }catch(e){}
@@ -6525,6 +6570,11 @@ function toggleInlinePip(force){
   }
   return on;
 }
+function nativePipFailed(){
+  if(mobile())return toggleInlinePip(true);
+  toast('Picture-in-Picture could not start on this device');
+  return false;
+}
 function pip(){
   const v=$('video');
   try{
@@ -6549,16 +6599,16 @@ function pip(){
     const webkitReady=typeof v.webkitSetPresentationMode==='function'&&(typeof v.webkitSupportsPresentationMode!=='function'||v.webkitSupportsPresentationMode('picture-in-picture'));
     if(webkitReady){
       try{if(v.paused)v.play().catch(()=>{})}catch(e){}
-      try{v.webkitSetPresentationMode('picture-in-picture');return}catch(e){}
+      try{v.webkitSetPresentationMode('picture-in-picture');return}catch(e){return nativePipFailed()}
     }
     /* Android Chrome / desktop: standard API (returns a promise, don't block the gesture) */
     if(document.pictureInPictureEnabled&&v.requestPictureInPicture){
       try{if(v.paused)v.play().catch(()=>{})}catch(e){}
-      v.requestPictureInPicture().catch(()=>toggleInlinePip(true));
+      v.requestPictureInPicture().catch(()=>nativePipFailed());
       return;
     }
     return toggleInlinePip(true);
-  }catch(e){toast('Picture-in-Picture could not start on this device')}
+  }catch(e){return nativePipFailed()}
 }
 /* v61: background play. MediaSession is the real mechanism: on Android/desktop it keeps AUDIO
    playing when the screen is off or the app is backgrounded, and everywhere it drives the

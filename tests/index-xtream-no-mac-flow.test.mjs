@@ -5,7 +5,7 @@ const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 assert.match(
   html,
-  /if\(_portalKind==='xtream'&&\(!user\|\|!pass\)\)\{/,
+  /async function submitXtreamLogin\(\)[\s\S]*?if\(!user\|\|!pass\)\{/,
   'Xtream login must require username and password without consulting the device MAC'
 );
 

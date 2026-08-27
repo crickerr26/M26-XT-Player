@@ -17,8 +17,26 @@ assert.match(
 
 assert.match(
   html,
-  /requestPictureInPicture\(\)\.catch\(\(\)=>toggleInlinePip\(true\)\)/,
-  'If a browser advertises native PiP but rejects it, the PiP button should fall back to the in-page mini-player'
+  /function nativePipFailed\(\)[\s\S]*?if\(mobile\(\)\)return toggleInlinePip\(true\)/,
+  'Mobile PiP should fall back to the in-page mini-player whenever native PiP fails'
+);
+
+assert.match(
+  html,
+  /requestPictureInPicture\(\)\.catch\(\(\)=>nativePipFailed\(\)\)/,
+  'If a browser advertises native PiP but rejects it, the PiP button should use the shared fallback path'
+);
+
+assert.match(
+  html,
+  /webkitSetPresentationMode\('picture-in-picture'\);return\}catch\(e\)\{return nativePipFailed\(\)\}/,
+  'If WebKit PiP rejects on mobile, the button should not fail silently'
+);
+
+assert.match(
+  html,
+  /@media\(max-width:760px\)\{[\s\S]*?\.player\.pipFloat\{left:12px;right:12px;[^}]*width:auto;max-width:none;[^}]*z-index:180/,
+  'The mobile mini-player should be wide, stable, and above the bottom controls'
 );
 
 assert.match(
