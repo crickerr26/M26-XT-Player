@@ -1855,7 +1855,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.30';
+const APP_VERSION='24.31';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6309,6 +6309,16 @@ async function tryPlans(plans,i){
   /* the heartbeat: every stall/recovery/UI decision lives here, nowhere else */
   const beat=()=>{
     if(token!==S.seq)return;
+    /* v24.31 (owner report, with a screenshot: many channels stuck forever on "Building a
+       smooth-play buffer... 0%"): beat() reschedules ITSELF at its own tail — the very last
+       line below — so any unguarded exception anywhere in this function (this watchdog covers
+       stall recovery, reconnects, seek handling, black-frame detection: a lot of surface) kills
+       the setTimeout chain for good and freezes whichever overlay text was last painted, with no
+       error and no further route ever tried. Wrapping the body means a bug here now behaves
+       exactly like a stalled connection already does — treated as this route's failure and
+       handed to nextPlan() — instead of hanging the customer on a percentage that will never
+       move, forever, for a title that might have played fine on the very next route. */
+    try{
     const now=Date.now(),t=v.currentTime||0,be=bufEnd();
     if(be>E.lastBuf+0.2){E.lastBuf=be;E.frozenAt=0}
     else if(!E.frozenAt)E.frozenAt=now;
@@ -6413,6 +6423,11 @@ async function tryPlans(plans,i){
       }
       /* tier 3: only LIVE escalates to the next path (a movie would restart) */
       if(!seeking&&live&&stalled>90000){nextPlan();return}
+    }
+    }catch(e){
+      if(token!==S.seq)return;
+      noteRouteError('watchdog: '+((e&&e.message)||'internal error'));
+      nextPlan();return;
     }
     S.timer=setTimeout(beat,1000);
   };
