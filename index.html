@@ -133,7 +133,15 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
   .card{min-height:50px}
   .info{display:none}
 }
-.episodeSheet{position:fixed;inset:0;background:rgba(3,7,18,.64);z-index:25;display:none;align-items:flex-end}.episodeSheet.show{display:flex}.episodePanel{width:100%;max-height:76vh;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;--sheetPad:12px;padding:var(--sheetPad);padding-bottom:calc(var(--sheetPad) + env(safe-area-inset-bottom));box-shadow:var(--shadow);display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}.episodeHead{display:flex;align-items:center;justify-content:space-between;gap:10px}.episodeHead h3{font-size:16px;line-height:1.2}.episodeList{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;gap:7px}/* v24.10 (owner report: a long episode title pushed the VLC button off-screen instead of shrinking
+.episodeSheet{position:fixed;inset:0;background:rgba(3,7,18,.64);z-index:25;display:none;align-items:flex-end}.episodeSheet.show{display:flex}
+/* v24.27 (owner report, with a screenshot: picking a Colour mode had no visible effect on the
+   video). applyColour() DID set video.style.filter correctly — verified: it just had nowhere to
+   show it. Every episodeSheet shares this same rgba(3,7,18,.64) backdrop, which sits ON TOP of
+   the video the whole time this sheet is open, so a Standard-vs-Vivid difference had to survive a
+   64%-black tint before it reached the customer's eye. This is the one sheet whose entire purpose
+   is judging that video by eye, so it alone gets a much lighter scrim — still enough to read as
+   "a sheet is open," not enough to hide what it's letting you compare. */
+#settingsSheet.show{background:rgba(3,7,18,.18)}.episodePanel{width:100%;max-height:76vh;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;--sheetPad:12px;padding:var(--sheetPad);padding-bottom:calc(var(--sheetPad) + env(safe-area-inset-bottom));box-shadow:var(--shadow);display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}.episodeHead{display:flex;align-items:center;justify-content:space-between;gap:10px}.episodeHead h3{font-size:16px;line-height:1.2}.episodeList{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;gap:7px}/* v24.10 (owner report: a long episode title pushed the VLC button off-screen instead of shrinking
    next to it): the title used white-space:nowrap+ellipsis, which needs a block-level box to
    actually clip — on the <strong> it sat on (inline by default), long unbroken titles just ran
    past the row's edge instead of truncating, taking the VLC button with them. Now the title wraps
@@ -1880,7 +1888,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.26';
+const APP_VERSION='24.27';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
