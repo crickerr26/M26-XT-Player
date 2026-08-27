@@ -335,8 +335,9 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 /* container never eats taps meant for the video; only its controls are interactive */
 .player.vodMode .playerbar.infuse,.player.liveMode .playerbar.infuse,.player.showbar .playerbar.infuse{pointer-events:none!important}
 .playerbar.infuse .ovTop,.playerbar.infuse .ovBottom{position:absolute;left:0;right:0;pointer-events:none}
-.ovTop{top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;background:linear-gradient(180deg,rgba(0,0,0,.5),transparent)}
-.ovBottom{bottom:0;padding:0 16px 12px;background:linear-gradient(0deg,rgba(0,0,0,.6),transparent 92%)}
+.ovTop{top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;background:linear-gradient(180deg,rgba(0,0,0,.5),transparent);transition:opacity .15s ease}
+.ovBottom{bottom:0;padding:0 16px 12px;background:linear-gradient(0deg,rgba(0,0,0,.6),transparent 92%);transition:opacity .15s ease}
+.player.qsOpen .ovTop,.player.qsOpen .ovBottom{opacity:0;pointer-events:none}
 .ovTopL{display:flex;gap:12px;pointer-events:auto}
 .ovCircle{width:44px;height:44px;border-radius:50%;background:rgba(44,44,48,.55);backdrop-filter:blur(12px);color:#fff;display:inline-flex;align-items:center;justify-content:center;pointer-events:auto}
 .ovCircle svg{width:20px;height:20px}
@@ -392,7 +393,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .playerMenu .pmHead{display:flex;align-items:center;gap:10px;padding:0 2px 10px;color:#fff;font-weight:800;font-size:13.5px;opacity:.92}
 .playerMenu .pmHead button{background:rgba(255,255,255,.1);color:#fff;font-size:16px;line-height:1;width:26px;height:26px;border-radius:8px;flex:none;display:inline-flex;align-items:center;justify-content:center;transition:background .15s ease}
 .playerMenu .pmHead button:hover{background:rgba(120,190,255,.22)}
-@media(max-width:760px){.playerMenu{bottom:50px;padding:9px}.playerMenu .pmTiles{gap:5px}.playerMenu .pmRow{width:68px;min-height:66px;padding:9px 5px 7px;font-size:11px}.playerMenu .pmVal{font-size:9.5px}}
+@media(max-width:760px){.playerMenu{bottom:44px;padding:7px}.playerMenu .pmTiles{gap:4px}.playerMenu .pmRow{width:56px;min-height:58px;gap:3px;padding:7px 3px 6px;border-radius:11px;font-size:9.5px}.playerMenu .pmIcon svg{width:17px;height:17px}.playerMenu .pmVal{font-size:8.5px}.playerMenu .pmTick{top:4px;right:5px;font-size:10px}}
 @media(max-width:760px){
   .ovVol .volSlider{width:84px}
   .ovPlay{width:64px;height:64px}.ovPlay svg{width:42px;height:42px}
@@ -1854,7 +1855,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.29';
+const APP_VERSION='24.30';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6541,7 +6542,11 @@ function seekBy(sec){
   v.currentTime=Math.max(0,Math.min(dur-0.5,(v.currentTime||0)+sec));
   $('playerBox').classList.add('showbar');
 }
-function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
+/* v24.30: the timestamp of the last DELIBERATE pause (this button), so the exit-fullscreen resume
+   guard below can tell "the user paused it" from "the browser paused it during the fullscreen
+   transition" — the two look identical as a bare video.paused check. */
+let _lastManualPauseAt=0;
+function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();_lastManualPauseAt=Date.now();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
 function toggleInlinePip(force){
   const box=$('playerBox'),v=$('video');
   if(!box||!v)return false;
@@ -8986,6 +8991,12 @@ if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$(
    out together after a few seconds of no interaction while playing, and stay up while paused or
    while a menu is open. Nothing is permanently on screen, so the video isn't cluttered. */
 const menusOpen=()=>{const q=$('qMenu'),m=$('playerMenu');return (q&&!q.classList.contains('hidden'))||(m&&!m.classList.contains('hidden'))};
+/* v24.30 (owner report, with a screenshot marking exactly this up): the top pill row (fullscreen/
+   PiP/volume) and the bottom title row (channel name/LIVE/quality/settings) sat visible behind
+   the Quick Settings tile bar the whole time it was open, cluttering the one screen that is
+   supposed to be about picking a setting undistracted. Toggled alongside every place that shows
+   or hides #playerMenu/#qMenu, so it always tracks menusOpen() exactly. */
+const syncQsOverlay=()=>{const pb=$('playerBox');if(pb)pb.classList.toggle('qsOpen',menusOpen())};
 /* v5.8: an overlay STATE MESSAGE is up (loading, "Tap play", "This file is MKV", error) means the
    video isn't really playing — showing the transport (rewind/play/forward) there just overlaps the
    message. So while the overlay is visible, keep the bar hidden; the transport only appears on tap
@@ -9001,7 +9012,19 @@ $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.c
 /* v85: remember the play position of the current Movie/Series (session-only) so replaying it
    resumes where it left off. Cleared on refresh/force-close (it lives in memory). */
 $('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0,d=v.duration||0;if(t>1&&isFinite(t)){if(d&&isFinite(d)&&d-t<RESUME_END_SECONDS){delete S.resume[keyOf(S.current)];delete S.resumeOverride[keyOf(S.current)];}else S.resume[keyOf(S.current)]=t;}}});
-document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar()});
+/* v24.30 (owner report: exiting fullscreen pauses the video): neither fs() nor anything else in
+   this app calls .pause() on a fullscreen transition — some browsers pause the element on their
+   own crossing that boundary (a layout/decoder re-init, not a deliberate stop). If it was playing
+   and the user didn't just hit pause themselves (see _lastManualPauseAt above), put it back. The
+   1.2s window is deliberately generous: a pause that lands right as/just before the fullscreen
+   exit is very likely the SAME gesture, not an unrelated earlier tap. */
+const _resumeAfterFsExit=()=>{
+  if(document.fullscreenElement||document.webkitFullscreenElement)return;
+  const v=$('video');
+  if(v&&v.paused&&!v.ended&&v.currentTime>0&&Date.now()-_lastManualPauseAt>1200)v.play().catch(()=>{});
+};
+document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
+document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
    grid rebuild) immediately — on a large Movies catalogue that is real work, and it ran once per
@@ -9098,10 +9121,10 @@ function applyQuality(val){
   }
   refreshQualityUI();
 }
-function closeQMenu(){const m=$('qMenu');if(m)m.classList.add('hidden');}
-function toggleQMenu(){const m=$('qMenu');if(!m)return;if(m.classList.contains('hidden')){buildQualityMenu();m.classList.remove('hidden');}else m.classList.add('hidden');}
+function closeQMenu(){const m=$('qMenu');if(m)m.classList.add('hidden');syncQsOverlay();}
+function toggleQMenu(){const m=$('qMenu');if(!m)return;if(m.classList.contains('hidden')){buildQualityMenu();m.classList.remove('hidden');}else m.classList.add('hidden');syncQsOverlay();}
 if($('qualityBtn'))$('qualityBtn').onclick=e=>{e.stopPropagation();toggleQMenu();};
-document.addEventListener('click',e=>{const m=$('qMenu');if(m&&!m.classList.contains('hidden')&&!m.contains(e.target)&&e.target!==$('qualityBtn'))m.classList.add('hidden');});
+document.addEventListener('click',e=>{const m=$('qMenu');if(m&&!m.classList.contains('hidden')&&!m.contains(e.target)&&e.target!==$('qualityBtn')){m.classList.add('hidden');syncQsOverlay();}});
 (function(){const v=$('video');if(v)v.addEventListener('playing',refreshQualityUI);})();
 
 /* ===================== v69: Colour mode + Equalizer (Sony-TV-style) =====================
@@ -9175,8 +9198,8 @@ function setSubTrack(i){
   const v=$('video');if(v&&v.textTracks)for(let k=0;k<v.textTracks.length;k++)v.textTracks[k].mode=(k===i?'showing':'disabled');
 }
 function subLabel(){const l=subTracksList();const on=l.find(t=>t.on);return on?on.name:'Off';}
-function pmClose(){const m=$('playerMenu');if(m)m.classList.add('hidden');}
-function pmToggle(){const m=$('playerMenu');if(!m)return;if(m.classList.contains('hidden'))pmRoot(),m.classList.remove('hidden'),closeQMenu();else m.classList.add('hidden');}
+function pmClose(){const m=$('playerMenu');if(m)m.classList.add('hidden');syncQsOverlay();}
+function pmToggle(){const m=$('playerMenu');if(!m)return;if(m.classList.contains('hidden'))pmRoot(),m.classList.remove('hidden'),closeQMenu();else m.classList.add('hidden');syncQsOverlay();}
 /* v24.28: rows render exactly as before — icon/label/val/tick/chev, one .pmRow button each — the
    only change is wrapping them in a .pmTiles strip so CSS can lay them out horizontally instead
    of stacking them. Every category (root list and every drill-down) goes through this same
@@ -9232,6 +9255,7 @@ document.addEventListener('click',e=>{
   const btn=$('settingsBtn');
   if(path.includes(m)||(btn&&path.includes(btn)))return;
   m.classList.add('hidden');
+  syncQsOverlay();
 });
 /* apply persisted speed/boost when a stream starts */
 (function(){const v=$('video');if(!v)return;v.addEventListener('playing',()=>{try{const s=parseFloat(store.getItem(SPEED_KEY));if(s>=0.25&&s<=3)v.playbackRate=s;}catch(e){}const b=savedBoost();if(b>1)setBoost(b);updateVolPct();});['volumechange'].forEach(ev=>v.addEventListener(ev,updateVolPct));})();
