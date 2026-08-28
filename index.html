@@ -738,6 +738,14 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .nativePanel .nativeActions{margin-top:12px}
 .extActions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
 .extActions .pillbtn{height:38px;font-size:13px}
+/* v24.38: "already played once" marker. Deliberately tiny and low-contrast enough not to compete
+   with the channel name, but with a soft glow so it still reads at a glance on the dark rows.
+   inline-block with a fixed size (not a text glyph) so it renders identically on every platform
+   and never inherits the title's font metrics. */
+.playedDot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#2dd4bf;
+  box-shadow:0 0 5px rgba(45,212,191,.75);margin-right:7px;vertical-align:middle;
+  position:relative;top:-1px;flex:none}
+@media(max-width:760px){.playedDot{width:6px;height:6px;margin-right:5px}}
 .field select{width:100%;height:44px;border-radius:13px;background:#edf4fb;color:#132033;border:1px solid #d9e5f2;padding:0 10px;outline:0;font:inherit}
 /* v19.64: three categories now (Live/Movies/Series), so the grid fits three and falls back to two
    when a playlist has no Series tab. */
@@ -1855,7 +1863,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.37';
+const APP_VERSION='24.38';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4287,8 +4295,8 @@ function renderEpisodeGrid(){
    box. Named function (rather than inline HTML-in-JS-in-HTML) to avoid the several layers of
    quote-escaping an inline onerror= would otherwise need. */
 function posterLogoFail(el){el.remove()}
-function gridCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="gcard ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"><span class="gph">${live?'':'▶'}</span>${live?`<span class="gchNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button>${typeOf(x)!=='live'?`<button class="ginfo" type="button" data-info="${esc(keyOf(x))}" aria-label="Details">⋮</button>`:''}</div><div class="gtitle">${esc(nameOf(x))}</div><div class="gmeta">${rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(gridMeta(x))}</div></div>`}
-function listCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="card ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${live?`<span class="chNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="${live?'posterLogoFail(this)':'this.remove()'}">`:(live?'':'▶')}</div><div class="cardText"><div class="ctitle">${esc(nameOf(x))}</div><div class="cmeta">${rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(typeOf(x).toUpperCase())+' '+(x.container_extension?'- '+esc(x.container_extension):'')}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}
+function gridCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="gcard ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"><span class="gph">${live?'':'▶'}</span>${live?`<span class="gchNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button>${typeOf(x)!=='live'?`<button class="ginfo" type="button" data-info="${esc(keyOf(x))}" aria-label="Details">⋮</button>`:''}</div><div class="gtitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="gmeta">${rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(gridMeta(x))}</div></div>`}
+function listCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="card ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${live?`<span class="chNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="${live?'posterLogoFail(this)':'this.remove()'}">`:(live?'':'▶')}</div><div class="cardText"><div class="ctitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="cmeta">${rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(typeOf(x).toUpperCase())+' '+(x.container_extension?'- '+esc(x.container_extension):'')}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}
 /* v19.35: THE WHOLE LIBRARY, NOT THE FIRST 900. A hard `.slice(0,900)` used to cap every grid no
    matter how many titles actually matched — "12,540 items" in the header with a wall at 900 cards
    and no way past it, which is exactly the "I only see a few loaded" complaint on any Movies
@@ -5275,6 +5283,26 @@ function updateLiveControls(){/* Live has no seekable timeline — hide Play/Pau
    loadType) that rebuild is real, visible work sitting between the tap and the first sign
    anything is happening, which is exactly what reads as "taking a long time to get clicked".
    Only the highlight needs to move; nothing else renderGrid() produces depends on S.current. */
+/* v24.38: the small green dot that marks a title this line has already played successfully.
+   Rendered inside the title text so it sits immediately before the name and inherits the row's
+   own truncation — no layout of its own to go wrong on a narrow phone row. */
+function playedDotHtml(x){
+  try{return hasPlayed(x)?'<i class="playedDot" title="Already played — opens fast"></i>':''}catch(e){return ''}
+}
+/* Add the dot to one already-rendered row, so it appears the instant a channel starts playing
+   rather than only after the next full grid rebuild (which v19.3.2 deliberately avoids doing on
+   every tap — see paintActiveCard below for why). */
+function paintPlayedDot(x){
+  try{
+    const g=$('grid');if(!g||!x)return;
+    const k=keyOf(x);
+    const sel=(typeof CSS!=='undefined'&&CSS.escape)?CSS.escape(k):k.replace(/["\\]/g,'\\$&');
+    const row=g.querySelector('[data-key="'+sel+'"]');if(!row)return;
+    const t=row.querySelector('.ctitle,.gtitle');if(!t||t.querySelector('.playedDot'))return;
+    const d=document.createElement('i');d.className='playedDot';d.title='Already played — opens fast';
+    t.insertBefore(d,t.firstChild);
+  }catch(e){}
+}
 function paintActiveCard(){
   const g=$('grid');if(!g)return;
   const was=g.querySelector('.card.active,.gcard.active');if(was)was.classList.remove('active');
@@ -5294,7 +5322,13 @@ async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.ad
    original plan is used unchanged and playback behaves exactly as before. */
 function yezRoutes(x){
   const base=plan(x);
-  try{return (window.YezPlayer&&YezPlayer.expand)?(YezPlayer.expand(base)||base):base}catch(e){return base}
+  let out=base;
+  try{out=(window.YezPlayer&&YezPlayer.expand)?(YezPlayer.expand(base)||base):base}catch(e){out=base}
+  /* v24.38: after the host-level ordering above has had its say, put THIS title's own proven
+     address first if it has one. Applied last on purpose — a route proven for this exact title is
+     stronger evidence than the host's general shape, which is all expand() can reason about. */
+  try{out=leadWithPlayed(x,out)}catch(e){}
+  return out;
 }
 /* v14.0: say WHO refused. When every route fails the last thing tried is the transcoder, so its
    error was reported as THE reason — complete with "free servers sleep when idle, wait ~30s",
@@ -5920,6 +5954,60 @@ async function nativeVlcPlay(x){
    remembers, and from then on a tap on a movie/episode opens VLC at once. Live TV is never
    touched; a customer who has explicitly chosen a player for Movies/Series in Stream Tools is
    never overridden; and it only ever engages where VLC actually runs. One tap, and it plays. */
+/* ── v24.38: PER-TITLE PLAYED MEMORY. ────────────────────────────────────────────────────────
+   Owner request: a channel that has already played once should show a small green dot beside its
+   name, and coming back to it should not start over from the beginning of the route walk.
+   Two jobs, one record. When a title reaches PLAYING, the EXACT address and engine that worked
+   for THAT title are written here, keyed by the title's own key (keyOf) and scoped to the signed
+   in line, so one customer's memory never shows up on another's profile.
+   Why this is separate from yezplayer.js ROUTE MEMORY, which already exists: that memory is keyed
+   by HOST, so it answers "what shape usually works on this server" — genuinely useful, and it is
+   what makes a never-seen channel start well. It cannot answer "what worked for THIS channel",
+   and on a panel where different channels sit behind different ports or path forms, the host's
+   usual shape is not necessarily this channel's winning address. Keeping the per-title winner
+   lets a revisit lead with the one address already proven for it.
+   Never removes or invalidates a route: the remembered address is promoted to the front of the
+   list and everything else follows in its normal order, so if a panel changes and the remembered
+   address stops working, the walk continues exactly as it always did and the memory is simply
+   re-learned on the next success. Capped so a large catalogue cannot grow the store without
+   bound. */
+const PLAYED_KEY='m26.played.v1';
+const PLAYED_MAX=800;
+function _playedScope(){return String((S.rawUrl||S.url||'')).trim().toLowerCase()+'|'+String(S.user||'').trim().toLowerCase();}
+function _playedAll(){try{return JSON.parse(store.getItem(PLAYED_KEY)||'{}')||{}}catch(e){return {}}}
+function _playedMap(){const a=_playedAll();const m=a[_playedScope()];return (m&&typeof m==='object')?m:{}}
+function playedInfo(x){try{if(!x)return null;const m=_playedMap();return m[keyOf(x)]||null}catch(e){return null}}
+function hasPlayed(x){return !!playedInfo(x)}
+function markPlayed(x,url,kind,label){
+  try{
+    if(!x)return;
+    const all=_playedAll(),sc=_playedScope();
+    const m=(all[sc]&&typeof all[sc]==='object')?all[sc]:{};
+    m[keyOf(x)]={u:String(url||''),k:String(kind||''),l:String(label||''),t:Date.now()};
+    /* keep the store bounded — drop the oldest entries once past the cap */
+    const ks=Object.keys(m);
+    if(ks.length>PLAYED_MAX){
+      ks.sort((a,b)=>(m[a].t||0)-(m[b].t||0));
+      for(let i=0;i<ks.length-PLAYED_MAX;i++)delete m[ks[i]];
+    }
+    all[sc]=m;
+    store.setItem(PLAYED_KEY,JSON.stringify(all));
+  }catch(e){}
+}
+/* Move this title's proven address to the front of its own route list. Pure reordering: nothing
+   is added and nothing is dropped, so a stale memory costs one attempt and then behaves exactly
+   as before. */
+function leadWithPlayed(x,routes){
+  try{
+    const info=playedInfo(x);
+    if(!info||!info.u||!Array.isArray(routes)||routes.length<2)return routes;
+    const i=routes.findIndex(r=>r&&r.url===info.u&&(r.kind||'')===(info.k||''));
+    if(i<=0)return routes;
+    const out=routes.slice();
+    out.unshift(out.splice(i,1)[0]);
+    return out;
+  }catch(e){return routes}
+}
 const VOD_EXT_KEY='m26.vodExternal.v1';
 function _vodExtKey(){return String((S.rawUrl||S.url||'')).trim().toLowerCase()+'|'+String(S.user||'').trim().toLowerCase();}
 function vodExternalLine(){try{const m=JSON.parse(store.getItem(VOD_EXT_KEY)||'{}');return !!m[_vodExtKey()];}catch(e){return false;}}
@@ -6048,7 +6136,15 @@ async function tryPlans(plans,i){
      is the safe version of the same idea: this exact address is not a guess here, it is the
      address that reached PLAYING on this host before (route memory, v24.33) — so it does not need
      the same cautious pre-play cushion a never-tried route gets. */
-  const knownGood=live&&!transcoded&&(()=>{try{const w=window.YezPlayer&&YezPlayer.wonShape&&YezPlayer.wonShape(p.url);return !!(w&&w.url===p.url&&w.kind===p.kind)}catch(e){return false}})();
+  const knownGood=live&&!transcoded&&(()=>{try{
+    /* v24.38: this title's OWN proven address counts as known-good too, not just the host's
+       remembered shape — it is the stronger of the two signals, and it is what makes coming back
+       to a channel feel like a resume rather than a fresh load. */
+    const pi=playedInfo(S.current);
+    if(pi&&pi.u===p.url&&(pi.k||'')===(p.kind||''))return true;
+    const w=window.YezPlayer&&YezPlayer.wonShape&&YezPlayer.wonShape(p.url);
+    return !!(w&&w.url===p.url&&w.kind===p.kind);
+  }catch(e){return false}})();
   /* Between attempts, give the origin a beat to release the previous slot.
      ── v24.37: THIS IS A CORRECTNESS FIX FOR A REGRESSION I SHIPPED IN v24.32. ─────────────────
      v24.32 skipped this pause whenever the previous route showed "no evidence of connecting",
@@ -6156,6 +6252,15 @@ async function tryPlans(plans,i){
        most useful line when a customer says a channel is slow but does eventually play, and it is
        invisible in S.routeErrors, which by definition only holds the ones that FAILED. */
     try{if(!S.playWonAt){S.playWonAt=Date.now();S.playWonLabel=(i+1)+'. '+p.label+' ['+(p.kind||'')+']';}}catch(e){}
+    /* v24.38: remember, for THIS title, the exact address that worked — this is what draws the
+       green "already played" dot on its row and what lets a revisit lead with the proven route
+       instead of walking the list again. Repaint the row so the dot appears immediately, without
+       waiting for the next full grid render. */
+    try{
+      const _x=S.current;
+      if(_x&&!hasPlayed(_x)){markPlayed(_x,p.url,p.kind,p.label);paintPlayedDot(_x);}
+      else if(_x)markPlayed(_x,p.url,p.kind,p.label);
+    }catch(e){}
     E.overlayState='playing';E.shownMuted=v.muted;S.awaitingTap=false;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
   /* v24.37: decide whether the NEXT route may skip the slot-release pause (see the long note at
      the top of this function for why v24.32's version of this was unsafe).
