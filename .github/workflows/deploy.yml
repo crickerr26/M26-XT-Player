@@ -189,7 +189,16 @@ jobs:
       - name: Verify the live site is serving this version
         if: steps.route.outputs.mode != 'none'
         env:
-          SITE: https://smarteriptv.gz-inzi84.workers.dev
+          # BOTH Workers projects build from this repo — wrangler.jsonc's own
+          # header says so ("The duplicate 'media26' Workers project builds from
+          # this same repo"). They are separate deployments that can drift apart,
+          # and it was never established which one the customer actually opens:
+          # index.html falls back to smarteriptv for the transcoder, while
+          # ios-app/README.md points the native shell at media26. Checking one
+          # and guessing is how this step produced an ambiguous "(unreadable)"
+          # in the first place, so check every candidate and let the log say
+          # which host serves what.
+          SITES: "https://smarteriptv.gz-inzi84.workers.dev https://media26.gz-inzi84.workers.dev"
         run: |
           WANT=$(grep -o "APP_VERSION='[0-9.]*'" index.html | head -1 | grep -o "[0-9.]*")
           if [ -z "$WANT" ]; then
@@ -206,30 +215,39 @@ jobs:
           #   - the site is up but serving a stale build
           # Only the third is a deploy failure, and the fix for each is
           # different, so the log has to say which one this is.
-          echo "--- probing $SITE ---"
-          for U in "$SITE/" "$SITE/index.html"; do
-            echo "GET $U"
-            curl -sS -o /tmp/probe.body -D /tmp/probe.head -w '  http=%{http_code} size=%{size_download} type=%{content_type} time=%{time_total}s\n' \
-                 --max-time 25 -H 'Cache-Control: no-cache' "$U" 2>&1 | sed 's/^/  /' || echo "  (request failed)"
-            echo "  first 200 bytes:"
-            head -c 200 /tmp/probe.body 2>/dev/null | tr -d '\0' | sed 's/^/    /' || true
-            echo
-            echo "  APP_VERSION found: '$(grep -o "APP_VERSION='[0-9.]*'" /tmp/probe.body 2>/dev/null | head -1 | grep -o "[0-9.]*")'"
+          for S in $SITES; do
+            echo "--- probing $S ---"
+            for U in "$S/" "$S/index.html"; do
+              echo "GET $U"
+              curl -sS -o /tmp/probe.body -w '  http=%{http_code} size=%{size_download} type=%{content_type} time=%{time_total}s\n' \
+                   --max-time 25 -H 'Cache-Control: no-cache' "$U" 2>&1 | sed 's/^/  /' || echo "  (request failed)"
+              echo "  first 200 bytes:"
+              head -c 200 /tmp/probe.body 2>/dev/null | tr -d '\0' | sed 's/^/    /' || true
+              echo
+              echo "  APP_VERSION found: '$(grep -o "APP_VERSION='[0-9.]*'" /tmp/probe.body 2>/dev/null | head -1 | grep -o "[0-9.]*")'"
+            done
           done
           echo "--- end probe ---"
 
           # ~4 minutes of polling. A Cloudflare build of this project takes well
-          # under that; going longer would only delay the verdict.
+          # under that; going longer would only delay the verdict. Every candidate
+          # host is polled each round, and the run is satisfied as soon as ANY of
+          # them serves the expected version — with the host named, so the log
+          # records where the app actually lives.
           SAWVERSION=0
           for i in $(seq 1 24); do
-            GOT=$(curl -sS --max-time 20 -H 'Cache-Control: no-cache' "$SITE/index.html" 2>/dev/null \
-                  | grep -o "APP_VERSION='[0-9.]*'" | head -1 | grep -o "[0-9.]*" || true)
-            if [ -n "$GOT" ]; then SAWVERSION=1; fi
-            if [ "$GOT" = "$WANT" ]; then
-              echo "Live site is serving $GOT — deploy confirmed after $((i*10))s."
-              exit 0
-            fi
-            echo "  attempt $i/24: live is serving '${GOT:-(unreadable)}', waiting for $WANT ..."
+            LINE=""
+            for S in $SITES; do
+              GOT=$(curl -sS --max-time 20 -H 'Cache-Control: no-cache' "$S/index.html" 2>/dev/null \
+                    | grep -o "APP_VERSION='[0-9.]*'" | head -1 | grep -o "[0-9.]*" || true)
+              if [ -n "$GOT" ]; then SAWVERSION=1; fi
+              LINE="$LINE  $S -> '${GOT:-(unreadable)}'"
+              if [ "$GOT" = "$WANT" ]; then
+                echo "CONFIRMED: $S is serving $GOT after $((i*10))s."
+                exit 0
+              fi
+            done
+            echo "  attempt $i/24 (want $WANT):$LINE"
             sleep 10
           done
 
@@ -237,7 +255,7 @@ jobs:
           # real, unambiguous stale deploy. Fail hard — this is the signal the
           # whole step exists to produce.
           if [ "$SAWVERSION" = "1" ]; then
-            echo "::error::DEPLOY DID NOT GO LIVE. Expected APP_VERSION $WANT, but $SITE is still serving '$GOT' after ~4 minutes. The commit is on main and the deploy was triggered, but Cloudflare is not serving it. Check Workers & Pages -> smarteriptv -> Deployments for a failed or missing build. Setting CLOUDFLARE_API_TOKEN makes this job deploy directly instead of relying on Cloudflare's own build."
+            echo "::error::DEPLOY DID NOT GO LIVE. Expected APP_VERSION $WANT, but no candidate host is serving '$GOT' after ~4 minutes. The commit is on main and the deploy was triggered, but Cloudflare is not serving it. Check Workers & Pages -> smarteriptv -> Deployments for a failed or missing build. Setting CLOUDFLARE_API_TOKEN makes this job deploy directly instead of relying on Cloudflare's own build."
             exit 1
           fi
 
@@ -246,7 +264,7 @@ jobs:
           # is serving a version-less page — and failing every future deploy over
           # a bad URL in this file would be worse than the problem it detects.
           # Warn loudly with the probe above as evidence, and let the run pass.
-          echo "::warning::Could not read APP_VERSION from $SITE at all (see the probe above for what that address actually returns). This is NOT evidence that the deploy failed — it usually means the URL in this step is wrong or the host is unreachable from CI. Fix SITE here so future deploys are genuinely verified."
+          echo "::warning::Could not read APP_VERSION from ANY candidate host (see the probe above for what that address actually returns). This is NOT evidence that the deploy failed — it usually means the URL in this step is wrong or the host is unreachable from CI. Fix SITES here so future deploys are genuinely verified."
 
   # ── The server: Render (ffmpeg transcoder + activation store) ─────────────
   # Runs independently of the Cloudflare job: a Render problem must not stop
