@@ -1855,7 +1855,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.34';
+const APP_VERSION='24.35';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6194,7 +6194,16 @@ async function tryPlans(plans,i){
       S.ts=mpegts.createPlayer(
         {type:'mpegts',isLive:live,url:p.url,cors:true},
         {enableWorker:true,enableStashBuffer:true,
-         stashInitialSize:mobile()?1024*1024:2*1024*1024,
+         /* v24.34 (owner-approved, explicit trade-off): 1MB/2MB -> 128KB/256KB. mpegts.js will not
+            show a first frame until this much of the stream is stashed, so it was the single
+            biggest remaining lever for "time from click to picture" on a live channel that connects
+            fine — everything else fixed this session only sped up the FAILURE cascade. The
+            library's own default is 64KB; this keeps a small margin above that rather than going
+            all the way to it. Traded away: less pre-buffered slack means a marginal connection is
+            more likely to hiccup right at the start than under the previous 1MB/2MB — asked the
+            owner directly which of three sizes to use (this is the aggressive option) rather than
+            guessing, since it can't be verified against a real stream from this environment. */
+         stashInitialSize:mobile()?128*1024:256*1024,
          lazyLoad:false,autoCleanupSourceBuffer:true,
          autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30,
          fixAudioTimestampGap:true,isLive:live,
