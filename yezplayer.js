@@ -250,6 +250,8 @@
     loadWon();
     won[h] = { kind: kind || '', label: baseLabel(label), ts: Date.now() };
     saveWon();
+    wonGlobal = { kind: kind || '', label: baseLabel(label), ts: Date.now() };
+    saveWonGlobal();
   }
   function wonShape(u) {
     var h = routeHost(u);
@@ -257,6 +259,32 @@
     loadWon();
     return won[h] || null;
   }
+
+  /* v24.32 (owner report: "most videos" still cycling through 10+ routes before playing): the
+     memory above is keyed per HOSTNAME, so it only pays off once a customer has already seen a
+     particular host win once. A provider that spreads channels across many CDN hostnames (common
+     — a channel list of 60+ live entries regularly touches a dozen distinct edge hosts) meant most
+     titles were still walking their full route list from cold, every time, because the host they
+     happened to land on had no memory yet even though the SAME provider had already proven which
+     route shape works, repeatedly, on other hosts this session.
+     This is a second, weaker memory: the single most recent winning shape across ALL hosts. It is
+     consulted only when the host-specific memory above has nothing to say, and it only ever
+     PROMOTES — same rule as wonShape — so a wrong guess costs exactly one extra probe (~0.2s)
+     before falling back to the walk this line always did; it can never make anything worse. */
+  var wonGlobal = null;
+  function loadWonGlobal() {
+    if (wonGlobal) return wonGlobal;
+    wonGlobal = null;
+    try {
+      var raw = global.localStorage && global.localStorage.getItem(RKEY + '.global');
+      if (raw) wonGlobal = JSON.parse(raw) || null;
+    } catch (e) { wonGlobal = null; }
+    return wonGlobal;
+  }
+  function saveWonGlobal() {
+    try { global.localStorage && global.localStorage.setItem(RKEY + '.global', JSON.stringify(wonGlobal || null)); } catch (e) {}
+  }
+  function wonShapeGlobal() { loadWonGlobal(); return wonGlobal; }
 
   var CONTAINER_RE = /\.(mkv|mp4|m4v|avi|mov|wmv|flv|ts)(?:$|[?#])/i;
   /* How far back a route deserves to be pushed. Lower runs first; the sort is stable, so routes
@@ -268,6 +296,12 @@
        this exact line has already proven works. */
     var w = wonShape(u);
     if (w && w.kind === (r.kind || '') && w.label === baseLabel(r.label || '')) return -1;
+    /* No memory for THIS host yet — fall back to what most recently won anywhere on this
+       provider. Still outranked by an exact host match above, and still ranks ahead of every
+       other rule below, but slightly behind it so a real host-specific memory is always trusted
+       first once one exists. */
+    var g = wonShapeGlobal();
+    if (g && g.kind === (r.kind || '') && g.label === baseLabel(r.label || '')) return -0.5;
     /* A transcoder route is judged ONLY on whether the service is alive. Its input is a Matroska
        file but its OUTPUT is HLS, which is exactly what hls.js is for — so it must never be caught
        by the container rule below, or the one route that rescues a codec this device cannot decode
@@ -369,6 +403,9 @@
     /* the app calls this the instant a route reaches PLAYING, so the next play on this host
        leads with the shape already proven to work instead of re-walking the whole ladder */
     noteRouteWon: noteRouteWon,
+    /* cross-host fallback for a route shape never seen on THIS host yet — exported for tests */
+    wonShape: wonShape,
+    wonShapeGlobal: wonShapeGlobal,
     /* the address to hand an external app (VLC), and the one-shot check behind it */
     preferredUrl: preferredUrl,
     verifyPort: verifyPort,

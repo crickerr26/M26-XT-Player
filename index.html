@@ -1855,7 +1855,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.31';
+const APP_VERSION='24.32';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6038,8 +6038,17 @@ async function tryPlans(plans,i){
   if(i===0){S.lastPreviewError='';S.routeErrors=[];}
   cleanup();
   const token=++S.seq,p=plans[i],live=typeOf(S.current)==='live',transcoded=/Transcoded/i.test(p.label);
-  /* between attempts, give the origin a beat to release the previous slot */
-  if(i>0&&live){$('netStatus').textContent='Switching path';await new Promise(r=>setTimeout(r,1500));if(token!==S.seq)return}
+  /* between attempts, give the origin a beat to release the previous slot — but only when the
+     PREVIOUS route actually reached it. v24.32 (owner report: "most videos" taking 10+ rounds to
+     start, wants it "lightning fast"): this pause used to run unconditionally before every live
+     attempt after the first, so a title whose plan tried ten routes paid this 1.5s tax nine times
+     over — 13.5s of pure waiting — even on the common case where most of those routes fail almost
+     instantly (a wrong port, an unsupported kind, a manifest 403) and never got anywhere near the
+     origin. There is nothing to "release" for a route that was never connected, so the pause is
+     now skipped when the previous attempt showed zero evidence of ever reaching the stream (no
+     buffered bytes, no decoded frame) — S.prevRouteConnected is set by nextPlan() below. A route
+     that DID connect still gets the full pause, unchanged. */
+  if(i>0&&live&&S.prevRouteConnected!==false){$('netStatus').textContent='Switching path';await new Promise(r=>setTimeout(r,1500));if(token!==S.seq)return}
   $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
   /* reset element state, including handlers older modes left behind */
   v.onwaiting=v.onstalled=v.onsuspend=v.ontimeupdate=v.onplaying=v.onerror=v.oncanplay=null;
@@ -6105,7 +6114,7 @@ async function tryPlans(plans,i){
        cannot re-teach the same win on every progress tick. */
     try{if(window.YezPlayer&&YezPlayer.noteRouteWon)YezPlayer.noteRouteWon(p.url,p.kind,p.label)}catch(e){}
     E.overlayState='playing';E.shownMuted=v.muted;S.awaitingTap=false;$('overlay').style.display='none';$('netStatus').textContent=v.muted?'Playing muted':'Playing';$('miniMeta').textContent=v.muted?'Playing muted - tap video for sound':'Playing';if($('playBtn'))$('playBtn').innerHTML=ICONS.pause};
-  const nextPlan=()=>{if(token!==S.seq)return;tryPlans(plans,i+1)};
+  const nextPlan=()=>{if(token!==S.seq)return;try{S.prevRouteConnected=v.videoWidth>0||bufEnd()>0}catch(e){S.prevRouteConnected=true}tryPlans(plans,i+1)};
   const mseLive=live&&!transcoded&&(p.kind==='mpegts'||(p.kind==='hls'&&window.Hls&&Hls.isSupported()));
   /* autoplay waterfall: unmuted -> muted -> tap prompt */
   /* v20.8: A REJECTED play() IS NOT AUTOMATICALLY A PERMISSION PROBLEM. play() rejects with
