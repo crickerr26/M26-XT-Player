@@ -134,6 +134,13 @@
   function hostPort(u) {
     try { var x = new URL(streamOf(u)); return x.port ? x.host : ''; } catch (e) { return ''; }
   }
+  /* host:port when an explicit port is present, otherwise the bare host — unlike hostPort()
+     above this never returns '' just because the address used an implicit default port, which
+     is what Slow Memory below needs (a hanging route is a hanging route whether or not the panel
+     spelled out :80/:443 in the address). */
+  function fullHost(u) {
+    try { return new URL(streamOf(u)).host; } catch (e) { return ''; }
+  }
   function isGated(u) { var k = hostPort(u); return !!(k && loadGate()[k]); }
 
   /* Called by the app when a route fails. Only a refusal that is clearly the PORT being gated
@@ -153,6 +160,57 @@
     return true;
   }
   function forgetGates() { gated = {}; saveGate(); }
+
+  /* ── SLOW MEMORY ──────────────────────────────────────────────────────────────────────────
+     v24.33 (measured with a mock upstream that silently drops the connection — mimicking a
+     real-world firewalled/black-holed port, which answers nothing at all rather than a clean
+     403/404): a route with ZERO evidence of ever connecting — no bytes, no decoded frame — still
+     burns the FULL start budget (20s live / 45s transcoded) before the app gives up on it and
+     tries the next one. Measured directly: one such route in front of a working one added 20.4
+     REAL seconds before playback started. That budget is deliberately generous and is NOT
+     shortened here — v20.0's redproibo.online fix depends on exactly this patience for a route
+     that IS slowly connecting (mpegts.js can hold up to ~8s of stash buffer before producing any
+     visible progress, which looks identical to "nothing happening yet" from here) — cutting the
+     zero-progress window short would silently break that already-proven fix for a different
+     provider.
+     What CAN safely change is what happens on the NEXT play. A route that needed the full budget
+     to fail is real, useful evidence for THIS host — weaker than GATE MEMORY's refusal signal
+     (a timeout proves nothing about the PORT, exactly as the comment above says, so it must never
+     gate anything), but still worth acting on for ORDERING: never removed, only ever tried LAST
+     among the routes for this host, so a channel that shares the same dead port as a previous one
+     stops paying that 20s tax on every single play — it pays it once, then Slow Memory keeps that
+     specific address at the back of the line from then on, while still trying it as a last resort
+     in case the panel recovers. */
+  var SKEY = 'yez.slowPorts.v1';
+  var slow = null;
+  function loadSlow() {
+    if (slow) return slow;
+    slow = {};
+    try {
+      var raw = global.localStorage && global.localStorage.getItem(SKEY);
+      if (raw) slow = JSON.parse(raw) || {};
+    } catch (e) { slow = {}; }
+    return slow;
+  }
+  function saveSlow() {
+    try { global.localStorage && global.localStorage.setItem(SKEY, JSON.stringify(slow || {})); } catch (e) {}
+  }
+  /* Only "startup timeout" — overBudget()'s own verdict for a route with no evidence of
+     connecting at all — counts. Every other failure reason (a decode error, a stall after real
+     playback started, a mid-stream reconnect giving up) says nothing about whether THIS address
+     is worth trying first next time and must not be learned from here. */
+  var TIMEOUT_WHY = /^startup timeout$/i;
+  function noteTimeout(url, why) {
+    if (!TIMEOUT_WHY.test(String(why || '').trim())) return false;
+    var k = fullHost(url);
+    if (!k) return false;
+    loadSlow();
+    slow[k] = Date.now();
+    saveSlow();
+    return true;
+  }
+  function isSlow(u) { var k = fullHost(u); return !!(k && loadSlow()[k]); }
+  function forgetSlow() { slow = {}; saveSlow(); }
 
   /* The address this device should actually use for a stream — the ladder's answer once the
      original's port is known to be refused, otherwise the provider's own link untouched.
@@ -248,7 +306,7 @@
     var h = routeHost(url);
     if (!h) return;
     loadWon();
-    won[h] = { kind: kind || '', label: baseLabel(label), ts: Date.now() };
+    won[h] = { url: String(url || ''), kind: kind || '', label: baseLabel(label), ts: Date.now() };
     saveWon();
     wonGlobal = { kind: kind || '', label: baseLabel(label), ts: Date.now() };
     saveWonGlobal();
@@ -293,8 +351,20 @@
     var u = String(r.url || '');
     /* A route matching a KNOWN WIN for this host jumps ahead of everything else below — including
        the transcoder-alive and hls-on-container rules, which is right: nothing outranks a shape
-       this exact line has already proven works. */
+       this exact line has already proven works.
+       v24.33 (found by driving the real cascade end-to-end against a mock upstream, not just
+       reading the code — see the run.js harness): the EXACT address that won must outrank a same-
+       SHAPE sibling, not just tie with it. Without this, once GATE MEMORY had demoted a host for
+       an unrelated refused route, isGated() pushed that host's untested "(default port)" ladder
+       variant of the WINNING route ahead of the original — same kind, same base label, so the two
+       tied on this rule and the stable sort kept whichever gating had already put first. The
+       result, measured: a channel that had already proven "Direct TS works" still spent one whole
+       failed hop on a never-tried port variant before reaching the address that was ACTUALLY
+       proven, every single time the host had any other gated route. An exact URL is strictly
+       stronger evidence than "same kind and label" — a variant has never been tried at all — so it
+       must never be out-ranked by gating logic that knows nothing about this specific address. */
     var w = wonShape(u);
+    if (w && w.kind === (r.kind || '') && w.label === baseLabel(r.label || '') && w.url === u) return -2;
     if (w && w.kind === (r.kind || '') && w.label === baseLabel(r.label || '')) return -1;
     /* No memory for THIS host yet — fall back to what most recently won anywhere on this
        provider. Still outranked by an exact host match above, and still ranks ahead of every
@@ -302,6 +372,11 @@
        first once one exists. */
     var g = wonShapeGlobal();
     if (g && g.kind === (r.kind || '') && g.label === baseLabel(r.label || '')) return -0.5;
+    /* SLOW MEMORY: this host previously burned its full start budget on a route with zero
+       evidence of connecting. Worse than every rule below (a transcoder that's merely asleep, or
+       an hls.js/container mismatch, can still fail in under a second) — sink it to the very back,
+       but never drop it: the panel can recover, and nothing here may remove a route outright. */
+    if (isSlow(u)) return 3;
     /* A transcoder route is judged ONLY on whether the service is alive. Its input is a Matroska
        file but its OUTPUT is HLS, which is exactly what hls.js is for — so it must never be caught
        by the container rule below, or the one route that rescues a codec this device cannot decode
@@ -400,6 +475,12 @@
     noteRefusal: noteRefusal,
     isGated: isGated,
     forgetGates: forgetGates,
+    /* the app calls this on every failed route too, alongside noteRefusal — only a verdict of
+       exactly "startup timeout" (zero evidence the route ever connected) is learned from, and it
+       only ever demotes the route on THIS host to run last next time, never removes it */
+    noteTimeout: noteTimeout,
+    isSlow: isSlow,
+    forgetSlow: forgetSlow,
     /* the app calls this the instant a route reaches PLAYING, so the next play on this host
        leads with the shape already proven to work instead of re-walking the whole ladder */
     noteRouteWon: noteRouteWon,

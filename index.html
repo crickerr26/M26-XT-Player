@@ -1855,7 +1855,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.32';
+const APP_VERSION='24.33';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6093,6 +6093,10 @@ async function tryPlans(plans,i){
     /* v20.1: and whether the transcoder itself is answering. While it is down its routes sink to
        last, so an MKV stops spending its 130-second start budget on a service that is not there. */
     try{window.YezPlayer&&YezPlayer.noteTranscoder&&YezPlayer.noteTranscoder(p.url,why)}catch(e){}
+    /* v24.33 (measured: a route with zero evidence of connecting burns the full 20s start budget
+       before overBudget() gives up on it — see yezplayer.js SLOW MEMORY): teach the next play on
+       this host to try this exact address last, without touching the budget itself. */
+    try{window.YezPlayer&&YezPlayer.noteTimeout&&YezPlayer.noteTimeout(p.url,why)}catch(e){}
     /* v20.7: EVERY ROUTE'S VERDICT IS KEPT, NOT JUST THE LAST ONE. This line used to overwrite
        S.lastPreviewError on each attempt, so the summary a customer finally saw named whichever
        route happened to be last — the transcoder — and reported ITS error ("HTTP 503") as the
