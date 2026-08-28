@@ -1863,7 +1863,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.39';
+const APP_VERSION='24.40';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6369,7 +6369,19 @@ async function tryPlans(plans,i){
             more likely to hiccup right at the start than under the previous 1MB/2MB — asked the
             owner directly which of three sizes to use (this is the aggressive option) rather than
             guessing, since it can't be verified against a real stream from this environment. */
-         stashInitialSize:mobile()?128*1024:256*1024,
+         /* v24.40: BACK UP to 512KB/1MB after the aggressive cut below caused exactly the failure
+            it was warned about. v24.35 took this from 1MB/2MB to 128KB/256KB for start speed;
+            the owner then reported, with a screenshot of a live TS channel, that "a video popped
+            up and vanished" — playback beginning and then dying within a second, on iPhone. That
+            is the textbook symptom of starting a live stream with too little in hand: 128KB of a
+            high-bitrate TS is a fraction of a second, so the decoder runs out almost immediately
+            and the route is torn down as a stall. Note this was the FIRST build carrying v24.35
+            to actually reach the device — the media26/smarteriptv deploy mixup meant it had never
+            been exercised on a real line until now, so the symptom appeared several releases
+            after the change that caused it.
+            512KB/1MB is deliberately a middle: still half the original, so the start is faster
+            than it was before v24.35, but with real slack instead of none. */
+         stashInitialSize:mobile()?512*1024:1024*1024,
          lazyLoad:false,autoCleanupSourceBuffer:true,
          autoCleanupMaxBackwardDuration:60,autoCleanupMinBackwardDuration:30,
          fixAudioTimestampGap:true,isLive:live,
@@ -6585,7 +6597,17 @@ async function tryPlans(plans,i){
          there is real evidence behind it instead of a guess. A channel you switch back to after
          watching something else should feel closer to instant than a channel this device has
          never touched. */
-      const cushionAt=knownGood?0.15:0.5,cushionCap=knownGood?400:1200;
+      /* v24.40: restored toward the long-proven numbers, same reason as the stash size above —
+         a cushion of 0.15-0.5s hands play() a stream with almost nothing buffered, and on a real
+         live TS line that showed up as playback starting and vanishing. 1.0s/2.0s (0.5s/1.2s for
+         a route already proven on this exact title) still starts sooner than the 1.2s/2.5s this
+         had for many releases, but leaves enough slack to actually keep running.
+         Kept from v24.39, and untouched here: the picture is revealed the moment playback truly
+         starts rather than on the next 1-second heartbeat. That was the change that made opening
+         a channel feel fast, and it costs nothing in stability — it only stops the app sitting on
+         a picture it already has. The speed regression risk was always in these two numbers, not
+         in that one. */
+      const cushionAt=knownGood?0.5:1.0,cushionCap=knownGood?1200:2000;
       if(!mseLive||be>=cushionAt||now-attachAt>cushionCap){E.playTried=true;attempt()}
       else{
         E.overlayState='pre';$('overlay').style.display='grid';
