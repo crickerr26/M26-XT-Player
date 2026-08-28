@@ -1855,7 +1855,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.33';
+const APP_VERSION='24.34';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6365,17 +6365,26 @@ async function tryPlans(plans,i){
     }
     const stalled=now-E.lastProgress;
     if(!E.playTried){
-      /* pre-play cushion (VLC's trick): live MSE engines wait for ~2.5s of
-         buffer before the first play so playback starts with slack; capped
-         at 4s so a slow source still starts promptly */
-      /* v60: start sooner. The pre-play cushion was 2.5s (cap 4s) which felt like "slow to
-         open"; 1.2s (cap 2.5s) still starts with slack but the picture appears much faster. */
-      if(!mseLive||be>=1.2||now-attachAt>2500){E.playTried=true;attempt()}
+      /* pre-play cushion (VLC's trick): live MSE engines wait for a little buffer
+         before the first play so playback starts with slack, capped so a slow
+         source still starts promptly. */
+      /* v60: 2.5s (cap 4s) -> 1.2s (cap 2.5s) — "felt slow to open."
+         v24.34 (owner, repeated across three messages: "lightning fast", "right away",
+         "do whatever you can"): 1.2s (cap 2.5s) -> 0.5s (cap 1.2s). This is the one deliberate,
+         app-level delay still sitting in front of every live channel that IS connecting fine —
+         everything else fixed this session (v24.32/v24.33) only sped up the FAILURE cascade, not
+         the success path. Still a real cushion, not zero: a route with any data at all still gets
+         to build half a second of slack before the first play() call, and a slow starter still
+         gets a full 1.2s before this gate lets go regardless. Trade-off, stated plainly: less
+         slack means marginal connections are slightly likelier to hiccup right at the start than
+         under the previous 1.2s/2.5s numbers — this is a smoothness-for-speed swap made on
+         explicit, repeated owner instruction, not a claim that it's risk-free. */
+      if(!mseLive||be>=0.5||now-attachAt>1200){E.playTried=true;attempt()}
       else{
         E.overlayState='pre';$('overlay').style.display='grid';
         if($('stateProgress'))$('stateProgress').classList.remove('hidden');
         $('stateTitle').textContent='Buffering';
-        $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(be/1.2*100))+'%';
+        $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(be/0.5*100))+'%';
       }
       if(overBudget()){noteRouteError('startup timeout');nextPlan();return}
     }else if(!E.started){
