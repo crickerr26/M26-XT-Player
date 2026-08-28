@@ -1863,7 +1863,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.38';
+const APP_VERSION='24.39';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6494,6 +6494,32 @@ async function tryPlans(plans,i){
       v.src=p.url;v.load();
     }
   }catch(e){nextPlan();return}
+  /* ── v24.39: REVEAL THE PICTURE THE MOMENT IT IS ACTUALLY PLAYING. ──────────────────────────
+     Measured while testing the owner's own scenario (play one title, play ten others, come back):
+     a title that was fully decoding and playing at ~300ms still sat behind the "Loading" card
+     until ~1250ms. The cause is not the network and not the route walk — both were already done.
+     It is that the ONLY thing that hides the overlay is showPlaying(), and the only caller is the
+     heartbeat below, which first runs at 250ms and then only once per second. So the reveal waits
+     for whichever 1-second tick happens to come after playback truly starts, and on average
+     throws away half a second of picture the device already has. That is a flat tax on EVERY
+     play — cold or remembered — and it is most of what still felt slow after the route-level work
+     in v24.32-v24.38 (which could only ever speed up getting the bytes, not showing them).
+     The element already knows exactly when it starts: timeupdate fires as soon as the clock
+     moves. This mirrors the heartbeat's own first-start branch precisely — same 0.3s threshold,
+     same bookkeeping — so the two agree and beat() simply finds the work already done on its next
+     tick. Deliberately ONLY the first start: the stall, reconnect and black-frame logic all stay
+     in the heartbeat, and so does v23.6's anti-flicker rule (a RECOVERY from a visible stall
+     still waits for two consecutive ticks, because E.started is already true by then and this
+     handler does nothing). */
+  v.ontimeupdate=()=>{
+    if(token!==S.seq||E.started)return;
+    let t=0;try{t=v.currentTime||0}catch(e){return}
+    if(t<=0.3)return;
+    E.started=true;E.lastT=t;E.lastProgress=Date.now();E.progressStreak=1;
+    /* On a first start the overlay is 'load'/'pre'/'tap', never 'buffer'/'reconnect', so this is
+       the same condition the heartbeat would have applied a moment later. */
+    if(E.overlayState!=='buffer'&&E.overlayState!=='reconnect')showPlaying();
+  };
   /* the heartbeat: every stall/recovery/UI decision lives here, nowhere else */
   const beat=()=>{
     if(token!==S.seq)return;
