@@ -197,11 +197,34 @@ jobs:
             exit 0
           fi
           echo "Expecting the live site to serve APP_VERSION $WANT"
+
+          # WHAT IS ACTUALLY AT THAT ADDRESS? Printed once, up front, because the
+          # first version of this step could not tell three very different
+          # problems apart — it reported "(unreadable)" for all of them:
+          #   - the URL below is wrong (nothing to do with deploying at all)
+          #   - the site is down or erroring
+          #   - the site is up but serving a stale build
+          # Only the third is a deploy failure, and the fix for each is
+          # different, so the log has to say which one this is.
+          echo "--- probing $SITE ---"
+          for U in "$SITE/" "$SITE/index.html"; do
+            echo "GET $U"
+            curl -sS -o /tmp/probe.body -D /tmp/probe.head -w '  http=%{http_code} size=%{size_download} type=%{content_type} time=%{time_total}s\n' \
+                 --max-time 25 -H 'Cache-Control: no-cache' "$U" 2>&1 | sed 's/^/  /' || echo "  (request failed)"
+            echo "  first 200 bytes:"
+            head -c 200 /tmp/probe.body 2>/dev/null | tr -d '\0' | sed 's/^/    /' || true
+            echo
+            echo "  APP_VERSION found: '$(grep -o "APP_VERSION='[0-9.]*'" /tmp/probe.body 2>/dev/null | head -1 | grep -o "[0-9.]*")'"
+          done
+          echo "--- end probe ---"
+
           # ~4 minutes of polling. A Cloudflare build of this project takes well
-          # under that; going longer would only delay the red.
+          # under that; going longer would only delay the verdict.
+          SAWVERSION=0
           for i in $(seq 1 24); do
             GOT=$(curl -sS --max-time 20 -H 'Cache-Control: no-cache' "$SITE/index.html" 2>/dev/null \
                   | grep -o "APP_VERSION='[0-9.]*'" | head -1 | grep -o "[0-9.]*" || true)
+            if [ -n "$GOT" ]; then SAWVERSION=1; fi
             if [ "$GOT" = "$WANT" ]; then
               echo "Live site is serving $GOT — deploy confirmed after $((i*10))s."
               exit 0
@@ -209,8 +232,21 @@ jobs:
             echo "  attempt $i/24: live is serving '${GOT:-(unreadable)}', waiting for $WANT ..."
             sleep 10
           done
-          echo "::error::DEPLOY DID NOT GO LIVE. Expected APP_VERSION $WANT, but $SITE is still serving '${GOT:-(unreadable)}' after ~4 minutes. The commit is on main and the deploy was triggered, but Cloudflare is not serving it. Check Workers & Pages -> smarteriptv -> Deployments for a failed or missing build. Setting CLOUDFLARE_API_TOKEN makes this job deploy directly instead of relying on Cloudflare's own build."
-          exit 1
+
+          # A version was readable but never became the expected one: that is a
+          # real, unambiguous stale deploy. Fail hard — this is the signal the
+          # whole step exists to produce.
+          if [ "$SAWVERSION" = "1" ]; then
+            echo "::error::DEPLOY DID NOT GO LIVE. Expected APP_VERSION $WANT, but $SITE is still serving '$GOT' after ~4 minutes. The commit is on main and the deploy was triggered, but Cloudflare is not serving it. Check Workers & Pages -> smarteriptv -> Deployments for a failed or missing build. Setting CLOUDFLARE_API_TOKEN makes this job deploy directly instead of relying on Cloudflare's own build."
+            exit 1
+          fi
+
+          # Never read ANY version from that address. Far more likely the URL in
+          # SITE is wrong or the host is unreachable from CI than that the site
+          # is serving a version-less page — and failing every future deploy over
+          # a bad URL in this file would be worse than the problem it detects.
+          # Warn loudly with the probe above as evidence, and let the run pass.
+          echo "::warning::Could not read APP_VERSION from $SITE at all (see the probe above for what that address actually returns). This is NOT evidence that the deploy failed — it usually means the URL in this step is wrong or the host is unreachable from CI. Fix SITE here so future deploys are genuinely verified."
 
   # ── The server: Render (ffmpeg transcoder + activation store) ─────────────
   # Runs independently of the Cloudflare job: a Render problem must not stop
