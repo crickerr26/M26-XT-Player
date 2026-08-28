@@ -165,6 +165,53 @@ jobs:
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      # ── DID THE VERSION ACTUALLY GO LIVE? ─────────────────────────────────
+      # Everything above this point can report success without a single byte
+      # reaching a customer. The hook route is the obvious case — it answers
+      # {"status":"queued"} and Cloudflare then builds on its own side, telling
+      # GitHub nothing — but even wrangler only proves an upload, not that the
+      # edge is serving the new bundle.
+      #
+      # This is what that gap costs, and it is not hypothetical: it is the
+      # incident this whole workflow was written for (five releases live-stale
+      # with a green check the whole time), and it recurred — v24.32 through
+      # v24.39 all deployed through the unverified hook, and the versions were
+      # reported as missing from the live site while every run here was green.
+      #
+      # So: ask the live site what version it is actually serving, and fail the
+      # run if it is not the one this commit built. A red run with "live is
+      # still 24.31, expected 24.39" is the signal that was missing.
+      #
+      # Deliberately tolerant of the things that are NOT failures: the build is
+      # asynchronous, so it polls rather than checking once, and it only starts
+      # failing after the grace window. Transient 5xx/timeouts while Cloudflare
+      # swaps the bundle are just retried.
+      - name: Verify the live site is serving this version
+        if: steps.route.outputs.mode != 'none'
+        env:
+          SITE: https://smarteriptv.gz-inzi84.workers.dev
+        run: |
+          WANT=$(grep -o "APP_VERSION='[0-9.]*'" index.html | head -1 | grep -o "[0-9.]*")
+          if [ -z "$WANT" ]; then
+            echo "::warning::Could not read APP_VERSION out of index.html — skipping the live check."
+            exit 0
+          fi
+          echo "Expecting the live site to serve APP_VERSION $WANT"
+          # ~4 minutes of polling. A Cloudflare build of this project takes well
+          # under that; going longer would only delay the red.
+          for i in $(seq 1 24); do
+            GOT=$(curl -sS --max-time 20 -H 'Cache-Control: no-cache' "$SITE/index.html" 2>/dev/null \
+                  | grep -o "APP_VERSION='[0-9.]*'" | head -1 | grep -o "[0-9.]*" || true)
+            if [ "$GOT" = "$WANT" ]; then
+              echo "Live site is serving $GOT — deploy confirmed after $((i*10))s."
+              exit 0
+            fi
+            echo "  attempt $i/24: live is serving '${GOT:-(unreadable)}', waiting for $WANT ..."
+            sleep 10
+          done
+          echo "::error::DEPLOY DID NOT GO LIVE. Expected APP_VERSION $WANT, but $SITE is still serving '${GOT:-(unreadable)}' after ~4 minutes. The commit is on main and the deploy was triggered, but Cloudflare is not serving it. Check Workers & Pages -> smarteriptv -> Deployments for a failed or missing build. Setting CLOUDFLARE_API_TOKEN makes this job deploy directly instead of relying on Cloudflare's own build."
+          exit 1
+
   # ── The server: Render (ffmpeg transcoder + activation store) ─────────────
   # Runs independently of the Cloudflare job: a Render problem must not stop
   # the app shipping, and vice versa.
