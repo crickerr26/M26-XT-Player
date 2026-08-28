@@ -198,7 +198,13 @@ jobs:
           # and guessing is how this step produced an ambiguous "(unreadable)"
           # in the first place, so check every candidate and let the log say
           # which host serves what.
-          SITES: "https://smarteriptv.gz-inzi84.workers.dev https://media26.gz-inzi84.workers.dev"
+          # media26 FIRST: the probe settled which of these is real. media26
+          # answers 200 with the app (982 KB of HTML carrying APP_VERSION);
+          # smarteriptv answers 404 "error code: 1042", Cloudflare's code for a
+          # hostname with no Worker behind it. The deploy hook in this workflow
+          # points at the smarteriptv project — which is why pushes kept going
+          # green while the app the customer actually opens stayed behind.
+          SITES: "https://media26.gz-inzi84.workers.dev https://smarteriptv.gz-inzi84.workers.dev"
         run: |
           WANT=$(grep -o "APP_VERSION='[0-9.]*'" index.html | head -1 | grep -o "[0-9.]*")
           if [ -z "$WANT" ]; then
@@ -217,9 +223,9 @@ jobs:
           # different, so the log has to say which one this is.
           for S in $SITES; do
             echo "--- probing $S ---"
-            for U in "$S/" "$S/index.html"; do
+            for U in "$S/"; do
               echo "GET $U"
-              curl -sS -o /tmp/probe.body -w '  http=%{http_code} size=%{size_download} type=%{content_type} time=%{time_total}s\n' \
+              curl -sSL -o /tmp/probe.body -w '  http=%{http_code} size=%{size_download} type=%{content_type} time=%{time_total}s\n' \
                    --max-time 25 -H 'Cache-Control: no-cache' "$U" 2>&1 | sed 's/^/  /' || echo "  (request failed)"
               echo "  first 200 bytes:"
               head -c 200 /tmp/probe.body 2>/dev/null | tr -d '\0' | sed 's/^/    /' || true
@@ -238,7 +244,12 @@ jobs:
           for i in $(seq 1 24); do
             LINE=""
             for S in $SITES; do
-              GOT=$(curl -sS --max-time 20 -H 'Cache-Control: no-cache' "$S/index.html" 2>/dev/null \
+              # -L and the bare root, both learned from the probe: this loop used
+              # to request /index.html without following redirects, and media26
+              # answers that with a 307 — so it reported '(unreadable)' for the
+              # one host that was serving the app perfectly well at '/'. The
+              # checker was hiding the very answer it existed to find.
+              GOT=$(curl -sSL --max-time 20 -H 'Cache-Control: no-cache' "$S/" 2>/dev/null \
                     | grep -o "APP_VERSION='[0-9.]*'" | head -1 | grep -o "[0-9.]*" || true)
               if [ -n "$GOT" ]; then SAWVERSION=1; fi
               LINE="$LINE  $S -> '${GOT:-(unreadable)}'"
