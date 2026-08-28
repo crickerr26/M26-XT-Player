@@ -1855,7 +1855,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.35';
+const APP_VERSION='24.36';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6038,6 +6038,17 @@ async function tryPlans(plans,i){
   if(i===0){S.lastPreviewError='';S.routeErrors=[];}
   cleanup();
   const token=++S.seq,p=plans[i],live=typeOf(S.current)==='live',transcoded=/Transcoded/i.test(p.label);
+  /* v24.36 (owner: switching back to a channel already played once this session should not feel
+     like loading it fresh). Keeping the old channel's connection alive in the background so a
+     switch is truly instant was considered and rejected: most IPTV lines allow only ONE
+     connection at a time (see the account-conflict/single-slot handling elsewhere in this file,
+     and yezplayer.js GATE MEMORY's own history) — two live connections from the same account
+     would risk breaking BOTH channels, not just fail to speed one up, and would double the
+     background bandwidth/CPU cost for as long as the "parked" channel sat there unused. So this
+     is the safe version of the same idea: this exact address is not a guess here, it is the
+     address that reached PLAYING on this host before (route memory, v24.33) — so it does not need
+     the same cautious pre-play cushion a never-tried route gets. */
+  const knownGood=live&&!transcoded&&(()=>{try{const w=window.YezPlayer&&YezPlayer.wonShape&&YezPlayer.wonShape(p.url);return !!(w&&w.url===p.url&&w.kind===p.kind)}catch(e){return false}})();
   /* between attempts, give the origin a beat to release the previous slot — but only when the
      PREVIOUS route actually reached it. v24.32 (owner report: "most videos" taking 10+ rounds to
      start, wants it "lightning fast"): this pause used to run unconditionally before every live
@@ -6387,13 +6398,19 @@ async function tryPlans(plans,i){
          gets a full 1.2s before this gate lets go regardless. Trade-off, stated plainly: less
          slack means marginal connections are slightly likelier to hiccup right at the start than
          under the previous 1.2s/2.5s numbers — this is a smoothness-for-speed swap made on
-         explicit, repeated owner instruction, not a claim that it's risk-free. */
-      if(!mseLive||be>=0.5||now-attachAt>1200){E.playTried=true;attempt()}
+         explicit, repeated owner instruction, not a claim that it's risk-free.
+         v24.36: knownGood shrinks this further still, to 0.15s/0.4s, for the one case where the
+         caution buys little — this exact address already reached PLAYING on this host before, so
+         there is real evidence behind it instead of a guess. A channel you switch back to after
+         watching something else should feel closer to instant than a channel this device has
+         never touched. */
+      const cushionAt=knownGood?0.15:0.5,cushionCap=knownGood?400:1200;
+      if(!mseLive||be>=cushionAt||now-attachAt>cushionCap){E.playTried=true;attempt()}
       else{
         E.overlayState='pre';$('overlay').style.display='grid';
         if($('stateProgress'))$('stateProgress').classList.remove('hidden');
         $('stateTitle').textContent='Buffering';
-        $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(be/0.5*100))+'%';
+        $('stateText').textContent='Building a smooth-play buffer... '+Math.min(99,Math.round(be/cushionAt*100))+'%';
       }
       if(overBudget()){noteRouteError('startup timeout');nextPlan();return}
     }else if(!E.started){
