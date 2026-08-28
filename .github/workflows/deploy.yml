@@ -204,7 +204,12 @@ jobs:
           # hostname with no Worker behind it. The deploy hook in this workflow
           # points at the smarteriptv project — which is why pushes kept going
           # green while the app the customer actually opens stayed behind.
-          SITES: "https://media26.gz-inzi84.workers.dev https://smarteriptv.gz-inzi84.workers.dev"
+          # m26-xtp added from a real device's diagnostics: the app reported its own transcoder
+          # base as https://m26-xtp.gz-inzi84.workers.dev/transcoder, and that base is derived from
+          # location.origin — so that is the origin a customer is actually loading the app from.
+          # A THIRD worker off this one repo. Checking a domain nobody uses is how the earlier
+          # "(unreadable)" confusion happened; check them all and let the log name the live one.
+          SITES: "https://m26-xtp.gz-inzi84.workers.dev https://media26.gz-inzi84.workers.dev https://smarteriptv.gz-inzi84.workers.dev"
         run: |
           WANT=$(grep -o "APP_VERSION='[0-9.]*'" index.html | head -1 | grep -o "[0-9.]*")
           if [ -z "$WANT" ]; then

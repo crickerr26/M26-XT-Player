@@ -1919,7 +1919,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.42';
+const APP_VERSION='24.43';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6051,6 +6051,25 @@ function _playedAll(){try{return JSON.parse(store.getItem(PLAYED_KEY)||'{}')||{}
 function _playedMap(){const a=_playedAll();const m=a[_playedScope()];return (m&&typeof m==='object')?m:{}}
 function playedInfo(x){try{if(!x)return null;const m=_playedMap();return m[keyOf(x)]||null}catch(e){return null}}
 function hasPlayed(x){return !!playedInfo(x)}
+/* v24.43: a remembered route that has just FAILED must stop being remembered. The owner's
+   diagnostics showed the cost of not doing this: "Live Transcoded" ran first and burned 16
+   seconds on an HTTP 502, ahead of the direct stream that then played. It led because it had
+   won once and been recorded — and with nothing ever clearing that record, every future play of
+   this channel paid the same 16 seconds to re-learn what the last one already knew.
+   Only ever clears; the walk behind it is unchanged, so the worst case is one play that
+   re-discovers the winner exactly as a first play would. */
+function forgetPlayed(x,url){
+  try{
+    if(!x)return;
+    const all=_playedAll(),sc=_playedScope(),m=all[sc];
+    if(!m)return;
+    const k=keyOf(x),e=m[k];
+    if(!e)return;
+    if(url&&e.u!==String(url))return;   /* a different route failed; the memory still stands */
+    delete m[k];all[sc]=m;
+    store.setItem(PLAYED_KEY,JSON.stringify(all));
+  }catch(e){}
+}
 function markPlayed(x,url,kind,label){
   try{
     if(!x)return;
@@ -6328,6 +6347,11 @@ async function tryPlans(plans,i){
        before overBudget() gives up on it — see yezplayer.js SLOW MEMORY): teach the next play on
        this host to try this exact address last, without touching the budget itself. */
     try{window.YezPlayer&&YezPlayer.noteTimeout&&YezPlayer.noteTimeout(p.url,why)}catch(e){}
+    /* v24.43: and forget any memory that pointed AT this route. Both layers: the per-title
+       winner (v24.38) and the per-host shape (v24.24). A remembered route that just failed is
+       a wrong answer the next play would otherwise repeat at full cost. */
+    try{forgetPlayed(S.current,p.url)}catch(e){}
+    try{window.YezPlayer&&YezPlayer.noteRouteLost&&YezPlayer.noteRouteLost(p.url,p.kind,p.label)}catch(e){}
     /* v20.7: EVERY ROUTE'S VERDICT IS KEPT, NOT JUST THE LAST ONE. This line used to overwrite
        S.lastPreviewError on each attempt, so the summary a customer finally saw named whichever
        route happened to be last — the transcoder — and reported ITS error ("HTTP 503") as the
@@ -6530,9 +6554,23 @@ async function tryPlans(plans,i){
         abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
         maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:live?0:30,
         liveSyncDurationCount:4,liveMaxLatencyDurationCount:18,maxLiveSyncPlaybackRate:1.1,
-        manifestLoadingMaxRetry:4,levelLoadingMaxRetry:4,fragLoadingMaxRetry:8,
+        /* ── v24.43: A LIVE ROUTE MUST NOT SPEND 16 SECONDS FAILING. ─────────────────────────
+           From the owner's own diagnostics on a real iPhone, the line that finally explained
+           "minutes to load":
+             1. Live Transcoded [hls]  16.0s  manifestLoadError HTTP 502
+           A 502 comes back instantly. The sixteen seconds were entirely hls.js: four manifest
+           retries, each allowed a twelve-second timeout. The route was doomed from the first
+           answer and the app waited anyway, before it had even tried the direct stream — which
+           then played. Same story one row down: 21.1s of startup timeout on another HLS route.
+           These numbers only ever made sense for VOD, where a slow manifest is worth waiting out
+           because there is no alternative and nothing is time-critical. On LIVE there is always
+           another route right behind, and a viewer staring at a spinner. So live gets one retry
+           and a five-second ceiling; VOD keeps the patient settings unchanged.
+           Fragment retries stay generous on both: those matter mid-stream, after playback has
+           started, and have nothing to do with how long a dead route is allowed to stall a start. */
+        manifestLoadingMaxRetry:live?1:4,levelLoadingMaxRetry:live?2:4,fragLoadingMaxRetry:8,
         manifestLoadingRetryDelay:500,levelLoadingRetryDelay:500,fragLoadingRetryDelay:500,
-        manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,fragLoadingTimeOut:22000,
+        manifestLoadingTimeOut:live?5000:12000,levelLoadingTimeOut:live?5000:12000,fragLoadingTimeOut:live?12000:22000,
         enableSoftwareAES:true});
       S.hls.loadSource(p.url);S.hls.attachMedia(v);
       /* v24.42: same byte evidence for hls.js — a loaded manifest, level or fragment all mean

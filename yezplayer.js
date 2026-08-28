@@ -317,6 +317,26 @@
     loadWon();
     return won[h] || null;
   }
+  /* v24.43: forget a remembered shape once it actually fails. The memory above only ever grew,
+     so a route that won yesterday and is broken today kept leading the list and kept costing its
+     full failure time on every play — measured on a real line at 16s per attempt for a transcoder
+     route answering HTTP 502. Clearing on failure means one play re-learns the winner; leaving it
+     meant every play paid for the stale answer. Only the exact remembered shape is cleared, so an
+     unrelated route failing never disturbs it. */
+  function noteRouteLost(url, kind, label) {
+    var h = routeHost(url);
+    if (!h) return false;
+    loadWon();
+    var w = won[h];
+    if (!w) return false;
+    if (w.kind !== (kind || '') || w.label !== baseLabel(label)) return false;
+    delete won[h];
+    saveWon();
+    if (wonGlobal && wonGlobal.kind === (kind || '') && wonGlobal.label === baseLabel(label)) {
+      wonGlobal = null; saveWonGlobal();
+    }
+    return true;
+  }
 
   /* v24.32 (owner report: "most videos" still cycling through 10+ routes before playing): the
      memory above is keyed per HOSTNAME, so it only pays off once a customer has already seen a
@@ -484,6 +504,9 @@
     /* the app calls this the instant a route reaches PLAYING, so the next play on this host
        leads with the shape already proven to work instead of re-walking the whole ladder */
     noteRouteWon: noteRouteWon,
+    /* the app calls this when a route FAILS, so a remembered winner that has since broken
+       stops leading the list on every subsequent play */
+    noteRouteLost: noteRouteLost,
     /* cross-host fallback for a route shape never seen on THIS host yet — exported for tests */
     wonShape: wonShape,
     wonShapeGlobal: wonShapeGlobal,
