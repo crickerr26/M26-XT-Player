@@ -1919,7 +1919,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.41';
+const APP_VERSION='24.42';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6244,12 +6244,28 @@ async function tryPlans(plans,i){
   if(i>0&&live&&S.prevRouteSafeToRush!==true){$('netStatus').textContent='Switching path';await new Promise(r=>setTimeout(r,1500));if(token!==S.seq)return}
   $('netStatus').textContent='Loading '+p.label;$('miniMeta').textContent='Trying '+p.label;
   /* reset element state, including handlers older modes left behind */
-  v.onwaiting=v.onstalled=v.onsuspend=v.ontimeupdate=v.onplaying=v.onerror=v.oncanplay=null;
+  v.onwaiting=v.onstalled=v.onsuspend=v.ontimeupdate=v.onplaying=v.onerror=v.oncanplay=v.onprogress=null;
   S.awaitingTap=false;
   v.muted=false;v.loop=false;v.autoplay=false;v.preload='auto';
   v.playsInline=true;v.setAttribute('playsinline','');v.setAttribute('webkit-playsinline','');
   const attachAt=Date.now();
-  const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null,progressStreak:0};
+  const E={started:false,lastT:0,lastProgress:attachAt,lastBuf:0,frozenAt:0,reconnects:0,nudgeAt:0,playTried:false,mutedTried:false,tapShown:false,overlayState:'load',videoChecked:false,shownMuted:null,progressStreak:0,
+    /* v24.42: has this route received a single BYTE from the origin? Set by whichever engine is
+       driving (see the three assignments below). Distinct from every other progress signal here,
+       which all report on DECODED output and therefore stay false through a healthy route's
+       connect-and-demux phase — that gap is exactly what let a stone-dead address look identical
+       to a slow-but-working one for the full 20-second budget. */
+    lastBytesAt:0,
+    /* Only mpegts.js and hls.js actually tell us about raw bytes. Measured in Chromium against a
+       server trickling a file over 12s: a bare <video> element fired NO progress event until
+       10.0s, after loadedmetadata — so on a native route "no bytes yet" and "dead" are
+       indistinguishable for far longer than any useful threshold, and treating them alike would
+       kill slow-but-working routes, which is the exact regression v20.0 exists to prevent.
+       So the dead-route shortcut is armed only where the evidence is real. */
+    byteAware:false};
+  /* Harmless where it does fire, and it upgrades the signal on a native route once metadata
+     lands — just never early enough to gate the dead check on. */
+  v.onprogress=()=>{if(token===S.seq&&!E.lastBytesAt)E.lastBytesAt=Date.now()};
   /* v22.2: 130s of "Loading video" is indistinguishable from "never plays", and on a file the
      transcoder cannot serve it was exactly that. A warm conversion server copying a video stream
      yields its first segment in a few seconds; 45s leaves generous room for a cold start while
@@ -6270,8 +6286,30 @@ async function tryPlans(plans,i){
      neither, it still fails on the original budget exactly as before. */
   const YEZ_GRACE=25000;
   const yezProgressing=()=>{try{return v.videoWidth>0||bufEnd()>0}catch(e){return false}};
+  /* ── v24.42: A ROUTE THAT HAS DELIVERED NOTHING IS NOT WORTH 20 SECONDS. ─────────────────────
+     Owner, with a screenshot stuck on "Loading": channels take minutes. This is where the minutes
+     come from, and it is not the cushion or the buffer size — those were already cut. Every route
+     that cannot work still costs the FULL start budget before the next one is tried: ten routes
+     (each address is also expanded into a default-port twin, so lists really are that long) at 20
+     seconds each is over three minutes of staring at "Loading" before the app gives up.
+     The budget itself is sound and stays: v20.0 set it because a route that IS slowly connecting
+     legitimately shows no decoded output for several seconds — mpegts.js buffers before it emits
+     a single sample — and cutting that short threw away the one working route on a real line.
+     But that reasoning only ever applied to a route the origin is actually FEEDING. A dead
+     address, a refused port, a black-holed host: those deliver nothing at all, and no amount of
+     waiting changes it. Until now the app could not tell the two apart, because every signal it
+     had (videoWidth, buffered) reports DECODED output, which is empty in both cases early on.
+     So each engine now reports raw bytes (E.lastBytesAt). Nothing received after DEAD_MS means
+     the route is dead, not slow, and it is dropped there. A route that has received anything at
+     all keeps its full budget and grace, exactly as before, so v20.0's fix is untouched.
+     DEAD_MS is 7s, not 2-3s: with the stash at 512KB (v24.40) a genuinely working mpegts route on
+     a slow line can spend ~5s filling it before the first byte-level statistics tick, and this
+     must never fire on one of those. Transcoded routes are exempt entirely — a cold conversion
+     server legitimately sends nothing for far longer, which is what its 45s budget is for. */
+  const DEAD_MS=7000;
   const overBudget=()=>{
     const el=Date.now()-attachAt;
+    if(E.byteAware&&!transcoded&&el>DEAD_MS&&!E.lastBytesAt&&!yezProgressing())return true;
     if(el<=startBudget)return false;
     if(yezProgressing()&&el<=startBudget+YEZ_GRACE)return false;
     return true;
@@ -6351,7 +6389,16 @@ async function tryPlans(plans,i){
   const nextPlan=()=>{
     if(token!==S.seq)return;
     let rush=false;
-    try{rush=(Date.now()-attachAt)<1000&&!(v.videoWidth>0)&&bufEnd()<=0;}catch(e){rush=false}
+    try{
+      /* v24.42: the real question was always "did the origin ever serve this device", and now
+         there is a direct answer instead of a proxy for one. A route that received no bytes at
+         all never opened a stream, so there is no slot to wait on — whether it failed in 200ms
+         or sat dead for the full seven seconds. That second case is the common one on these
+         lists and it used to pay the 1.5s pause for nothing.
+         The old sub-second rule stays as a fallback for engines that report no byte events. */
+      rush=(E.byteAware&&!E.lastBytesAt&&!(v.videoWidth>0)&&bufEnd()<=0)
+         ||((Date.now()-attachAt)<1000&&!(v.videoWidth>0)&&bufEnd()<=0);
+    }catch(e){rush=false}
     S.prevRouteSafeToRush=rush;
     tryPlans(plans,i+1);
   };
@@ -6468,6 +6515,11 @@ async function tryPlans(plans,i){
          customer as "HttpStatusCodeInvalid" — unreadable, and invisible to Yez Player's gate
          memory, which needs the number to know a port is being refused rather than a stream
          being broken. The HLS handler below has always appended it; these now agree. */
+      /* v24.42: raw-byte evidence for the dead-route check. mpegts.js reports transfer speed
+         and total bytes long before it emits a decoded sample, which is precisely the window
+         where a working-but-slow route and a dead one looked the same. */
+      E.byteAware=true;
+      try{S.ts.on(mpegts.Events.STATISTICS_INFO,i=>{if(token===S.seq&&!E.lastBytesAt&&i&&((i.speed>0)||(i.totalBytes>0)))E.lastBytesAt=Date.now()})}catch(e){}
       S.ts.on(mpegts.Events.ERROR,(type,detail,info)=>{if(token===S.seq&&!E.started){const code=info&&info.code;noteRouteError(([type,detail].filter(Boolean).join(' ')||'mpegts error')+(code?' HTTP '+code:''));nextPlan()}});
       S.ts.load();
     }else if(p.kind==='hls'&&window.Hls&&Hls.isSupported()){
@@ -6483,6 +6535,11 @@ async function tryPlans(plans,i){
         manifestLoadingTimeOut:12000,levelLoadingTimeOut:12000,fragLoadingTimeOut:22000,
         enableSoftwareAES:true});
       S.hls.loadSource(p.url);S.hls.attachMedia(v);
+      /* v24.42: same byte evidence for hls.js — a loaded manifest, level or fragment all mean
+         the origin is really sending us something. */
+      E.byteAware=true;
+      try{const _seen=()=>{if(token===S.seq&&!E.lastBytesAt)E.lastBytesAt=Date.now()};
+        S.hls.on(Hls.Events.MANIFEST_LOADED,_seen);S.hls.on(Hls.Events.LEVEL_LOADED,_seen);S.hls.on(Hls.Events.FRAG_LOADED,_seen);}catch(e){}
       S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(token===S.seq)forceMobileSmoothLevel(S.hls)});
       let mediaRecovered=false,netRetries=0;
       S.hls.on(Hls.Events.ERROR,(e,d)=>{
