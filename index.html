@@ -677,6 +677,58 @@ body.light .home-footer{background:linear-gradient(180deg,rgba(238,245,255,0),rg
 .cp-star:active{transform:scale(.82)}
 .cp-chev{flex-shrink:0;color:#77839a;font-size:18px;font-weight:800;margin-left:-3px}
 @keyframes cpIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+/* ── v24.41: SWIPE A CATEGORY LEFT TO HIDE IT (the Gmail gesture). ───────────────────────────
+   The action sits BEHIND the row and the row slides off it, so the button is impossible to hit
+   by accident — it only exists once the row has actually moved.
+   The sliding transform goes on .cp-slide, a wrapper, and NOT on .cp-cat itself: .cp-cat already
+   owns two transforms (the cpIn entry animation and its :active press-scale), and driving a third
+   from script would make them fight — the press-scale alone would snap an open row shut mid-tap.
+   Separate element, no conflict, and .cp-cat's existing styling stays exactly as it was.
+   touch-action:pan-y hands vertical scrolling back to the browser and keeps only the horizontal
+   axis for us, so the list still flicks normally through a swipeable row. */
+.cp-swipe{position:relative;overflow:hidden;border-radius:15px;touch-action:pan-y}
+/* position+z-index are what put the row IN FRONT of the action. .cp-act is absolutely
+   positioned, so by default it paints above a static sibling — the action showed through a row
+   that was not swiped at all, star and chevron visible on top of it. Giving the slider its own
+   stacking position puts the action properly behind, where it is revealed only by the row
+   moving off it. */
+.cp-slide{position:relative;z-index:1;transition:transform .2s cubic-bezier(.2,.7,.3,1);will-change:transform}
+.cp-slide>.cp-cat{width:100%}
+.cp-swipe.dragging .cp-slide{transition:none}
+.cp-swipe.open .cp-slide{transform:translateX(-104px)}
+/* Kept out of sight until the row is actually being moved. Beyond looking right, this stops the
+   action being tabbed to or clicked while it is supposed to be tucked away behind a closed row. */
+.cp-act{position:absolute;top:0;right:0;bottom:0;width:104px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px;border:0;border-radius:0 15px 15px 0;
+  background:linear-gradient(140deg,#b4453f,#7e2b27);color:#fff;font-family:inherit;
+  font-size:11.5px;font-weight:800;letter-spacing:.4px;cursor:pointer;
+  opacity:0;pointer-events:none;transition:opacity .12s linear}
+.cp-swipe.open .cp-act,.cp-swipe.dragging .cp-act{opacity:1;pointer-events:auto}
+.cp-act.unhide{background:linear-gradient(140deg,#2f7d5f,#1d5340)}
+.cp-act svg{width:19px;height:19px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* A hidden category still renders — greyed, and parked at the bottom — because it has to stay
+   reachable to be un-hidden. Removing it outright would be a one-way door. */
+/* animation:none is load-bearing, not tidying. .cp-cat runs cpIn with fill-mode `both`, and a
+   filled animation outranks a plain declaration in the cascade — so the keyframe's closing
+   opacity:1 silently beat this rule and hidden rows rendered at full strength (measured 0.995).
+   Dropping the entry animation for hidden rows lets the dimming apply, and is the right call
+   anyway: a row parked at the bottom of the list should not animate in for attention. */
+/* Dimmed by COLOUR, never by opacity on the row itself. A translucent row shows whatever sits
+   behind it — which here is the Unhide button — so `opacity:.5` made the green panel visible
+   through a row that was not swiped at all. Measured and confirmed: the row was full width,
+   correctly stacked in front, and still showed the action through itself. Each part is toned
+   down individually instead, leaving the row's own background fully opaque.
+   animation:none stays: .cp-cat runs cpIn with fill-mode `both`, and a filled animation outranks
+   plain declarations, so anything cpIn touches has to be taken out of its hands here. */
+.cp-cat.isHidden{animation:none;background:linear-gradient(145deg,#0b0e14 0%,#000 100%);
+  border-color:rgba(255,255,255,.055);box-shadow:0 3px 12px rgba(0,0,0,.4)}
+.cp-cat.isHidden::before{opacity:.22;box-shadow:none}
+.cp-cat.isHidden .cp-cn b{color:#727f93;font-weight:700}
+.cp-cat.isHidden .cp-cn small{color:#5d6675}
+.cp-cat.isHidden .cp-cbadge{filter:grayscale(1);opacity:.5}
+.cp-cat.isHidden .cp-star,.cp-cat.isHidden .cp-chev{opacity:.38}
+.cp-hidHead{grid-column:1/-1;margin:16px 4px 1px;font-size:10.5px;font-weight:800;
+  letter-spacing:.7px;text-transform:uppercase;color:#6a7488}
 @media(min-width:720px){.cp-list{grid-template-columns:1fr 1fr}}
 body.light .catpage{background:linear-gradient(165deg,#eef5ff,#e4edfb)}
 body.light .cp-tt h1{background:linear-gradient(90deg,#12325a,#22539c);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -1840,6 +1892,10 @@ function signedOut(){try{return store.getItem(SIGNED_OUT)==='1'}catch(e){return 
 function setSignedOut(v){try{v?store.setItem(SIGNED_OUT,'1'):store.removeItem(SIGNED_OUT)}catch(e){}}
 const FAV='smarter-fresh-favs-v1';
 const FAVCAT='smarter-fresh-favcats-v1';
+/* v24.41: categories the customer has swiped away. Same shape and lifetime as FAVCAT above —
+   a Set of tab-scoped keys from catFavKey(), so "Tamil" hidden under Live TV does not also
+   hide a "Tamil" under Movies, which are different categories that merely share a name. */
+const HIDCAT='m26-hidden-cats-v1';
 const ORDER='smarter-fresh-order-v1';
 const RECENT='smarter-fresh-recent-v1';
 const TRANSCODER_KEY='smarter-transcoder-url-v1';
@@ -1863,7 +1919,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.40';
+const APP_VERSION='24.41';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1964,7 +2020,7 @@ const ICONS={
   sortNew:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2.3h6"/></svg>',
   sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),hiddenCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -2326,7 +2382,7 @@ function countCat(cat){if(!cat)return list().length;return catCounts().get(Strin
    are kept: the root is what stream addresses are built from, and the raw string is the only thing
    that can replay a sign-in where the "portal URL" was itself the ready-made playlist link. */
 function saveCreds(){store.setItem(KEY,JSON.stringify({url:S.url,raw:S.rawUrl||S.url,user:S.user,pass:S.pass}))}
-function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.raw||c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalizeTranscoder(q):(normalizeTranscoder(store.getItem(TRANSCODER_KEY)||'')||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
+function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('url').value=c.raw||c.url||'';$('user').value=c.user||'';$('pass').value=c.pass||''}}catch{}try{S.favs=new Set(JSON.parse(store.getItem(FAV)||'[]'))}catch{}try{S.favCats=new Set(JSON.parse(store.getItem(FAVCAT)||'[]'))}catch{}try{S.hiddenCats=new Set(JSON.parse(store.getItem(HIDCAT)||'[]'))}catch{}try{S.orders=Object.assign({live:[],vod:[],series:[]},JSON.parse(store.getItem(ORDER)||'{}'))}catch{}try{S.recent=JSON.parse(store.getItem(RECENT)||'[]')}catch{}try{const qs=new URLSearchParams(location.search),q=qs.get('transcoder')||'',qt=qs.get('transcoderToken')||'';let saved=q?normalizeTranscoder(q):(normalizeTranscoder(store.getItem(TRANSCODER_KEY)||'')||DEFAULT_TRANSCODER);/* v10.3: migrate only hosts we KNOW are dead. The old catch-all also matched every
    media26-transcoder-*.onrender.com — including services that are alive and current — so a URL
    typed into Stream Tools by hand was silently erased on the next load and there was no way to
    point the app at a working transcoder. */if(/smarter-iptv-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;/* v21.3: media26-transcoder-mlxq is now KNOWN dead — it is not in the Render dashboard at all,   and both this app and the admin page had it pinned. A device that stored it keeps 503ing on   every transcoded route until it is replaced, so migrate it to this app's own /transcoder   path, which since v21.2 resolves whichever service is actually alive. Still not a catch-all:   a host someone deliberately typed is left alone. */if(/media26-transcoder-mlxq\.onrender\.com/i.test(saved))saved=DEFAULT_TRANSCODER;/* v19.27: A PINNED PREVIEW DEPLOYMENT IS A TIME BOMB. Opening a commit- or branch-preview URL
@@ -2338,6 +2394,8 @@ function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('u
    workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
+function saveHiddenCats(){try{store.setItem(HIDCAT,JSON.stringify([...S.hiddenCats]))}catch(e){}}
+function catHidden(c){try{return S.hiddenCats.has(catFavKey(c))}catch(e){return false}}
 function catFavKey(c){return S.tab+':'+(c&&c.category_id!=null?c.category_id:c)}
 function saveOrders(){store.setItem(ORDER,JSON.stringify(S.orders))}
 function pushRecent(x){const k=keyOf(x);S.recent=[k,...S.recent.filter(y=>y!==k)].slice(0,30);store.setItem(RECENT,JSON.stringify(S.recent))}
@@ -3090,6 +3148,11 @@ function applyCatalogUi(){
 const CP_STAR='<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 3.6l2.6 5.27 5.82.85-4.21 4.1.99 5.79L12 16.9l-5.2 2.73.99-5.79-4.21-4.1 5.82-.85z"/></svg>';
 const CP_CLOCK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 1.8"/></svg>';
 const CP_GRID='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>';
+/* v24.41: the two swipe actions. Eye-with-a-slash for Hide, plain eye for Unhide — the same
+   pairing every OS uses for "show/don't show", so the button needs no explanation beyond its
+   own label. Stroke/fill come from .cp-act svg, which forces white on the coloured panel. */
+const CP_EYEOFF='<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.3A9.3 9.3 0 0 1 12 5.2c5 0 8.4 4 9.4 5.6.3.5.3 1.1 0 1.6a17 17 0 0 1-2.7 3.2"/><path d="M6.4 6.9A16.6 16.6 0 0 0 2.6 11c-.3.5-.3 1.1 0 1.6C3.6 14.2 7 18 12 18c1.5 0 2.9-.35 4.1-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>';
+const CP_EYE='<svg viewBox="0 0 24 24"><path d="M2.6 11.2C3.6 9.6 7 5.6 12 5.6s8.4 4 9.4 5.6c.3.5.3 1.1 0 1.6-1 1.6-4.4 5.6-9.4 5.6s-8.4-4-9.4-5.6a1.5 1.5 0 0 1 0-1.6Z"/><circle cx="12" cy="12" r="3"/></svg>';
 function showCategories(tab,restore){
   S.tab=tab;
   /* Runs before the page is built rather than after, so a jump to a Series tab this provider does
@@ -3153,15 +3216,25 @@ function renderCatPage(){
     if(q&&!sp.name.toLowerCase().includes(q))continue;
     html+=`<button class="cp-cat ${String(S.cat)===String(sp.id)?'active':''}" data-cat="${esc(sp.id)}"><span class="cp-cbadge">${sp.badge}</span><span class="cp-cn"><b>${esc(sp.name)}</b><small>${esc(sp.sub)}</small></span><span class="cp-chev">›</span></button>`;
   }
-  const cs=cats().slice().sort((a,b)=>(S.favCats.has(catFavKey(a))?0:1)-(S.favCats.has(catFavKey(b))?0:1));
-  let shown=0;
+  /* v24.41: three bands now — favourites, then everything normal, then hidden. Hidden sorts to
+     the very bottom rather than being dropped, so it stays reachable to un-hide. */
+  const _rank=c=>catHidden(c)?2:(S.favCats.has(catFavKey(c))?0:1);
+  const cs=cats().slice().sort((a,b)=>_rank(a)-_rank(b));
+  let shown=0,hidHeadDone=false;
   for(const c of cs){
     const name=c.category_name||'Other';
     if(q&&!name.toLowerCase().includes(q))continue;
     const isF=S.favCats.has(catFavKey(c));
+    const isH=catHidden(c);
     const cnt=countCat(c.category_id);
     const initial=esc((name.trim()[0]||'#').toUpperCase());
-    html+=`<button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button>`;
+    /* One heading above the hidden band, so the grey rows read as a deliberate section rather
+       than as categories that have gone wrong. Only drawn when there is something under it. */
+    if(isH&&!hidHeadDone){hidHeadDone=true;html+=`<div class="cp-hidHead">Hidden categories</div>`;}
+    const act=isH
+      ? `<button class="cp-act unhide" data-hidecat="${esc(c.category_id)}" aria-label="Unhide ${esc(name)}">${CP_EYE}Unhide</button>`
+      : `<button class="cp-act" data-hidecat="${esc(c.category_id)}" aria-label="Hide ${esc(name)}">${CP_EYEOFF}Hide</button>`;
+    html+=`<div class="cp-swipe">${act}<div class="cp-slide"><button class="cp-cat ${String(S.cat)===String(c.category_id)?'active':''} ${isH?'isHidden':''}" data-cat="${esc(c.category_id)}"><span class="cp-cbadge">${initial}</span><span class="cp-cn"><b>${esc(name)}</b><small>${isH?'Hidden · ':''}${cnt.toLocaleString()} ${esc(meta.unit)}</small></span><span class="cp-star ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">★</span><span class="cp-chev">›</span></button></div></div>`;
     shown++;
   }
   if(!html){
@@ -9254,7 +9327,83 @@ if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(
   },{passive:true});
 })();
 if($('catSearch'))$('catSearch').oninput=e=>{S.catQ=e.target.value;/* v7.7: search is scoped to the current tab */if((S.catQ||'').trim())ensureTypeLoaded(S.tab);renderCatPage()};
+/* ── v24.41: the swipe gesture behind hide/unhide. ───────────────────────────────────────────
+   Pointer events rather than touch events, so the same code serves a phone, a trackpad drag and
+   a mouse without three implementations. Delegated from #catList because renderCatPage() rebuilds
+   its children constantly — binding per row would leak listeners on every repaint.
+   The axis is decided ONCE, on the first few pixels of movement, and never revisited for that
+   gesture: without that lock a mostly-vertical flick that drifts sideways would tug rows open
+   while the list scrolls. Under ~6px nothing is decided at all, so an ordinary tap is never
+   treated as a drag. */
+let _catSwipeEndAt=0;
+(function(){
+  const list_=$('catList');if(!list_)return;
+  const W=104;                       /* must match .cp-swipe.open .cp-slide translateX */
+  let sw=null,slide=null,x0=0,y0=0,dx=0,decided=false,horiz=false,wasOpen=false;
+  const closeAll=except=>{list_.querySelectorAll('.cp-swipe.open').forEach(n=>{if(n!==except)n.classList.remove('open')})};
+  const reset=()=>{sw=null;slide=null;decided=false;horiz=false;dx=0};
+  list_.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&e.button!==0)return;
+    /* A press that starts ON the revealed action is that button's business. Return WITHOUT
+       closing anything: closing here would slide the row back over the button and — now that a
+       closed action is pointer-events:none — the click would land on the row instead, so Hide
+       silently did nothing. Only a press somewhere else dismisses an open row. */
+    if(e.target.closest('.cp-act')){reset();return}
+    const c=e.target.closest('.cp-swipe');
+    if(!c){closeAll(null);reset();return}
+    sw=c;slide=c.querySelector('.cp-slide');x0=e.clientX;y0=e.clientY;dx=0;
+    decided=false;horiz=false;wasOpen=c.classList.contains('open');
+  });
+  list_.addEventListener('pointermove',e=>{
+    if(!sw||!slide)return;
+    const mx=e.clientX-x0,my=e.clientY-y0;
+    if(!decided){
+      if(Math.abs(mx)<6&&Math.abs(my)<6)return;
+      decided=true;horiz=Math.abs(mx)>Math.abs(my);
+      if(horiz){sw.classList.add('dragging');closeAll(sw)}
+      else{reset();return}          /* vertical: let the list scroll, forget this gesture */
+    }
+    /* Clamped so the row can be pulled open and pushed shut but never past either end. */
+    dx=Math.max(-W,Math.min(0,(wasOpen?-W:0)+mx));
+    slide.style.transform='translateX('+dx+'px)';
+  });
+  const finish=()=>{
+    if(!sw)return;
+    const c=sw,s=slide,wasH=horiz,d=dx;
+    if(s)s.style.transform='';       /* hand control back to the CSS class */
+    if(wasH){
+      c.classList.remove('dragging');
+      c.classList.toggle('open',d<-W/2);   /* past halfway commits, short of it springs back */
+      _catSwipeEndAt=Date.now();
+    }
+    reset();
+  };
+  list_.addEventListener('pointerup',finish);
+  list_.addEventListener('pointercancel',finish);
+  list_.addEventListener('pointerleave',finish);
+})();
 if($('catList'))$('catList').addEventListener('click',e=>{
+  /* The click the browser fires at the end of a horizontal drag would otherwise open whichever
+     category was just swiped. Swallow anything landing in that window. */
+  if(Date.now()-_catSwipeEndAt<350)return;
+  /* v24.41: Hide / Unhide. Re-render rather than patch the row in place — the row has to change
+     bands (and possibly gain or lose the "Hidden categories" heading), which is renderCatPage()'s
+     job and not worth duplicating here. */
+  const hb=e.target.closest('[data-hidecat]');
+  if(hb){
+    e.stopPropagation();
+    const id=hb.dataset.hidecat,k=catFavKey(id);
+    const nowHidden=!S.hiddenCats.has(k);
+    if(nowHidden)S.hiddenCats.add(k);else S.hiddenCats.delete(k);
+    saveHiddenCats();
+    renderCatPage();
+    toast(nowHidden?'Category hidden — find it at the bottom of the list':'Category restored');
+    return;
+  }
+  /* With an action revealed, a tap on the row means "put it back", not "open it". Anything else
+     would make the gesture feel like a trap. */
+  const openRow=e.target.closest('.cp-swipe.open');
+  if(openRow){e.stopPropagation();openRow.classList.remove('open');return}
   const st=e.target.closest('[data-favcat]');
   if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCatPage();return}
   /* v7.6: a search result row plays the channel/movie (series opens its episodes) */
