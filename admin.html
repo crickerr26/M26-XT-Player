@@ -44,7 +44,7 @@
   .warn{margin-top:12px;padding:13px 14px;border-radius:12px;background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.35);color:var(--yellow);font-size:12.5px;line-height:1.5}
   .newcode{margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(56,189,248,.12),rgba(45,212,191,.10));border:1px solid rgba(56,189,248,.24)}
   .bigcode{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:700;letter-spacing:8px;text-align:center;color:var(--ink);text-indent:8px;padding:8px 0}
-  /* v17.5: line-type segmented control (username+password / MAC-only)
+  /* v17.5: line-type segmented control (username+password / playlist; v24.45 dropped MAC-only)
      v19.63: a third option (M3U Playlist) shares the row, so it wraps instead of crushing three
      labels into one line on a phone. */
   .seg{display:flex;flex-wrap:wrap;gap:6px;background:var(--panel2);border-radius:999px;padding:4px;border:1px solid var(--line)}
@@ -81,7 +81,7 @@
   <div class="topRow">
     <div style="flex:1;min-width:0">
       <h1>Activate a Customer <span class="verbadge" id="adminVer"></span></h1>
-      <p class="sub" style="margin-bottom:0">Enter the customer's activation code or MAC (from their app, or scanned from their QR), add their IPTV login, and activate — their app signs in on its own.</p>
+      <p class="sub" style="margin-bottom:0">Enter the customer's activation code (from their app, or scanned from their QR), add their IPTV login, and activate — their app signs in on its own.</p>
     </div>
     <!-- v24.13 (owner request): a way to see every activated customer at a glance — username,
          password, activation date, expiry date, and an on/off switch — instead of only being able
@@ -111,7 +111,7 @@
 
   <div class="card">
     <h2>Activate a device</h2>
-    <p class="muted" style="margin:0 0 10px">Fill in the IPTV line below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate the code/MAC they gave you</b>.</p>
+    <p class="muted" style="margin:0 0 10px">Fill in the IPTV line below, then either <b>create a brand-new code</b> to hand to a customer, or <b>activate the code they gave you</b>.</p>
     <!-- v19.61 (owner report): a MAC-bound line (e.g. a Stalker/Ministra portal) is provisioned on
          the PROVIDER'S OWN admin panel using the customer's MAC — not through this page at all — so
          when a scanned link only surfaced the activation code, the seller had no easy way to grab
@@ -123,10 +123,9 @@
         <span class="prefillLabel">Activation code — for this page</span>
         <div class="prefillLine"><code id="prefillCodeVal"></code><button type="button" class="mini" id="prefillCodeCopy">Copy</button></div>
       </div>
-      <div class="prefillRow" id="prefillMacRow" style="display:none">
-        <span class="prefillLabel">MAC address — for your provider's own panel</span>
-        <div class="prefillLine"><code id="prefillMacVal"></code><button type="button" class="mini" id="prefillMacCopy">Copy</button></div>
-      </div>
+      <!-- v24.45 (owner): the MAC block is gone. The app no longer sends a mac= parameter at
+           all, and an Xtream line has no MAC field to paste one into — showing it here only
+           ever produced activations bound to the wrong identifier. -->
     </div>
     <!-- v19.6: the app is M3U-only now (no Xtream API calls) — but a line still signs in either
          by URL + username + password (which the app turns into an M3U/get.php URL) or by device
@@ -142,9 +141,9 @@
     <div class="seg" id="a_kindSeg">
       <button type="button" class="segBtn active" data-kind="xtream">Xtream Login</button>
       <button type="button" class="segBtn" data-kind="m3uurl">M3U Playlist</button>
-      <button type="button" class="segBtn" data-kind="m3u">MAC Only</button>
+      
     </div>
-    <label>Customer's activation code or MAC address <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate"</span></label>
+    <label>Customer's activation code <span class="muted" style="text-transform:none;font-weight:600">— only for "Activate"</span></label>
     <input id="a_code" placeholder="e.g. 48207391 or 02:AB:CD:EF:12:34" style="text-transform:uppercase">
     <label id="a_urlLabel">Portal URL</label>
     <input id="a_url" placeholder="http://yourserver.com:8080" autocomplete="off">
@@ -188,7 +187,7 @@
     </select>
     <p class="muted" style="margin-top:8px">This app stops signing the customer in once this expires — even if their portal login/password is still active with the provider. Re-activating the same code later (Activate below) resets this to a fresh period from that moment. This is separate from the customer's own $2 app subscription, which they manage themselves in the app.</p>
     <button class="primary" id="a_new">✨ Create a new activated code</button>
-    <button class="secondary" id="a_go">Activate the code/MAC the customer gave me</button>
+    <button class="secondary" id="a_go">Activate the code the customer gave me</button>
     <div class="msg" id="a_msg"></div>
     <div class="warn" id="a_warn" style="display:none"></div>
     <div class="newcode" id="a_newbox" style="display:none">
@@ -209,7 +208,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.44';
+  var ADMIN_VERSION='24.45';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -240,7 +239,8 @@
   (function prefillFromLink(){
     var qs; try{ qs=new URLSearchParams(location.search); }catch(e){ return; }
     var code=(qs.get('code')||'').trim();
-    var mac=(qs.get('mac')||'').trim();
+    /* v24.45 (owner): mac= is no longer sent by the app and is no longer honoured here. */
+    var mac='';
     var hasCode=/^\d{8}$/.test(code);
     var hasMac=!!mac;
     if(!hasCode&&!hasMac) return;
@@ -251,7 +251,7 @@
     $('a_code').value=hasCode?code:mac;
     $('prefillNote').style.display='block';
     if(hasCode){ $('prefillCodeRow').style.display='block'; $('prefillCodeVal').textContent=code; }
-    if(hasMac){ $('prefillMacRow').style.display='block'; $('prefillMacVal').textContent=mac; }
+
     try{ $('prefillNote').scrollIntoView({behavior:'smooth',block:'center'}); }catch(e){}
   })();
   if($('prefillCodeCopy'))$('prefillCodeCopy').onclick=function(){ flashCopy(this, $('prefillCodeVal').textContent, 'Copied!'); };
@@ -323,7 +323,7 @@
       label:'Portal URL',
       ph:'http://yourserver.com:8080/c/',
       creds:false,
-      note:'A MAC / MAG line signs in by MAC address — there is no username or password. Bind the customer’s MAC on your own provider panel first, then activate here with just the portal address.'
+      note:'This line signs in with the portal address alone — no username or password.'
     }
   };
   function applyKind(kind){
