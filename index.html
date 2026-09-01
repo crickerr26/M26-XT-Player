@@ -1914,7 +1914,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.46';
+const APP_VERSION='24.47';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6747,7 +6747,24 @@ async function tryPlans(plans,i){
              means an undecodable video track (audio-only "playback") */
           if(!E.videoChecked&&now-attachAt>8000){
             E.videoChecked=true;
-            if(v.videoWidth===0){if(live){nextPlan();return}S.audioOnly=true;fail('Audio only');return}
+            if(v.videoWidth===0){
+              if(live){nextPlan();return}
+              /* v24.47 (owner report: the app told the customer "use the FFmpeg transcoder" and
+                 then never tried it): this route's audio decoded but its video codec did not — the
+                 transcoder candidate that fixes exactly that (see addTrans() in yezRoutes, which
+                 queues it right behind the in-app MKV decoder for this exact reason) was sitting
+                 later in this same plan list the whole time. Stopping here with fail() instead of
+                 nextPlan() threw that candidate away before it ever got a turn, so a title with a
+                 codec this browser cannot decode never reached the ONE server-side route built to
+                 rescue it — even while Stream Tools showed the transcoder online and ready.
+                 S.audioOnly is kept regardless of whether another candidate exists: if every
+                 remaining route also fails, fail() below still reports "Unsupported video codec"
+                 rather than a generic verdict, because that diagnosis stays true either way. */
+              S.audioOnly=true;
+              noteRouteError('video track undecodable (audio only)');
+              if(plans[i+1]){nextPlan();return}
+              fail('Audio only');return
+            }
           }
         }
       }
