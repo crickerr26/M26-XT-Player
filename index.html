@@ -1914,7 +1914,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.47';
+const APP_VERSION='24.48';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6654,8 +6654,22 @@ async function tryPlans(plans,i){
       Media26Mkv.play(v,p.url,{
         onInfo:info=>{
           if(token!==S.seq||!info)return;
-          if(info.audioDropped)toast('Playing video — this file’s audio track was rejected by the device.');
-          else if(info.unsupportedAudio)toast('Playing video — this file’s '+String(info.unsupportedAudio).replace(/^A_/,'')+' audio can’t be decoded in-app.');
+          if(!info.audioDropped&&!info.unsupportedAudio)return;
+          /* v24.48 (owner report: "movies play without sound"): this is the AC3/DTS-in-MKV case —
+             a video track this device CAN decode, paired with an audio track it cannot (mkv.js can
+             only remux a codec the browser's own decoder already supports; it never re-encodes).
+             Until now this branch just toasted a warning and kept playing the file silently — the
+             transcoder route right behind this one in the plan (see addTrans() in yezRoutes) exists
+             for exactly this: it re-encodes audio to AAC while copying the video untouched, so the
+             SAME title plays with sound there. A silent movie is not a successful play, so treat
+             this the same way the black-frame check (undecodable VIDEO, the opposite case) already
+             does — move on to the next candidate when one exists, and only fall back to "play it
+             silently" when nothing better is left to try. */
+          if(plans[i+1]){
+            noteRouteError('in-app Matroska: audio '+(info.unsupportedAudio?String(info.unsupportedAudio).replace(/^A_/,'')+' unsupported':'rejected by the device'));
+            nextPlan();return;
+          }
+          toast(info.audioDropped?'Playing video — this file’s audio track was rejected by the device.':'Playing video — this file’s '+String(info.unsupportedAudio).replace(/^A_/,'')+' audio can’t be decoded in-app.');
         }
       }).catch(e=>{
         if(token!==S.seq)return;   /* our own teardown, not this route's verdict */
