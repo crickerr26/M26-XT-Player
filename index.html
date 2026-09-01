@@ -1914,7 +1914,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.48';
+const APP_VERSION='24.49';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6867,8 +6867,32 @@ async function tryPlans(plans,i){
               else{const restore=()=>{try{if(pos>0)v.currentTime=pos}catch(e){}v.removeEventListener('loadedmetadata',restore)};v.addEventListener('loadedmetadata',restore);S.lastSeekAt=Date.now();v.load()}
               const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
             }catch(e){}
+          }else if(plans[i+1]){
+            /* v24.49 (owner report: a movie stuck on "Buffering — Waiting for more data..."
+               forever, never recovering): two in-place reconnects on the SAME url could not
+               unfreeze this route — the exact shape of a route that has genuinely gone bad mid-
+               play (this is what the earlier bufferAppendError diagnostics on this same movie
+               foreshadowed: hls.js's own recoverMediaError() bought a few more seconds, not a
+               real fix). The code before this stopped here on purpose, and the reason was sound:
+               a plain nextPlan() jumps to the next candidate's URL with nothing to seek it back
+               to where playback froze, so it looked exactly like "the movie restarted from 0" —
+               worse than freezing. But "leave the last frame up" also means never actually
+               recovering, which is indistinguishable from a permanent hang to the customer
+               watching it. Keep the ORIGINAL promise instead of dropping it: remember the
+               position, restore it once the NEXT route reports real metadata, then move on — a
+               stalled route now actually gets replaced instead of being stared at forever, and a
+               movie still never restarts from 0. Only when this WAS the last candidate does the
+               old "freeze here, nothing left to try" behavior still apply. */
+            const keep=v.currentTime||0;
+            if(keep>0){
+              const restore=()=>{try{v.currentTime=keep}catch(e){}v.removeEventListener('loadedmetadata',restore)};
+              v.addEventListener('loadedmetadata',restore);
+            }
+            noteRouteError('stream frozen after 2 reconnect attempts');
+            nextPlan();return;
           }
-          /* after 2 tries, leave the last frame up rather than restarting the movie */
+          /* after 2 tries with nothing left to try, leave the last frame up rather than
+             restarting the movie */
         }else{
           if(E.reconnects>=2){nextPlan();return}
           E.reconnects++;E.frozenAt=0;E.lastBuf=0;E.lastProgress=now;
