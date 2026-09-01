@@ -1914,7 +1914,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.45';
+const APP_VERSION='24.46';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6167,6 +6167,21 @@ async function playItem(item,fromAlternative=false){
    buttons can call it too. No engine/playback logic lives here. */
 async function routePlayback(x,mode,fromAlternative){
   if(mode==='browser')mode='basic';
+  /* v24.46 (owner report: "the orange VLC button opens VLC but it says Playback failed", while the
+     SAME movie played fine through the ordinary tap): playItem()'s own tap-to-play already tries
+     the embedded native bridge (nativeVlcPlay, see the v22.6 NATIVE VLC BRIDGE note above) before
+     ever reaching this function — but the explicit per-row/per-title VLC button calls
+     routePlayback() directly and skipped straight to the STANDALONE VLC app via a bare URL scheme.
+     A URL scheme cannot carry a custom header, so that launch loses the player User-Agent some
+     providers require for VOD (the exact reason the embedded bridge exists at all — see the ios-app
+     README and v22.5 above: this class of provider serves VOD only to a request that looks like a
+     real device player). Same title, same address, only the header differed, so the standalone app
+     failed where the embedded one would not have. Try the bridge here too, whenever it exists,
+     before falling back to the external app — never for Live, which stays off VLC by default
+     regardless of this bridge (owner rule, CLAUDE.md). */
+  if(mode==='vlc'&&typeOf(x)!=='live'&&nativeVlcBridge()){
+    if(await nativeVlcPlay(x))return;
+  }
   /* v6.5: the per-row VLC button is an explicit one-off launch, so LIVE + VLC actually opens VLC
      here — only playItem()'s AUTO resolution forces live back to 'basic'. */
   if(isExternalMode(mode)&&!fromAlternative){
