@@ -1894,7 +1894,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.56';
+const APP_VERSION='24.57';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6596,6 +6596,25 @@ async function tryPlans(plans,i){
         S.hls.on(Hls.Events.MANIFEST_LOADED,_seen);S.hls.on(Hls.Events.LEVEL_LOADED,_seen);S.hls.on(Hls.Events.FRAG_LOADED,_seen);}catch(e){}
       S.hls.on(Hls.Events.MANIFEST_PARSED,()=>{if(token===S.seq)forceMobileSmoothLevel(S.hls)});
       let mediaRecovered=false,netRetries=0;
+      /* v24.57 (owner report: forward-seeking a movie restarts it from 0): the heartbeat's own
+         stall watchdog already knows never to jump plans on a VOD route without preserving
+         currentTime (see the tier-2 "a movie must NEVER reload from 0" note below, ~line 6875) —
+         but this hls.js fatal-error handler is a SEPARATE path and called nextPlan() directly with
+         no such guard. Seeking forward past whatever the transcoder has produced so far is exactly
+         when this fires: hls.js exhausts its fragment/level retries on a segment that doesn't exist
+         yet and raises a fatal error, this handler jumped straight to nextPlan(), and the next
+         route attaches fresh at position 0 — experienced as "the movie restarted". Mirror the same
+         keep-and-restore pattern here for anything that survived to E.started on a non-live route. */
+      const nextPlanKeepingPosition=()=>{
+        if(!live){
+          const keep=v.currentTime||0;
+          if(keep>0){
+            const restore=()=>{try{v.currentTime=keep}catch(e){}v.removeEventListener('loadedmetadata',restore)};
+            v.addEventListener('loadedmetadata',restore);
+          }
+        }
+        nextPlan();
+      };
       S.hls.on(Hls.Events.ERROR,(e,d)=>{
         if(token!==S.seq||!d||!d.fatal)return;
         const code=d.response&&d.response.code;
@@ -6624,8 +6643,8 @@ async function tryPlans(plans,i){
         try{
           if(d.type===Hls.ErrorTypes.NETWORK_ERROR&&netRetries<4){netRetries++;S.hls.startLoad(-1)}
           else if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&!mediaRecovered){mediaRecovered=true;S.hls.recoverMediaError()}
-          else nextPlan();
-        }catch(err){nextPlan()}
+          else nextPlanKeepingPosition();
+        }catch(err){nextPlanKeepingPosition()}
       });
     }else if(p.kind==='mkv'){
       /* ── v20.6: THE IN-APP MATROSKA DECODER IS BACK IN THE CASCADE. ───────────────────────────
