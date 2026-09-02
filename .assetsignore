@@ -2,6 +2,7 @@
 # should be uploaded as public static assets. Everything below is server-side
 # code, build tooling, or repo metadata that must not be publicly served.
 .git/
+.gitignore
 .github/
 .wrangler/
 .DS_Store
