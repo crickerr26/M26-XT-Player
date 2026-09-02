@@ -1892,7 +1892,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.54';
+const APP_VERSION='24.55';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7111,6 +7111,7 @@ function seekBy(sec){
    transition" — the two look identical as a bare video.paused check. */
 let _lastManualPauseAt=0;
 function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();_lastManualPauseAt=Date.now();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
+function iosLike(){const ua=navigator.userAgent||'';return /iphone|ipad|ipod/i.test(ua)||(/macintosh/i.test(ua)&&'ontouchend'in document)}
 function toggleInlinePip(force){
   const box=$('playerBox'),v=$('video');
   if(!box||!v)return false;
@@ -7125,9 +7126,29 @@ function toggleInlinePip(force){
   }
   return on;
 }
-function nativePipFailed(){
-  if(mobile())return toggleInlinePip(true);
-  toast('Picture-in-Picture could not start on this device');
+function nativePipSupported(v){
+  if(!v)return false;
+  if(typeof v.webkitSupportsPresentationMode==='function')return !!v.webkitSupportsPresentationMode('picture-in-picture');
+  if(iosLike())return false;
+  return !!(document.pictureInPictureEnabled&&v.requestPictureInPicture);
+}
+function nativePipFailed(opts){
+  opts=opts||{};
+  if(!(opts&&opts.background)&&mobile()&&!document.hidden)return toggleInlinePip(true);
+  if(!opts.silent)toast('Picture-in-Picture could not start on this device');
+  return false;
+}
+function enterNativePip(v,opts){
+  opts=opts||{};
+  if(!nativePipSupported(v))return false;
+  try{if(v.paused)v.play().catch(()=>{})}catch(e){}
+  if(typeof v.webkitSetPresentationMode==='function'&&(!v.webkitSupportsPresentationMode||v.webkitSupportsPresentationMode('picture-in-picture'))){
+    try{v.webkitSetPresentationMode('picture-in-picture');return true}catch(e){return nativePipFailed(opts)}
+  }
+  if(!iosLike()&&document.pictureInPictureEnabled&&v.requestPictureInPicture){
+    v.requestPictureInPicture().catch(()=>nativePipFailed(opts));
+    return true;
+  }
   return false;
 }
 function pip(){
@@ -7151,19 +7172,9 @@ function pip(){
        button visibly did nothing. Now: only take the WebKit path when WebKit itself reports the
        mode supported, and if the call still throws, fall through to the standard API and finally
        to a toast instead of going silent. */
-    const webkitReady=typeof v.webkitSetPresentationMode==='function'&&(typeof v.webkitSupportsPresentationMode!=='function'||v.webkitSupportsPresentationMode('picture-in-picture'));
-    if(webkitReady){
-      try{if(v.paused)v.play().catch(()=>{})}catch(e){}
-      try{v.webkitSetPresentationMode('picture-in-picture');return}catch(e){return nativePipFailed()}
-    }
-    /* Android Chrome / desktop: standard API (returns a promise, don't block the gesture) */
-    if(document.pictureInPictureEnabled&&v.requestPictureInPicture){
-      try{if(v.paused)v.play().catch(()=>{})}catch(e){}
-      v.requestPictureInPicture().catch(()=>nativePipFailed());
-      return;
-    }
+    if(enterNativePip(v,{background:false}))return;
     return toggleInlinePip(true);
-  }catch(e){return nativePipFailed()}
+  }catch(e){return nativePipFailed({background:false})}
 }
 /* v61: background play. MediaSession is the real mechanism: on Android/desktop it keeps AUDIO
    playing when the screen is off or the app is backgrounded, and everywhere it drives the
@@ -7200,15 +7211,9 @@ function updateMediaSession(x){
   const v=$('video');if(!v)return;
   document.addEventListener('visibilitychange',()=>{
     try{
-      if(!document.hidden||v.paused||v.readyState<2)return;
-      if(!document.pictureInPictureElement && document.pictureInPictureEnabled && v.requestPictureInPicture){
-        v.requestPictureInPicture().catch(()=>{});
-      }
-      /* v44: WebKit fallback (iPad and some Safari builds) — same auto-PiP via Apple's
-         presentation-mode API. iPhones require a direct tap for PiP, so there the manual
-         PiP button in the player bar remains the way in; this call just no-ops. */
-      else if(v.webkitSupportsPresentationMode&&typeof v.webkitSetPresentationMode==='function'&&v.webkitPresentationMode==='inline'){
-        try{v.webkitSetPresentationMode('picture-in-picture')}catch(e){}
+      if(document.hidden){
+        if(v.paused||v.readyState<2)return;
+        enterNativePip(v,{background:true,silent:true});
       }
     }catch(e){}
   });
@@ -7218,7 +7223,7 @@ function updateMediaSession(x){
    which strips every HTML overlay including the watermark. webkitEnterFullscreen is used
    only if the browser has no Element.requestFullscreen at all (old iOS), where HTML
    overlays are impossible anyway. */
-function fs(){const box=$('playerBox'),v=$('video');const exit=document.fullscreenElement||document.webkitFullscreenElement;if(exit){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}if(box.requestFullscreen)box.requestFullscreen().catch(()=>{});else if(box.webkitRequestFullscreen)box.webkitRequestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
+function fs(){const box=$('playerBox'),v=$('video');const exit=document.fullscreenElement||document.webkitFullscreenElement;if(exit){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}if(iosLike()&&v&&v.webkitEnterFullscreen){try{v.webkitEnterFullscreen();return}catch(e){}}if(box.requestFullscreen)box.requestFullscreen().catch(()=>{try{if(v&&v.webkitEnterFullscreen)v.webkitEnterFullscreen()}catch(e){}});else if(box.webkitRequestFullscreen)box.webkitRequestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
 /* v78: Download the current Movie/Series file to the device. The file is pulled through the
    same-origin proxy so the browser can save it with a proper name (a cross-origin http link
    from an https page would be blocked/renamed). It lands in the device's Downloads / Files and
