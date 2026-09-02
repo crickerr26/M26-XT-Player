@@ -4,6 +4,7 @@
 .git/
 .gitignore
 .github/
+tests/
 .wrangler/
 .DS_Store
 .claude/
