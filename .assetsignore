@@ -4,6 +4,7 @@
 .git/
 .github/
 .wrangler/
+.DS_Store
 .claude/
 node_modules/
 _worker.js

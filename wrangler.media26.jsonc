@@ -12,6 +12,9 @@
   "name": "media26",
   "main": "_worker.js",
   "compatibility_date": "2025-06-01",
+  "vars": {
+    "TRANSCODER_ORIGIN": "https://media26-transcoder-production-f0b9.up.railway.app"
+  },
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
