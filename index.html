@@ -1914,7 +1914,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.52';
+const APP_VERSION='24.53';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5754,7 +5754,6 @@ function plan(x){
     let magBrowserRelay='';
     try{ if(x._stalkerCmd) magRelay=streamRelayUrl(raw,x); }catch(e){}
     try{ if(x._stalkerCmd) magBrowserRelay=streamRelayUrl(raw,x,'browser'); }catch(e){}
-    if(x&&x._stalkerCmd&&transcoderBase()){addTrans('Live Browser',raw,true,'browser');addTrans('Live',raw,true);}
     if(magRelay){
       if(isM3u8){add('hls','Stream Relay',magRelay);if(tsOk)add('mpegts','Stream Relay TS',magRelay);}
       else{if(tsOk)add('mpegts','Stream Relay TS',magRelay);add('hls','Stream Relay',magRelay);}
@@ -5782,6 +5781,7 @@ function plan(x){
       add('hls','Panel HLS',blocked(alt.m3u8)?proxyUrl(alt.m3u8):alt.m3u8);
       add('hls','Panel HLS Relay',proxyUrl(alt.m3u8));
     }
+    if(x&&x._stalkerCmd&&transcoderBase())addTrans('Live Browser',raw,false,'browser');
     addTrans('Live',raw);
     if(alt)addTrans('Panel',alt.ts);
     return p;
@@ -5955,22 +5955,28 @@ function plan(x){
       if(!browserSafeExt(preferred)){addTrans(preferred.toUpperCase(),preferredUrl,true);addTrans('MP4',rawMp4);}
       else addTrans('Preview',rawFirst);
     }else{
-      /* Desktop VOD — full format matrix */
-      if(transcoderBase())addTrans('Preview',rawFirst,true);
+      /* Desktop VOD — full format matrix.
+         v24.53: lead with byte-range capable playback just like mobile. The generated HLS
+         preview is useful as a codec fallback, but putting it first made desktop scrubbing brittle:
+         a movie seek could ask hls.js for segments the server had not generated yet and the
+         watchdog then appeared to restart the title. Direct/proxy/relay routes preserve HTTP
+         ranges, so the PC player can jump without rebuilding the movie from zero. */
+      const W=u=>blocked(u)?proxyUrl(u):u;
       if(direct){
-        add(direct.includes('.m3u8')?'hls':'native','Direct',direct);
+        add(direct.includes('.m3u8')?'hls':'native','Direct',W(direct));
         add(direct.includes('.m3u8')?'hls':'native','Direct Proxy',proxyUrl(direct));
         if(!browserSafeExt(preferred))addTrans('Direct',direct);
       }
       if(!browserSafeExt(preferred))addTrans(preferred.toUpperCase(),preferredUrl);
-      add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase(),preferredUrl);
+      add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase(),W(preferredUrl));
       add(preferred==='m3u8'?'hls':preferred==='ts'?'mpegts':'native',preferred.toUpperCase()+' Proxy',proxyUrl(preferredUrl));
       if(isMkv)addMkv('MKV In-App',direct||preferredUrl||rawMkv);
       addRelay('Server Relay',direct||preferredUrl);
+      if(browserSafeExt(preferred))addTrans('Preview',rawFirst);
       ['mp4','m3u8','ts','mkv'].filter(e=>e!==preferred).forEach(e=>{
         const u=directUrl(x,e);
         if(e==='mkv'||e==='ts')addTrans(e.toUpperCase(),u);
-        add(e==='m3u8'?'hls':e==='ts'?'mpegts':'native',e.toUpperCase(),u);
+        add(e==='m3u8'?'hls':e==='ts'?'mpegts':'native',e.toUpperCase(),W(u));
         add(e==='m3u8'?'hls':e==='ts'?'mpegts':'native',e.toUpperCase()+' Proxy',proxyUrl(u));
       });
     }
@@ -6877,7 +6883,7 @@ async function tryPlans(plans,i){
             const pos=v.currentTime||0;
             overlay('reconnect','Reconnecting','Reloading the video at your place...',true);
             try{
-              if(S.hls){S.hls.stopLoad();S.hls.startLoad(-1)}
+              if(S.hls){S.hls.stopLoad();S.hls.startLoad(pos>0?pos:-1)}
               else{const restore=()=>{try{if(pos>0)v.currentTime=pos}catch(e){}v.removeEventListener('loadedmetadata',restore)};v.addEventListener('loadedmetadata',restore);S.lastSeekAt=Date.now();v.load()}
               const pr=v.play();if(pr&&pr.catch)pr.catch(()=>{});
             }catch(e){}
