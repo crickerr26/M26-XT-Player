@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.5';
+const SERVER_BUILD = '14.6';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -529,9 +529,21 @@ function hlsArgs(profile, dir, playlist, segType) {
     '-hls_time', seg,
     ...(fmp4 ? ['-hls_segment_type', 'fmp4', '-hls_fmp4_init_filename', 'init.mp4'] : []),
     '-hls_list_size', live ? '15' : '0',
-    /* VOD (movies/series): mark the playlist as a seekable VOD so the player enables full-timeline
-       seeking and NEVER restarts from 0 on a forward/back jump. Live keeps the rolling window. */
-    ...(live ? [] : ['-hls_playlist_type', 'vod']),
+    /* ── v24.58: EVENT, NOT VOD — THIS IS WHY MOVIES TOOK MINUTES TO START. ───────────────────────
+       v8.8 set playlist_type=vod here to stop a seek restarting the movie, and the tag itself does
+       do that. But FFmpeg's own definition of vod is "the playlist MUST NOT change" — so it writes
+       index.m3u8 exactly once, when the whole file has finished transcoding. Measured on the live
+       Railway service against a real MKV from this line: 20 seconds in, 521 segments already on
+       disk, playlistExists:false, and /sessions/<id>/index.m3u8 still answering 503. Nothing was
+       stuck — the segments were racing ahead fine — the player simply had no manifest to open
+       until ffmpeg reached the end of a feature-length film. That is the "videos on movies are
+       taking too long to load" report, and no client-side budget can fix it.
+       event means "the playlist can only be appended to": ffmpeg writes it progressively, from the
+       first segment onward, and still appends #EXT-X-ENDLIST at completion (omit_endlist is set
+       only for live below) — so it lands as a complete, fully seekable VOD list once the transcode
+       finishes. hls_list_size stays 0, so every segment produced so far remains listed and seeking
+       back to 0 keeps working, which is what v8.8 actually needed. Live keeps its rolling window. */
+    ...(live ? [] : ['-hls_playlist_type', 'event']),
     '-hls_delete_threshold', live ? '4' : '1',
     '-hls_flags', live
       ? 'delete_segments+append_list+omit_endlist+independent_segments+temp_file'
