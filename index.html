@@ -44,13 +44,12 @@
 *{box-sizing:border-box;margin:0;padding:0}html,body{height:100%;overflow:hidden}body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;background:#09111f;color:#eef6ff;-webkit-text-size-adjust:100%;touch-action:manipulation}button,input,select{font:inherit}button{cursor:pointer;border:0}input{border:0;outline:0}.hidden{display:none!important}:root{--bg:#09111f;--panel:#101b2f;--panel2:#16243d;--ink:#eef6ff;--muted:#9caec8;--soft:#d8e6fb;--line:rgba(255,255,255,.1);--blue:#38bdf8;--green:#2dd4bf;--pink:#fb7185;--amber:#fbbf24;--purple:#a78bfa;--shadow:0 18px 50px rgba(0,0,0,.35)}
 body.light{--bg:#f5f8fd;--panel:#ffffff;--panel2:#eef4fb;--ink:#142033;--muted:#607088;--soft:#26384f;--line:rgba(20,32,51,.11);--shadow:0 18px 45px rgba(27,39,62,.12)}
 .app{height:100%;background:radial-gradient(circle at 12% 8%,rgba(56,189,248,.22),transparent 30%),radial-gradient(circle at 88% 18%,rgba(45,212,191,.18),transparent 28%),linear-gradient(160deg,var(--bg),#0d1727 52%,var(--bg));display:grid;grid-template-rows:auto 1fr}.top{height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-left)) 10px max(14px,env(safe-area-inset-right));border-bottom:1px solid var(--line);background:rgba(9,17,31,.78);backdrop-filter:blur(18px)}body.light .top{background:rgba(255,255,255,.78)}.brand{display:flex;align-items:center;gap:10px;min-width:0}.logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;color:#05111f;font-weight:900;box-shadow:0 12px 26px rgba(56,189,248,.28)}.brand h1{font-size:18px;line-height:1}.brand p{font-size:11px;color:var(--muted);margin-top:3px;white-space:nowrap}.top-actions{display:flex;gap:8px;align-items:center}.iconbtn,.pillbtn{height:40px;border-radius:12px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:0 12px;font-weight:800}.iconbtn{width:42px;padding:0}.pillbtn.primary{background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;border:0}.layout{min-height:0;display:grid;grid-template-columns:330px 1fr 360px;gap:12px;padding:12px}.panel{background:rgba(16,27,47,.84);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);min-height:0;overflow:hidden}body.light .panel{background:rgba(255,255,255,.9)}.side{display:grid;grid-template-rows:auto auto minmax(0,1fr);min-height:0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.tab{height:42px;border-radius:12px;background:var(--panel2);color:var(--muted);font-weight:850;border:1px solid var(--line);position:relative;overflow:hidden}.tab.active{background:linear-gradient(135deg,var(--blue),var(--purple));color:white;border:0}.tab.loading::after,.cp-tab.loading::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:38%;border-radius:3px;background:linear-gradient(90deg,transparent,var(--green),var(--blue),transparent);animation:tabload 1.05s infinite ease-in-out;pointer-events:none}.tab.active.loading::after{background:linear-gradient(90deg,transparent,#fff,rgba(255,255,255,.55),transparent)}@keyframes tabload{0%{transform:translateX(-120%)}100%{transform:translateX(330%)}}.searchbox{padding:0 10px 10px}.searchbox input,.field input{width:100%;height:44px;border-radius:13px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);padding:0 13px}.cats{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:0 10px 10px}.cat{width:100%;min-height:42px;border-radius:12px;background:transparent;color:var(--muted);display:flex;justify-content:space-between;align-items:center;text-align:left;padding:9px 11px;margin-bottom:5px}.cat.active{background:rgba(56,189,248,.14);color:var(--ink)}.cat{gap:10px}.catStar{flex-shrink:0;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;color:var(--soft);font-size:20px;line-height:1;border-radius:9px;background:rgba(255,255,255,.06)}.catStar.on{color:var(--amber);background:rgba(251,191,36,.16)}.catStar.spacer{opacity:0;background:none;pointer-events:none}.catStar:active{transform:scale(.9)}.catName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.catCount{flex-shrink:0;font-size:11px;color:var(--muted)}.main{display:grid;grid-template-rows:minmax(260px,48vh) auto auto minmax(0,1fr);gap:12px;min-width:0;min-height:0}.player{position:relative;background:#000;border-radius:18px;overflow:hidden;min-height:260px}.player video{width:100%;height:100%;object-fit:contain;background:#000;display:block}.player.pipFloat{position:fixed!important;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));width:min(360px,48vw);height:auto;aspect-ratio:16/9;min-height:0;z-index:120;border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.58);outline:1px solid rgba(255,255,255,.16)}.player.pipFloat .playerbar{opacity:1;pointer-events:auto}.player.pipFloat .watermark{width:44px;bottom:56px}.player.pipFloat+.now{padding-right:min(380px,52vw)}.player-overlay{position:absolute;inset:0;display:grid;place-items:center;background:linear-gradient(180deg,rgba(3,7,18,.35),rgba(3,7,18,.68));pointer-events:none}.state{text-align:center;max-width:80%;color:#dbeafe;display:flex;flex-direction:column;align-items:center}.state strong{display:block;font-size:20px;margin-bottom:6px}.state p{font-size:13px;color:#aebed2}.state-thumb{width:72px;height:72px;object-fit:cover;border-radius:14px;margin-bottom:12px;background:rgba(255,255,255,.08);box-shadow:0 8px 24px rgba(0,0,0,.35);flex-shrink:0}.state-progress{width:160px;height:5px;background:rgba(255,255,255,.12);border-radius:4px;margin-top:16px;overflow:hidden;position:relative}.progress-bar{position:absolute;top:0;left:0;bottom:0;width:40%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;animation:pbar 1.5s infinite ease-in-out}@keyframes pbar{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}.playerbar{display:flex;position:absolute;left:10px;right:10px;bottom:10px;top:auto;align-items:center;gap:8px;padding:8px 10px;border-radius:14px;background:rgba(5,10,20,.82);backdrop-filter:blur(16px);opacity:0;transition:opacity .25s;pointer-events:none;z-index:5}.player.showbar .playerbar{opacity:1;pointer-events:auto}.player:fullscreen .playerbar,.player:-webkit-full-screen .playerbar{opacity:0;pointer-events:none}.player:fullscreen.showbar .playerbar,.player:-webkit-full-screen.showbar .playerbar{opacity:1;pointer-events:auto}.round{width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.14);color:white;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px}.round:hover{background:rgba(255,255,255,.26)}.grow{flex:1;min-width:0}.now{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:0 4px}.now h2{font-size:18px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.now p{font-size:12px;color:var(--muted)}.status{font-size:12px;color:var(--muted);white-space:nowrap}.grid{min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));align-content:start;gap:10px;padding:2px}.card{min-height:76px;border-radius:16px;border:1px solid var(--line);background:linear-gradient(145deg,var(--panel),var(--panel2));display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:10px;color:var(--ink);text-align:left;content-visibility:auto;contain-intrinsic-size:320px 78px}.card.active{outline:2px solid var(--blue);background:rgba(56,189,248,.14)}.poster{position:relative;width:52px;height:52px;border-radius:14px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}.poster img{width:100%;height:100%;object-fit:cover}
-/* v19.44 (owner request): the channel number now sits CENTERED over the poster/gposter — on top
+/* v19.44 (owner request): the channel number now sits CENTERED over the poster — on top
    of the logo when one loads, and alone (replacing the old "No Logo" text entirely) when it does
-   not — rather than the v19.38 top-left corner badge. .chNum/.gchNum are position:absolute over
-   the full poster/gposter box rather than an extra grid column, so the existing 3-column .card
+   not — rather than the v19.38 top-left corner badge. .chNum is position:absolute over
+   the full poster box rather than an extra grid column, so the existing 3-column .card
    layout (poster/text/actions) needs no restructuring. */
 .chNum{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;min-width:20px;height:20px;padding:0 5px;border-radius:6px;background:rgba(4,17,30,.72);color:#fff;font-size:11px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)}
-.gchNum{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:2;min-width:22px;height:22px;padding:0 5px;border-radius:7px;background:rgba(4,17,30,.72);color:#fff;font-size:12px;font-weight:900;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 2px 6px rgba(0,0,0,.4)}
 .ctitle{font-size:14px;font-weight:850;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.cmeta{font-size:11px;color:var(--muted);margin-top:4px}.star{width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.08);color:var(--amber);font-size:18px}.info{display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:10px;padding:12px;min-height:0}.hero{border-radius:16px;background:linear-gradient(135deg,rgba(56,189,248,.18),rgba(45,212,191,.13));padding:14px;border:1px solid var(--line)}
 /* --- device-aware recommended-player banner (matches .hero aesthetic) --- */
 .recBanner{position:relative;display:flex;gap:8px;align-items:center;border-radius:12px;padding:7px 34px 7px 9px;border:1px solid var(--line);background:linear-gradient(135deg,rgba(56,189,248,.14),rgba(45,212,191,.10));opacity:1;transition:opacity .5s ease}.recBanner.fading{opacity:0}
@@ -203,21 +202,15 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 .infoPlot{margin-top:12px;font-size:13.5px;line-height:1.55;color:var(--soft)}
 .infoActions{position:sticky;bottom:0;display:grid;grid-template-columns:1fr auto;gap:8px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--panel) 34%)}
 .infoActions .pillbtn{height:46px;justify-content:center}
-/* Poster grid view + grid/list toggle (v5.1) */
 .nowRight{display:flex;align-items:center;gap:10px}
-.viewToggle{width:40px;height:36px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);color:var(--soft);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
-.viewToggle svg{width:19px;height:19px}
-.viewToggle:active{transform:scale(.94)}
-@media(hover:hover){.viewToggle:hover{background:rgba(56,189,248,.14);color:#fff}}
-/* v23.0: "Newest first" sort toggle for Movies/Series — same square-button shape as the grid/list
-   toggle it sits next to, but gets its own lit-up "on" state (the view toggle has no such state,
-   it just swaps icon+label) so a filtered category (e.g. "Tamil Movies") makes it visually obvious
-   sorting is active. Hidden outright on Live TV, where "latest upload" has no meaning. */
+.sortToggle{width:40px;height:36px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);color:var(--soft);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.sortToggle svg{width:19px;height:19px}
+.sortToggle:active{transform:scale(.94)}
+@media(hover:hover){.sortToggle:hover{background:rgba(56,189,248,.14);color:#fff}}
+/* v23.0: "Newest first" sort toggle for Movies/Series. Hidden outright on Live TV, where
+   "latest upload" has no meaning. */
 .sortToggle.hidden{display:none}
 .sortToggle.active{background:rgba(56,189,248,.22);color:#38bdf8;border-color:rgba(56,189,248,.45)}
-/* v5.6: compact portrait poster grid — 4 small tiles per row on phones, edge-to-edge (no wasted
-   side margins), tiny name below. Matches the reference the owner shared. */
-.grid.gridview{grid-template-columns:repeat(4,1fr);align-content:start;gap:12px 8px;padding:4px 6px calc(20px + env(safe-area-inset-bottom));box-sizing:border-box;width:100%;max-width:100%;overflow-x:hidden}
 /* v24.5 (owner report: "app is lagging", general scrolling/navigation — separate from the video
    player): a fully-loaded catalogue (e.g. 63k+ movies) renders every card into the DOM — v19.46
    already made that append non-blocking via requestIdleCallback chunks, but once appended, ALL of
@@ -227,21 +220,6 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
    rewrite needed, and it degrades harmlessly (property just ignored) on anything too old to know
    it. contain-intrinsic-size gives it a placeholder size for those skipped cards so the scrollbar
    and scroll position don't jump around as they enter/leave view. */
-.gcard{display:block;min-width:0;max-width:100%;text-align:left;background:transparent;border:0;padding:0;color:var(--ink);animation:gcIn .3s ease both;content-visibility:auto;contain-intrinsic-size:150px 230px}
-@keyframes gcIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
-/* 2:3 portrait tile via padding-ratio (150%) — iOS Safari collapses aspect-ratio boxes with a
-   full-size image inside, so padding-ratio is used instead. object-fit:cover fills the poster art. */
-.gposter{position:relative;width:100%;height:0;padding-bottom:150%;border-radius:9px;overflow:hidden;background:#0a1424;box-shadow:0 4px 12px rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.06);transition:transform .15s ease}
-.gcard:active .gposter{transform:scale(.96)}
-.gcard.active .gposter{outline:2px solid var(--blue);outline-offset:-2px}
-.gposter img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
-.gph{position:absolute;inset:0;display:grid;place-items:center;color:#5b6f92;font-size:20px}
-.gstar{position:absolute;top:4px;left:4px;width:24px;height:24px;border-radius:7px;background:rgba(3,7,18,.5);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);color:#fbbf24;font-size:13px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.14)}
-.gstar[data-off="1"]{color:#e6ecf6}
-.ginfo{position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:7px;background:rgba(3,7,18,.5);-webkit-backdrop-filter:blur(5px);backdrop-filter:blur(5px);color:#fff;font-size:15px;line-height:1;display:grid;place-items:center;border:1px solid rgba(255,255,255,.14)}
-.gtitle{margin-top:5px;font-size:11px;font-weight:700;line-height:1.22;color:#e9edf4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.gmeta{margin-top:2px;font-size:10px;font-weight:700;color:var(--muted)}
-@media(min-width:520px){.grid.gridview{grid-template-columns:repeat(auto-fill,minmax(108px,1fr))}}
 /* Transcoder status chip (v4.3) */
 .transcoderStatusRow{display:flex;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap}
 .transcoderStatusRow .pillbtn{height:34px;padding:0 14px;text-decoration:none}
@@ -282,7 +260,7 @@ a.pillbtn{display:inline-flex;align-items:center;justify-content:center}
 /* v19.50: a not-yet-released title still opens the same way (tapping it explains why instead of
    failing silently), but dimmed so the eye reads it as "not now" rather than an equal choice next
    to titles that actually play today. */
-.card.future,.gcard.future{opacity:.62}
+.card.future{opacity:.62}
 .releaseBadge{color:var(--amber);font-weight:800}
 body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .login-card{position:relative;overflow:hidden}
@@ -1295,7 +1273,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           <div class="playerMenu hidden" id="playerMenu" role="menu" aria-label="Player settings"></div>
         </div>
       </section>
-      <section class="now"><div><h2 id="sectionTitle">Live Channels</h2><p id="sectionSub">0 items</p></div><div class="nowRight"><button class="viewToggle sortToggle hidden" id="sortToggle" type="button" aria-label="Sort by newest uploads" title="Sort: newest uploads first"></button><button class="viewToggle" id="viewToggle" type="button" aria-label="Grid or list view" title="Grid / list view"></button><div class="status" id="netStatus">Ready</div></div></section>
+      <section class="now"><div><h2 id="sectionTitle">Live Channels</h2><p id="sectionSub">0 items</p></div><div class="nowRight"><button class="sortToggle hidden" id="sortToggle" type="button" aria-label="Sort by newest uploads" title="Sort: newest uploads first"></button><div class="status" id="netStatus">Ready</div></div></section>
       <div class="recBanner hidden" id="recBanner">
         <button class="recClose" id="recClose" aria-label="Dismiss">×</button>
         <div class="recIcon" id="recIcon">▶</div>
@@ -1914,7 +1892,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.53';
+const APP_VERSION='24.54';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1978,8 +1956,6 @@ document.addEventListener('click',function(e){
   else{const sh=document.getElementById('xtreamSheet');if(sh)sh.classList.remove('show');}
 });
 const ICONS={
-  gridView:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.6"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.6"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.6"/></svg>',
-  listView:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1.4" fill="currentColor" stroke="none"/><circle cx="3.5" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="3.5" cy="18" r="1.4" fill="currentColor" stroke="none"/></svg>',
   play:'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>',
   pause:'<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
   rewind:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="12 17 7 12 12 7"/><polyline points="19 17 14 12 19 7"/></svg>',
@@ -2015,7 +1991,7 @@ const ICONS={
   sortNew:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2.3h6"/></svg>',
   sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),hiddenCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'grid',series:'grid'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),hiddenCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'list',series:'list'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -2386,7 +2362,7 @@ function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('u
    goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
    a worker build frozen at whatever that commit was, until the preview is reaped and it 404s
    forever. A workers.dev transcoder is always meant to be this app's OWN origin, so any other
-   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes=Object.assign({live:'list',vod:'grid',series:'grid'},JSON.parse(store.getItem(VIEWMODE_KEY)||'{}'))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
+   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes={live:'list',vod:'list',series:'list'};store.setItem(VIEWMODE_KEY,JSON.stringify(S.viewModes))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function saveHiddenCats(){try{store.setItem(HIDCAT,JSON.stringify([...S.hiddenCats]))}catch(e){}}
@@ -4343,27 +4319,22 @@ function toggleSortMode(){if(S.tab!=='vod'&&S.tab!=='series')return;const cur=(S
 function updateSortToggle(){const b=$('sortToggle');if(!b)return;const applicable=(S.tab==='vod'||S.tab==='series')&&!(S.tab==='series'&&S.episodeView&&S.episodeView.eps&&S.episodeView.eps.length);b.classList.toggle('hidden',!applicable);if(!applicable)return;const on=sortModeOn();b.classList.toggle('active',on);b.innerHTML=on?ICONS.sortNew:ICONS.sortDefault;b.title=on?'Sorted: newest uploads first (tap for provider order)':'Sort: newest uploads first';}
 function moveItem(k,dir){const arr=filtered(),keys=arr.map(keyOf),i=keys.indexOf(k),j=i+dir;if(i<0||j<0||j>=keys.length)return;[keys[i],keys[j]]=[keys[j],keys[i]];const old=S.orders[S.tab]||[];S.orders[S.tab]=[...keys,...old.filter(x=>!keys.includes(x))];saveOrders();renderGrid(true);toast('Order saved')}
 function yearOf(x){const src=String(x.year||x.releaseDate||x.releasedate||x.release_date||'').trim()||nameOf(x);const m=src.match(/(19|20)\d{2}/);return m?m[0]:''}
-function gridMeta(x){return yearOf(x)||typeOf(x).toUpperCase()}
-function updateViewToggle(){const b=$('viewToggle');if(!b)return;const mode=(S.viewModes&&S.viewModes[S.tab])||'list';b.innerHTML=mode==='grid'?ICONS.listView:ICONS.gridView;b.title=mode==='grid'?'Switch to list view':'Switch to grid view';}
-function toggleViewMode(){const cur=(S.viewModes&&S.viewModes[S.tab])||'list';S.viewModes[S.tab]=cur==='grid'?'list':'grid';try{store.setItem(VIEWMODE_KEY,JSON.stringify(S.viewModes))}catch(e){}renderGrid();if($('grid'))$('grid').scrollTop=0;}
 /* v8.7: when a series is opened, the list under the player shows THAT series' episodes only
    (not every series). Set by openEpisodePicker; cleared when you navigate away. */
 function renderEpisodeGrid(){
   const ev=S.episodeView,g=$('grid');if(!g||!ev)return;
   $('sectionSub').textContent=ev.eps.length.toLocaleString()+' episodes';
-  g.classList.remove('gridview');
   let html='<div class="epBar"><button class="epBack" type="button" data-epback="1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>All series</button><span class="epBarName">'+esc(ev.name)+'</span></div>';
   html+=ev.eps.map((ep,i)=>{const active=S.current&&keyOf(S.current)===keyOf(ep);const logo=logoOf(ep)||ev.logo;return `<div class="card ${active?'active':''}" data-ep="${i}" role="button" tabindex="0"><div class="poster">${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:'▶'}</div><div class="cardText"><div class="ctitle">${esc(ep.name)}</div><div class="cmeta">${esc((ep.container_extension||'mp4').toUpperCase())}</div></div><div class="rowActions">${epPlayerButtons(i)}</div></div>`}).join('');
   g.innerHTML=html;
-  updateViewToggle();updateSortToggle();
+  updateSortToggle();
 }
 /* v19.44 (owner request): a channel with no logo no longer says "No Logo" — the centered channel
-   number (already rendered for every live row, see .chNum/.gchNum above) is the whole fallback,
+   number (already rendered for every live row, see .chNum above) is the whole fallback,
    so a broken/missing logo <img> is just removed and that number is the only thing left in the
    box. Named function (rather than inline HTML-in-JS-in-HTML) to avoid the several layers of
    quote-escaping an inline onerror= would otherwise need. */
 function posterLogoFail(el){el.remove()}
-function gridCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const fav=S.favs.has(keyOf(x));const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="gcard ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="gposter"><span class="gph">${live?'':'▶'}</span>${live?`<span class="gchNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="this.remove()">`:''}<button class="gstar" type="button" data-fav="${esc(keyOf(x))}" data-off="${fav?'0':'1'}" aria-label="Favorite">${fav?'★':'☆'}</button>${typeOf(x)!=='live'?`<button class="ginfo" type="button" data-info="${esc(keyOf(x))}" aria-label="Details">⋮</button>`:''}</div><div class="gtitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="gmeta">${rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(gridMeta(x))}</div></div>`}
 function listCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="card ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${live?`<span class="chNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="${live?'posterLogoFail(this)':'this.remove()'}">`:(live?'':'▶')}</div><div class="cardText"><div class="ctitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="cmeta">${rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(typeOf(x).toUpperCase())+' '+(x.container_extension?'- '+esc(x.container_extension):'')}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}
 /* v19.35: THE WHOLE LIBRARY, NOT THE FIRST 900. A hard `.slice(0,900)` used to cap every grid no
    matter how many titles actually matched — "12,540 items" in the header with a wall at 900 cards
@@ -4403,32 +4374,29 @@ function renderGrid(force){
   if(S.tab==='series'&&S.episodeView&&S.episodeView.eps&&S.episodeView.eps.length)return renderEpisodeGrid();
   const arr=filtered();
   $('sectionSub').textContent=arr.length.toLocaleString()+' items';
-  const mode=(S.viewModes&&S.viewModes[S.tab])||'list';
   const g=$('grid');
-  g.classList.toggle('gridview',mode==='grid'&&arr.length>0);
   if(!arr.length){
     _gridChunkToken++;   /* stop any earlier batch from appending under the message below */
     _gridSig='';
     g.innerHTML=tabLoading()?'<div style="color:var(--muted);padding:18px">Loading '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+'…</div>':'<div style="padding:18px"><div style="color:var(--muted);margin-bottom:10px">No '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+' loaded.</div><button class="pillbtn primary" onclick="loadType(S.tab)">Load '+(S.tab==='live'?'channels':S.tab==='vod'?'titles':'series')+'</button></div>';
-    updateViewToggle();updateSortToggle();
+    updateSortToggle();
     return;
   }
-  /* v5.1: poster-thumbnail grid — big artwork, title + year, favourite in the corner. */
-  const cardHtml=mode==='grid'?gridCardHtml:listCardHtml;
+  const cardHtml=listCardHtml;
   const renderedCount=g.children.length;
   /* Deliberately NOT keyed on the last rendered card — growGridInChunks keeps appending in the
      background between renderGrid() calls, so "how far it's got" drifts on its own and would
      falsely mismatch a perfectly safe append. arr[0] is enough: it is what actually changes for
      every case that isn't a plain append (switching tab/category, typing a search, __recent's
      recency sort), and moveItem()'s manual reorder forces past this via renderGrid(true). */
-  const sig=S.tab+'|'+mode+'|'+keyOf(arr[0]);
+  const sig=S.tab+'|list|'+keyOf(arr[0]);
   if(!force&&renderedCount>0&&sig===_gridSig&&arr.length>=renderedCount){
     if(arr.length>renderedCount)growGridInChunks(g,arr,cardHtml,renderedCount);
-    updateViewToggle();updateSortToggle();
+    updateSortToggle();
     return;
   }
   g.innerHTML=arr.slice(0,GRID_CHUNK).map((x,i)=>cardHtml(x,i)).join('');
-  updateViewToggle();updateSortToggle();
+  updateSortToggle();
   growGridInChunks(g,arr,cardHtml,GRID_CHUNK);
   _gridSig=sig;
 }
@@ -5366,14 +5334,14 @@ function paintPlayedDot(x){
     const k=keyOf(x);
     const sel=(typeof CSS!=='undefined'&&CSS.escape)?CSS.escape(k):k.replace(/["\\]/g,'\\$&');
     const row=g.querySelector('[data-key="'+sel+'"]');if(!row)return;
-    const t=row.querySelector('.ctitle,.gtitle');if(!t||t.querySelector('.playedDot'))return;
+    const t=row.querySelector('.ctitle');if(!t||t.querySelector('.playedDot'))return;
     const d=document.createElement('i');d.className='playedDot';d.title='Already played — opens fast';
     t.insertBefore(d,t.firstChild);
   }catch(e){}
 }
 function paintActiveCard(){
   const g=$('grid');if(!g)return;
-  const was=g.querySelector('.card.active,.gcard.active');if(was)was.classList.remove('active');
+  const was=g.querySelector('.card.active');if(was)was.classList.remove('active');
   if(!S.current)return;
   /* CSS.escape(), not esc() — this builds a CSS attribute-selector string, not HTML markup, and
      the key can carry characters (from an M3U-derived id) that are only safe once escaped for
@@ -9716,8 +9684,7 @@ $('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_se
   const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
   const xe=e.target.closest('[data-epmode]');if(xe){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(xe.dataset.epidx)];if(ep)playItemExternal(ep,xe.dataset.epmode,true);return}
   const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
-  const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}/* v5.6: ⋮ on a poster opens the details popup */const gi=e.target.closest('[data-info]');if(gi){e.stopPropagation();const x=findByKey(gi.dataset.info);if(x)openInfo(x);return}/* v5.1: tap a poster to play (series opens its episodes) */const gc=e.target.closest('.gcard');if(gc){const x=findByKey(gc.dataset.key);if(x)playItem(x);return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
-if($('viewToggle'))$('viewToggle').onclick=()=>toggleViewMode();
+  const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
 if($('sortToggle'))$('sortToggle').onclick=()=>toggleSortMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
