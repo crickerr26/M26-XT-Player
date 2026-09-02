@@ -238,6 +238,7 @@ a.pillbtn{display:inline-flex;align-items:center;justify-content:center}
 .shareQr .shareQrFallback{color:#0b1b33;font-size:12px;font-weight:800;text-align:center;padding:8px}
 .shareQr.disabled{position:relative;filter:grayscale(1);opacity:.4}
 .shareQr.disabled::after{content:"No shares left";position:absolute;inset:0;display:grid;place-items:center;color:#0b1b33;font-size:14px;font-weight:900;background:rgba(255,255,255,.35);border-radius:16px}
+.actQrSmall{width:140px;height:140px;padding:8px}
 /* episode-view header (single series' episodes under the player) */
 .epBar{display:flex;align-items:center;gap:10px;padding:2px 2px 10px;position:sticky;top:0;z-index:2}
 .epBack{display:inline-flex;align-items:center;gap:5px;padding:8px 13px 8px 9px;border-radius:11px;border:1px solid rgba(148,180,215,.28);background:rgba(148,180,215,.12);color:#dce8fb;font-size:13px;font-weight:800;cursor:pointer}
@@ -1377,8 +1378,11 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   <span class="versionBadge login-version">vv1</span>
   <div class="login-card">
     <div class="login-head">
-      <div style="min-width:0">
-        <div class="logo" style="background:transparent;box-shadow:none"><img src="image_482ee8.png" alt="Media26" style="width:100%;height:100%;object-fit:contain"></div><h2>Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version vv1</p>
+      <div style="min-width:0;display:flex;align-items:center;gap:12px">
+        <div class="logo" style="background:transparent;box-shadow:none;flex:none"><img src="image_482ee8.png" alt="Media26" style="width:100%;height:100%;object-fit:contain"></div>
+        <div style="min-width:0">
+          <h2 style="margin:0">Media26 XT Player</h2><p style="margin:2px 0 0;font-size:11px;color:#7a9bc8;font-weight:700;letter-spacing:.5px">DEVELOPED BY INZI RISHI</p><p class="devVersion" id="appVersionLine" style="margin:3px 0 0;font-size:11px;color:#96a9c6;font-weight:800;letter-spacing:.4px">Version vv1</p>
+        </div>
       </div>
       <!-- v16.3: the two settings that used to eat a full-width row each — connection/transcoder
            and share-playlist — are icons beside Refresh now. They are occasional errands, not
@@ -1422,7 +1426,6 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <!-- ── ACTIVATION CODE (this app's own device pairing — not an IPTV sign-in route) ─────── -->
     <div class="actCodeMore" id="actCodeMore">
       <p class="actCodeMoreHead">Activate this device</p>
-      <p class="actCodeMoreSub">Give your IPTV service provider the Device Key below — or let them scan the QR code — and your channels load automatically. No typing needed.</p>
         <div class="idBlock" id="actMacBlock">
         <div class="idRow">
           <label for="actCodeBox">Activation Code</label>
@@ -1455,8 +1458,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
              the Stalker handshake still authorises MAC-bound lines with it. A MAG line that
              genuinely needs its MAC read off the device still shows it on the "Enter the
              Portal" sheet and in Settings, which is where setting a MAG line up happens. -->
-        <p class="macRowHint" style="margin:10px 2px 0">Send the Device Key above to your IPTV service provider — or let them scan this QR code / open the link below. They add your IPTV login and activate it, then a popup on this screen invites you to tap and sign in — no typing needed here.</p>
-        <div class="shareQrWrap" style="margin-top:12px"><div id="actQrBox" class="shareQr"></div></div>
+        <div class="shareQrWrap" style="margin-top:12px"><div id="actQrBox" class="shareQr actQrSmall"></div></div>
         <a id="actAdminLink" class="actAdminLink" href="#" target="_blank" rel="noopener">Open media26 player ›</a>
         <button class="idSend" id="actSendWa" type="button">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" width="18" height="18" style="vertical-align:-4px;margin-right:6px"><path d="M12 2a10 10 0 0 0-8.6 15l-1.3 4.9 5-1.3A10 10 0 1 0 12 2zm5.5 14.2c-.2.6-1.2 1.2-1.7 1.2-.5.1-1 .1-3.2-.8-2.7-1.1-4.4-3.9-4.5-4.1-.1-.2-1-1.4-1-2.6 0-1.2.6-1.8.9-2 .2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 1.9c.1.2.1.4 0 .5l-.4.5c-.2.2-.3.3-.1.6.1.3.7 1.1 1.4 1.7.9.8 1.6 1 1.9 1.2.2.1.4.1.5-.1l.6-.7c.2-.2.3-.2.5-.1l1.8.9c.2.1.4.2.5.3.1.3.1.6-.1 1z"/></svg>
@@ -1892,7 +1894,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.55';
+const APP_VERSION='24.56';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2021,12 +2023,16 @@ async function welcomeLogin(){
   const btn=$('welcomeLoginBtn');
   if(btn){btn.disabled=true;btn.dataset.idle=btn.dataset.idle||btn.textContent;btn.textContent='Connecting…';}
   if($('welcomeErr'))$('welcomeErr').textContent='';
+  /* v24.56: same fix as submitXtreamLogin() below — this popup is an .episodeSheet at z-index 25,
+     above the full-screen #loader (z-index 20) that login() is about to show. Hide it now instead
+     of only on success, so the customer sees the loader immediately instead of a small in-popup
+     "Connecting…" label with the real progress hidden behind it. On failure, login()'s own finally
+     already reveals #login with the error on $('err') — nothing further to show here once the
+     popup carrying $('welcomeErr') is already hidden. */
+  hideWelcomePopup();
   try{
     await login({creds:_actPendingCreds,kind:_actPendingKind});
-    hideWelcomePopup();
-  }catch(e){
-    if($('welcomeErr'))$('welcomeErr').textContent=(e&&e.message)||'Could not load your playlist. Try again.';
-  }finally{
+  }catch(e){}finally{
     _actLoginBusy=false;
     if(btn){btn.disabled=false;btn.textContent=btn.dataset.idle||'Click to Login';}
   }
@@ -4680,8 +4686,13 @@ function keepTranscoderWarm(){
   /* v5.3: the ping keeps the server warm AND records whether it can actually play MKV fast
      (S.transFast). We use that so a title only waits on the transcoder when it's a CONFIRMED working
      one — otherwise MKV gives its verdict immediately instead of hanging on a dead/old server. */
+  /* v24.56: also record whether the shared transcoder is CURRENTLY out of session slots
+     (S.transBusy) — it's a small, shared pool (MAX_SESSIONS on the Render/Railway side) serving
+     every device using the app at once, and a health check that returns sessions>=maxSessions is
+     just as strong a "don't wait the full budget" signal as an old/unsupported build. See its use
+     in tryPlans()'s startBudget. */
   const ping=()=>{const base=transcoderBase();if(!base||document.visibilityState==='hidden')return;_lastWarm=Date.now();
-    try{fetch(base.replace(/\/+$/,'')+'/health',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null).then(d=>{S.transFast=!!(d&&Array.isArray(d.profiles)&&d.profiles.indexOf('fastvod')>=0)}).catch(()=>{S.transFast=false})}catch(e){S.transFast=false}};
+    try{fetch(base.replace(/\/+$/,'')+'/health',{cache:'no-store'}).then(r=>r&&r.ok?r.json():null).then(d=>{S.transFast=!!(d&&Array.isArray(d.profiles)&&d.profiles.indexOf('fastvod')>=0);S.transBusy=!!(d&&Number.isFinite(d.sessions)&&Number.isFinite(d.maxSessions)&&d.sessions>=d.maxSessions)}).catch(()=>{S.transFast=false})}catch(e){S.transFast=false}};
   ping();
   _warmTimer=setInterval(ping,240000);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')ping();});
@@ -5350,7 +5361,15 @@ function paintActiveCard(){
   const now=g.querySelector('[data-key="'+sel+'"]');if(now)now.classList.add('active');
 }
 function setCurrentItem(x){S.current=x;pushRecent(x);paintActiveCard();if($('ovTitle'))$('ovTitle').textContent=nameOf(x);$('infoTitle').textContent=nameOf(x);$('infoText').textContent=typeOf(x).toUpperCase();$('details').textContent=JSON.stringify({id:idOf(x),category:x.category_id||'',format:x.container_extension||''},null,2);$('miniTitle').textContent=nameOf(x);$('miniMeta').textContent='Ready';$('side').classList.remove('open');updateLiveControls();updateMediaSession(x);paintNowPlayingChip()}
-async function playItemPreview(x){setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(yezRoutes(x),0)}
+async function playItemPreview(x){
+  /* v24.56: wake the transcoder THE MOMENT a title is tapped, not only when the user first opens
+     the Movies/Series tab (warmForTab, possibly minutes earlier — plenty of time for a free Render
+     instance to fall back asleep). This runs in parallel with the earlier free routes below, so a
+     cold-start's 30-60s wake time overlaps with route attempts that were going to happen anyway,
+     instead of only starting once the plan reaches the transcoder route itself. Fire-and-forget,
+     throttled inside warmTranscoder() itself — never blocks or delays this function. */
+  try{const t=typeOf(x);warmForTab(t==='live'?'live':(t==='series'?'series':'vod'));}catch(e){}
+  setCurrentItem(x);$('extActions').classList.add('hidden');$('miniMeta').textContent='Preparing stream';$('stateTitle').textContent='Loading video';$('stateText').textContent=nameOf(x);const thumb=logoOf(x);if(thumb){$('stateThumb').src=thumb;$('stateThumb').classList.remove('hidden');}else{$('stateThumb').classList.add('hidden');}$('stateProgress').classList.remove('hidden');$('overlay').style.display='grid';$('netStatus').textContent='Loading preview';await tryPlans(yezRoutes(x),0)}
 /* v20.0: every route the inbuilt player will try, after Yez Player has expanded each one through
    its host ladder (yezplayer.js). This is the single place the app decides WHICH addresses exist
    for an item, so it is the only place the expansion has to be applied — playItemPreview() is the
@@ -6274,7 +6293,20 @@ async function tryPlans(plans,i){
      yields its first segment in a few seconds; 45s leaves generous room for a cold start while
      guaranteeing a real verdict soon enough to act on. The in-app decoder keeps its own tighter
      deadline (see mkv.js STALL_MS / this route's grace), so no MKV route can hang the player. */
-  const startBudget=transcoded?45000:20000;
+  /* v24.56: keepTranscoderWarm()'s own v5.3 comment says S.transFast exists "so a title only waits
+     on the transcoder when it's a CONFIRMED working one" — but nothing ever read it here, so every
+     transcoded route paid the full cold-start budget even minutes after a /health ping had already
+     come back negative. On a movie/MKV title that queues the transcoder more than once (mobile MKV
+     has no live-TV-style exclusion — see plan() above), each of those routes re-paid the full 45s+
+     25s grace in turn, which is where "decades to load a movie" comes from (confirmed on
+     redproibo.online: a cold Render instance made a single tap burn two consecutive ~45s transcoded
+     routes back to back). S.transFast is only ever false after an actual /health round-trip said so
+     (never for "haven't checked yet", which stays undefined) — so this only shortcuts a route we
+     have fresh, positive evidence is not going to work, and yezProgressing() below still rescues a
+     route that defies that evidence and starts producing real frames anyway. S.transBusy (also set
+     by that same ping) shortcuts it the same way when the shared transcoder's own /health said it
+     is already at its session cap — see keepTranscoderWarm(). */
+  const startBudget=transcoded?((S.transFast===false||S.transBusy===true)?10000:45000):20000;
   /* v20.0 (Yez Player): DO NOT ABANDON A ROUTE THAT IS DEMONSTRABLY WORKING.
      The budget was a flat stopwatch, and on a real customer line it expired on the one route that
      was actually playing. Measured on redproibo.online: the panel's continuous MPEG-TS arrives at
@@ -9135,11 +9167,20 @@ async function submitXtreamLogin(){
   const btn=$('xtreamGo');
   if(btn){btn.disabled=true;btn.dataset.idle=btn.dataset.idle||btn.textContent;btn.textContent='Connecting…';btn.classList.add('working');}
   signInMsg('Connecting…','working');
+  /* v24.56 (owner report): close this sheet THE MOMENT a connect attempt starts, instead of only on
+     success (or, for one error, after a 2.6s delay). This sheet is an .episodeSheet at z-index 25,
+     above the full-screen #loader's z-index 20 — login() below shows that loader immediately via
+     load(true,'Connecting...'), but with the sheet still open on top of it the customer only ever
+     saw the small in-sheet "Connecting…" button state, and had to tap × to reveal the loader that
+     was already running underneath the whole time. Any failure still reaches the customer exactly
+     as before: login()'s own finally always calls load(false) and reveals #login with the error on
+     $('err') (signInMsg writes both there and to $('xtreamErr'), which no longer matters once this
+     sheet is closed). */
+  $('xtreamSheet').classList.remove('show');
   try{
     await login({creds:{portalUrl:url,username:user,password:pass},kind:'xtream'});
     if($('login')&&$('login').classList.contains('hidden')){
       if($('xtreamErr'))$('xtreamErr').textContent='';
-      $('xtreamSheet').classList.remove('show');
       /* v19.39: an edit that changed the URL/username/label produces a DIFFERENT profileId (see
          profileId()), so rememberProfile() above just added a second entry instead of updating the
          one being edited. Most-recently-used is always unshifted to the front, so it's the new
@@ -9164,14 +9205,6 @@ async function submitXtreamLogin(){
       const wantsDeviceId=/authenticat|not know this device|device slots|register|provision/i.test(msg)
         &&/MAG|Stalker|portal handshake/i.test(msg);
       signInMsg(msg,'error',{deviceId:wantsDeviceId});
-      /* v19.14: no MAC box left to scroll to or highlight (see stalkerMac()) — just close the form
-         and leave the message up on the login screen. */
-      if(/not activated this device yet/i.test(msg)){
-        setTimeout(()=>{
-          $('xtreamSheet').classList.remove('show');
-          if($('err'))$('err').textContent=msg;
-        },2600);
-      }
     }
   }finally{
     if(btn){btn.disabled=false;btn.classList.remove('working');btn.textContent=btn.dataset.idle||'Connect to Portal';}

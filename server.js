@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.4';
+const SERVER_BUILD = '14.5';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -1404,6 +1404,24 @@ const server = http.createServer(async (req, res) => {
       if (!source || !/^https?:\/\//i.test(source)) return json(res, 400, { error: 'Missing url' });
       /* v13.1: same refusal /proxy already makes — a private-network target never reaches ffmpeg. */
       if (!targetAllowed(source)) return json(res, 403, { error: 'Target host not allowed' });
+      /* ── v24.56 (server 14.5): A CALLER WHO GAVE UP HERE STILL COST A FULL 45s SLOT. ────────────
+         Movies on mobile queue this endpoint straight from the app's own start budget (index.html
+         addTrans/tryPlans) — and that budget can lapse, or the app can move to its next fallback
+         route, WHILE this request is still sitting in the waitForPlaylist() await below. Nothing
+         told this handler the caller was gone, so it ran to completion anyway, then sessions.set()
+         held that ffmpeg (and one of only MAX_SESSIONS=4 global slots — see the v19.63 note above)
+         for the full IDLE_TTL_MS regardless — a session nobody was ever going to read from again.
+         Measured live: /transcoder/hls requests failing client-side with net::ERR_ABORTED while
+         the server's own /health kept reporting sessions:4/maxSessions:4, flat, for minutes — the
+         exact "movies take decades" symptom, because every NEW tap then had nowhere to go until an
+         old, already-abandoned slot aged out.
+         This only reclaims a session that NEVER proved it could serve anything (ok===false below) —
+         a session that reached READY stays exactly as before, untouched, even if this specific
+         caller vanished, since another caller (or a client retry of the identical URL+profile) may
+         still want it. That mirrors the existing idle-sweep's own philosophy: only end what nothing
+         can still be watching. */
+      let clientGone = false;
+      req.on('close', () => { if (!res.writableEnded) clientGone = true; });
       const session = await start(source, profile);
       /* Give a cold/slow free server more room to emit the first segment before declaring failure
          (copy-mode VOD is quick once ffmpeg can read the source; a re-encode needs longer). If the
@@ -1416,6 +1434,10 @@ const server = http.createServer(async (req, res) => {
          let the client poll the manifest on short requests that can never hit that ceiling. */
       const FIRST_WAIT_MS = Number(process.env.FIRST_WAIT_MS || 12000);
       const ok = await waitForPlaylist(session, FIRST_WAIT_MS);
+      if (clientGone) {
+        if (!ok) endSession(session.id, 'client gave up before ready');
+        return;
+      }
       if (!ok && session.exited) {
         console.log(`[hls] 504 profile=${profile} id=${session.id} — ffmpeg exited before any playlist`);
         return json(res, 504, { error: 'Transcoder could not produce video', log: (session.log || '').slice(-600) });
