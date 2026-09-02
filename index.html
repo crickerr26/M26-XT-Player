@@ -1914,7 +1914,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.49';
+const APP_VERSION='24.50';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6827,7 +6827,21 @@ async function tryPlans(plans,i){
       if(overBudget()){noteRouteError('startup timeout');nextPlan();return}
     }else if(!E.started){
       if(overBudget()){noteRouteError('startup timeout');nextPlan();return}
-      if(!E.tapShown)overlay('load','Loading',nameOf(S.current||{})||'Connecting...',true);
+      if(!E.tapShown){
+        overlay('load','Loading',nameOf(S.current||{})||'Connecting...',true);
+        /* v24.50 (owner report: a movie stuck on "Loading video" with no visible change for 90+
+           seconds — turned out this title's plan list queues several 20-45s-budget candidates in a
+           row, so it was genuinely still working, not hung, and there was no way to tell the two
+           apart from the screen). overlay() intentionally no-ops once the STATE already matches, to
+           avoid flicker between states — right for every other state, wrong for this one: 'load' is
+           the one state that can legitimately sit for minutes while multiple routes are tried
+           underneath it, and nothing on screen ever reflected that. Refresh the current route's
+           label and a running clock on every tick regardless of the state guard, so a slow-but-
+           working walk now visibly ticks upward instead of looking frozen — and a customer's
+           screenshot of this now shows exactly which route it has been stuck on, and for how long,
+           instead of the same static text a genuine hang would also show. */
+        if($('stateText'))$('stateText').textContent=(p.label||nameOf(S.current||{})||'Connecting...')+' — '+Math.max(0,Math.round((now-attachAt)/1000))+'s';
+      }
     }else if(stalled>2500){
       /* v52: a user just seeked (button or scrubber) — the buffering that follows is normal,
          NOT a dead stream, so hold off every recovery tier for a moment. This is the direct
