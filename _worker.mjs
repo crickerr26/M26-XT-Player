@@ -1,10 +1,10 @@
-/* The ONE Render service behind /transcoder: it both transcodes and holds the Upstash
+/* The ONE hosted service behind /transcoder: it both transcodes and holds the Upstash
    activation store. It must be the same service the admin dashboard writes codes to, and the
    same one that auto-deploys from this repo — when those drifted apart, customer codes came
    back unknown and MKV kept hitting a server that never received the HEVC fix.
    Override without a code change by setting a TRANSCODER_ORIGIN variable on the Worker/Pages
-   project, so moving to a new Render service is a dashboard edit, not a redeploy of this file. */
-const DEFAULT_TRANSCODER_ORIGIN = 'https://media26-transcoder-xutt.onrender.com';
+   project, so moving to a new service is a dashboard edit, not a redeploy of this file. */
+const DEFAULT_TRANSCODER_ORIGIN = 'https://media26-transcoder-production-f0b9.up.railway.app';
 function transcoderOrigin(env) {
   try {
     const v = String((env && env.TRANSCODER_ORIGIN) || '').trim().replace(/\/+$/, '');

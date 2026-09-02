@@ -18,14 +18,20 @@ assert.match(
 
 assert.match(
   html,
-  /function adminActivationLink\(code,mac\)[\s\S]*?admin\.html\?code=/,
+  /function adminActivationLink\(code,_macIgnored\)[\s\S]*?admin\.html\?code=/,
   'The activation QR must target admin.html so it opens on local/static hosting'
 );
 
 assert.match(
   html,
-  /adminActivationLink\(code,mac\)/,
-  'The activation QR must open the admin page with both code and MAC prefilled'
+  /function adminActivationLink\(code,_macIgnored\)[\s\S]*?return location\.origin\+'\/admin\.html\?code='\+encodeURIComponent\(code\);[\s\S]*?}/,
+  'The activation QR must open the admin page with only the activation code'
+);
+
+assert.match(
+  admin,
+  /var mac='';/,
+  'Admin activation must ignore old mac= query parameters'
 );
 
 assert.match(

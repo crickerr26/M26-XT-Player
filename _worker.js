@@ -1,9 +1,9 @@
-/* The ONE Render service behind /transcoder: it both transcodes and holds the Upstash
+/* The ONE hosted service behind /transcoder: it both transcodes and holds the Upstash
    activation store. It must be the same service the admin dashboard writes codes to, and the
    same one that auto-deploys from this repo — when those drifted apart, customer codes came
    back unknown and MKV kept hitting a server that never received the HEVC fix.
    Override without a code change by setting a TRANSCODER_ORIGIN variable on the Worker/Pages
-   project, so moving to a new Render service is a dashboard edit, not a redeploy of this file. */
+   project, so moving to a new service is a dashboard edit, not a redeploy of this file. */
 /* ── v21.2: THE ADDRESS OF A SERVICE THAT NO LONGER EXISTS 503s EVERYTHING. ────────────────────
    This constant named one Render service, and when that service is deleted or replaced — Render
    appends a fresh suffix every time a blueprint is deployed under a name already in use, so
@@ -19,6 +19,7 @@
    one would hand customers codes the live server has never heard of. Nothing is cached unless it
    actually answered, so a service still cold-starting is retried rather than written off. */
 const TRANSCODER_CANDIDATES = [
+  'https://media26-transcoder-production-f0b9.up.railway.app',
   'https://media26-transcoder.onrender.com',        /* the name render.yaml declares */
   'https://media26-transcoder-xutt.onrender.com',
   'https://media26-transcoder-mlxq.onrender.com'
