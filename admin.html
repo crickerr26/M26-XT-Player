@@ -217,10 +217,10 @@
     <div class="msg" id="a_msg"></div>
     <div class="warn" id="a_warn" style="display:none"></div>
     <div class="newcode" id="a_newbox" style="display:none">
-      <p class="muted" style="margin:0">Give this to the customer — it is already active. Their app signs in on its own.</p>
+      <p class="muted" style="margin:0"><b>Login Code</b> — give this 6-digit code to the customer. Their app signs in when they type it and tap Login.</p>
       <div class="bigcode" id="a_newcode">— — — —</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="mini" id="a_copy">Copy code</button>
+        <button class="mini" id="a_copy">Copy Login Code</button>
         <button class="mini" id="a_copyUrl">Copy portal URL</button>
         <button class="mini" id="a_wa">Send on WhatsApp</button>
       </div>
@@ -234,7 +234,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.65';
+  var ADMIN_VERSION='24.66';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -485,8 +485,9 @@
   /* Show the finished code big, with Copy / WhatsApp, after EITHER path — creating a new code or
      activating one a customer supplied. The admin's job always ends the same way: hand over a code. */
   function showShareCode(code){
-    $('a_code').value=code;
-    $('a_newcode').textContent=String(code).replace(/(\d{4})(\d{4})/,'$1 $2');
+    $('a_newbox').dataset.shareCode=code;
+    var digits=String(code).replace(/\D/g,'');
+    $('a_newcode').textContent=digits.length===6?digits.replace(/(\d{3})(\d{3})/,'$1 $2'):digits.replace(/(\d{4})(\d{4})/,'$1 $2');
     $('a_newbox').style.display='block';
   }
   function serverErr(r){
@@ -582,6 +583,7 @@
         +'<div class="admRowTop"><span class="admCode">'+escHtml(o.code)+'</span>'
         +'<button type="button" class="admToggle '+(on?'on':'off')+'" data-toggle="'+escHtml(o.code)+'" data-on="'+(on?'1':'0')+'">'+(on?'ON':'OFF')+'</button>'
         +'</div><div class="admFields">'
+        +'<div class="admField"><b>Login Code</b><span>'+(escHtml(o.loginCode)||'<span class="muted">—</span>')+'</span></div>'
         +'<div class="admField"><b>Username</b><span>'+(escHtml(o.user)||'<span class="muted">—</span>')+'</span></div>'
         +'<div class="admField"><b>Password</b><span>'+(escHtml(o.pass)||'<span class="muted">—</span>')+'</span></div>'
         +'<div class="admField"><b>Activated</b><span>'+fmtDate(o.activatedAt)+'</span></div>'
@@ -630,12 +632,12 @@
       pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||30)
     }).then(function(r){
       if(r.j&&r.j.ok){
-        m.className='msg ok'; m.textContent='✓ Code '+r.j.code+' is active ('+r.j.devices+'/'+r.j.deviceLimit+' devices).'+iptvExpiryLabel(r.j.iptvExpiresAt);
-        showShareCode(r.j.code);
+        m.className='msg ok'; m.textContent='✓ Customer activated. Login Code '+(r.j.loginCode||r.j.code)+' is ready ('+r.j.devices+'/'+r.j.deviceLimit+' devices).'+iptvExpiryLabel(r.j.iptvExpiresAt);
+        showShareCode(r.j.loginCode||r.j.code);
         /* No customer had ever registered this code, so nobody is waiting on it. Almost always a
            mistyped digit — check the code with the customer and try again. */
         if(r.j.created){
-          $('a_warn').innerHTML='⚠️ <b>No customer was waiting on '+r.j.code+'.</b> This code did not exist, so a brand-new one was created and nobody\'s app is signed in by it. Check the digits with the customer and re-activate using their exact code, or just send them the code shown above.';
+          $('a_warn').innerHTML='⚠️ <b>No customer was waiting on '+r.j.code+'.</b> This activation code did not exist, so a brand-new record was created. Check the digits with the customer, or send them the Login Code shown above.';
           $('a_warn').style.display='block';
         }
       }
@@ -654,8 +656,8 @@
       pass:$('a_pass').value, kind:segKind('a_kindSeg'), days:Number($('a_days').value||30)
     }).then(function(r){
       if(r.j&&r.j.ok){
-        m.className='msg ok'; m.textContent='✓ New code created and already active.'+iptvExpiryLabel(r.j.iptvExpiresAt);
-        showShareCode(r.j.code);
+        m.className='msg ok'; m.textContent='✓ New Login Code created and already active.'+iptvExpiryLabel(r.j.iptvExpiresAt);
+        showShareCode(r.j.loginCode||r.j.code);
       } else { m.className='msg bad'; m.textContent='✗ '+serverErr(r); }
     }).catch(function(e){ m.className='msg bad'; m.textContent='✗ '+e.message; });
   };
@@ -667,6 +669,8 @@
   /* The code field holds either an 8-digit numeric code or a MAC address (colons + hex letters) —
      only strip stray characters for the numeric case, never mangle a MAC's colons/letters. */
   function shareableCode(){
+    var shown=$('a_newbox')&&$('a_newbox').dataset.shareCode;
+    if(shown)return shown;
     var v=String($('a_code').value||'').trim();
     var digits=v.replace(/\D/g,'');
     return digits.length===8 ? digits : v.toUpperCase();
@@ -680,9 +684,9 @@
     var c=shareableCode();
     var url=String($('a_url').value||'').trim();
     var t='Your Media26 XT Player is set up.'
-      +'\nDevice ID: '+c
+      +'\nLogin Code: '+c
       +(url?('\nPortal: '+url):'')
-      +'\n\nOpen the app — it activates on its own within a few seconds. If it hasn\'t, tap Reload on the sign-in screen.';
+      +'\n\nOpen the app, type this Login Code, and tap Login. Your playlist will activate automatically.';
     window.open('https://wa.me/?text='+encodeURIComponent(t),'_blank');
   };
   checkConn();

@@ -1428,7 +1428,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       <p class="actCodeMoreHead">Activate this device</p>
         <div class="idBlock" id="actMacBlock">
         <div class="idRow">
-          <label for="actCodeBox">Activation Code</label>
+          <label for="actCodeBox">Login Code</label>
           <div class="idLine">
             <input class="idVal" id="actCodeBox" inputmode="numeric" maxlength="9" placeholder="————————" autocomplete="off" spellcheck="false" aria-label="Activation code">
             <button class="idBtn" id="actCopy" type="button" aria-label="Copy activation code" title="Copy activation code">
@@ -1440,6 +1440,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           </div>
         </div>
         <div class="err" id="loginActCodeErr"></div>
+        <button class="pillbtn primary" id="actLoginBtn" type="button" style="width:100%;margin-top:8px;justify-content:center">Login</button>
         <!-- v23.4: self-serve renewal — shown only once /api/activate reports this code expired
              AND the server has Stripe configured (see subStatusLine() in the script). Hidden the
              rest of the time; renewing a code that isn't expired belongs in Stream Tools instead
@@ -1895,7 +1896,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.65';
+const APP_VERSION='24.66';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7487,6 +7488,7 @@ async function allocActCode(){
    Allocation is unchanged (server-issued and unique, local fallback offline); only where it lands
    and when it happens are different. */
 function actFmt(c){return String(c||'').replace(/\D/g,'').slice(0,8).replace(/(\d{4})(\d{1,4})/,'$1 $2');}
+function loginCodeFmt(c){const d=String(c||'').replace(/\D/g,'').slice(0,8);return d.length<=6?d.replace(/(\d{3})(\d{1,3})/,'$1 $2'):actFmt(d)}
 function paintActCode(code){const el=$('actCodeBox');if(el)el.value=actFmt(code);}
 async function ensureActCode(){
   const have=actCodeGet(false);
@@ -9245,14 +9247,15 @@ function loginActMsg(kind,text){
 }
 async function activateWithCode(code,opts){
   const silent=!!(opts&&opts.silent);
+  const clean=String(code||'').replace(/\D/g,'');
   if(!silent)loginActMsg('','Checking your code…');
   let j=null;
-  try{ j=(await actApi('/api/activate',{code:code,deviceId:deviceUid()})).j; }
+  try{ j=(await actApi('/api/activate',{code:clean||code,deviceId:deviceUid()})).j; }
   catch(e){ if(!silent)loginActMsg('bad','Could not reach the activation server. Check your connection and try again.'); return 'error'; }
   const st=(j&&j.status)||'';
   /* v17.5: same as the poll — a MAC-based M3U line carries no username. */
   if(st==='active'&&j.portalUrl&&(j.username||stalkerMac())){
-    setActCode(code);
+    if(/^\d{8}$/.test(clean))setActCode(clean);
     stopActPoll();
     loginActMsg('ok','Activated!');
     /* v24.22: no automatic sign-in — see showWelcomePopup(). This is the path actually hit when
@@ -9263,7 +9266,7 @@ async function activateWithCode(code,opts){
     return 'active';
   }
   if(st==='pending'){
-    setActCode(code);
+    if(/^\d{8}$/.test(clean))setActCode(clean);
     loginActMsg('','Not activated yet — waiting for the admin. Keep this page open, and a popup will invite you to sign in the moment they activate it.');
     startActPoll();
     return 'pending';
@@ -9332,17 +9335,18 @@ if($('actRenew'))$('actRenew').onclick=async()=>{
    straight in, and it is adopted on blur or Enter. */
 if($('actCodeBox')){
   const box=$('actCodeBox');
-  box.addEventListener('input',()=>{box.value=actFmt(box.value);});
+  box.addEventListener('input',()=>{box.value=loginCodeFmt(box.value);});
   const commit=()=>{
     const v=String(box.value||'').replace(/\D/g,'').slice(0,8);
-    if(!v||v===actCodeGet(false)){paintActCode(actCodeGet(false));return;}
-    if(!/^\d{8}$/.test(v)){loginActMsg('bad','An activation code is 8 digits.');return;}
-    setActCode(v);paintActCode(v);
+    if(!v){paintActCode(actCodeGet(false));return;}
+    if(!/^(\d{6}|\d{8})$/.test(v)){loginActMsg('bad','A Login Code is 6 digits. An older activation code is 8 digits.');return;}
+    if(/^\d{8}$/.test(v)){setActCode(v);paintActCode(v);}else box.value=loginCodeFmt(v);
     loginActMsg('','Checking your code…');
     activateWithCode(v);
   };
   box.addEventListener('blur',commit);
   box.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();box.blur();}});
+  if($('actLoginBtn'))$('actLoginBtn').onclick=commit;
 }
 /* First paint of the user list on every launch. The sign-in screen is on screen at this point
    whether or not one of the automatic paths is about to replace it, and a launch that ends up

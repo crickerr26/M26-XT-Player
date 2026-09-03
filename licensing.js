@@ -48,6 +48,10 @@ export function normalizeCode(raw) {
   if (digits.length === 8) return digits;
   return null;
 }
+function normalizeLoginCode(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  return digits.length === 6 ? digits : null;
+}
 export function normalizeKind(raw, user) {
   const k = String(raw || '').trim().toLowerCase().replace(/[\s_-]/g, '');
   if (k === 'm3uurl' || k === 'm3ulink' || k === 'playlist') return 'm3uurl';
@@ -78,6 +82,11 @@ function randomDigits8() {
   const b = new Uint32Array(1);
   crypto.getRandomValues(b);
   return String(10000000 + (b[0] % 90000000));
+}
+function randomDigits6() {
+  const b = new Uint32Array(1);
+  crypto.getRandomValues(b);
+  return String(100000 + (b[0] % 900000));
 }
 function randomLocalMac() {
   const b = new Uint8Array(6);
@@ -113,6 +122,10 @@ export class LicenseStore {
     if (!rows.length) return null;
     try { return JSON.parse(rows[0].json); } catch (e) { return null; }
   }
+  findByLoginCode(loginCode) {
+    if (!loginCode) return null;
+    return this.all().find(x => normalizeLoginCode(x && x.loginCode) === loginCode) || null;
+  }
   put(code, obj) {
     this.sql.exec('INSERT INTO lic (code, json, created) VALUES (?, ?, ?) ON CONFLICT(code) DO UPDATE SET json = excluded.json',
       code, JSON.stringify(obj), Number(obj && obj.createdAt) || Date.now());
@@ -138,6 +151,13 @@ export class LicenseStore {
     for (let i = 0; i < 24; i++) {
       const c = make();
       if (!this.get(c)) return c;
+    }
+    return '';
+  }
+  freshLoginCode() {
+    for (let i = 0; i < 40; i++) {
+      const c = randomDigits6();
+      if (!this.findByLoginCode(c)) return c;
     }
     return '';
   }
@@ -211,11 +231,13 @@ export class LicenseStore {
 
     /* ── CUSTOMER: poll for activation, and sign in once the admin has bound a line ── */
     if (path === '/api/activate') {
-      const code = normalizeCode(body.code);
+      const primaryCode = normalizeCode(body.code);
+      const loginCode = normalizeLoginCode(body.code);
       const deviceId = String(body.deviceId || '').trim().slice(0, 80);
-      if (!code || !deviceId) return jres(400, { error: 'A valid 8-digit code (or MAC address) and device are required.' });
-      const lic = this.get(code);
+      if ((!primaryCode && !loginCode) || !deviceId) return jres(400, { error: 'A valid 6-digit Login Code, 8-digit activation code, or MAC address is required.' });
+      const lic = primaryCode ? this.get(primaryCode) : this.findByLoginCode(loginCode);
       if (!lic) return jres(200, { status: 'invalid' });
+      const code = normalizeCode(lic.code) || primaryCode;
       if (lic.status === 'pending') return jres(200, { status: 'pending' });
       if (lic.status === 'blocked') return jres(200, { status: 'blocked' });
       if (lic.status === 'disabled') return jres(200, { status: 'disabled' });
@@ -242,7 +264,7 @@ export class LicenseStore {
         lic.lastLogin = Date.now();
         this.put(code, lic);
         return jres(200, {
-          status: 'active', kind: normalizeKind(lic.kind, lic.user), portalUrl: lic.url,
+          status: 'active', code: lic.code, loginCode: lic.loginCode || '', kind: normalizeKind(lic.kind, lic.user), portalUrl: lic.url,
           username: lic.user, password: lic.pass, devices: (lic.devices || []).length,
           deviceLimit: LIMIT, iptvExpiresAt: iptvExp, appExpiresAt: appExp, subscriptionEnabled: false
         });
@@ -280,6 +302,8 @@ export class LicenseStore {
       const existing = this.get(code);
       const lic = existing || { code, devices: [], createdAt: Date.now() };
       lic.status = 'active'; lic.url = url_; lic.user = user; lic.pass = pass; lic.kind = kind;
+      lic.loginCode = lic.loginCode || this.freshLoginCode();
+      if (!lic.loginCode) return jres(500, { error: 'Could not allocate a Login Code. Try again.' });
       lic.iptvExpiresAt = days > 0 ? Date.now() + days * 86400000 : 0;
       delete lic.expiresAt;
       lic.activatedAt = Date.now();
@@ -287,7 +311,7 @@ export class LicenseStore {
       /* `created` means NO customer was waiting on this code — almost always a mistyped digit, and
          the dashboard warns loudly on it rather than letting a phantom code look like a success. */
       return jres(200, {
-        ok: true, code, status: 'active', created: !existing,
+        ok: true, code, loginCode: lic.loginCode, status: 'active', created: !existing,
         devices: (lic.devices || []).length, deviceLimit: LIMIT, iptvExpiresAt: lic.iptvExpiresAt || 0
       });
     }
@@ -302,13 +326,14 @@ export class LicenseStore {
       if (bad) return jres(400, { error: bad });
       const days = Number(body.days || 0);
       const code = this.freshCode(randomDigits8);
-      if (!code) return jres(500, { error: 'Could not allocate a free code. Try again.' });
+      const loginCode = this.freshLoginCode();
+      if (!code || !loginCode) return jres(500, { error: 'Could not allocate a free code. Try again.' });
       const lic = {
         code, status: 'active', devices: [], createdAt: Date.now(), activatedAt: Date.now(),
-        url: url_, user, pass, kind, iptvExpiresAt: days > 0 ? Date.now() + days * 86400000 : 0
+        url: url_, user, pass, kind, loginCode, iptvExpiresAt: days > 0 ? Date.now() + days * 86400000 : 0
       };
       this.put(code, lic);
-      return jres(200, { ok: true, code, status: 'active', devices: 0, deviceLimit: LIMIT, iptvExpiresAt: lic.iptvExpiresAt || 0 });
+      return jres(200, { ok: true, code, loginCode, status: 'active', devices: 0, deviceLimit: LIMIT, iptvExpiresAt: lic.iptvExpiresAt || 0 });
     }
 
     /* ── ADMIN: block / unblock / reset devices / edit / delete ── */
