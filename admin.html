@@ -220,7 +220,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.59';
+  var ADMIN_VERSION='24.60';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -319,20 +319,63 @@
   var DOWN_HTML='<h3>The activation service is not answering</h3>'+
     '<p style="margin:0">Activation codes and the transcoder are the same Render service — when it sleeps or crashes, both stop. Open the Render dashboard and <b>Resume</b> or <b>Manual Deploy</b> the service, then tap Check again.</p>'+
     '<p style="margin:10px 0 0">Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.</p>';
+  /* ── v24.60: "STARTING UP" IS NOT "CRASHED" ──────────────────────────────────────────────────
+     The service runs on a free plan: it sleeps when idle, and it cold-starts from scratch on every
+     deploy — including the deploy that any server.js release triggers. For roughly a minute after
+     either, /transcoder/health cannot answer, and this page called that "not answering" and told
+     the owner to go and Resume a service that was already busy starting. The Worker has always
+     distinguished the two (it returns a 504 with "Transcoder is starting up" while the container
+     boots, see _worker.js) — this page just threw that away with r.json().
+     So read the status, and when it says waking, say waking: a calm amber note that retries itself
+     every 8 seconds and clears on its own the moment the server answers. Only after it has kept
+     failing for ~2 minutes does it become the red "go and look at Render" message, which by then
+     it has earned. */
+  var WAKE_RETRY_MS=8000, WAKE_MAX_MS=120000;
+  var _wakeSince=0, _wakeTimer=0;
+  function wakeHtml(secs){
+    return '<h3 style="color:#ffd25a">The server is starting up</h3>'+
+      '<p style="margin:0">It is waking from sleep, or finishing a deploy — this normally takes under a minute on the free plan. Nothing is broken and there is nothing to fix; this box clears itself the moment the server answers.</p>'+
+      '<p style="margin:10px 0 0" class="muted">Retrying automatically… '+secs+'s so far.</p>';
+  }
+  function clearWake(){ if(_wakeTimer){ clearTimeout(_wakeTimer); _wakeTimer=0; } }
   function checkConn(){
+    clearWake();
     var c=$('conn'); c.textContent='';
-    fetch(base()+'/health').then(function(r){return r.json()}).then(function(j){
-      if(j&&j.ok){
-        _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||'';
-        var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]';
-        c.textContent=(j.activation?'• Connected, activation ON.':'• Connected, but activation is OFF — see the red box above.')+b;
-        c.style.color=j.activation?'#4fe0a5':'#ffd25a';
-        showSetupBanner(j.activation?'':OFF_HTML);
-        setActivationEnabled(!!j.activation,'The server has no activation store configured (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN).');
-      }
-      else { _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); setActivationEnabled(false,'The activation service is not answering.'); }
+    fetch(base()+'/health',{cache:'no-store'})
+      .then(function(r){ return r.json().catch(function(){return null}).then(function(j){ return {status:r.status,j:j}; }); })
+      .then(function(res){
+        var j=res.j;
+        if(j&&j.ok){
+          _wakeSince=0;
+          _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||'';
+          var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]';
+          c.textContent=(j.activation?'• Connected, activation ON.':'• Connected, but activation is OFF — see the red box above.')+b;
+          c.style.color=j.activation?'#4fe0a5':'#ffd25a';
+          showSetupBanner(j.activation?'':OFF_HTML);
+          setActivationEnabled(!!j.activation,'The server has no activation store configured (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN).');
+          applyKind(segKind('a_kindSeg'));
+          return;
+        }
+        /* The Worker's own "still booting" answer, or any bad-gateway family status: give it time
+           before blaming it. Anything else (a real error body) is a genuine outage. */
+        var waking=res.status===502||res.status===503||res.status===504||(j&&j.error&&/starting up|waking/i.test(String(j.error)));
+        down(waking);
+      })
+      .catch(function(){ down(true); });   /* a refused/timed-out fetch is what a cold start looks like too */
+    function down(waking){
+      _serverKinds=null;
+      setActivationEnabled(false,'The activation service is not answering.');
       applyKind(segKind('a_kindSeg'));
-    }).catch(function(){ _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); setActivationEnabled(false,'The activation service is not answering.'); applyKind(segKind('a_kindSeg')); });
+      if(!waking){ _wakeSince=0; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); return; }
+      if(!_wakeSince) _wakeSince=Date.now();
+      var waited=Date.now()-_wakeSince;
+      if(waited>WAKE_MAX_MS){ _wakeSince=0; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); return; }
+      c.textContent='• Server is starting up — retrying automatically…';
+      c.style.color='#ffd25a';
+      showSetupBanner(wakeHtml(Math.round(waited/1000)));
+      clearWake();
+      _wakeTimer=setTimeout(checkConn,WAKE_RETRY_MS);
+    }
   }
   /* Coming back to this tab after adding the keys in the Render dashboard re-checks on its own,
      so the banner clears without a manual reload. */
