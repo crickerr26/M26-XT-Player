@@ -94,7 +94,7 @@ the URL for this).
 | `PUBLIC_BASE_URL` | *(auto)* | Only needed behind a custom domain |
 | `ACCESS_TOKEN` | *(none)* | Lock the transcoder to yourself |
 | `SESSION_TTL_MS` | `1800000` | Idle session cleanup (30 min) |
-| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | *(none)* | Activation-code store. Both required together to turn on licensing at all — an [Upstash](https://upstash.com) Redis database's REST URL/token (free tier is plenty). Unset = activation and self-serve renewal are both quietly disabled; playback is unaffected either way. |
+| `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | *(none)* | **No longer needed for activation** (v24.62). The activation-code store now lives in the Worker, in a SQLite Durable Object created by `wrangler deploy` itself — see `licensing.js` — so codes work with nothing to configure here. These two still enable the container's *own* copy of the licensing routes, which only Stripe self-serve renewal (`/api/checkout`, `/api/stripe-webhook`) still goes through. Leaving them unset is now the normal, supported setup. |
 | `DEVICE_LIMIT` | `2` | Devices a single activation code may run on before it auto-blocks |
 | `CALLMEBOT_KEY` / `CALLMEBOT_PHONE` | *(none)* | WhatsApp alert on a device-limit block or a Stripe renewal — [CallMeBot](https://www.callmebot.com/blog/free-api-whatsapp-messages/) one-time opt-in key, and the phone number to message |
 | `STRIPE_SECRET_KEY` | *(none)* | Self-serve renewal (§ below). Your Stripe secret key (`sk_live_…` or `sk_test_…`) |

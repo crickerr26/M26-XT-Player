@@ -1,3 +1,8 @@
+import { LicenseStore, isLicensingPath } from './licensing.js';
+/* The Durable Object class must be exported from the Worker entry point for the runtime to
+   bind it. See licensing.js for what it holds and why it is here rather than upstream. */
+export { LicenseStore };
+
 /* The ONE hosted service behind /transcoder: it both transcodes and holds the Upstash
    activation store. It must be the same service the admin dashboard writes codes to, and the
    same one that auto-deploys from this repo — when those drifted apart, customer codes came
@@ -1241,6 +1246,43 @@ export default {
 
     const origin = await resolveTranscoderOrigin(env);
     const upstreamPath = url.pathname.replace(/^\/transcoder/, '') || '/';
+
+    /* ── v24.62: THE ACTIVATION STORE IS SERVED HERE, NOT UPSTREAM. ────────────────────────────
+       server.js turns its whole /api/* surface off unless UPSTASH_REDIS_REST_URL and
+       UPSTASH_REDIS_REST_TOKEN are set, and on the live deployment they never have been — so
+       "activate the code the customer gave me" answered 503 no matter what was typed. Those
+       routes are now answered by a Durable Object the deploy creates itself (licensing.js): no
+       keys, no dashboard step, and no cold start on the sign-in path.
+       Same URLs and same response shapes, so the app and admin.html need no change. Stripe's two
+       routes are NOT in this set — they need secrets only the container holds — and everything
+       else under /transcoder/ still proxies exactly as before.
+       If the binding is somehow absent the request falls through to the container untouched,
+       which is the pre-v24.62 behaviour rather than a new failure. */
+    /* A tiny probe the EDGE answers, never the container. The dashboard needs to know whether it
+       can activate a customer, and that must not depend on a sleeping free-tier container: with
+       the store in the Worker, activation works even while the transcoder is cold. /health keeps
+       meaning what it always meant (is the transcoder up, what can it do) and is left alone. */
+    if (upstreamPath === '/api/activation-status') {
+      return new Response(JSON.stringify({
+        ok: true,
+        activation: !!env.LICENSES,
+        store: env.LICENSES ? 'worker' : 'upstream',
+        upstream: origin
+      }), { status: 200, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+    }
+
+    if (env.LICENSES && isLicensingPath(upstreamPath)) {
+      const stub = env.LICENSES.get(env.LICENSES.idFromName('v1'));
+      const inner = new Request('https://licenses.internal' + upstreamPath, {
+        method: request.method,
+        headers: { 'content-type': 'application/json', 'x-upstream-origin': origin },
+        body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text()
+      });
+      const out = await stub.fetch(inner);
+      const h = withCors(out.headers);
+      h.set('x-transcoder-origin', 'worker:licenses');
+      return new Response(out.body, { status: out.status, headers: h });
+    }
     const upstreamUrl = new URL(upstreamPath + url.search, origin);
     const headers = new Headers(request.headers);
     headers.delete('host');
@@ -1266,6 +1308,23 @@ export default {
         origin,
         detail: String((e && e.message) || e).slice(0, 200)
       }), { status: 504, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store', 'x-transcoder-origin': origin })) });
+    }
+
+    /* The container reports activation:false whenever it has no Upstash keys — true of this
+       deployment and irrelevant now that the Worker holds the store. Correct that one field so
+       every screen reading /health sees the truth; nothing else in the body is touched. */
+    if (env.LICENSES && upstreamPath === '/health' && upstreamResponse.ok) {
+      const j = await upstreamResponse.clone().json().catch(() => null);
+      if (j && typeof j === 'object') {
+        j.activation = true;
+        j.activationStore = 'worker';
+        const hh = withCors(upstreamResponse.headers);
+        hh.set('content-type', 'application/json; charset=utf-8');
+        hh.set('x-transcoder-origin', origin);
+        hh.delete('content-length');
+        hh.delete('content-encoding');
+        return new Response(JSON.stringify(j), { status: upstreamResponse.status, headers: hh });
+      }
     }
 
     const responseHeaders = withCors(upstreamResponse.headers);

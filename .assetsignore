@@ -10,6 +10,7 @@ tests/
 .claude/
 node_modules/
 _worker.js
+licensing.js
 server.js
 main.js
 package.json

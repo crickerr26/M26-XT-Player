@@ -18,6 +18,18 @@
   "name": "smarteriptv",
   "main": "_worker.js",
   "compatibility_date": "2025-06-01",
+  /* The activation-code store (licensing.js). SQLite-backed Durable Objects are the only kind
+     the Workers FREE plan can create, and they need no dashboard step: `wrangler deploy` applies
+     the migration below and the store exists. That is the whole point of keeping activation
+     here — it works with no keys to set and no service to keep awake. */
+  "durable_objects": {
+    "bindings": [
+      { "name": "LICENSES", "class_name": "LicenseStore" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["LicenseStore"] }
+  ],
   "vars": {
     "TRANSCODER_ORIGIN": "https://media26-transcoder-production-f0b9.up.railway.app"
   },
