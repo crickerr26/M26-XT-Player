@@ -1882,6 +1882,7 @@ const TRANSCODER_TOKEN_KEY='smarter-transcoder-token-v1';
    longer hands its transcoding to a third party. Only file:// and Capacitor, which have no
    origin to route through, still need the hosted fallback. */
 const DEFAULT_TRANSCODER=/^https?:$/.test(location.protocol)?location.origin+'/transcoder':'https://smarteriptv.gz-inzi84.workers.dev/transcoder';
+const DEFAULT_LICENSE_HOME='https://media26.gz-inzi84.workers.dev';
 const PLAYER_MODE_KEY='media26-player-mode-v1';
 /* v11.4: playback quality ceiling. A 4K source is 20-80 Mbit/s, which no phone connection streams
    comfortably — that is the whole "4K takes too long to load" problem. Downscaling needs a real
@@ -1894,7 +1895,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.64';
+const APP_VERSION='24.65';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7356,7 +7357,7 @@ if($('loginPairBtn'))$('loginPairBtn').onclick=()=>openPairSheet('');
    The customer gets an 8-digit code, sends it to the admin on WhatsApp, and the admin binds the
    real IPTV login to that code on the server. The app then polls and logs in silently — the
    customer never sees the username/password. Same code works on up to the server's device limit. */
-function licenseBase(){try{const b=(typeof transcoderBase==='function'&&transcoderBase())||DEFAULT_TRANSCODER;return String(b||'').replace(/\/+$/,'');}catch(e){return DEFAULT_TRANSCODER;}}
+function licenseBase(){try{if(/^https?:$/.test(location.protocol))return DEFAULT_LICENSE_HOME+'/transcoder';const b=(typeof transcoderBase==='function'&&transcoderBase())||DEFAULT_TRANSCODER;return String(b||'').replace(/\/+$/,'');}catch(e){return DEFAULT_LICENSE_HOME+'/transcoder';}}
 function deviceUid(){
   let id;try{id=localStorage.getItem('m26_did');}catch(e){}
   if(!id){
@@ -7506,7 +7507,7 @@ const ADMIN_WA='14164744994';
    binding an identifier an Xtream panel has no use for. The signature keeps its second parameter
    so existing callers are untouched; it is simply ignored. */
 function adminActivationLink(code,_macIgnored){
-  return location.origin+'/admin.html?code='+encodeURIComponent(code);
+  return DEFAULT_LICENSE_HOME+'/admin.html?code='+encodeURIComponent(code);
 }
 /* One message carries BOTH identifiers plus the admin link, because sending only one of the
    three was the single most common reason an activation stalled — the seller had part of what

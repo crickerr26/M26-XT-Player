@@ -234,7 +234,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.64';
+  var ADMIN_VERSION='24.65';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -247,13 +247,15 @@
      Render mints a new suffix every time the blueprint is deployed under a name already taken, so
      ANY hard-coded host here is a future outage. This page is served by the same Worker as the
      app, and since v21.2 that Worker's /transcoder path finds whichever service is actually alive
-     (preferring the one holding the activation store). Point at our own origin and inherit it, so
-     one place in the whole system knows where the server is. The field stays editable for an
-     explicit override. */
-  var DEFAULT_BASE = (/^https?:$/.test(location.protocol) ? (location.origin + '/transcoder') : 'https://media26-transcoder.onrender.com');
+     (preferring the one holding the activation store). Activation itself must point at the
+     canonical media26 Worker, because Cloudflare returns 1042 when the duplicate workers.dev host
+     tries to forward to it from inside another Worker. The field stays editable for an explicit
+     override. */
+  var DEFAULT_LICENSE_HOME='https://media26.gz-inzi84.workers.dev';
+  var DEFAULT_BASE = (/^https?:$/.test(location.protocol) ? (DEFAULT_LICENSE_HOME + '/transcoder') : 'https://media26-transcoder.onrender.com');
   /* Every suffix Render has ever handed this service - including the one this file used to pin -
      is migrated forward to that path. */
-  try{ var sb=localStorage.getItem('m26_admin_base')||''; if(!sb||/media26-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(sb)) localStorage.setItem('m26_admin_base',DEFAULT_BASE); }catch(e){}
+  try{ var sb=localStorage.getItem('m26_admin_base')||''; if(sb){try{var _old=new URL(sb,location.href); if(/\.workers\.dev$/i.test(_old.hostname)&&_old.origin!==DEFAULT_LICENSE_HOME)sb='';}catch(e){}} if(!sb||/media26-transcoder(-[a-z0-9]+)?\.onrender\.com/i.test(sb)) localStorage.setItem('m26_admin_base',DEFAULT_BASE); }catch(e){}
   try{ $('base').value = localStorage.getItem('m26_admin_base')||DEFAULT_BASE; }catch(e){ $('base').value=DEFAULT_BASE; }
   $('base').addEventListener('input',function(){ try{localStorage.setItem('m26_admin_base',$('base').value)}catch(e){} checkConn(); });
   function base(){ return String($('base').value||DEFAULT_BASE).trim().replace(/\/+$/,''); }
@@ -467,9 +469,9 @@
   (function(){
     if(!/^https?:$/.test(location.protocol)) return;
     var el=$('shareLink'); if(!el) return;
-    $('shareVal').textContent=location.origin;
+    $('shareVal').textContent=DEFAULT_LICENSE_HOME;
     el.style.display='block';
-    if($('shareCopy'))$('shareCopy').onclick=function(){ flashCopy(this, location.origin, 'Copied!'); };
+    if($('shareCopy'))$('shareCopy').onclick=function(){ flashCopy(this, DEFAULT_LICENSE_HOME, 'Copied!'); };
   })();
 
   function api(path, body){
