@@ -41,6 +41,21 @@
   .secondary{background:var(--panel2);color:var(--blue);width:100%;margin-top:10px;padding:13px;border:1px solid var(--line)}
   .secondary:hover{background:rgba(56,189,248,.10)}
   .verbadge{display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 10px;border-radius:999px;background:rgba(56,189,248,.14);border:1px solid rgba(56,189,248,.35);color:var(--blue);font-size:11px;font-weight:700}
+  /* v24.59: the "activation is OFF" banner. Deliberately loud and red rather than a muted
+     aside — with the Upstash keys unset NOTHING on this page can be saved, so a seller who
+     scrolls past it fills the whole form in and loses the customer's code into a 503. */
+  .shareLink{margin-top:12px;padding:12px 13px;border-radius:12px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}
+  .shareLabel{display:block;font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--blue);margin-bottom:8px}
+  .shareRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .shareRow code{flex:1 1 auto;min-width:0;word-break:break-all;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px}
+  .setupBanner{margin:0 0 16px;padding:15px 16px;border-radius:14px;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.42);color:#ffd9d9;font-size:13px;line-height:1.55}
+  .setupBanner h3{margin:0 0 8px;font-size:14.5px;color:#ff8a8a;letter-spacing:.2px}
+  .setupBanner ol{margin:8px 0 0;padding-left:20px}
+  .setupBanner li{margin:0 0 6px}
+  .setupBanner code{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.13);border-radius:6px;padding:1px 6px;font-size:12px;word-break:break-all}
+  .setupBanner .mini{margin-top:10px}
+  .setupBanner a{color:#ffb4b4}
+  button[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none}
   .warn{margin-top:12px;padding:13px 14px;border-radius:12px;background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.35);color:var(--yellow);font-size:12.5px;line-height:1.5}
   .newcode{margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(56,189,248,.12),rgba(45,212,191,.10));border:1px solid rgba(56,189,248,.24)}
   .bigcode{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:700;letter-spacing:8px;text-align:center;color:var(--ink);text-indent:8px;padding:8px 0}
@@ -102,11 +117,22 @@
   </div>
 
   <div id="admActivateCard">
+  <div class="setupBanner" id="setupBanner" style="display:none"></div>
   <div class="card">
     <h2>Transcoder server</h2>
     <label>Transcoder URL</label>
     <input id="base" placeholder="(this app's own /transcoder path)" autocomplete="off">
     <p class="muted" style="margin-top:8px">Stored only in this browser. <span id="conn" class="muted"></span></p>
+    <!-- v24.63: activation codes belong to the host that stores them. A seller working on one of
+         this account's addresses while the customer's app is installed from another is a code that
+         activates into a store nobody is reading — so the address to hand out is shown right here,
+         taken from the page you are actually on, with a Copy button so it is the one that gets
+         sent. -->
+    <div class="shareLink" id="shareLink" style="display:none">
+      <span class="shareLabel">Give customers this exact address</span>
+      <div class="shareRow"><code id="shareVal"></code><button type="button" class="mini" id="shareCopy">Copy</button></div>
+      <p class="muted" style="margin:8px 0 0">Their app must be opened from this address — it is where their activation codes are stored.</p>
+    </div>
   </div>
 
   <div class="card">
@@ -208,7 +234,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.58';
+  var ADMIN_VERSION='24.63';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -266,15 +292,185 @@
      activate a customer. Say which service, and what brings it back. A customer is never blocked
      by this: signing in with the portal URL, login and password goes straight to their provider
      and does not touch this server at all. */
-  var DOWN_MSG='• Activation service is not answering (this is the same Render service as the transcoder — when it sleeps or crashes, both stop). Open the Render dashboard and Resume / Manual Deploy the service, then reload this page. Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.';
-  function checkConn(){
-    var c=$('conn'); c.textContent='';
-    fetch(base()+'/health').then(function(r){return r.json()}).then(function(j){
-      if(j&&j.ok){ _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||''; var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]'; c.textContent = (j.activation ? '• Connected, activation ON.' : '• Connected, but activation is OFF (set the Upstash keys on the server).')+b; c.style.color = j.activation?'#4fe0a5':'#ffd25a'; }
-      else { _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; }
-      applyKind(segKind('a_kindSeg'));
-    }).catch(function(){ _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; applyKind(segKind('a_kindSeg')); });
+  function downMsg(){ return '\u2022 Activation service is not answering (this is the same service as the transcoder \u2014 when it sleeps or crashes, both stop). See the box above.'; }
+  /* ── v24.59 (owner report: "I type the activation code the customer gave me and it will not
+     activate") ────────────────────────────────────────────────────────────────────────────────
+     The cause was never the code or the typing. Activation codes live in Upstash Redis, and
+     server.js turns the ENTIRE /api/* surface off when UPSTASH_REDIS_REST_URL and
+     UPSTASH_REDIS_REST_TOKEN are unset — every route answers 503, so Activate, Create and the
+     activations list all fail no matter what is entered. This page did say so, but as one muted
+     yellow clause ("set the Upstash keys on the server") at the end of a line about where the URL
+     is stored, and it left both buttons live — so the seller filled the form in, tapped Activate
+     with the customer waiting, and got a bare "✗".
+     Now the OFF state stops the page instead of decorating it: the buttons are disabled with the
+     reason on them, and the banner spells out the fix. Nothing here can switch activation on —
+     only the two environment variables can — so the honest thing is to say exactly which two, and
+     to stop pretending the form will work until they are set. */
+  function setActivationEnabled(on,why){
+    ['a_go','a_new','admRefresh'].forEach(function(id){
+      var b=$(id); if(!b) return;
+      b.disabled=!on;
+      b.title=on?'':(why||'');
+    });
+    if($('a_go'))$('a_go').textContent=on?'Activate the code the customer gave me':'Activate — unavailable until activation is switched on';
+    if($('a_new'))$('a_new').textContent=on?'✨ Create a new activated code':'Create a code — unavailable until activation is switched on';
   }
+  function showSetupBanner(html){
+    var el=$('setupBanner'); if(!el) return;
+    if(!html){ el.style.display='none'; el.innerHTML=''; return; }
+    el.innerHTML=html+'<button type="button" class="mini" id="setupRecheck">Check again</button>';
+    el.style.display='block';
+    var r=$('setupRecheck'); if(r) r.onclick=function(){ this.textContent='Checking…'; checkConn(); };
+  }
+  /* ── v24.61: NAME THE SERVICE THAT ACTUALLY ANSWERED ────────────────────────────────────────
+     This page has been telling people to go and fix things "on Render". The Worker's
+     TRANSCODER_ORIGIN decides which service is behind /transcoder, and in this deployment it
+     points at a RAILWAY app, not Render at all — so the instructions named a dashboard that has
+     nothing to do with the running server, and the Render hosts in the Worker's candidate list
+     are never even probed while that variable is set.
+     The Worker now stamps the origin it used on every /transcoder response (x-transcoder-origin),
+     so these messages name the real host instead of inventing a provider. */
+  var _tcOrigin='';
+  function hostLabel(){
+    if(!_tcOrigin) return 'the transcoder/activation service';
+    var h=_tcOrigin; try{ h=new URL(_tcOrigin).host; }catch(e){}
+    return '<b>'+h+'</b>';
+  }
+  function providerHint(){
+    if(/railway\.app/i.test(_tcOrigin)) return 'Railway';
+    if(/onrender\.com/i.test(_tcOrigin)) return 'Render';
+    if(/fly\.dev/i.test(_tcOrigin)) return 'Fly';
+    return 'whichever host runs it';
+  }
+  function offHtml(){
+    return '<h3>Activation is switched OFF on the server</h3>'+
+    '<p style="margin:0">The server is up and answering, but it has nowhere to <b>store</b> activation codes, so it refuses every activation — including the code your customer just read out to you. Nothing on this page can turn it on; it takes two environment variables, once.</p>'+
+    '<p style="margin:10px 0 0">The server answering right now is '+hostLabel()+' — so set them on <b>'+providerHint()+'</b>, not on any other service you may also have running.</p>'+
+    '<ol>'+
+    '<li>Create a free Redis database at <a href="https://upstash.com" target="_blank" rel="noopener">upstash.com</a> and open its <b>REST</b> tab.</li>'+
+    '<li>On '+providerHint()+', open that service &rarr; <b>Variables</b> / <b>Environment</b>, and add both:<br><code>UPSTASH_REDIS_REST_URL</code> = the REST URL<br><code>UPSTASH_REDIS_REST_TOKEN</code> = the REST token</li>'+
+    '<li><b>Save.</b> The service redeploys on its own. When it comes back, this box clears itself.</li>'+
+    '</ol>'+
+    '<p style="margin:10px 0 0">Until then, a customer is <b>not</b> stuck: they can still sign in inside the app with their portal URL, username and password. That path goes straight to their provider and never touches this server.</p>';
+  }
+  function downHtml(){
+    return '<h3>The activation service is not answering</h3>'+
+    '<p style="margin:0">Activation codes and the transcoder are the same service ('+hostLabel()+') — when it sleeps or crashes, both stop. Open its dashboard on '+providerHint()+', restart or redeploy it, then tap Check again.</p>'+
+    '<p style="margin:10px 0 0">Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.</p>';
+  }
+  /* ── v24.60: "STARTING UP" IS NOT "CRASHED" ──────────────────────────────────────────────────
+     The service runs on a free plan: it sleeps when idle, and it cold-starts from scratch on every
+     deploy — including the deploy that any server.js release triggers. For roughly a minute after
+     either, /transcoder/health cannot answer, and this page called that "not answering" and told
+     the owner to go and Resume a service that was already busy starting. The Worker has always
+     distinguished the two (it returns a 504 with "Transcoder is starting up" while the container
+     boots, see _worker.js) — this page just threw that away with r.json().
+     So read the status, and when it says waking, say waking: a calm amber note that retries itself
+     every 8 seconds and clears on its own the moment the server answers. Only after it has kept
+     failing for ~2 minutes does it become the red "go and look at Render" message, which by then
+     it has earned. */
+  var WAKE_RETRY_MS=8000, WAKE_MAX_MS=120000;
+  var _wakeSince=0, _wakeTimer=0;
+  function wakeHtml(secs){
+    return '<h3 style="color:#ffd25a">The server is starting up</h3>'+
+      '<p style="margin:0">It is waking from sleep, or finishing a deploy — this normally takes under a minute on the free plan. Nothing is broken and there is nothing to fix; this box clears itself the moment the server answers.</p>'+
+      '<p style="margin:10px 0 0" class="muted">Retrying automatically… '+secs+'s so far.</p>';
+  }
+  function clearWake(){ if(_wakeTimer){ clearTimeout(_wakeTimer); _wakeTimer=0; } }
+  /* ── v24.62: ACTIVATION AND THE TRANSCODER ARE NO LONGER THE SAME QUESTION ───────────────────
+     They used to be one service, so one /health answered both. The activation store now lives in
+     the Worker (licensing.js), which is served at the edge and cannot sleep — so a customer can be
+     activated while the transcoder container is still cold, and this page must not refuse to do it
+     just because /health has not come back yet.
+     Two checks now, in order of what actually blocks the seller:
+       /api/activation-status  — can I activate anyone at all? (edge, instant, never asleep)
+       /health                 — is the transcoder up, and what can it do? (may be waking)
+     The Activate and Create buttons follow the FIRST one only. The transcoder's state is reported
+     on its own line, and only becomes a banner when it is genuinely the thing standing in the way
+     (i.e. activation is unavailable too). */
+  var _actOk=false;
+  function transcoderNote(){
+    return '<h3 style="color:#ffd25a">The transcoder is asleep — activation still works</h3>'+
+      '<p style="margin:0">You can activate customers normally; that is served at the edge and does not need this service. What is affected is playback of MKV/HEVC titles, which wake it on first use anyway.</p>';
+  }
+  function checkConn(){
+    clearWake();
+    var c=$('conn'); c.textContent='';
+    /* Ask the edge first — this is the answer that decides whether the form is usable. */
+    fetch(base()+'/api/activation-status',{cache:'no-store'})
+      .then(function(r){ return r.json().catch(function(){return null}); })
+      .catch(function(){ return null; })
+      .then(function(a){
+        if(a&&a.ok&&a.activation){ _actOk=true; if(a.upstream)_tcOrigin=a.upstream; }
+        else _actOk=false;
+        return fetch(base()+'/health',{cache:'no-store'})
+          .then(function(r){ try{ _tcOrigin=r.headers.get('x-transcoder-origin')||_tcOrigin; }catch(e){}
+            return r.json().catch(function(){return null}).then(function(j){ if(j&&j.origin)_tcOrigin=j.origin; return {status:r.status,j:j}; }); })
+          .catch(function(){ return {status:0,j:null}; });
+      })
+      .then(function(res){
+        var j=res.j;
+        /* Activation is available: the form works, whatever the transcoder is doing. */
+        if(_actOk){
+          _wakeSince=0;
+          setActivationEnabled(true,'');
+          if(j&&j.ok){
+            _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||'';
+            c.textContent='• Activation ON (stored at the edge).'+(j.build?(' Transcoder up [server v'+j.build+'].'):'');
+            c.style.color='#4fe0a5';
+            showSetupBanner('');
+          } else {
+            _serverKinds=null;
+            c.textContent='• Activation ON (stored at the edge). Transcoder asleep or starting — playback only.';
+            c.style.color='#ffd25a';
+            showSetupBanner(transcoderNote());
+          }
+          applyKind(segKind('a_kindSeg'));
+          return;
+        }
+        /* No edge store (an older Worker build): fall back to exactly the pre-v24.62 behaviour,
+           where the container's own /health decides. */
+        if(j&&j.ok){
+          _wakeSince=0;
+          _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||'';
+          var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy it]';
+          c.textContent=(j.activation?'• Connected, activation ON.':'• Connected, but activation is OFF — see the red box above.')+b;
+          c.style.color=j.activation?'#4fe0a5':'#ffd25a';
+          showSetupBanner(j.activation?'':offHtml());
+          setActivationEnabled(!!j.activation,'The server has no activation store configured (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN).');
+          applyKind(segKind('a_kindSeg'));
+          return;
+        }
+        var waking=res.status===502||res.status===503||res.status===504||res.status===0||(j&&j.error&&/starting up|waking/i.test(String(j.error)));
+        down(waking);
+      });
+    function down(waking){
+      _serverKinds=null;
+      setActivationEnabled(false,'The activation service is not answering.');
+      applyKind(segKind('a_kindSeg'));
+      if(!waking){ _wakeSince=0; c.textContent=downMsg(); c.style.color='#ff8a8a'; showSetupBanner(downHtml()); return; }
+      if(!_wakeSince) _wakeSince=Date.now();
+      var waited=Date.now()-_wakeSince;
+      if(waited>WAKE_MAX_MS){ _wakeSince=0; c.textContent=downMsg(); c.style.color='#ff8a8a'; showSetupBanner(downHtml()); return; }
+      c.textContent='• Server is starting up — retrying automatically…';
+      c.style.color='#ffd25a';
+      showSetupBanner(wakeHtml(Math.round(waited/1000)));
+      clearWake();
+      _wakeTimer=setTimeout(checkConn,WAKE_RETRY_MS);
+    }
+  }
+  /* Coming back to this tab after adding the keys in the Render dashboard re-checks on its own,
+     so the banner clears without a manual reload. */
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) checkConn(); });
+  /* Only meaningful on a real https deployment — opened from a file:// copy there is no address
+     to hand anyone, so the box stays hidden rather than showing something unusable. */
+  (function(){
+    if(!/^https?:$/.test(location.protocol)) return;
+    var el=$('shareLink'); if(!el) return;
+    $('shareVal').textContent=location.origin;
+    el.style.display='block';
+    if($('shareCopy'))$('shareCopy').onclick=function(){ flashCopy(this, location.origin, 'Copied!'); };
+  })();
 
   function api(path, body){
     return fetch(base()+path, {

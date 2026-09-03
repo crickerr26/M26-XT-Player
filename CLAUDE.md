@@ -64,6 +64,11 @@ Single-page app, no build step — the deployed files are the source files.
 - `_worker.js` — Cloudflare Pages Function: `/proxy` CORS relay, `/api/playlist`
   server-side playlist login, `/transcoder/*` pass-through.
 - `server.js` — Render service: ffmpeg transcoder + its own `/proxy` relay.
+- `licensing.js` — the activation-code store: a SQLite Durable Object (`LicenseStore`) bound to
+  the Worker as `LICENSES`, plus the `/api/*` licensing routes it answers. Created by
+  `wrangler deploy` via the migration in `wrangler.jsonc` — no keys, no dashboard step. This
+  is why activation no longer needs Upstash; server.js's copy of these routes is now only
+  reached for Stripe's two endpoints.
 - `sw.js` — network-first service worker for the app shell.
 - `mkv.js`, `mpegts.min.js` — in-app Matroska and MPEG-TS engines.
 - `m26player2.js` (`M26Player2`, labelled "Player 1" in the UI) — the inbuilt player: probes a

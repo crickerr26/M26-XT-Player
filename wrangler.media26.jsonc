@@ -12,6 +12,18 @@
   "name": "media26",
   "main": "_worker.js",
   "compatibility_date": "2025-06-01",
+  /* Must mirror wrangler.jsonc — see the note there. Each Worker project gets its OWN Durable
+     Object storage, so whichever project is actually serving customers is the one whose store
+     holds their codes; running both is how a code activated on one host goes missing on the
+     other. Deleting the duplicate project remains the right cleanup. */
+  "durable_objects": {
+    "bindings": [
+      { "name": "LICENSES", "class_name": "LicenseStore" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["LicenseStore"] }
+  ],
   "vars": {
     "TRANSCODER_ORIGIN": "https://media26-transcoder-production-f0b9.up.railway.app"
   },

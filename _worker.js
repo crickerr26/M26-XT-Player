@@ -1,3 +1,8 @@
+import { LicenseStore, isLicensingPath } from './licensing.js';
+/* The Durable Object class must be exported from the Worker entry point for the runtime to
+   bind it. See licensing.js for what it holds and why it is here rather than upstream. */
+export { LicenseStore };
+
 /* The ONE hosted service behind /transcoder: it both transcodes and holds the Upstash
    activation store. It must be the same service the admin dashboard writes codes to, and the
    same one that auto-deploys from this repo — when those drifted apart, customer codes came
@@ -27,6 +32,32 @@ const TRANSCODER_CANDIDATES = [
 const DEFAULT_TRANSCODER_ORIGIN = TRANSCODER_CANDIDATES[0];
 const TRANSCODER_PROBE_TTL_MS = 5 * 60 * 1000;
 let _tcOrigin = '', _tcAt = 0;
+
+/* ── v24.63: ONE STORE, HOWEVER MANY HOSTS ────────────────────────────────────────────────────
+   Activation codes used to sit in a single shared Redis, so it did not matter which of this
+   account's several Worker hosts a seller or a customer happened to open — they all read the same
+   records. A Durable Object store is per Worker PROJECT, so moving the store into the Worker
+   quietly reintroduced that as a way to lose a code: activate on one host, poll from another, and
+   the code is simply not there.
+   LICENSE_HOME closes it. Set it (a Worker variable, or the value baked into wrangler.jsonc) to
+   the ONE host that should own the store, and every other deployment forwards its licensing
+   requests there instead of using its own — one store again, exactly like the Redis was.
+   Unset, or set to this very host, means "I am home": serve locally, which is the correct
+   behaviour for a single-host setup and the safe default for an owner who never sets anything.
+   A forward that fails is reported as a failure and NEVER falls back to the local store: two
+   stores disagreeing about who is activated is far worse than one honest error. */
+function licenseHome(env) {
+  try {
+    const v = String((env && env.LICENSE_HOME) || '').trim().replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(v)) return v;
+  } catch (e) {}
+  return '';
+}
+function isLicenseHome(env, url) {
+  const home = licenseHome(env);
+  if (!home) return true;                 /* nothing configured: this host owns its own store */
+  try { return new URL(home).host === url.host; } catch (e) { return true; }
+}
 
 function pinnedTranscoderOrigin(env) {
   try {
@@ -74,7 +105,7 @@ function withCors(headers) {
      and 3510s if you knock again during it. The client could not see that header (a cross-origin
      response only exposes what is named here), so it fell back to a hard-coded 45-second cooldown
      and re-armed the ban roughly 27 times before it would have expired on its own. */
-  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location,retry-after');
+  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location,retry-after,x-transcoder-origin');
   out.set('cross-origin-resource-policy', 'cross-origin');
   out.set('timing-allow-origin', '*');
   return out;
@@ -1241,6 +1272,94 @@ export default {
 
     const origin = await resolveTranscoderOrigin(env);
     const upstreamPath = url.pathname.replace(/^\/transcoder/, '') || '/';
+
+    /* ── v24.62: THE ACTIVATION STORE IS SERVED HERE, NOT UPSTREAM. ────────────────────────────
+       server.js turns its whole /api/* surface off unless UPSTASH_REDIS_REST_URL and
+       UPSTASH_REDIS_REST_TOKEN are set, and on the live deployment they never have been — so
+       "activate the code the customer gave me" answered 503 no matter what was typed. Those
+       routes are now answered by a Durable Object the deploy creates itself (licensing.js): no
+       keys, no dashboard step, and no cold start on the sign-in path.
+       Same URLs and same response shapes, so the app and admin.html need no change. Stripe's two
+       routes are NOT in this set — they need secrets only the container holds — and everything
+       else under /transcoder/ still proxies exactly as before.
+       If the binding is somehow absent the request falls through to the container untouched,
+       which is the pre-v24.62 behaviour rather than a new failure. */
+    /* A tiny probe the EDGE answers, never the container. The dashboard needs to know whether it
+       can activate a customer, and that must not depend on a sleeping free-tier container: with
+       the store in the Worker, activation works even while the transcoder is cold. /health keeps
+       meaning what it always meant (is the transcoder up, what can it do) and is left alone. */
+    if (upstreamPath === '/api/activation-status') {
+      /* Really ask the store, rather than only checking that a binding exists. A binding that is
+         present but broken would otherwise light the dashboard green and fail every activation
+         afterwards — the exact silent failure this whole change exists to end. */
+      let live = false;
+      /* On a host that FORWARDS to a license home, the only answer that means anything is whether
+         that home can be reached — its own binding is irrelevant and reporting it would light the
+         dashboard green while every activation 502s. */
+      if (!isLicenseHome(env, url)) {
+        const home = licenseHome(env);
+        try {
+          const r = await fetch(home + '/transcoder/api/activation-status', { cf: { cacheTtl: 0 } });
+          const hj = r.ok ? await r.json().catch(() => null) : null;
+          live = !!(hj && hj.activation);
+        } catch (e) { live = false; }
+        return new Response(JSON.stringify({
+          ok: true, activation: live, store: live ? 'worker' : 'unreachable',
+          home, host: url.host, upstream: origin
+        }), { status: 200, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+      }
+      if (env.LICENSES) {
+        try {
+          const probe = await env.LICENSES.get(env.LICENSES.idFromName('v1'))
+            .fetch(new Request('https://licenses.internal/api/admin/list', {
+              method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
+            }));
+          live = probe.ok;
+        } catch (e) { live = false; }
+      }
+      return new Response(JSON.stringify({
+        ok: true,
+        activation: live,
+        store: live ? 'worker' : 'upstream',
+        home: licenseHome(env) || url.origin,
+        host: url.host,
+        upstream: origin
+      }), { status: 200, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+    }
+
+    /* Not the home host — forward to it, so every deployment shares one set of codes. */
+    if (isLicensingPath(upstreamPath) && !isLicenseHome(env, url)) {
+      const home = licenseHome(env);
+      try {
+        const fwd = await fetch(home + '/transcoder' + upstreamPath + url.search, {
+          method: request.method,
+          headers: { 'content-type': 'application/json' },
+          body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text()
+        });
+        const hh = withCors(fwd.headers);
+        hh.set('x-transcoder-origin', 'worker:licenses@' + (new URL(home)).host);
+        hh.delete('content-length');
+        hh.delete('content-encoding');
+        return new Response(await fwd.text(), { status: fwd.status, headers: hh });
+      } catch (e) {
+        return new Response(JSON.stringify({
+          error: 'The activation store could not be reached. It is hosted at ' + home + '.'
+        }), { status: 502, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+      }
+    }
+
+    if (env.LICENSES && isLicensingPath(upstreamPath)) {
+      const stub = env.LICENSES.get(env.LICENSES.idFromName('v1'));
+      const inner = new Request('https://licenses.internal' + upstreamPath, {
+        method: request.method,
+        headers: { 'content-type': 'application/json', 'x-upstream-origin': origin },
+        body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text()
+      });
+      const out = await stub.fetch(inner);
+      const h = withCors(out.headers);
+      h.set('x-transcoder-origin', 'worker:licenses');
+      return new Response(out.body, { status: out.status, headers: h });
+    }
     const upstreamUrl = new URL(upstreamPath + url.search, origin);
     const headers = new Headers(request.headers);
     headers.delete('host');
@@ -1263,11 +1382,36 @@ export default {
     } catch (e) {
       return new Response(JSON.stringify({
         error: 'Transcoder is starting up',
+        origin,
         detail: String((e && e.message) || e).slice(0, 200)
-      }), { status: 504, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+      }), { status: 504, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store', 'x-transcoder-origin': origin })) });
+    }
+
+    /* The container reports activation:false whenever it has no Upstash keys — true of this
+       deployment and irrelevant now that the Worker holds the store. Correct that one field so
+       every screen reading /health sees the truth; nothing else in the body is touched. */
+    if (env.LICENSES && upstreamPath === '/health' && upstreamResponse.ok) {
+      const j = await upstreamResponse.clone().json().catch(() => null);
+      if (j && typeof j === 'object') {
+        j.activation = true;
+        j.activationStore = 'worker';
+        const hh = withCors(upstreamResponse.headers);
+        hh.set('content-type', 'application/json; charset=utf-8');
+        hh.set('x-transcoder-origin', origin);
+        hh.delete('content-length');
+        hh.delete('content-encoding');
+        return new Response(JSON.stringify(j), { status: upstreamResponse.status, headers: hh });
+      }
     }
 
     const responseHeaders = withCors(upstreamResponse.headers);
+    /* v24.61: SAY WHICH SERVICE ANSWERED. The origin behind /transcoder is whatever
+       TRANSCODER_ORIGIN is set to (this deployment points at Railway, not Render) or whichever
+       candidate answered a probe — so nothing downstream could know which host to go and
+       configure, and the admin dashboard was left telling people to fix "Render" whether or not
+       Render was involved. Stamping the resolved origin on the response lets that screen name the
+       real host instead of guessing. */
+    responseHeaders.set('x-transcoder-origin', origin);
     const location = rewriteLocation(responseHeaders.get('location'), request.url, origin);
     if (location) responseHeaders.set('location', location);
 
