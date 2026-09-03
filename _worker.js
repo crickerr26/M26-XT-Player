@@ -46,17 +46,39 @@ let _tcOrigin = '', _tcAt = 0;
    behaviour for a single-host setup and the safe default for an owner who never sets anything.
    A forward that fails is reported as a failure and NEVER falls back to the local store: two
    stores disagreeing about who is activated is far worse than one honest error. */
-function licenseHome(env) {
+/* v24.64: the default is a REAL host, not "whoever I am". This account serves the same app from
+   more than one workers.dev address — a customer's device was observed loading it from m26-xtp
+   while the dashboard sat on media26 — and both deploy from this repo. Left to own its own store,
+   each address would keep a private set of codes and "activate here, poll from there" would lose
+   a customer silently. Naming one home in code (rather than in a variable someone has to know to
+   set) makes every deployment built from this repo share one store with no configuration at all.
+   media26 is home because it is declared in this repo (wrangler.media26.jsonc) and verified live;
+   smarteriptv is not a Worker at all (it answers Cloudflare's 1042 for an unrouted hostname).
+   LICENSE_HOME still overrides it, so moving home later is a dashboard edit, not a release. */
+const DEFAULT_LICENSE_HOME = 'https://media26.gz-inzi84.workers.dev';
+function explicitLicenseHome(env) {
   try {
     const v = String((env && env.LICENSE_HOME) || '').trim().replace(/\/+$/, '');
     if (/^https?:\/\//i.test(v)) return v;
+    if (v === 'self') return 'self';      /* explicit opt-out: this host keeps its own store */
   } catch (e) {}
   return '';
 }
+function licenseHome(env) {
+  const v = explicitLicenseHome(env);
+  if (v === 'self') return '';
+  return v || DEFAULT_LICENSE_HOME;
+}
 function isLicenseHome(env, url) {
   const home = licenseHome(env);
-  if (!home) return true;                 /* nothing configured: this host owns its own store */
-  try { return new URL(home).host === url.host; } catch (e) { return true; }
+  if (!home) return true;                 /* opted out: this host owns its own store */
+  try { if (new URL(home).host === url.host) return true; } catch (e) { return true; }
+  /* Nothing was configured, so `home` is this file's built-in default — a LIVE address. A dev
+     server must not read and write the real customer store just by being started, so localhost
+     keeps its own. An explicitly configured home is always honoured, including in dev, which is
+     what makes the forwarding path testable at all. */
+  if (!explicitLicenseHome(env) && /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(url.host)) return true;
+  return false;
 }
 
 function pinnedTranscoderOrigin(env) {
