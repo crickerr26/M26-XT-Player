@@ -74,7 +74,7 @@ function withCors(headers) {
      and 3510s if you knock again during it. The client could not see that header (a cross-origin
      response only exposes what is named here), so it fell back to a hard-coded 45-second cooldown
      and re-armed the ban roughly 27 times before it would have expired on its own. */
-  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location,retry-after');
+  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location,retry-after,x-transcoder-origin');
   out.set('cross-origin-resource-policy', 'cross-origin');
   out.set('timing-allow-origin', '*');
   return out;
@@ -1263,11 +1263,19 @@ export default {
     } catch (e) {
       return new Response(JSON.stringify({
         error: 'Transcoder is starting up',
+        origin,
         detail: String((e && e.message) || e).slice(0, 200)
-      }), { status: 504, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+      }), { status: 504, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store', 'x-transcoder-origin': origin })) });
     }
 
     const responseHeaders = withCors(upstreamResponse.headers);
+    /* v24.61: SAY WHICH SERVICE ANSWERED. The origin behind /transcoder is whatever
+       TRANSCODER_ORIGIN is set to (this deployment points at Railway, not Render) or whichever
+       candidate answered a probe — so nothing downstream could know which host to go and
+       configure, and the admin dashboard was left telling people to fix "Render" whether or not
+       Render was involved. Stamping the resolved origin on the response lets that screen name the
+       real host instead of guessing. */
+    responseHeaders.set('x-transcoder-origin', origin);
     const location = rewriteLocation(responseHeaders.get('location'), request.url, origin);
     if (location) responseHeaders.set('location', location);
 

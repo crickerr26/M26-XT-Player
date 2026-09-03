@@ -220,7 +220,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.60';
+  var ADMIN_VERSION='24.61';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -278,7 +278,7 @@
      activate a customer. Say which service, and what brings it back. A customer is never blocked
      by this: signing in with the portal URL, login and password goes straight to their provider
      and does not touch this server at all. */
-  var DOWN_MSG='• Activation service is not answering (this is the same Render service as the transcoder — when it sleeps or crashes, both stop). Open the Render dashboard and Resume / Manual Deploy the service, then reload this page. Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.';
+  function downMsg(){ return '\u2022 Activation service is not answering (this is the same service as the transcoder \u2014 when it sleeps or crashes, both stop). See the box above.'; }
   /* ── v24.59 (owner report: "I type the activation code the customer gave me and it will not
      activate") ────────────────────────────────────────────────────────────────────────────────
      The cause was never the code or the typing. Activation codes live in Upstash Redis, and
@@ -308,17 +308,42 @@
     el.style.display='block';
     var r=$('setupRecheck'); if(r) r.onclick=function(){ this.textContent='Checking…'; checkConn(); };
   }
-  var OFF_HTML='<h3>Activation is switched OFF on the server</h3>'+
-    '<p style="margin:0">The server is up and answering, but it has nowhere to <b>store</b> activation codes, so it refuses every activation — including the code your customer just read out to you. Nothing on this page can turn it on; it takes two environment variables, once:</p>'+
+  /* ── v24.61: NAME THE SERVICE THAT ACTUALLY ANSWERED ────────────────────────────────────────
+     This page has been telling people to go and fix things "on Render". The Worker's
+     TRANSCODER_ORIGIN decides which service is behind /transcoder, and in this deployment it
+     points at a RAILWAY app, not Render at all — so the instructions named a dashboard that has
+     nothing to do with the running server, and the Render hosts in the Worker's candidate list
+     are never even probed while that variable is set.
+     The Worker now stamps the origin it used on every /transcoder response (x-transcoder-origin),
+     so these messages name the real host instead of inventing a provider. */
+  var _tcOrigin='';
+  function hostLabel(){
+    if(!_tcOrigin) return 'the transcoder/activation service';
+    var h=_tcOrigin; try{ h=new URL(_tcOrigin).host; }catch(e){}
+    return '<b>'+h+'</b>';
+  }
+  function providerHint(){
+    if(/railway\.app/i.test(_tcOrigin)) return 'Railway';
+    if(/onrender\.com/i.test(_tcOrigin)) return 'Render';
+    if(/fly\.dev/i.test(_tcOrigin)) return 'Fly';
+    return 'whichever host runs it';
+  }
+  function offHtml(){
+    return '<h3>Activation is switched OFF on the server</h3>'+
+    '<p style="margin:0">The server is up and answering, but it has nowhere to <b>store</b> activation codes, so it refuses every activation — including the code your customer just read out to you. Nothing on this page can turn it on; it takes two environment variables, once.</p>'+
+    '<p style="margin:10px 0 0">The server answering right now is '+hostLabel()+' — so set them on <b>'+providerHint()+'</b>, not on any other service you may also have running.</p>'+
     '<ol>'+
     '<li>Create a free Redis database at <a href="https://upstash.com" target="_blank" rel="noopener">upstash.com</a> and open its <b>REST</b> tab.</li>'+
-    '<li>In the <b>Render</b> dashboard open this service → <b>Environment</b>, and add both:<br><code>UPSTASH_REDIS_REST_URL</code> = the REST URL<br><code>UPSTASH_REDIS_REST_TOKEN</code> = the REST token</li>'+
-    '<li><b>Save</b> — Render redeploys on its own. Wait for it to go live, then tap Check again below.</li>'+
+    '<li>On '+providerHint()+', open that service &rarr; <b>Variables</b> / <b>Environment</b>, and add both:<br><code>UPSTASH_REDIS_REST_URL</code> = the REST URL<br><code>UPSTASH_REDIS_REST_TOKEN</code> = the REST token</li>'+
+    '<li><b>Save.</b> The service redeploys on its own. When it comes back, this box clears itself.</li>'+
     '</ol>'+
     '<p style="margin:10px 0 0">Until then, a customer is <b>not</b> stuck: they can still sign in inside the app with their portal URL, username and password. That path goes straight to their provider and never touches this server.</p>';
-  var DOWN_HTML='<h3>The activation service is not answering</h3>'+
-    '<p style="margin:0">Activation codes and the transcoder are the same Render service — when it sleeps or crashes, both stop. Open the Render dashboard and <b>Resume</b> or <b>Manual Deploy</b> the service, then tap Check again.</p>'+
+  }
+  function downHtml(){
+    return '<h3>The activation service is not answering</h3>'+
+    '<p style="margin:0">Activation codes and the transcoder are the same service ('+hostLabel()+') — when it sleeps or crashes, both stop. Open its dashboard on '+providerHint()+', restart or redeploy it, then tap Check again.</p>'+
     '<p style="margin:10px 0 0">Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.</p>';
+  }
   /* ── v24.60: "STARTING UP" IS NOT "CRASHED" ──────────────────────────────────────────────────
      The service runs on a free plan: it sleeps when idle, and it cold-starts from scratch on every
      deploy — including the deploy that any server.js release triggers. For roughly a minute after
@@ -342,7 +367,8 @@
     clearWake();
     var c=$('conn'); c.textContent='';
     fetch(base()+'/health',{cache:'no-store'})
-      .then(function(r){ return r.json().catch(function(){return null}).then(function(j){ return {status:r.status,j:j}; }); })
+      .then(function(r){ try{ _tcOrigin=r.headers.get('x-transcoder-origin')||_tcOrigin; }catch(e){}
+        return r.json().catch(function(){return null}).then(function(j){ if(j&&j.origin)_tcOrigin=j.origin; return {status:r.status,j:j}; }); })
       .then(function(res){
         var j=res.j;
         if(j&&j.ok){
@@ -351,7 +377,7 @@
           var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]';
           c.textContent=(j.activation?'• Connected, activation ON.':'• Connected, but activation is OFF — see the red box above.')+b;
           c.style.color=j.activation?'#4fe0a5':'#ffd25a';
-          showSetupBanner(j.activation?'':OFF_HTML);
+          showSetupBanner(j.activation?'':offHtml());
           setActivationEnabled(!!j.activation,'The server has no activation store configured (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN).');
           applyKind(segKind('a_kindSeg'));
           return;
@@ -366,10 +392,10 @@
       _serverKinds=null;
       setActivationEnabled(false,'The activation service is not answering.');
       applyKind(segKind('a_kindSeg'));
-      if(!waking){ _wakeSince=0; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); return; }
+      if(!waking){ _wakeSince=0; c.textContent=downMsg(); c.style.color='#ff8a8a'; showSetupBanner(downHtml()); return; }
       if(!_wakeSince) _wakeSince=Date.now();
       var waited=Date.now()-_wakeSince;
-      if(waited>WAKE_MAX_MS){ _wakeSince=0; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); return; }
+      if(waited>WAKE_MAX_MS){ _wakeSince=0; c.textContent=downMsg(); c.style.color='#ff8a8a'; showSetupBanner(downHtml()); return; }
       c.textContent='• Server is starting up — retrying automatically…';
       c.style.color='#ffd25a';
       showSetupBanner(wakeHtml(Math.round(waited/1000)));
