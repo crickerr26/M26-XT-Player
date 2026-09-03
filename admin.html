@@ -41,6 +41,17 @@
   .secondary{background:var(--panel2);color:var(--blue);width:100%;margin-top:10px;padding:13px;border:1px solid var(--line)}
   .secondary:hover{background:rgba(56,189,248,.10)}
   .verbadge{display:inline-block;vertical-align:middle;margin-left:8px;padding:2px 10px;border-radius:999px;background:rgba(56,189,248,.14);border:1px solid rgba(56,189,248,.35);color:var(--blue);font-size:11px;font-weight:700}
+  /* v24.59: the "activation is OFF" banner. Deliberately loud and red rather than a muted
+     aside — with the Upstash keys unset NOTHING on this page can be saved, so a seller who
+     scrolls past it fills the whole form in and loses the customer's code into a 503. */
+  .setupBanner{margin:0 0 16px;padding:15px 16px;border-radius:14px;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.42);color:#ffd9d9;font-size:13px;line-height:1.55}
+  .setupBanner h3{margin:0 0 8px;font-size:14.5px;color:#ff8a8a;letter-spacing:.2px}
+  .setupBanner ol{margin:8px 0 0;padding-left:20px}
+  .setupBanner li{margin:0 0 6px}
+  .setupBanner code{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.13);border-radius:6px;padding:1px 6px;font-size:12px;word-break:break-all}
+  .setupBanner .mini{margin-top:10px}
+  .setupBanner a{color:#ffb4b4}
+  button[disabled]{opacity:.45;cursor:not-allowed;box-shadow:none}
   .warn{margin-top:12px;padding:13px 14px;border-radius:12px;background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.35);color:var(--yellow);font-size:12.5px;line-height:1.5}
   .newcode{margin-top:16px;padding:16px;border-radius:16px;background:linear-gradient(135deg,rgba(56,189,248,.12),rgba(45,212,191,.10));border:1px solid rgba(56,189,248,.24)}
   .bigcode{font-family:"Roboto Mono",ui-monospace,SFMono-Regular,Menlo,monospace;font-size:38px;font-weight:700;letter-spacing:8px;text-align:center;color:var(--ink);text-indent:8px;padding:8px 0}
@@ -102,6 +113,7 @@
   </div>
 
   <div id="admActivateCard">
+  <div class="setupBanner" id="setupBanner" style="display:none"></div>
   <div class="card">
     <h2>Transcoder server</h2>
     <label>Transcoder URL</label>
@@ -208,7 +220,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.58';
+  var ADMIN_VERSION='24.59';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -267,14 +279,64 @@
      by this: signing in with the portal URL, login and password goes straight to their provider
      and does not touch this server at all. */
   var DOWN_MSG='• Activation service is not answering (this is the same Render service as the transcoder — when it sleeps or crashes, both stop). Open the Render dashboard and Resume / Manual Deploy the service, then reload this page. Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.';
+  /* ── v24.59 (owner report: "I type the activation code the customer gave me and it will not
+     activate") ────────────────────────────────────────────────────────────────────────────────
+     The cause was never the code or the typing. Activation codes live in Upstash Redis, and
+     server.js turns the ENTIRE /api/* surface off when UPSTASH_REDIS_REST_URL and
+     UPSTASH_REDIS_REST_TOKEN are unset — every route answers 503, so Activate, Create and the
+     activations list all fail no matter what is entered. This page did say so, but as one muted
+     yellow clause ("set the Upstash keys on the server") at the end of a line about where the URL
+     is stored, and it left both buttons live — so the seller filled the form in, tapped Activate
+     with the customer waiting, and got a bare "✗".
+     Now the OFF state stops the page instead of decorating it: the buttons are disabled with the
+     reason on them, and the banner spells out the fix. Nothing here can switch activation on —
+     only the two environment variables can — so the honest thing is to say exactly which two, and
+     to stop pretending the form will work until they are set. */
+  function setActivationEnabled(on,why){
+    ['a_go','a_new','admRefresh'].forEach(function(id){
+      var b=$(id); if(!b) return;
+      b.disabled=!on;
+      b.title=on?'':(why||'');
+    });
+    if($('a_go'))$('a_go').textContent=on?'Activate the code the customer gave me':'Activate — unavailable until activation is switched on';
+    if($('a_new'))$('a_new').textContent=on?'✨ Create a new activated code':'Create a code — unavailable until activation is switched on';
+  }
+  function showSetupBanner(html){
+    var el=$('setupBanner'); if(!el) return;
+    if(!html){ el.style.display='none'; el.innerHTML=''; return; }
+    el.innerHTML=html+'<button type="button" class="mini" id="setupRecheck">Check again</button>';
+    el.style.display='block';
+    var r=$('setupRecheck'); if(r) r.onclick=function(){ this.textContent='Checking…'; checkConn(); };
+  }
+  var OFF_HTML='<h3>Activation is switched OFF on the server</h3>'+
+    '<p style="margin:0">The server is up and answering, but it has nowhere to <b>store</b> activation codes, so it refuses every activation — including the code your customer just read out to you. Nothing on this page can turn it on; it takes two environment variables, once:</p>'+
+    '<ol>'+
+    '<li>Create a free Redis database at <a href="https://upstash.com" target="_blank" rel="noopener">upstash.com</a> and open its <b>REST</b> tab.</li>'+
+    '<li>In the <b>Render</b> dashboard open this service → <b>Environment</b>, and add both:<br><code>UPSTASH_REDIS_REST_URL</code> = the REST URL<br><code>UPSTASH_REDIS_REST_TOKEN</code> = the REST token</li>'+
+    '<li><b>Save</b> — Render redeploys on its own. Wait for it to go live, then tap Check again below.</li>'+
+    '</ol>'+
+    '<p style="margin:10px 0 0">Until then, a customer is <b>not</b> stuck: they can still sign in inside the app with their portal URL, username and password. That path goes straight to their provider and never touches this server.</p>';
+  var DOWN_HTML='<h3>The activation service is not answering</h3>'+
+    '<p style="margin:0">Activation codes and the transcoder are the same Render service — when it sleeps or crashes, both stop. Open the Render dashboard and <b>Resume</b> or <b>Manual Deploy</b> the service, then tap Check again.</p>'+
+    '<p style="margin:10px 0 0">Meanwhile customers can still connect by entering their portal URL, login and password directly in the app — that path never touches this server.</p>';
   function checkConn(){
     var c=$('conn'); c.textContent='';
     fetch(base()+'/health').then(function(r){return r.json()}).then(function(j){
-      if(j&&j.ok){ _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||''; var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]'; c.textContent = (j.activation ? '• Connected, activation ON.' : '• Connected, but activation is OFF (set the Upstash keys on the server).')+b; c.style.color = j.activation?'#4fe0a5':'#ffd25a'; }
-      else { _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; }
+      if(j&&j.ok){
+        _serverKinds=Array.isArray(j.kinds)?j.kinds:[]; _serverBuild=j.build||'';
+        var b=j.build?(' [server v'+j.build+']'):' [server: older build — redeploy on Render]';
+        c.textContent=(j.activation?'• Connected, activation ON.':'• Connected, but activation is OFF — see the red box above.')+b;
+        c.style.color=j.activation?'#4fe0a5':'#ffd25a';
+        showSetupBanner(j.activation?'':OFF_HTML);
+        setActivationEnabled(!!j.activation,'The server has no activation store configured (UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN).');
+      }
+      else { _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); setActivationEnabled(false,'The activation service is not answering.'); }
       applyKind(segKind('a_kindSeg'));
-    }).catch(function(){ _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; applyKind(segKind('a_kindSeg')); });
+    }).catch(function(){ _serverKinds=null; c.textContent=DOWN_MSG; c.style.color='#ff8a8a'; showSetupBanner(DOWN_HTML); setActivationEnabled(false,'The activation service is not answering.'); applyKind(segKind('a_kindSeg')); });
   }
+  /* Coming back to this tab after adding the keys in the Render dashboard re-checks on its own,
+     so the banner clears without a manual reload. */
+  document.addEventListener('visibilitychange',function(){ if(!document.hidden) checkConn(); });
 
   function api(path, body){
     return fetch(base()+path, {

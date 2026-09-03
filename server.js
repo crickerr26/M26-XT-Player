@@ -9,7 +9,7 @@ const { spawn } = require('child_process');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.6';
+const SERVER_BUILD = '14.7';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -988,7 +988,9 @@ const server = http.createServer(async (req, res) => {
     // --- LICENSING & ADMIN API ROUTES (Upstash-backed activation codes) ---
     if (u.pathname.startsWith('/api/')) {
       if (req.method !== 'POST' && req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
-      if (!LICENSING_ENABLED) return json(res, 503, { error: 'Activation is not set up on this server yet.' });
+      /* v14.7: name the two variables. "not set up yet" told the one person who could fix it
+         nothing about what to do, and this 503 is what an admin's Activate button lands on. */
+      if (!LICENSING_ENABLED) return json(res, 503, { error: 'Activation is switched off on this server: no code store is configured. Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in the Render dashboard (Environment), save, and let it redeploy.' });
 
       /* CUSTOMER: ask the server for a brand-new, GUARANTEED-UNIQUE 8-digit code. The server keeps
          generating until it finds one no other customer holds, registers it as pending bound to this
