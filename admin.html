@@ -44,6 +44,10 @@
   /* v24.59: the "activation is OFF" banner. Deliberately loud and red rather than a muted
      aside — with the Upstash keys unset NOTHING on this page can be saved, so a seller who
      scrolls past it fills the whole form in and loses the customer's code into a 503. */
+  .shareLink{margin-top:12px;padding:12px 13px;border-radius:12px;background:rgba(56,189,248,.08);border:1px solid rgba(56,189,248,.28)}
+  .shareLabel{display:block;font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--blue);margin-bottom:8px}
+  .shareRow{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .shareRow code{flex:1 1 auto;min-width:0;word-break:break-all;background:rgba(0,0,0,.3);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12.5px}
   .setupBanner{margin:0 0 16px;padding:15px 16px;border-radius:14px;background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.42);color:#ffd9d9;font-size:13px;line-height:1.55}
   .setupBanner h3{margin:0 0 8px;font-size:14.5px;color:#ff8a8a;letter-spacing:.2px}
   .setupBanner ol{margin:8px 0 0;padding-left:20px}
@@ -119,6 +123,16 @@
     <label>Transcoder URL</label>
     <input id="base" placeholder="(this app's own /transcoder path)" autocomplete="off">
     <p class="muted" style="margin-top:8px">Stored only in this browser. <span id="conn" class="muted"></span></p>
+    <!-- v24.63: activation codes belong to the host that stores them. A seller working on one of
+         this account's addresses while the customer's app is installed from another is a code that
+         activates into a store nobody is reading — so the address to hand out is shown right here,
+         taken from the page you are actually on, with a Copy button so it is the one that gets
+         sent. -->
+    <div class="shareLink" id="shareLink" style="display:none">
+      <span class="shareLabel">Give customers this exact address</span>
+      <div class="shareRow"><code id="shareVal"></code><button type="button" class="mini" id="shareCopy">Copy</button></div>
+      <p class="muted" style="margin:8px 0 0">Their app must be opened from this address — it is where their activation codes are stored.</p>
+    </div>
   </div>
 
   <div class="card">
@@ -220,7 +234,7 @@
      whether this page is the current build or a stale cached/preview copy. */
   /* v17.5: realigned with APP_VERSION. It had sat at 12.6 while the app went to 17.4 — a staleness
      badge that is itself stale tells you nothing, so the two numbers now move together. */
-  var ADMIN_VERSION='24.62';
+  var ADMIN_VERSION='24.63';
   $('adminVer').textContent='v'+ADMIN_VERSION;
   /* ---- v21.3: STOP NAMING A RENDER SERVICE HERE AT ALL. ----------------------------------
      This dashboard has pinned a specific onrender.com host since v10.4, and the pin has been
@@ -448,6 +462,15 @@
   /* Coming back to this tab after adding the keys in the Render dashboard re-checks on its own,
      so the banner clears without a manual reload. */
   document.addEventListener('visibilitychange',function(){ if(!document.hidden) checkConn(); });
+  /* Only meaningful on a real https deployment — opened from a file:// copy there is no address
+     to hand anyone, so the box stays hidden rather than showing something unusable. */
+  (function(){
+    if(!/^https?:$/.test(location.protocol)) return;
+    var el=$('shareLink'); if(!el) return;
+    $('shareVal').textContent=location.origin;
+    el.style.display='block';
+    if($('shareCopy'))$('shareCopy').onclick=function(){ flashCopy(this, location.origin, 'Copied!'); };
+  })();
 
   function api(path, body){
     return fetch(base()+path, {

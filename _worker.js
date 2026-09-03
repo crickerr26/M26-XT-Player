@@ -33,6 +33,32 @@ const DEFAULT_TRANSCODER_ORIGIN = TRANSCODER_CANDIDATES[0];
 const TRANSCODER_PROBE_TTL_MS = 5 * 60 * 1000;
 let _tcOrigin = '', _tcAt = 0;
 
+/* ── v24.63: ONE STORE, HOWEVER MANY HOSTS ────────────────────────────────────────────────────
+   Activation codes used to sit in a single shared Redis, so it did not matter which of this
+   account's several Worker hosts a seller or a customer happened to open — they all read the same
+   records. A Durable Object store is per Worker PROJECT, so moving the store into the Worker
+   quietly reintroduced that as a way to lose a code: activate on one host, poll from another, and
+   the code is simply not there.
+   LICENSE_HOME closes it. Set it (a Worker variable, or the value baked into wrangler.jsonc) to
+   the ONE host that should own the store, and every other deployment forwards its licensing
+   requests there instead of using its own — one store again, exactly like the Redis was.
+   Unset, or set to this very host, means "I am home": serve locally, which is the correct
+   behaviour for a single-host setup and the safe default for an owner who never sets anything.
+   A forward that fails is reported as a failure and NEVER falls back to the local store: two
+   stores disagreeing about who is activated is far worse than one honest error. */
+function licenseHome(env) {
+  try {
+    const v = String((env && env.LICENSE_HOME) || '').trim().replace(/\/+$/, '');
+    if (/^https?:\/\//i.test(v)) return v;
+  } catch (e) {}
+  return '';
+}
+function isLicenseHome(env, url) {
+  const home = licenseHome(env);
+  if (!home) return true;                 /* nothing configured: this host owns its own store */
+  try { return new URL(home).host === url.host; } catch (e) { return true; }
+}
+
 function pinnedTranscoderOrigin(env) {
   try {
     const v = String((env && env.TRANSCODER_ORIGIN) || '').trim().replace(/\/+$/, '');
@@ -1263,12 +1289,63 @@ export default {
        the store in the Worker, activation works even while the transcoder is cold. /health keeps
        meaning what it always meant (is the transcoder up, what can it do) and is left alone. */
     if (upstreamPath === '/api/activation-status') {
+      /* Really ask the store, rather than only checking that a binding exists. A binding that is
+         present but broken would otherwise light the dashboard green and fail every activation
+         afterwards — the exact silent failure this whole change exists to end. */
+      let live = false;
+      /* On a host that FORWARDS to a license home, the only answer that means anything is whether
+         that home can be reached — its own binding is irrelevant and reporting it would light the
+         dashboard green while every activation 502s. */
+      if (!isLicenseHome(env, url)) {
+        const home = licenseHome(env);
+        try {
+          const r = await fetch(home + '/transcoder/api/activation-status', { cf: { cacheTtl: 0 } });
+          const hj = r.ok ? await r.json().catch(() => null) : null;
+          live = !!(hj && hj.activation);
+        } catch (e) { live = false; }
+        return new Response(JSON.stringify({
+          ok: true, activation: live, store: live ? 'worker' : 'unreachable',
+          home, host: url.host, upstream: origin
+        }), { status: 200, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+      }
+      if (env.LICENSES) {
+        try {
+          const probe = await env.LICENSES.get(env.LICENSES.idFromName('v1'))
+            .fetch(new Request('https://licenses.internal/api/admin/list', {
+              method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}'
+            }));
+          live = probe.ok;
+        } catch (e) { live = false; }
+      }
       return new Response(JSON.stringify({
         ok: true,
-        activation: !!env.LICENSES,
-        store: env.LICENSES ? 'worker' : 'upstream',
+        activation: live,
+        store: live ? 'worker' : 'upstream',
+        home: licenseHome(env) || url.origin,
+        host: url.host,
         upstream: origin
       }), { status: 200, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+    }
+
+    /* Not the home host — forward to it, so every deployment shares one set of codes. */
+    if (isLicensingPath(upstreamPath) && !isLicenseHome(env, url)) {
+      const home = licenseHome(env);
+      try {
+        const fwd = await fetch(home + '/transcoder' + upstreamPath + url.search, {
+          method: request.method,
+          headers: { 'content-type': 'application/json' },
+          body: request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.text()
+        });
+        const hh = withCors(fwd.headers);
+        hh.set('x-transcoder-origin', 'worker:licenses@' + (new URL(home)).host);
+        hh.delete('content-length');
+        hh.delete('content-encoding');
+        return new Response(await fwd.text(), { status: fwd.status, headers: hh });
+      } catch (e) {
+        return new Response(JSON.stringify({
+          error: 'The activation store could not be reached. It is hosted at ' + home + '.'
+        }), { status: 502, headers: withCors(new Headers({ 'content-type': 'application/json', 'cache-control': 'no-store' })) });
+      }
     }
 
     if (env.LICENSES && isLicensingPath(upstreamPath)) {
