@@ -15,6 +15,11 @@
 <script src="m26player2.js"></script>
 <script src="yezplayer.js"></script>
 <script src="mpegts.min.js"></script>
+<!-- v24.68: Chromecast sender SDK — progressive enhancement only. The callback just records
+     whether it loaded; the actual cast.framework/chrome.cast calls all happen lazily, on tap,
+     from inside the main app script below (which is where $/S/toast/etc. actually exist). -->
+<script>window.__onGCastApiAvailable=function(isAvailable){window.__castReady=!!isAvailable;};</script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1" async></script>
 <script>
 /* v15.7: load the CDN copy of an engine by CHECKING WHETHER IT IS ACTUALLY THERE, not by waiting
    for the <script> tag to report an error. wrangler.jsonc sets "not_found_handling":
@@ -1928,7 +1933,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.67';
+const APP_VERSION='24.68';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7273,6 +7278,61 @@ function pip(){
     return toggleInlinePip(true);
   }catch(e){return nativePipFailed({background:false})}
 }
+/* v24.68: real casting — Chromecast (chrome.cast/cast.framework, Chrome/Android/desktop) with
+   AirPlay (native WebKit remote-playback picker, Safari/iOS/macOS) as the fallback on browsers
+   that don't have Google's sender API at all. Both hand the receiver the SAME direct stream URL
+   externalStreamUrl() already builds for VLC/diagnostics — the receiver device fetches it
+   itself, so it needs to be a real reachable link, not a blob/MSE handle. */
+let _castCtx=null;
+function castMimeFor(x){
+  if(typeOf(x)==='live')return 'application/x-mpegurl';
+  const u=(externalStreamUrl(x)||'').split('?')[0].split('#')[0];
+  const ext=(u.split('.').pop()||'').toLowerCase();
+  if(ext==='m3u8')return 'application/x-mpegurl';
+  if(ext==='mkv')return 'video/x-matroska';
+  if(ext==='ts')return 'video/mp2t';
+  if(ext==='webm')return 'video/webm';
+  return 'video/mp4';
+}
+function ensureCastContext(){
+  if(_castCtx)return _castCtx;
+  if(!(window.chrome&&chrome.cast&&window.cast&&cast.framework))return null;
+  try{
+    _castCtx=cast.framework.CastContext.getInstance();
+    _castCtx.setOptions({receiverApplicationId:chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,autoJoinPolicy:chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED});
+  }catch(e){_castCtx=null;}
+  return _castCtx;
+}
+function airplayAvailable(){const v=$('video');return !!(v&&typeof v.webkitShowPlaybackTargetPicker==='function')}
+function castCurrent(){
+  if(!S.current){toast('Pick something to play first');return}
+  const ctx=ensureCastContext();
+  if(ctx){
+    ctx.requestSession().then(()=>{
+      const session=ctx.getCurrentSession();
+      if(!session){toast('No cast device connected');return}
+      const url=externalStreamUrl(S.current);
+      if(!url){toast('No playable link for this stream');return}
+      const mediaInfo=new chrome.cast.media.MediaInfo(url,castMimeFor(S.current));
+      mediaInfo.metadata=new chrome.cast.media.GenericMediaMetadata();
+      mediaInfo.metadata.title=nameOf(S.current);
+      const request=new chrome.cast.media.LoadRequest(mediaInfo);
+      const v=$('video');
+      if(v&&typeOf(S.current)!=='live'&&isFinite(v.currentTime)&&v.currentTime>1)request.currentTime=v.currentTime;
+      session.loadMedia(request).then(()=>{
+        const dev=session.getCastDevice&&session.getCastDevice();
+        toast('Casting to '+(dev&&dev.friendlyName?dev.friendlyName:'device'));
+        try{v.pause()}catch(e){}
+      },()=>toast('Cast device rejected this stream'));
+    }).catch(err=>{if(err&&err.code==='cancel')return;toast('No Chromecast device found on this network')});
+    return;
+  }
+  if(airplayAvailable()){
+    try{$('video').webkitShowPlaybackTargetPicker()}catch(e){toast('AirPlay is not available right now')}
+    return;
+  }
+  toast('No cast device found — Chromecast needs Chrome/Android, AirPlay needs Safari');
+}
 /* v61: background play. MediaSession is the real mechanism: on Android/desktop it keeps AUDIO
    playing when the screen is off or the app is backgrounded, and everywhere it drives the
    lock-screen / control-center media controls (channel name, artwork, play/pause). It applies
@@ -9743,7 +9803,7 @@ if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$(
    controls that don't map onto an existing button. */
 if($('closeBtn')){$('closeBtn').innerHTML=ICONS.close;$('closeBtn').onclick=e=>{e.stopPropagation();const fsEl=document.fullscreenElement||document.webkitFullscreenElement;if(fsEl)(document.exitFullscreen||document.webkitExitFullscreen).call(document);};}
 if($('playlistBtn')){$('playlistBtn').innerHTML=ICONS.playlist;$('playlistBtn').onclick=e=>{e.stopPropagation();toast('Playlist view is not available for this stream yet');};}
-if($('castBtn')){$('castBtn').innerHTML=ICONS.cast;$('castBtn').onclick=e=>{e.stopPropagation();toast('Casting is not supported yet');};}
+if($('castBtn')){$('castBtn').innerHTML=ICONS.cast;$('castBtn').onclick=e=>{e.stopPropagation();castCurrent();};}
 if($('brightIcon'))$('brightIcon').innerHTML=ICONS.sun;
 if($('brightSlider')){
   const BRIGHT_KEY='m26-brightness';
