@@ -301,6 +301,8 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .dlActions button{width:36px;height:36px;border-radius:10px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center}
 .dlActions button:hover{background:rgba(255,255,255,.1)}
 .dlActions button.on{background:rgba(56,189,248,.22);color:#5cc8ff;border-color:rgba(56,189,248,.4)}
+.dlActions button.vlc{background:linear-gradient(135deg,#f97316,#ea580c);border-color:transparent}
+.dlActions button.vlc svg{width:18px;height:18px}
 .dlRow.watched .dlPoster{opacity:.5}
 .dlRow.watched .dlName{opacity:.6}
 .dlActions button svg{width:17px;height:17px}
@@ -1980,7 +1982,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.78';
+const APP_VERSION='24.79';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7944,7 +7946,7 @@ function dlRowHtml(rec){
     :`<div class="dlMeta">${esc((rec.ext||'').toUpperCase())} · ${esc(humanSize(rec.size))}</div>`;
   const actions=inFlight
     ?`<button type="button" data-dlcancel="${esc(rec.key)}" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>`
-    :`<button type="button" data-dlplay="${esc(rec.key)}" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></button><button type="button" class="${rec.watched?'on':''}" data-dlwatch="${esc(rec.key)}" aria-label="Toggle watched" title="${rec.watched?'Mark as unwatched':'Mark as watched'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.4"/></svg></button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`;
+    :`<button type="button" data-dlplay="${esc(rec.key)}" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></button><button type="button" class="vlc" data-dlvlc="${esc(rec.key)}" aria-label="Open in VLC" title="Open in VLC"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 4l2.6 6.2h-5.2L16 4zm-4.2 9.4h8.4l4.3 10.2a1.6 1.6 0 0 1-1.5 2.2H9a1.6 1.6 0 0 1-1.5-2.2l4.3-10.2z"/></svg></button><button type="button" class="${rec.watched?'on':''}" data-dlwatch="${esc(rec.key)}" aria-label="Toggle watched" title="${rec.watched?'Mark as unwatched':'Mark as watched'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.4"/></svg></button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`;
   return `<div class="dlRow${rec.watched?' watched':''}" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
 }
 async function dlToggleWatched(key){
@@ -7976,13 +7978,46 @@ if($('downloadsSheet'))$('downloadsSheet').onclick=e=>{
   if(e.target.id==='downloadsSheet'){$('downloadsSheet').classList.remove('show');return}
   const playBtn=e.target.closest('[data-dlplay]');
   if(playBtn){playDownloadedByKey(playBtn.dataset.dlplay);return}
+  const vlcBtn=e.target.closest('[data-dlvlc]');
+  if(vlcBtn){pushDownloadToVlc(vlcBtn.dataset.dlvlc);return}
   const watchBtn=e.target.closest('[data-dlwatch]');
   if(watchBtn){dlToggleWatched(watchBtn.dataset.dlwatch);return}
   const delBtn=e.target.closest('[data-dldel]');
   if(delBtn){const k=delBtn.dataset.dldel;dlDelete(k).then(()=>{renderDownloadsSheet();updateDownloadsBadge();toast('Removed from Downloads')});return}
   const cancelBtn=e.target.closest('[data-dlcancel]');
   if(cancelBtn){const p=S.dlProgress[cancelBtn.dataset.dlcancel];if(p)p.cancel();return}
+  /* v24.79 (owner request): tapping the row itself — the title, the poster, anywhere that isn't
+     one of the specific buttons above — plays it too, same as tapping a title anywhere else in
+     the app already does. Guarded against an in-flight row (still downloading, not saved yet;
+     every row carries data-dlkey regardless, so check S.dlProgress rather than the attribute). */
+  const row=e.target.closest('.dlRow[data-dlkey]');
+  if(row&&!S.dlProgress[row.dataset.dlkey])playDownloadedByKey(row.dataset.dlkey);
 };
+/* v24.79 (owner request): "push to VLC" for a file already sitting in this browser's own local
+   storage. A live channel's VLC button hands VLC a network URL it fetches itself — a downloaded
+   file has no such URL (a blob: URL only means anything inside THIS tab), so the only way to
+   truly hand its bytes to another app is the OS share sheet: it lets the user pick VLC (Android
+   shows it directly among the share targets; other platforms show whatever app declares it can
+   open a video). Same mechanism the "Download" button already uses for "Save to Files". */
+async function pushDownloadToVlc(key){
+  const rec=await dlGet(key);
+  if(!rec){toast('That download is gone — try re-saving it');return}
+  if(!(navigator.share&&navigator.canShare&&window.File&&window.Blob)){
+    toast('This browser can\'t share files — use "Download" from the ⋯ menu instead, then open it in VLC from Files.');
+    return;
+  }
+  try{
+    const fname=safeFileName(rec.name)+'.'+(rec.ext||'mp4');
+    const type=rec.mime||mimeForFile(fname);
+    const file=new File([rec.blob],fname,{type});
+    if(!navigator.canShare({files:[file]})){toast('This file can\'t be shared on this device');return}
+    toast('Choose VLC from the share sheet');
+    await navigator.share({files:[file],title:rec.name});
+  }catch(e){
+    if(e&&String(e.name||'')==='AbortError')return;
+    toast('Could not open the share sheet — '+((e&&e.message)||'try again'));
+  }
+}
 async function playDownloadedByKey(key){
   const rec=await dlGet(key);
   if(!rec){toast('That download is gone — try re-saving it');return}
