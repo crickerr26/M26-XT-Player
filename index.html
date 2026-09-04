@@ -1980,7 +1980,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.73';
+const APP_VERSION='24.74';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -10525,7 +10525,23 @@ applyColour(savedColour());updateVolPct();
   /* v52: effective duration — use v.duration, else the seekable range end (streamed VOD
      often reports duration=Infinity but IS seekable). This is why the slider looked "not
      built": it bailed the moment duration wasn't a plain finite number. */
-  const effDur=()=>{const d=v.duration;if(isFinite(d)&&d>0)return d;try{if(v.seekable&&v.seekable.length)return v.seekable.end(v.seekable.length-1)}catch(e){}return 0};
+  /* v24.74 (owner report: "movie is 2+ hours but the timeline shows only 20 minutes" — the
+     in-app Matroska engine, mkv.js): a real MKV's own Duration header is sometimes missing,
+     zero, or parsed against the wrong TimecodeScale, so mkv.js never calls ms.duration=…, or
+     sets it to a too-small number — either way v.duration (or the seekable-range fallback
+     above) undershoots the real length and the whole timeline reads short. Never let the
+     number we show/seek against SHRINK from what has actually already played or buffered —
+     that's real, known-good evidence a declared duration cannot override, and correcting up
+     to it as more of the file streams in is always safe, whereas trusting a too-small number
+     silently caps how far the customer can even try to seek. */
+  const effDur=()=>{
+    const d=v.duration;
+    let base=(isFinite(d)&&d>0)?d:0;
+    try{if(v.seekable&&v.seekable.length){const se=v.seekable.end(v.seekable.length-1);if(se>base)base=se}}catch(e){}
+    try{if(v.buffered&&v.buffered.length){const be=v.buffered.end(v.buffered.length-1);if(be>base)base=be}}catch(e){}
+    if(v.currentTime>base)base=v.currentTime;
+    return base;
+  };
   const isLiveNow=()=>!!(S.current&&typeOf(S.current)==='live');
   const sync=()=>{
     /* v70: live shows the SAME scrubber design but as a read-only LIVE indicator — a full red
