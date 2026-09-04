@@ -300,6 +300,9 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .dlActions{display:flex;gap:6px;flex-shrink:0}
 .dlActions button{width:36px;height:36px;border-radius:10px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center}
 .dlActions button:hover{background:rgba(255,255,255,.1)}
+.dlActions button.on{background:rgba(56,189,248,.22);color:#5cc8ff;border-color:rgba(56,189,248,.4)}
+.dlRow.watched .dlPoster{opacity:.5}
+.dlRow.watched .dlName{opacity:.6}
 .dlActions button svg{width:17px;height:17px}
 /* Custom seek/progress bar for VOD & Series */
 .barRow{display:flex;align-items:center;gap:8px}
@@ -457,7 +460,9 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .qpico{width:20px;height:20px;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
 .qp-here{background:linear-gradient(135deg,#12d0e6,#0ea5b7)}
 .qp-vlc{background:linear-gradient(135deg,#f97316,#ea580c)}
-.qp-guide{background:linear-gradient(135deg,#8b7bff,#6d5dfc)}.qp-km{background:linear-gradient(135deg,#8b5cf6,#5b6cf0)}
+.qp-guide{background:linear-gradient(135deg,#8b7bff,#6d5dfc)}
+.qp-save{background:linear-gradient(135deg,#22c55e,#16a34a)}
+.qp-save.on{background:linear-gradient(135deg,#4b5563,#374151)}.qp-km{background:linear-gradient(135deg,#8b5cf6,#5b6cf0)}
 .qp-infuse{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
 .qp-nplayer{background:linear-gradient(135deg,#14b8a6,#0f766e)}
 .qp-mkv{background:linear-gradient(135deg,#e11d48,#9f1239)}
@@ -514,6 +519,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .hc-live{background:linear-gradient(135deg,#2563eb,#38bdf8 58%,#22d3ee)}
 .hc-vod{background:linear-gradient(135deg,#7c3aed,#a855f7 54%,#ec4899)}
 .hc-series{background:linear-gradient(135deg,#0d9488,#14b8a6 52%,#f59e0b)}
+.hc-downloads{background:linear-gradient(135deg,#16a34a,#22c55e 55%,#4ade80)}
 .hc-ic{flex-shrink:0;width:64px;height:64px;border-radius:18px;background:rgba(255,255,255,.17);display:grid;place-items:center;animation:hcIconFloat 3.6s ease-in-out infinite}
 .home-card:nth-child(2) .hc-ic{animation-delay:-1.2s}.home-card:nth-child(3) .hc-ic{animation-delay:-2.4s}
 .hc-ic svg{width:36px;height:36px;color:#fff}
@@ -599,7 +605,7 @@ body.noSeries .pm-series{opacity:.38;filter:grayscale(1);pointer-events:none}
 body.noSeries .hc-series{box-shadow:none}
 body.noSeries .stat-series{opacity:.38;filter:grayscale(1)}
 @media(min-width:720px){
-  .home-cards{grid-template-columns:repeat(3,1fr)}
+  .home-cards{grid-template-columns:repeat(2,1fr)}
   .home-card{flex-direction:column;align-items:flex-start;justify-content:flex-start;min-height:210px;gap:16px}
   .hc-arrow{position:absolute;right:18px;top:18px}
 }
@@ -1401,6 +1407,12 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
         <span class="hc-arrow">→</span>
         <span class="hc-bar" id="homeSeriesBar"><i></i></span>
       </button>
+      <button class="home-card hc-downloads" id="homeDownloads" type="button">
+        <span class="hc-shine"></span>
+        <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
+        <span class="hc-txt"><b>Downloads</b><small><i id="homeDownloadsCount">—</i> saved offline</small></span>
+        <span class="hc-arrow">→</span>
+      </button>
     </div>
   </div>
   <div class="home-footer"><button class="home-exit" id="homeRefreshPlaylist" type="button">Refresh playlist</button><button class="home-exit" id="homeExit">Log out</button></div>
@@ -1968,7 +1980,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.72';
+const APP_VERSION='24.73';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3136,6 +3148,10 @@ function updateHomeCounts(){
   paint('live','homeLiveCount','homeLiveState','homeLiveBar','.hc-live');
   paint('vod','homeVodCount','homeVodState','homeVodBar','.hc-vod');
   paint('series','homeSeriesCount','homeSeriesState','homeSeriesBar','.hc-series');
+  /* v24.73: the Downloads card's count is local (IndexedDB), not part of the live/vod/series
+     catalogue paint() above — no loading state, just how many are saved (plus any still in
+     flight), same number the header badge shows. */
+  if(typeof updateDownloadsBadge==='function')updateDownloadsBadge();
 }
 /* v19.37: see the .nowPlayingChip CSS comment — this is the other half. Called at every point
    #home/#catpage/the base grid+player trade places, plus whenever S.current changes, so the chip
@@ -4530,7 +4546,12 @@ function playerBtn(mode,attr,extraClass){const d=playerDef(mode);if(!d)return'';
 /* Episode rows carry the same external buttons as a normal row, tagged with the episode INDEX
    instead of a key. One generic pair of data attributes replaces the old per-player
    data-vlcep/data-kmep, so a new player needs no new handler branch. */
-function epPlayerButtons(i,extraClass){return rowExternals().map(m=>playerBtn(m,'data-epmode="'+m+'" data-epidx="'+i+'"',extraClass)).join('');}
+function epPlayerButtons(i,extraClass){
+  const ep=S.episodeView&&S.episodeView.eps&&S.episodeView.eps[i];
+  const saved=ep&&S.dlKeys&&S.dlKeys.has(keyOf(ep));
+  const saveBtn='<button class="qp qp-save'+(saved?' on':'')+(extraClass?' '+extraClass:'')+'" type="button" data-dlsaveep="'+i+'" title="'+(saved?'Saved offline':'Save Offline')+'" aria-label="Save for offline playback">'+SAVE_OFFLINE_ICON+'</button>';
+  return rowExternals().map(m=>playerBtn(m,'data-epmode="'+m+'" data-epidx="'+i+'"',extraClass)).join('')+saveBtn;
+}
 /* The external players that get a per-row quick-launch button on this device. `row:true` is what
    puts a player on a row; `platforms` is what keeps it off a device that cannot run it. Live keeps
    its VLC button on purpose (v6.5) — it is an explicit one-off launch, not a category default. */
@@ -4546,9 +4567,17 @@ function rowExternals(){return playersFor().filter(m=>PLAYERS[m].kind==='externa
    always present, ahead of Play — same idea as the qpico row buttons already do it, just a fourth
    one. openEpgSheet() itself already handles "no data for this channel yet" gracefully. */
 const GUIDE_ICON='<svg class="qpico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M8 3l4 3 4-3"/></svg>';
+/* v24.73 (owner request: "every user should be able to download movies or series", not just
+   whoever happens to have the title open): Save Offline used to live only in the player's ⋯
+   menu, reachable exclusively for S.current. Every Movie row gets the same button directly, and
+   every Episode row gets one too (see epPlayerButtons above) — download doesn't require playing
+   the title first any more. */
+const SAVE_OFFLINE_ICON='<svg class="qpico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.8-1.6A4 4 0 0 1 17 18H7z"/><path d="M12 11v6"/><polyline points="9.5 14.5 12 17 14.5 14.5"/></svg>';
 function rowPlayerButtons(key,type){
   if(type==='series')return'';
   const guideBtn=type==='live'?'<button class="qp qp-guide" type="button" data-epg="'+key+'" title="TV Guide" aria-label="TV Guide">'+GUIDE_ICON+'</button>':'';
+  const saved=S.dlKeys&&S.dlKeys.has(key);
+  const saveBtn=type==='vod'?'<button class="qp qp-save'+(saved?' on':'')+'" type="button" data-dlsave="'+key+'" title="'+(saved?'Saved offline':'Save Offline')+'" aria-label="Save for offline playback">'+SAVE_OFFLINE_ICON+'</button>':'';
   /* v13.3: every row leads with PLAY HERE — the in-app player. Until now the only buttons on a
      row were VLC and KMPlayer, so the quickest tap always left the app; the built-in player was
      reachable only by tapping the title text, which is not discoverable. The external players
@@ -4557,7 +4586,7 @@ function rowPlayerButtons(key,type){
      drawn at all — which is what removes the KMPlayer button from a computer, where it had no
      launch URL and silently opened VLC instead. */
   return guideBtn+playerBtn('basic','data-play="basic" data-key="'+key+'"')+
-         rowExternals().map(m=>playerBtn(m,'data-play="'+m+'" data-key="'+key+'"')).join('');
+         rowExternals().map(m=>playerBtn(m,'data-play="'+m+'" data-key="'+key+'"')).join('')+saveBtn;
 }
 /* v19.3.2: keyOf() is "type:id", so which array to search is already encoded in the key — no
    need to concatenate all three lists (potentially thousands of items each) on every single tap
@@ -4607,7 +4636,7 @@ $('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i
 $('episodeSheet').classList.add('show');
 /* remember this series' episodes so the list under the player shows ONLY this series */
 S.episodeView={name:nameOf(x),key:keyOf(x),logo:logoOf(x),eps};renderGrid();
-$('episodeList').onclick=e=>{const xb=e.target.closest('[data-epmode]');if(xb){e.stopPropagation();const ep=eps[Number(xb.dataset.epidx)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,xb.dataset.epmode,true);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
+$('episodeList').onclick=e=>{const xb=e.target.closest('[data-epmode]');if(xb){e.stopPropagation();const ep=eps[Number(xb.dataset.epidx)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,xb.dataset.epmode,true);return}const sv=e.target.closest('[data-dlsaveep]');if(sv){e.stopPropagation();const ep=eps[Number(sv.dataset.dlsaveep)];if(ep)startDownload(ep);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
 /* v3.5: Movie/Series details popup — opens when the poster is tapped. Shows whatever metadata
    (director, cast, release date, rating, genre, plot) the M3U/Stalker entry itself carries over a
    blurred poster backdrop — most playlists carry only a name and a logo, so most of this stays
@@ -7658,9 +7687,11 @@ async function dlGet(key){try{const db=await dlOpenDb();return await new Promise
 async function dlPut(rec){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
 async function dlDelete(key){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
 async function updateDownloadsBadge(){
-  const b=$('dlBadge');if(!b)return;
-  const n=(await dlAll()).length+Object.keys(S.dlProgress||{}).length;
-  b.textContent=String(n);b.classList.toggle('hidden',!n);
+  const saved=await dlAll();
+  S.dlKeys=new Set(saved.map(r=>r.key));
+  const n=saved.length+Object.keys(S.dlProgress||{}).length;
+  const b=$('dlBadge');if(b){b.textContent=String(n);b.classList.toggle('hidden',!n);}
+  const h=$('homeDownloadsCount');if(h)h.textContent=n.toLocaleString();
 }
 async function startDownload(x){
   if(!x){toast('Open a movie or series first');return}
@@ -7713,14 +7744,14 @@ async function startDownload(x){
     const mime=mimeForFile('f.'+ext);
     const blob=new Blob(parts,{type:mime});
     if(!blob.size)throw new Error('downloaded file was empty');
-    await dlPut({key,name:nameOf(x),ext,mime,size:blob.size,blob,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now()});
+    await dlPut({key,name:nameOf(x),ext,mime,size:blob.size,blob,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now(),watched:false});
     toast(nameOf(x)+' saved for offline');
   }catch(e){
     if(e&&e.name==='AbortError')toast('Download canceled');
     else toast('Offline save failed — '+((e&&e.message)||'try again'));
   }finally{
     delete S.dlProgress[key];
-    updateDownloadsBadge();
+    updateDownloadsBadge().then(()=>{if(typeof renderGrid==='function')renderGrid(true);}); /* flips the row's Save-Offline button to its "saved" state */
     if($('downloadsSheet')&&$('downloadsSheet').classList.contains('show'))renderDownloadsSheet();
   }
 }
@@ -7739,8 +7770,14 @@ function dlRowHtml(rec){
     :`<div class="dlMeta">${esc((rec.ext||'').toUpperCase())} · ${esc(humanSize(rec.size))}</div>`;
   const actions=inFlight
     ?`<button type="button" data-dlcancel="${esc(rec.key)}" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>`
-    :`<button type="button" data-dlplay="${esc(rec.key)}" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`;
-  return `<div class="dlRow" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
+    :`<button type="button" data-dlplay="${esc(rec.key)}" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></button><button type="button" class="${rec.watched?'on':''}" data-dlwatch="${esc(rec.key)}" aria-label="Toggle watched" title="${rec.watched?'Mark as unwatched':'Mark as watched'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.4"/></svg></button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`;
+  return `<div class="dlRow${rec.watched?' watched':''}" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
+}
+async function dlToggleWatched(key){
+  const rec=await dlGet(key);if(!rec)return;
+  rec.watched=!rec.watched;
+  await dlPut(rec);
+  renderDownloadsSheet();
 }
 function updateDlRowProgress(key,prog){
   const bar=document.getElementById('dlbar-'+key);
@@ -7765,6 +7802,8 @@ if($('downloadsSheet'))$('downloadsSheet').onclick=e=>{
   if(e.target.id==='downloadsSheet'){$('downloadsSheet').classList.remove('show');return}
   const playBtn=e.target.closest('[data-dlplay]');
   if(playBtn){playDownloadedByKey(playBtn.dataset.dlplay);return}
+  const watchBtn=e.target.closest('[data-dlwatch]');
+  if(watchBtn){dlToggleWatched(watchBtn.dataset.dlwatch);return}
   const delBtn=e.target.closest('[data-dldel]');
   if(delBtn){const k=delBtn.dataset.dldel;dlDelete(k).then(()=>{renderDownloadsSheet();updateDownloadsBadge();toast('Removed from Downloads')});return}
   const cancelBtn=e.target.closest('[data-dlcancel]');
@@ -9942,6 +9981,7 @@ if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove
 if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetSheet')$('homeSetSheet').classList.remove('show')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
+if($('homeDownloads'))$('homeDownloads').onclick=openDownloadsSheet;
 /* v90: categories page interactions */
 if($('catBack'))$('catBack').onclick=()=>showHome();
 /* v19.47 (owner report): tapping the chip used to just UN-HIDE whatever the base grid happened to
@@ -10238,6 +10278,8 @@ $('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_se
   /* episode-view (a single series' episodes shown under the player) */
   const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
   const egt=e.target.closest('[data-epg]');if(egt){e.stopPropagation();const x=findByKey(egt.dataset.epg);if(x)openEpgSheet(x);return}
+  const dls=e.target.closest('[data-dlsave]');if(dls){e.stopPropagation();const x=findByKey(dls.dataset.dlsave);if(x)startDownload(x);return}
+  const dlse=e.target.closest('[data-dlsaveep]');if(dlse){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps&&S.episodeView.eps[Number(dlse.dataset.dlsaveep)];if(ep)startDownload(ep);return}
   const xe=e.target.closest('[data-epmode]');if(xe){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(xe.dataset.epidx)];if(ep)playItemExternal(ep,xe.dataset.epmode,true);return}
   const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
   const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
