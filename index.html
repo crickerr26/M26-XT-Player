@@ -1982,7 +1982,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.79';
+const APP_VERSION='24.80';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7718,7 +7718,7 @@ async function mkvPreprocessToSeekable(blob){
   if(!MS||!MS.isTypeSupported)throw new Error('No MediaSource support on this device');
   const rx=new Mkv.Remuxer();
   const perTrack=new Map(); /* id -> {mime,type,frags:[{t,blob}]} — frags[0] is always this track's init segment (t:0) */
-  let failMsg=null;
+  let failMsg=null,maxT=0;
   rx.onInit=(init,tracks)=>{
     try{
       for(const t of tracks){
@@ -7734,7 +7734,9 @@ async function mkvPreprocessToSeekable(blob){
   };
   rx.onFragment=(frag,track)=>{
     const rec=perTrack.get(track.id);
-    if(rec)rec.frags.push({t:rx.clusterTime||0,blob:new Blob([frag])});
+    const t=rx.clusterTime||0;
+    if(rec)rec.frags.push({t,blob:new Blob([frag])});
+    if(t>maxT)maxT=t; /* real evidence of how far the file actually goes — see durationMs note below */
   };
   const CHUNK=4*1024*1024;
   if(typeof blob.stream==='function'){
@@ -7759,7 +7761,16 @@ async function mkvPreprocessToSeekable(blob){
   if(!perTrack.size)throw new Error('No playable track in this file');
   const tracks=[];
   for(const [id,rec] of perTrack)tracks.push({id,type:rec.type,mime:rec.mime,frags:rec.frags});
-  return {durationMs:rx.durationMs,tracks};
+  /* v24.80 (owner report: seek bar's total kept changing — "10 minutes, then some other time,
+     then another time" — while watching a downloaded movie): a real MKV's own Duration header
+     is sometimes missing, zero, or parsed against the wrong TimecodeScale (same root cause as
+     v24.74's shrink bug), so ms.duration ends up unset or wrong and the on-screen total instead
+     crept up as effDur() fell back to however much had buffered so far. Unlike live playback,
+     preprocessing here already reads every cluster in the whole file, so the last fragment's own
+     timestamp is real, first-hand evidence of how long the file actually is — never trust the
+     header over it. */
+  const durationMs=Math.max(rx.durationMs||0,maxT);
+  return {durationMs,tracks};
 }
 /* Replays the fragments mkvPreprocessToSeekable() built, through the same kind of
    MediaSource/ManagedMediaSource attachment mkv.js's own playMkv() uses — but since every
