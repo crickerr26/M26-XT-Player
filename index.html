@@ -277,6 +277,30 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .pwToggle:hover{background:rgba(20,32,51,.06);color:#26384f}
 /* v24.69: shown in the category list when a search term matches no category name */
 .catEmpty{padding:14px 11px;color:var(--muted);font-size:12.5px;line-height:1.4}
+/* v24.70: TV guide + offline downloads */
+#downloadsBtn{position:relative}
+.dlBadge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--blue);color:#04111e;font-size:10px;font-weight:900;line-height:16px;text-align:center}
+.epgNow{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.epgRow{display:flex;gap:12px;align-items:flex-start;padding:11px 4px;border-bottom:1px solid var(--line)}
+.epgRow:last-child{border-bottom:0}
+.epgRow.now{background:rgba(56,189,248,.08);border-radius:12px;padding-left:9px;padding-right:9px}
+.epgTime{flex:none;width:64px;font-size:12px;font-weight:800;color:var(--muted);padding-top:1px}
+.epgRow.now .epgTime{color:var(--blue)}
+.epgTitleTxt{font-weight:750;font-size:14px;line-height:1.3}
+.epgDesc{margin-top:3px;font-size:12px;color:var(--muted);line-height:1.4}
+.epgEmpty{padding:20px 8px;color:var(--muted);font-size:13px;text-align:center}
+.dlRow{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line)}
+.dlRow:last-child{border-bottom:0}
+.dlPoster{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}
+.dlPoster img{width:100%;height:100%;object-fit:cover}
+.dlName{font-weight:750;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlMeta{font-size:11.5px;color:var(--muted);margin-top:2px}
+.dlBar{margin-top:6px;height:5px;border-radius:4px;background:rgba(255,255,255,.12);overflow:hidden}
+.dlBarFill{height:100%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px}
+.dlActions{display:flex;gap:6px;flex-shrink:0}
+.dlActions button{width:36px;height:36px;border-radius:10px;background:var(--panel2);color:var(--ink);border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center}
+.dlActions button:hover{background:rgba(255,255,255,.1)}
+.dlActions button svg{width:17px;height:17px}
 /* Custom seek/progress bar for VOD & Series */
 .barRow{display:flex;align-items:center;gap:8px}
 .seekRow{display:flex;align-items:center;gap:8px;padding:0 2px 6px;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,.08)}
@@ -1243,6 +1267,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
            quietly beside the settings gear while a library is arriving or refreshing, the
            categories stay where they are, and there is no wording to read. -->
       <span class="topSpin hidden" id="topSpin" title="Updating your library" aria-label="Updating your library" role="status"></span>
+      <button class="iconbtn" id="downloadsBtn" title="Downloads (offline)" aria-label="Downloads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg><span class="dlBadge hidden" id="dlBadge">0</span></button>
       <button class="pillbtn" id="logoutBtn">Exit</button>
     </div>
   </header>
@@ -1557,6 +1582,13 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
   </div>
 </div>
 <div class="episodeSheet" id="episodeSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="episodeTitle">Episodes</h3><button class="iconbtn" id="episodeClose">×</button></div><div class="episodeList" id="episodeList"></div></div></div>
+<!-- v24.70: TV guide (Now/Next + today's schedule) for Live channels that have EPG data — same
+     bottom-sheet shell as the episode picker, just a different list inside. -->
+<div class="episodeSheet" id="epgSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="epgTitle">Guide</h3><button class="iconbtn" id="epgClose">×</button></div><div class="episodeList" id="epgList"></div></div></div>
+<!-- v24.70: offline downloads library — Movies/Series saved in-app (IndexedDB) for one-tap
+     playback with no network, separate from the OS-level "Download to device" the player's
+     "…" menu already offers. -->
+<div class="episodeSheet" id="downloadsSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="downloadsTitle">Downloads</h3><button class="iconbtn" id="downloadsClose">×</button></div><div class="episodeList" id="downloadsList"></div></div></div>
 <div class="infoSheet" id="infoSheet">
   <div class="infoPanel">
     <button class="infoClose" id="infoClose" aria-label="Close">&times;</button>
@@ -1935,7 +1967,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.69';
+const APP_VERSION='24.70';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2044,7 +2076,10 @@ const ICONS={
   comment:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1.2-4A8 8 0 1 1 21 12z"/></svg>',
   more:'<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
   prevTrack:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="4" y="5" width="2.4" height="14" rx="1"/><path d="M20 5v14l-11-7z"/></svg>',
-  nextTrack:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="17.6" y="5" width="2.4" height="14" rx="1"/><path d="M4 5v14l11-7z"/></svg>'
+  nextTrack:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="17.6" y="5" width="2.4" height="14" rx="1"/><path d="M4 5v14l11-7z"/></svg>',
+  /* v24.70: "save this for offline playback in-app" — distinct from the plain download-arrow
+     icon, which is the OS-level "hand it to Files/Downloads" action. */
+  offline:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.8-1.6A4 4 0 0 1 17 18H7z"/><path d="M12 11v6"/><polyline points="9.5 14.5 12 17 14.5 14.5"/></svg>'
 };
 const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),hiddenCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'list',series:'list'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
@@ -4409,7 +4444,14 @@ function renderEpisodeGrid(){
    box. Named function (rather than inline HTML-in-JS-in-HTML) to avoid the several layers of
    quote-escaping an inline onerror= would otherwise need. */
 function posterLogoFail(el){el.remove()}
-function listCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="card ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${live?`<span class="chNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="${live?'posterLogoFail(this)':'this.remove()'}">`:(live?'':'▶')}</div><div class="cardText"><div class="ctitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="cmeta">${rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(typeOf(x).toUpperCase())+' '+(x.container_extension?'- '+esc(x.container_extension):'')}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}
+/* v24.70: "Now: <programme>" in place of the plain "LIVE" meta line, when EPG data for that
+   channel has loaded — see ensureEpg()/nowNextFor() below. Tapping it opens the guide sheet. */
+function epgMetaHtml(x){
+  const nn=nowNextFor(x);
+  if(!nn||!nn.cur)return 'LIVE';
+  return `<span class="epgNow" data-epg="${esc(keyOf(x))}">Now: ${esc(nn.cur.title)}</span>`;
+}
+function listCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="card ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${live?`<span class="chNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="${live?'posterLogoFail(this)':'this.remove()'}">`:(live?'':'▶')}</div><div class="cardText"><div class="ctitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="cmeta">${live?epgMetaHtml(x):(rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(typeOf(x).toUpperCase())+' '+(x.container_extension?'- '+esc(x.container_extension):''))}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}
 /* v19.35: THE WHOLE LIBRARY, NOT THE FIRST 900. A hard `.slice(0,900)` used to cap every grid no
    matter how many titles actually matched — "12,540 items" in the header with a wall at 900 cards
    and no way past it, which is exactly the "I only see a few loaded" complaint on any Movies
@@ -4445,6 +4487,10 @@ function growGridInChunks(g,arr,cardHtml,start){
    moveItem()) still gets the full rebuild, via renderGrid(true) or a signature mismatch below. */
 let _gridSig='';
 function renderGrid(force){
+  /* v24.70: lazily kick off the EPG fetch the first time Live is actually rendered (covers the
+     opening screen, not just a later tab click) — ensureEpg() itself no-ops instantly on a
+     Stalker/MAG line or a bare M3U with no credentials, and re-renders once real data lands. */
+  if(S.tab==='live'&&!_epgMap&&!_epgFetchPromise&&typeof ensureEpg==='function')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});
   if(S.tab==='series'&&S.episodeView&&S.episodeView.eps&&S.episodeView.eps.length)return renderEpisodeGrid();
   const arr=filtered();
   $('sectionSub').textContent=arr.length.toLocaleString()+' items';
@@ -7463,6 +7509,256 @@ async function downloadCurrent(){
   downloadViaAnchor(url,fname);
   toast(mobile()?'Download started — open Files / Downloads, then use Share or Save Video if your browser offers it.':'Download started — it continues in the background (Files / Downloads). It pauses if the network drops and resumes on its own.');
 }
+/* ================= v24.70: TV Guide (EPG) =================
+   Xtream panels expose a standard xmltv.php endpoint (same username+password as get.php) with
+   <programme channel="..."> entries keyed by the tvg-id portal.js already captures per channel
+   as epg_channel_id. Fetched once per session (a guide doesn't change minute to minute) through
+   the existing same-origin /proxy relay, since panels never send CORS headers. A Stalker/MAG
+   line or a bare pasted M3U with no username/password has no xmltv.php at all — epgSourceUrl()
+   returns '' for those and every channel just keeps showing "LIVE", same as before this. */
+let _epgMap=null,_epgFetchedAt=0,_epgFetchPromise=null;
+const EPG_TTL_MS=3*60*60*1000;
+const EPG_MAX_BYTES=20*1024*1024; /* a guide bigger than this would freeze parsing on a phone */
+function epgApiBase(){
+  if(S.source==='stalker'||!S.user||!S.pass)return '';
+  const ch=(S.live&&S.live.length)?S.live[0]:null;
+  if(ch){
+    const raw=String(ch.direct_source||ch.stream_url||'').trim();
+    const m=raw&&/^(https?:\/\/[^/]+)/i.exec(raw);
+    if(m)return m[1];
+  }
+  return S.url||'';
+}
+function epgSourceUrl(){const b=epgApiBase();return b?b+'/xmltv.php?username='+encodeURIComponent(S.user)+'&password='+encodeURIComponent(S.pass):''}
+function parseXmltvTime(s){
+  const m=/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\s*([+-]\d{4})?/.exec(String(s||'').trim());
+  if(!m)return 0;
+  const Y=+m[1],Mo=+m[2],D=+m[3],H=+m[4],Mi=+m[5],Se=+m[6],off=m[7];
+  if(off){const sign=off[0]==='-'?1:-1,oh=+off.slice(1,3),om=+off.slice(3,5);return Date.UTC(Y,Mo-1,D,H,Mi,Se)+sign*(oh*60+om)*60000;}
+  return new Date(Y,Mo-1,D,H,Mi,Se).getTime();
+}
+function parseXmltv(text){
+  const map=new Map();
+  let doc;try{doc=new DOMParser().parseFromString(text,'application/xml');}catch(e){return map}
+  if(!doc||doc.getElementsByTagName('parsererror').length)return map;
+  const progs=doc.getElementsByTagName('programme');
+  for(let i=0;i<progs.length;i++){
+    const p=progs[i],chId=p.getAttribute('channel')||'';
+    if(!chId)continue;
+    const start=parseXmltvTime(p.getAttribute('start')),stop=parseXmltvTime(p.getAttribute('stop'));
+    if(!start||!stop||stop<=start)continue;
+    const tEl=p.getElementsByTagName('title')[0],title=tEl?(tEl.textContent||'').trim():'';
+    if(!title)continue;
+    const dEl=p.getElementsByTagName('desc')[0];
+    if(!map.has(chId))map.set(chId,[]);
+    map.get(chId).push({start,stop,title,desc:dEl?(dEl.textContent||'').trim():''});
+  }
+  for(const arr of map.values())arr.sort((a,b)=>a.start-b.start);
+  return map;
+}
+function ensureEpg(){
+  if(_epgMap&&Date.now()-_epgFetchedAt<EPG_TTL_MS)return Promise.resolve(_epgMap);
+  if(_epgFetchPromise)return _epgFetchPromise;
+  const src=epgSourceUrl();
+  if(!src){_epgMap=_epgMap||new Map();_epgFetchedAt=Date.now();return Promise.resolve(_epgMap);}
+  _epgFetchPromise=(async()=>{
+    try{
+      const ctl=new AbortController();const t=setTimeout(()=>ctl.abort(),25000);
+      const r=await fetch(proxyUrl(src),{signal:ctl.signal,cache:'no-store'});
+      clearTimeout(t);
+      if(!r.ok)throw new Error('HTTP '+r.status);
+      const len=+(r.headers.get('content-length')||0);
+      if(len&&len>EPG_MAX_BYTES)throw new Error('guide too large for this device');
+      const text=await r.text();
+      if(text.length>EPG_MAX_BYTES)throw new Error('guide too large for this device');
+      _epgMap=parseXmltv(text);_epgFetchedAt=Date.now();
+    }catch(e){_epgMap=_epgMap||new Map();}
+    finally{_epgFetchPromise=null;}
+    return _epgMap;
+  })();
+  return _epgFetchPromise;
+}
+function nowNextFor(ch){
+  if(!_epgMap||!ch)return null;
+  const id=ch.epg_channel_id;if(!id)return null;
+  const arr=_epgMap.get(id);if(!arr||!arr.length)return null;
+  const now=Date.now();
+  for(let i=0;i<arr.length;i++){
+    if(arr[i].start<=now&&now<arr[i].stop)return {cur:arr[i],next:arr[i+1]||null};
+    if(arr[i].start>now)return {cur:null,next:arr[i]};
+  }
+  return null;
+}
+function epgTimeLabel(ms){try{return new Date(ms).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}catch(e){return ''}}
+async function openEpgSheet(ch){
+  $('epgTitle').textContent=nameOf(ch);
+  $('epgList').innerHTML='<div class="epgEmpty">Loading guide…</div>';
+  $('epgSheet').classList.add('show');
+  await ensureEpg();
+  renderEpgSheet(ch);
+}
+function renderEpgSheet(ch){
+  const id=ch&&ch.epg_channel_id;
+  const arr=(id&&_epgMap&&_epgMap.get(id))||[];
+  if(!arr.length){$('epgList').innerHTML='<div class="epgEmpty">No guide data for this channel yet.</div>';return}
+  const now=Date.now();
+  $('epgList').innerHTML=arr.map(p=>{
+    const isNow=p.start<=now&&now<p.stop;
+    return `<div class="epgRow ${isNow?'now':''}"><div class="epgTime">${esc(epgTimeLabel(p.start))}</div><div><div class="epgTitleTxt">${esc(p.title)}</div>${p.desc?'<div class="epgDesc">'+esc(p.desc)+'</div>':''}</div></div>`;
+  }).join('');
+}
+if($('epgClose'))$('epgClose').onclick=()=>$('epgSheet').classList.remove('show');
+if($('epgSheet'))$('epgSheet').onclick=e=>{if(e.target.id==='epgSheet')$('epgSheet').classList.remove('show')};
+/* ================= v24.70: Offline Downloads library =================
+   Separate from downloadCurrent() above (which hands the file to the OS's own Downloads/Files —
+   good for keeping a copy, but it leaves the app). This fetches the same file into IndexedDB as
+   a Blob and gives it its own "Downloads" screen with one-tap offline playback INSIDE the app,
+   using the exact same teardown (cleanup()) and Matroska engine (Media26Mkv) live playback uses
+   — a downloaded file is just another local source handed to the <video> element. */
+const DL_DB_NAME='media26-downloads',DL_STORE='files';
+let _dlDb=null;
+S.dlProgress=S.dlProgress||{}; /* key -> {pct,received,total,name,poster,cancel} while in flight */
+function dlOpenDb(){
+  if(_dlDb)return Promise.resolve(_dlDb);
+  return new Promise((resolve,reject)=>{
+    let req;try{req=indexedDB.open(DL_DB_NAME,1)}catch(e){reject(e);return}
+    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(DL_STORE))db.createObjectStore(DL_STORE,{keyPath:'key'});};
+    req.onsuccess=()=>{_dlDb=req.result;resolve(_dlDb)};
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function dlAll(){try{const db=await dlOpenDb();return await new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readonly'),rq=tx.objectStore(DL_STORE).getAll();rq.onsuccess=()=>res(rq.result||[]);rq.onerror=()=>rej(rq.error)})}catch(e){return []}}
+async function dlGet(key){try{const db=await dlOpenDb();return await new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readonly'),rq=tx.objectStore(DL_STORE).get(key);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error)})}catch(e){return null}}
+async function dlPut(rec){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function dlDelete(key){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function updateDownloadsBadge(){
+  const b=$('dlBadge');if(!b)return;
+  const n=(await dlAll()).length+Object.keys(S.dlProgress||{}).length;
+  b.textContent=String(n);b.classList.toggle('hidden',!n);
+}
+async function startDownload(x){
+  if(!x){toast('Open a movie or series first');return}
+  if(typeOf(x)==='live'){toast('Live channels can\'t be saved for offline — only Movies & Series');return}
+  const key=keyOf(x);
+  if(S.dlProgress[key]){toast('Already downloading');return}
+  if(await dlGet(key)){toast('Already saved for offline — check Downloads');return}
+  const raw=externalStreamUrl(x);
+  if(!raw){toast('No downloadable file for this title');return}
+  let ext=String(x.container_extension||'').replace(/^\./,'').toLowerCase();
+  if(!ext){const m=raw.split('?')[0].match(/\.([a-z0-9]{2,4})$/i);ext=m?m[1].toLowerCase():'mp4';}
+  const url=(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
+  try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
+  const ctl=new AbortController();
+  const prog={pct:0,received:0,total:0,name:nameOf(x),poster:logoOf(x)||'',cancel:()=>{try{ctl.abort()}catch(e){}}};
+  S.dlProgress[key]=prog;
+  updateDownloadsBadge();
+  if($('downloadsSheet')&&$('downloadsSheet').classList.contains('show'))renderDownloadsSheet();
+  toast('Downloading '+nameOf(x)+' for offline…');
+  try{
+    const res=await fetch(url,{signal:ctl.signal});
+    if(!res.ok||!res.body)throw new Error('HTTP '+(res.status||0));
+    const total=+(res.headers.get('content-length')||0);
+    prog.total=total;
+    const reader=res.body.getReader();
+    const chunks=[];
+    for(;;){
+      const {done,value}=await reader.read();
+      if(done)break;
+      chunks.push(value);
+      prog.received+=value.byteLength;
+      prog.pct=total?Math.min(99,Math.round(prog.received/total*100)):0;
+      updateDlRowProgress(key,prog);
+    }
+    const mime=mimeForFile('f.'+ext);
+    const blob=new Blob(chunks,{type:mime});
+    await dlPut({key,name:nameOf(x),ext,mime,size:blob.size,blob,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now()});
+    toast(nameOf(x)+' saved for offline');
+  }catch(e){
+    if(e&&e.name==='AbortError')toast('Download canceled');
+    else toast('Offline save failed — '+((e&&e.message)||'try again'));
+  }finally{
+    delete S.dlProgress[key];
+    updateDownloadsBadge();
+    if($('downloadsSheet')&&$('downloadsSheet').classList.contains('show'))renderDownloadsSheet();
+  }
+}
+function humanSize(n){
+  n=Number(n)||0;
+  if(n>=1073741824)return (n/1073741824).toFixed(2)+' GB';
+  if(n>=1048576)return (n/1048576).toFixed(1)+' MB';
+  if(n>=1024)return Math.round(n/1024)+' KB';
+  return n+' B';
+}
+function dlRowHtml(rec){
+  const inFlight=S.dlProgress[rec.key];
+  const posterHtml=rec.poster?`<img src="${esc(rec.poster)}" onerror="this.remove()">`:(inFlight?'⇩':'▶');
+  const metaHtml=inFlight
+    ?`<div class="dlMeta" id="dlmeta-${esc(rec.key)}">Downloading… ${inFlight.pct}%</div><div class="dlBar"><div class="dlBarFill" id="dlbar-${esc(rec.key)}" style="width:${inFlight.pct}%"></div></div>`
+    :`<div class="dlMeta">${esc((rec.ext||'').toUpperCase())} · ${esc(humanSize(rec.size))}</div>`;
+  const actions=inFlight
+    ?`<button type="button" data-dlcancel="${esc(rec.key)}" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>`
+    :`<button type="button" data-dlplay="${esc(rec.key)}" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`;
+  return `<div class="dlRow" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
+}
+function updateDlRowProgress(key,prog){
+  const bar=document.getElementById('dlbar-'+key);
+  if(bar)bar.style.width=prog.pct+'%';
+  const meta=document.getElementById('dlmeta-'+key);
+  if(meta)meta.textContent='Downloading… '+prog.pct+'%';
+  updateDownloadsBadge();
+}
+async function renderDownloadsSheet(){
+  const inFlightKeys=Object.keys(S.dlProgress||{});
+  const saved=await dlAll();
+  const savedKeys=new Set(saved.map(r=>r.key));
+  const inFlightRows=inFlightKeys.filter(k=>!savedKeys.has(k)).map(k=>dlRowHtml({key:k,name:S.dlProgress[k].name||'Downloading…',ext:'',size:0,poster:S.dlProgress[k].poster||''}));
+  const rows=saved.slice().sort((a,b)=>b.addedAt-a.addedAt).map(dlRowHtml);
+  const all=inFlightRows.join('')+rows.join('');
+  $('downloadsList').innerHTML=all||'<div class="epgEmpty">No offline downloads yet. Open a movie or series and choose Save Offline from the player\'s ⋯ menu.</div>';
+}
+function openDownloadsSheet(){$('downloadsSheet').classList.add('show');renderDownloadsSheet();}
+if($('downloadsBtn'))$('downloadsBtn').onclick=openDownloadsSheet;
+if($('downloadsClose'))$('downloadsClose').onclick=()=>$('downloadsSheet').classList.remove('show');
+if($('downloadsSheet'))$('downloadsSheet').onclick=e=>{
+  if(e.target.id==='downloadsSheet'){$('downloadsSheet').classList.remove('show');return}
+  const playBtn=e.target.closest('[data-dlplay]');
+  if(playBtn){playDownloadedByKey(playBtn.dataset.dlplay);return}
+  const delBtn=e.target.closest('[data-dldel]');
+  if(delBtn){const k=delBtn.dataset.dldel;dlDelete(k).then(()=>{renderDownloadsSheet();updateDownloadsBadge();toast('Removed from Downloads')});return}
+  const cancelBtn=e.target.closest('[data-dlcancel]');
+  if(cancelBtn){const p=S.dlProgress[cancelBtn.dataset.dlcancel];if(p)p.cancel();return}
+};
+async function playDownloadedByKey(key){
+  const rec=await dlGet(key);
+  if(!rec){toast('That download is gone — try re-saving it');return}
+  playDownloadedBlob(rec);
+}
+/* v24.70: hands a stored Blob to the SAME <video> element live playback uses. cleanup() (used by
+   tryPlans() for every channel/title switch) already tears down hls.js/mpegts.js/mkv.js safely,
+   so calling it first makes this behave exactly like switching to a new title. mkvLike() is the
+   same container check tryPlans() uses to decide between native <video> and the in-app Matroska
+   engine — mkv.js reads via a plain fetch(), which works on a blob: URL exactly like a network
+   one (see mkv.js's sourceopen handler: one fetch(url), no manual byte ranges). */
+function playDownloadedBlob(rec){
+  cleanup();
+  const v=$('video');
+  const url=URL.createObjectURL(rec.blob);
+  S.current={name:rec.name,_type:rec.type||'vod',_offline:true,container_extension:rec.ext};
+  S.awaitingTap=false;
+  try{$('overlay').style.display='none'}catch(e){}
+  if($('ovTitle'))$('ovTitle').textContent=nameOf(S.current);
+  if(typeof updateLiveControls==='function')updateLiveControls();
+  if(mkvLike(rec.ext)&&window.Media26Mkv&&Media26Mkv.supported()){
+    try{v.disableRemotePlayback=true;v.setAttribute('disableremoteplayback','')}catch(e){}
+    Media26Mkv.play(v,url,{}).catch(()=>toast('This downloaded file could not be played in-app'));
+  }else{
+    try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
+    v.src=url;
+    v.play().catch(()=>{S.awaitingTap=true});
+  }
+  $('downloadsSheet').classList.remove('show');
+  if(typeof showBar==='function')showBar();
+}
 $('loginBtn').onclick=login;/* v18.3: the toolbar Refresh goes back to the provider now (resyncSource), not just re-slice the copy already in memory — see the note there for why that was not a refresh at all on a playlist line. */$('refreshBtn').onclick=()=>refreshTab(S.tab||'live');
 /* v17.0: signing out ends the SESSION and keeps the identity, so the Login button has something to
    resume — that is the whole point of the button. The saved credentials are no longer wiped here;
@@ -9890,7 +10186,7 @@ const _resumeAfterFsExit=()=>{
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
 document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();});/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
    grid rebuild) immediately — on a large Movies catalogue that is real work, and it ran once per
    character, so typing "tamil" fired it 5 times in well under a second, each one blocking the next
    keystroke from registering smoothly. Debounced to fire once 180ms after typing pauses, which is
@@ -9899,6 +10195,7 @@ let _searchDebounce=0;
 $('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_searchDebounce=setTimeout(()=>{S.q=v;S.episodeView=null;renderAll()},180)};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;S.episodeView=null;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{
   /* episode-view (a single series' episodes shown under the player) */
   const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
+  const egt=e.target.closest('[data-epg]');if(egt){e.stopPropagation();const x=findByKey(egt.dataset.epg);if(x)openEpgSheet(x);return}
   const xe=e.target.closest('[data-epmode]');if(xe){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(xe.dataset.epidx)];if(ep)playItemExternal(ep,xe.dataset.epmode,true);return}
   const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
   const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
@@ -9921,6 +10218,7 @@ if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').cla
   $('pipBtn').innerHTML=ICONS.pip;
   if($('settingsBtn'))$('settingsBtn').innerHTML=ICONS.more;
   if($('downloadBtn'))$('downloadBtn').innerHTML=ICONS.download;
+  if(typeof updateDownloadsBadge==='function')updateDownloadsBadge();
   $('fsBtn').innerHTML=ICONS.fsEnter;
   $('menuBtn').innerHTML=ICONS.back;
   if($('pwToggle'))$('pwToggle').innerHTML=ICONS.eye;
@@ -10094,7 +10392,10 @@ function pmRoot(){
   rows.push({icon:ICONS.equalizer,label:'Equalizer',val:eqLabel(),chev:true,onClick:pmEqualizer});
   /* v24.67: the MX skin has no standalone download pill (the reference has no equivalent icon
      for it) — Download moves in here instead, staying reachable exactly like it was. */
-  if(S.current&&typeOf(S.current)!=='live')rows.push({icon:ICONS.download,label:'Download',onClick:()=>{pmClose();downloadCurrent();}});
+  if(S.current&&typeOf(S.current)!=='live'&&!S.current._offline){
+    rows.push({icon:ICONS.download,label:'Download',onClick:()=>{pmClose();downloadCurrent();}});
+    rows.push({icon:ICONS.offline,label:'Save Offline',val:S.dlProgress[keyOf(S.current)]?'Saving…':undefined,chev:!S.dlProgress[keyOf(S.current)],onClick:()=>{pmClose();startDownload(S.current);}});
+  }
   pmRender(rows);
 }
 function pmSpeed(){pmRender([0.5,0.75,1,1.25,1.5,1.75,2].map(r=>({label:(r===1?'Normal':r+'×'),tick:curSpeed()===r,on:curSpeed()===r,onClick:()=>{setSpeed(r);pmRoot();}})),'Playback Speed');}
