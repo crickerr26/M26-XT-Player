@@ -1980,7 +1980,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.74';
+const APP_VERSION='24.75';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7831,7 +7831,13 @@ function playDownloadedBlob(rec){
   if(typeof updateLiveControls==='function')updateLiveControls();
   if(mkvLike(rec.ext)&&window.Media26Mkv&&Media26Mkv.supported()){
     try{v.disableRemotePlayback=true;v.setAttribute('disableremoteplayback','')}catch(e){}
-    Media26Mkv.play(v,url,{}).catch(()=>toast('This downloaded file could not be played in-app'));
+    /* v24.75 (owner report: tapping a downloaded MKV opens the player but never plays — stuck at
+       0:00/0:00): Media26Mkv.play() only ATTACHES the MediaSource and starts appending buffers,
+       it never calls video.play() itself — on the network path that call comes from tryPlans()'s
+       own route-monitoring loop, which this standalone offline-playback path never goes through.
+       Its promise resolves once the first fragment has actually been appended (see mkv.js
+       rx.onFragment), which is the right moment to ask the element to start. */
+    Media26Mkv.play(v,url,{}).then(()=>{v.play().catch(()=>{S.awaitingTap=true})}).catch(()=>toast('This downloaded file could not be played in-app'));
   }else{
     try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
     v.src=url;
