@@ -275,6 +275,8 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .pwWrap input{padding-right:44px}
 .pwToggle{position:absolute;right:5px;top:5px;width:34px;height:34px;border-radius:10px;background:transparent;color:#8393ab;display:grid;place-items:center}
 .pwToggle:hover{background:rgba(20,32,51,.06);color:#26384f}
+/* v24.69: shown in the category list when a search term matches no category name */
+.catEmpty{padding:14px 11px;color:var(--muted);font-size:12.5px;line-height:1.4}
 /* Custom seek/progress bar for VOD & Series */
 .barRow{display:flex;align-items:center;gap:8px}
 .seekRow{display:flex;align-items:center;gap:8px;padding:0 2px 6px;margin-bottom:2px;border-bottom:1px solid rgba(255,255,255,.08)}
@@ -1933,7 +1935,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.68';
+const APP_VERSION='24.69';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4344,6 +4346,21 @@ function paintTabLoading(){document.querySelectorAll('.tab').forEach(b=>b.classL
    growGridInChunks' notes), so this was 200 extra full-array filter+sort passes for nothing. */
 function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
 function renderCats(){
+  const q=S.q.toLowerCase().trim();
+  /* v24.69 (owner request): typing in search now filters the CATEGORY list too — "tamil" surfaces
+     every "Tamil ..." category here, separate from the matching titles the grid already showed
+     (baseFiltered() already matches content names against S.q; this is the category-name half of
+     the same search). The pinned All/Favorites/Recently Played rows aren't category names, so they
+     drop out while a search is active — a plain category list of only what matched replaces them. */
+  if(q){
+    const cs=cats().filter(c=>String(c.category_name||'').toLowerCase().includes(q));
+    if(!cs.length){$('cats').innerHTML=`<div class="catEmpty">No categories match "${esc(S.q.trim())}"</div>`;return}
+    $('cats').innerHTML=cs.map(c=>{
+      const isF=S.favCats.has(catFavKey(c));
+      return `<button class="cat ${String(S.cat)===String(c.category_id)?'active':''}" data-cat="${esc(c.category_id)}"><span class="catStar ${isF?'on':''}" data-favcat="${esc(c.category_id)}" role="button" aria-label="Favorite category">${isF?'★':'☆'}</span><span class="catName">${esc(c.category_name||'Other')}</span><span class="catCount">${countCat(c.category_id)}</span></button>`;
+    }).join('');
+    return;
+  }
   const rows=[
     `<button class="cat ${!S.cat?'active':''}" data-cat=""><span class="catStar spacer"></span><span class="catName">All</span><span class="catCount">${list().length}</span></button>`,
     `<button class="cat ${S.cat==='__fav'?'active':''}" data-cat="__fav"><span class="catStar spacer"></span><span class="catName">Favorites</span><span class="catCount">${list().filter(x=>S.favs.has(keyOf(x))).length}</span></button>`,
