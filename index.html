@@ -309,39 +309,55 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 /* red scrubber, matching the reference */
 .seekFill{background:linear-gradient(90deg,#ff3b30,#ff6a52)!important}
 .seekTrack::before{background:rgba(255,255,255,.30)}
-/* ===== v71: Infuse-style full-video overlay ===== */
+/* ===== v71/v24.67: MX-Player-style full-video overlay (icons + positions match the reference
+   screenshot) — close/title top-left, resize/playlist/cast top-right, brightness dial on the
+   left edge, volume dial on the right edge, seek row + lock/subtitles/prev/play/next/split/more
+   along the bottom. ===== */
 .playerbar.infuse{position:absolute;inset:0;left:0;right:0;top:0;bottom:0;padding:0;border-radius:0;background:none;display:block;pointer-events:none;backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
 /* container never eats taps meant for the video; only its controls are interactive */
 .player.vodMode .playerbar.infuse,.player.liveMode .playerbar.infuse,.player.showbar .playerbar.infuse{pointer-events:none!important}
 .playerbar.infuse .ovTop,.playerbar.infuse .ovBottom{position:absolute;left:0;right:0;pointer-events:none}
-.ovTop{top:0;display:flex;justify-content:space-between;align-items:flex-start;padding:14px 16px;background:linear-gradient(180deg,rgba(0,0,0,.5),transparent);transition:opacity .15s ease}
-.ovBottom{bottom:0;padding:0 16px 12px;background:linear-gradient(0deg,rgba(0,0,0,.6),transparent 92%);transition:opacity .15s ease}
+.ovTop{top:0;display:flex;align-items:center;gap:10px;padding:12px 12px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);transition:opacity .15s ease}
+.ovBottom{bottom:0;padding:0 12px 10px;background:linear-gradient(0deg,rgba(0,0,0,.65),transparent 92%);transition:opacity .15s ease}
 .player.qsOpen .ovTop,.player.qsOpen .ovBottom{opacity:0;pointer-events:none}
-.ovTopL{display:flex;gap:12px;pointer-events:auto}
-.ovCircle{width:44px;height:44px;border-radius:50%;background:rgba(44,44,48,.55);backdrop-filter:blur(12px);color:#fff;display:inline-flex;align-items:center;justify-content:center;pointer-events:auto}
-.ovCircle svg{width:20px;height:20px}
-.ovVol{display:flex;align-items:center;gap:9px;background:rgba(44,44,48,.55);backdrop-filter:blur(12px);border-radius:999px;padding:7px 14px;pointer-events:auto}
-.ovPct{font-size:14px;font-weight:800;color:#fff;min-width:40px;text-align:right;font-variant-numeric:tabular-nums}
-.ovVol .volSlider{width:120px}
-.ovVolIcon{background:none;color:#fff;width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center}
-.ovVolIcon svg{width:20px;height:20px}
-.ovCenter{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:54px;pointer-events:none}
-.ovT{pointer-events:auto;background:none;color:#fff;width:54px;height:54px;display:inline-flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 10px rgba(0,0,0,.65))}
-.ovT svg{width:34px;height:34px}
-.ovPlay{width:72px;height:72px}
-.ovPlay svg{width:48px;height:48px}
-.ovBotRow{display:flex;align-items:center;gap:10px;pointer-events:auto;margin-bottom:8px}
-.ovTitle{font-size:12px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:46%;text-shadow:0 1px 6px rgba(0,0,0,.7)}
-.ovRightPill{display:flex;align-items:center;gap:2px;background:rgba(44,44,48,.55);backdrop-filter:blur(12px);border-radius:999px;padding:5px 8px}
-.ovPillBtn{background:none;color:#fff;height:34px;min-width:34px;padding:0 9px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;font-weight:800;font-size:12px}
-.ovPillBtn svg{width:20px;height:20px}
-.ovPillBtn:hover{background:rgba(255,255,255,.14)}
-.playerbar.infuse .seekRow{pointer-events:auto;gap:10px;padding:0;margin:0;border:0}
+.mxIconBtn{pointer-events:auto;background:none;color:#fff;width:34px;height:34px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
+.mxIconBtn:hover{background:rgba(255,255,255,.14)}
+.mxIconBtn svg{width:20px;height:20px}
+.mxClose{width:32px;height:32px}
+.mxClose svg{width:18px;height:18px}
+.ovTopR{display:flex;align-items:center;gap:2px;pointer-events:auto}
+.ovTitle{font-size:14px;font-weight:800;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:32%;text-shadow:0 1px 6px rgba(0,0,0,.7);pointer-events:none}
+/* vertical brightness (left) / volume (right) dials, MX-style, pinned to the video's side edges */
+.mxSideSlider{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:12px;pointer-events:auto;height:180px;justify-content:center;z-index:3}
+.mxSideSlider.mxBrightness{left:14px}
+.mxSideSlider.mxVolume{right:14px}
+.mxSliderIcon{background:none;color:#fff;width:22px;height:22px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
+.mxSliderIcon svg{width:20px;height:20px;display:block}
+.mxVSlider{-webkit-appearance:none;appearance:none;width:130px;height:4px;border-radius:4px;background:rgba(255,255,255,.32);outline:none;cursor:pointer;transform:rotate(-90deg)}
+.mxVSlider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.5)}
+.mxVSlider::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#fff}
+/* qualityBtn/downloadBtn stay in the DOM (existing JS reads/toggles them) but the MX skin
+   reaches the same features through the "…" menu instead of a separate pill — see pmRoot(). */
+.mxOffscreen{display:none!important}
+.playerbar.infuse .seekRow{pointer-events:auto;gap:8px;padding:0;margin:0;border:0}
 .playerbar.infuse .seekTrack{height:16px}
 .playerbar.infuse .seekTrack::before{height:3px;background:rgba(255,255,255,.32)}
-.playerbar.infuse .seekFill{height:3px;background:#fff!important}
+.playerbar.infuse .seekFill{height:3px;background:#ff9d2e!important}
 .playerbar.infuse .seekHandle{width:12px;height:12px}
-.playerbar.infuse .timeLabel{font-size:12px;color:#fff;min-width:46px;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.playerbar.infuse .timeLabel{font-size:12px;color:#fff;min-width:44px;text-shadow:0 1px 4px rgba(0,0,0,.7)}
+.playerbar.infuse .timeLabel.mxCur{color:#ff9d2e}
+.mxControlRow{display:flex;align-items:center;justify-content:space-between;pointer-events:auto;margin-top:8px}
+.mxCtlGroup{display:flex;align-items:center;gap:14px}
+.mxCtlGroup.mxCenter{gap:26px}
+.mxPrevNext{width:38px;height:38px}
+.mxPrevNext svg{width:24px;height:24px}
+.mxPlayBtn{width:50px;height:50px;border:2px solid rgba(255,255,255,.9);border-radius:50%}
+.mxPlayBtn svg{width:22px;height:22px}
+/* lock: keeps only the lock button itself reachable, forcing the whole bar visible so it never
+   fades away out of reach — everything else (dials, seek, other buttons) goes inert. */
+.player.locked .playerbar.infuse{opacity:1!important;pointer-events:none!important}
+.player.locked .ovTop,.player.locked .mxSideSlider,.player.locked .seekRow,.player.locked .mxCtlGroup.mxCenter,.player.locked .mxCtlGroup.mxRight,.player.locked #subBtn{opacity:0;pointer-events:none!important}
+.player.locked #lockBtn{opacity:1!important;pointer-events:auto!important}
 /* settings drill-down menu (Infuse-style) */
 /* v24.26 (owner report: Volume Boost/Speed/Audio/Subtitles/Quality/Colour rows visible but
    unclickable): this menu is a child of #playerbar, and .playerbar.infuse is deliberately
@@ -356,7 +372,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
    category — root list and every drill-down (Speed/Boost/Audio/Subtitles/Colour Mode/Equalizer)
    — only now wrapped in a horizontal .pmTiles strip instead of stacked as rows, so none of that
    state logic changed, only how it's laid out. */
-.playerMenu{position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:9;display:flex;flex-direction:column;max-width:97%;background:rgba(20,22,28,.94);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.6);pointer-events:auto!important}
+.playerMenu{position:absolute;left:50%;bottom:66px;transform:translateX(-50%);z-index:9;display:flex;flex-direction:column;max-width:97%;background:rgba(20,22,28,.94);backdrop-filter:blur(24px);border:1px solid rgba(255,255,255,.14);border-radius:18px;padding:12px;box-shadow:0 20px 50px rgba(0,0,0,.6);pointer-events:auto!important}
 .playerMenu .pmTiles{display:flex;flex-direction:row;gap:6px;overflow-x:auto;scrollbar-width:none}
 .playerMenu .pmTiles::-webkit-scrollbar{display:none}
 .playerMenu .pmRow{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;width:78px;flex:none;min-height:76px;padding:11px 6px 9px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid transparent;color:#fff;font-size:12px;font-weight:700;text-align:center;transition:background .15s ease,border-color .15s ease}
@@ -372,12 +388,14 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .playerMenu .pmHead{display:flex;align-items:center;gap:10px;padding:0 2px 10px;color:#fff;font-weight:800;font-size:13.5px;opacity:.92}
 .playerMenu .pmHead button{background:rgba(255,255,255,.1);color:#fff;font-size:16px;line-height:1;width:26px;height:26px;border-radius:8px;flex:none;display:inline-flex;align-items:center;justify-content:center;transition:background .15s ease}
 .playerMenu .pmHead button:hover{background:rgba(120,190,255,.22)}
-@media(max-width:760px){.playerMenu{bottom:44px;padding:7px}.playerMenu .pmTiles{gap:4px}.playerMenu .pmRow{width:56px;min-height:58px;gap:3px;padding:7px 3px 6px;border-radius:11px;font-size:9.5px}.playerMenu .pmIcon svg{width:17px;height:17px}.playerMenu .pmVal{font-size:8.5px}.playerMenu .pmTick{top:4px;right:5px;font-size:10px}}
+@media(max-width:760px){.playerMenu{bottom:54px;padding:7px}.playerMenu .pmTiles{gap:4px}.playerMenu .pmRow{width:56px;min-height:58px;gap:3px;padding:7px 3px 6px;border-radius:11px;font-size:9.5px}.playerMenu .pmIcon svg{width:17px;height:17px}.playerMenu .pmVal{font-size:8.5px}.playerMenu .pmTick{top:4px;right:5px;font-size:10px}}
 @media(max-width:760px){
-  .ovVol .volSlider{width:84px}
-  .ovPlay{width:64px;height:64px}.ovPlay svg{width:42px;height:42px}
-  .ovCenter{gap:40px}
-  .ovTitle{max-width:36%}
+  .mxVSlider{width:100px}
+  .mxSideSlider{height:140px;gap:8px}
+  .mxPlayBtn{width:44px;height:44px}.mxPlayBtn svg{width:20px;height:20px}
+  .mxCtlGroup.mxCenter{gap:20px}
+  .ovTitle{max-width:24%;font-size:12px}
+  .mxIconBtn{width:30px;height:30px}.mxIconBtn svg{width:18px;height:18px}
 }
 /* ===== v77: branded animated loader ===== */
 .loader{background:radial-gradient(circle at 50% 42%,rgba(20,38,64,.66),rgba(5,10,20,.82))!important}
@@ -720,7 +738,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 /* quality popover above the bar */
 /* v24.26: same fix as .playerMenu above — this dropdown is also a child of #playerbar and needs
    its own hole through .playerbar.infuse's pointer-events:none to be clickable at all. */
-.qMenu{position:absolute;right:14px;bottom:70px;z-index:8;min-width:158px;max-height:250px;overflow-y:auto;background:rgba(12,20,36,.97);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);backdrop-filter:blur(18px);pointer-events:auto!important}
+.qMenu{position:absolute;right:14px;bottom:80px;z-index:8;min-width:158px;max-height:250px;overflow-y:auto;background:rgba(12,20,36,.97);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);backdrop-filter:blur(18px);pointer-events:auto!important}
 .qMenu button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;height:38px;padding:0 12px;border-radius:10px;background:transparent;color:var(--ink);font-weight:800;font-size:13px}
 .qMenu button:hover{background:rgba(255,255,255,.08)}
 .qMenu button.active{background:rgba(56,189,248,.16);color:#eaf6ff}
@@ -733,7 +751,7 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
   .volSlider{display:none}
   .round.big{width:44px;height:44px}
   .transport{gap:8px}
-  .qMenu{bottom:64px}
+  .qMenu{bottom:70px}
   /* keep the bar from overflowing on phones: the external-launch button here duplicates the
      player chooser, and the volume slider is redundant (iOS blocks web volume, Android uses
      hardware keys), so both collapse away on small screens. */
@@ -744,10 +762,14 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
    on the preview/idle box, while playing, and in fullscreen. So the base opacity is now
    visible (not 0); it never fully hides while an item is open. */
 .watermark{position:absolute;left:14px;bottom:92px;width:clamp(46px,7%,84px);height:auto;opacity:.5;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.55));transition:opacity .4s ease}
+/* v24.67: the MX-style brightness dial now lives on the same left edge the watermark sits on —
+   fade the brand mark out whenever the control bar (and dial) is up so they never overlap, same
+   as the rest of the chrome already does around .qsOpen. */
+.player.showbar:not(.pipFloat) .watermark{opacity:0!important}
 .watermark.on{opacity:.6}
 .player:fullscreen .watermark,.player:-webkit-full-screen .watermark{opacity:.6!important;z-index:2147483647}
 .player:fullscreen .watermark,.player:-webkit-full-screen .watermark{display:block!important}
-@media(max-width:760px){.watermark{left:9px;bottom:76px;width:clamp(38px,9%,66px)}}
+@media(max-width:760px){.watermark{left:9px;bottom:112px;width:clamp(38px,9%,66px)}}
 /* --- v18 device-aware external player layer --- */
 .nativePanel{display:block;overflow-y:auto}
 /* v20.2: THE SHEET HEADER STAYS PUT WHILE THE SHEET SCROLLS. A .nativePanel is one long
@@ -1238,37 +1260,47 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
              Same layout on Live, Movies and Series. IDs are reused so all existing wiring holds. -->
         <div class="playerbar infuse" id="playerbar">
           <div class="ovTop">
-            <div class="ovTopL">
-              <button class="ovCircle" id="fsBtn" title="Fullscreen" aria-label="Toggle fullscreen"></button>
-              <button class="ovCircle" id="pipBtn" title="Picture in Picture" aria-label="Picture in picture"></button>
-            </div>
-            <div class="ovVol" id="volPill">
-              <span class="ovPct" id="volPct">100%</span>
-              <input type="range" id="volSlider" class="volSlider" min="0" max="100" value="100" aria-label="Volume">
-              <button class="ovVolIcon" id="muteBtn" aria-label="Mute or unmute"></button>
+            <button class="mxIconBtn mxClose" id="closeBtn" title="Close" aria-label="Close player"></button>
+            <span class="ovTitle" id="ovTitle"></span>
+            <span class="liveBadge hidden" id="liveBadge"><i class="liveDot"></i>LIVE</span>
+            <div class="grow"></div>
+            <div class="ovTopR">
+              <button class="mxIconBtn" id="fsBtn" title="Fullscreen" aria-label="Toggle fullscreen"></button>
+              <button class="mxIconBtn" id="playlistBtn" title="Playlist" aria-label="Playlist"></button>
+              <button class="mxIconBtn" id="castBtn" title="Cast" aria-label="Cast"></button>
             </div>
           </div>
-          <div class="ovCenter">
-            <button class="ovT" id="backBtn" title="Rewind 10s" aria-label="Rewind 10 seconds"></button>
-            <button class="ovT ovPlay" id="playBtn" title="Play / Pause" aria-label="Play or pause"></button>
-            <button class="ovT" id="forwardBtn" title="Forward 10s" aria-label="Forward 10 seconds"></button>
+          <div class="mxSideSlider mxBrightness">
+            <span class="mxSliderIcon" id="brightIcon"></span>
+            <input type="range" id="brightSlider" class="mxVSlider" min="40" max="160" value="100" aria-label="Brightness">
+          </div>
+          <div class="mxSideSlider mxVolume">
+            <button class="mxSliderIcon" id="muteBtn" aria-label="Mute or unmute"></button>
+            <input type="range" id="volSlider" class="mxVSlider" min="0" max="100" value="100" aria-label="Volume">
           </div>
           <div class="ovBottom">
-            <div class="ovBotRow">
-              <span class="ovTitle" id="ovTitle"></span>
-              <span class="liveBadge hidden" id="liveBadge"><i class="liveDot"></i>LIVE</span>
-              <div class="grow"></div>
-              <div class="ovRightPill">
-                <button class="ovPillBtn qBtn" id="qualityBtn" title="Video quality" aria-label="Video quality">Auto</button>
-                <button class="ovPillBtn" id="downloadBtn" title="Download to device" aria-label="Download"></button>
-                <button class="ovPillBtn" id="settingsBtn" title="Player settings" aria-label="Player settings"></button>
-              </div>
-            </div>
             <div class="seekRow hidden" id="seekRow">
-              <span class="timeLabel" id="curTime">0:00</span>
+              <span class="timeLabel mxCur" id="curTime">0:00</span>
               <div class="seekTrack" id="seekTrack"><div class="seekFill" id="seekFill"></div><div class="seekHandle" id="seekHandle"></div></div>
               <span class="timeLabel" id="durTime">0:00</span>
             </div>
+            <div class="mxControlRow">
+              <div class="mxCtlGroup mxLeft">
+                <button class="mxIconBtn" id="lockBtn" title="Lock controls" aria-label="Lock controls"></button>
+                <button class="mxIconBtn" id="subBtn" title="Subtitles" aria-label="Subtitles"></button>
+              </div>
+              <div class="mxCtlGroup mxCenter">
+                <button class="mxIconBtn mxPrevNext" id="backBtn" title="Rewind 10s" aria-label="Rewind 10 seconds"></button>
+                <button class="mxIconBtn mxPlayBtn" id="playBtn" title="Play / Pause" aria-label="Play or pause"></button>
+                <button class="mxIconBtn mxPrevNext" id="forwardBtn" title="Forward 10s" aria-label="Forward 10 seconds"></button>
+              </div>
+              <div class="mxCtlGroup mxRight">
+                <button class="mxIconBtn" id="pipBtn" title="Picture in Picture" aria-label="Picture in picture"></button>
+                <button class="mxIconBtn" id="settingsBtn" title="Player settings" aria-label="Player settings"></button>
+              </div>
+            </div>
+            <button class="ovPillBtn qBtn mxOffscreen" id="qualityBtn" title="Video quality" aria-label="Video quality">Auto</button>
+            <button class="ovPillBtn mxOffscreen" id="downloadBtn" title="Download to device" aria-label="Download"></button>
           </div>
           <div class="qMenu hidden" id="qMenu" role="menu" aria-label="Quality"></div>
           <div class="playerMenu hidden" id="playerMenu" role="menu" aria-label="Player settings"></div>
@@ -1896,7 +1928,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.66';
+const APP_VERSION='24.67';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -1993,7 +2025,19 @@ const ICONS={
   sub:'<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><line x1="7" y1="11" x2="11" y2="11"/><line x1="14" y1="11" x2="17" y2="11"/><line x1="7" y1="15" x2="13" y2="15"/><line x1="16" y1="15" x2="17" y2="15"/></svg>',
   download:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg>',
   sortNew:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5"/><path d="M9 2.3h6"/></svg>',
-  sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>'
+  sortDefault:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>',
+  /* v24.67: MX-Player-style in-video overlay — close/playlist/cast up top, brightness/volume
+     dials on the sides, lock/subtitles/prev/next/split/more along the bottom. */
+  close:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg>',
+  playlist:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="16" y2="18"/><circle cx="19.3" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="19.3" cy="18" r="1.3" fill="currentColor" stroke="none"/></svg>',
+  cast:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8V5a1 1 0 0 1 1-1h18a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-8"/><path d="M2 12a6 6 0 0 1 6 6"/><path d="M2 16a2 2 0 0 1 2 2"/><circle cx="2.6" cy="19.4" r="1.2" fill="currentColor" stroke="none"/></svg>',
+  sun:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="4.2" y1="4.2" x2="6" y2="6"/><line x1="18" y1="18" x2="19.8" y2="19.8"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.2" y1="19.8" x2="6" y2="18"/><line x1="18" y1="6" x2="19.8" y2="4.2"/></svg>',
+  lockOpen:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a5 5 0 0 1 9-3"/></svg>',
+  lockClosed:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="14" height="9" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>',
+  comment:'<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1.2-4A8 8 0 1 1 21 12z"/></svg>',
+  more:'<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>',
+  prevTrack:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="4" y="5" width="2.4" height="14" rx="1"/><path d="M20 5v14l-11-7z"/></svg>',
+  nextTrack:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><rect x="17.6" y="5" width="2.4" height="14" rx="1"/><path d="M4 5v14l11-7z"/></svg>'
 };
 const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),hiddenCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'list',series:'list'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
@@ -9694,7 +9738,41 @@ $('video').onclick=()=>{const v=$('video');if(!S.current)return;if(tapToStart())
 /* v3.4: keep the sound icon truthful. Setting .muted (autoplay force-mute, armUnmute, manual
    toggle) fires 'volumechange' — sync the button off the real state every time so a muted video
    always shows the muted icon the user can tap to turn sound on. */
-if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('extDiag'))$('extDiag').onclick=()=>copyDiagnostics();if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
+if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('extDiag'))$('extDiag').onclick=()=>copyDiagnostics();if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;
+/* v24.67: MX-Player-style overlay — the new close/playlist/cast/brightness/lock/subtitle
+   controls that don't map onto an existing button. */
+if($('closeBtn')){$('closeBtn').innerHTML=ICONS.close;$('closeBtn').onclick=e=>{e.stopPropagation();const fsEl=document.fullscreenElement||document.webkitFullscreenElement;if(fsEl)(document.exitFullscreen||document.webkitExitFullscreen).call(document);};}
+if($('playlistBtn')){$('playlistBtn').innerHTML=ICONS.playlist;$('playlistBtn').onclick=e=>{e.stopPropagation();toast('Playlist view is not available for this stream yet');};}
+if($('castBtn')){$('castBtn').innerHTML=ICONS.cast;$('castBtn').onclick=e=>{e.stopPropagation();toast('Casting is not supported yet');};}
+if($('brightIcon'))$('brightIcon').innerHTML=ICONS.sun;
+if($('brightSlider')){
+  const BRIGHT_KEY='m26-brightness';
+  const applyBrightness=val=>{const v=$('video');if(v)v.style.filter=val===100?'':'brightness('+(val/100)+')'};
+  let savedB=parseInt(store.getItem(BRIGHT_KEY)||'100',10);if(!isFinite(savedB))savedB=100;
+  $('brightSlider').value=savedB;applyBrightness(savedB);
+  $('brightSlider').oninput=e=>{const val=+e.target.value;applyBrightness(val);try{store.setItem(BRIGHT_KEY,val)}catch(err){}};
+}
+if($('lockBtn')){
+  $('lockBtn').innerHTML=ICONS.lockOpen;
+  $('lockBtn').onclick=e=>{
+    e.stopPropagation();
+    const pb=$('playerBox');if(!pb)return;
+    const on=pb.classList.toggle('locked');
+    $('lockBtn').innerHTML=on?ICONS.lockClosed:ICONS.lockOpen;
+    toast(on?'Controls locked':'Controls unlocked');
+  };
+}
+if($('subBtn')){
+  $('subBtn').innerHTML=ICONS.comment;
+  $('subBtn').onclick=e=>{
+    e.stopPropagation();
+    const m=$('playerMenu');if(!m)return;
+    if(m.classList.contains('hidden')){m.classList.remove('hidden');if(typeof closeQMenu==='function')closeQMenu();}
+    if(typeof pmSubs==='function')pmSubs();
+    if(typeof syncQsOverlay==='function')syncQsOverlay();
+  };
+}
+let _barTimer=null;/* v51: for Movies/Series keep the bar (and its seek scrubber) visible so it's always there;
    for live TV keep the clean auto-hide after 1.8s. */
 /* v79: consistent auto-hiding controls (like Infuse). Tap the video to reveal them; they fade
    out together after a few seconds of no interaction while playing, and stay up while paused or
@@ -9760,11 +9838,11 @@ if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').cla
 (function(){var v=$('video');if(!v)return;var lastCt=0,lastSeekAt=0;setInterval(function(){try{if(v.paused||v.ended||v.seeking){lastCt=v.currentTime||0;return;}var isLive=S&&S.current&&S.current._type==='live';var ct=v.currentTime||0;var hlsActive=!!S.hls;if(isLive&&!hlsActive&&v.buffered.length>0&&ct<lastCt-3&&(Date.now()-lastSeekAt)>6000){var edge=v.buffered.end(v.buffered.length-1),target=edge-4;if(target>ct+1&&isFinite(target)){v.currentTime=target;lastSeekAt=Date.now();if($('netStatus'))$('netStatus').textContent='Skipped to live';}}lastCt=v.currentTime||0;}catch(e){}},1000);})();
 (function(){
   $('playBtn').innerHTML=ICONS.play;
-  $('backBtn').innerHTML=ICONS.back10;
-  $('forwardBtn').innerHTML=ICONS.fwd10;
+  $('backBtn').innerHTML=ICONS.prevTrack;
+  $('forwardBtn').innerHTML=ICONS.nextTrack;
   $('muteBtn').innerHTML=ICONS.unmuted;
   $('pipBtn').innerHTML=ICONS.pip;
-  if($('settingsBtn'))$('settingsBtn').innerHTML=ICONS.settings;
+  if($('settingsBtn'))$('settingsBtn').innerHTML=ICONS.more;
   if($('downloadBtn'))$('downloadBtn').innerHTML=ICONS.download;
   $('fsBtn').innerHTML=ICONS.fsEnter;
   $('menuBtn').innerHTML=ICONS.back;
@@ -9937,6 +10015,9 @@ function pmRoot(){
   rows.push({icon:ICONS.quality,label:'Quality',val:$('qualityBtn')?$('qualityBtn').textContent:'Auto',chev:true,onClick:()=>{pmClose();toggleQMenu();}});
   rows.push({icon:ICONS.palette,label:'Colour',val:colourLabel(),chev:true,onClick:pmColour});
   rows.push({icon:ICONS.equalizer,label:'Equalizer',val:eqLabel(),chev:true,onClick:pmEqualizer});
+  /* v24.67: the MX skin has no standalone download pill (the reference has no equivalent icon
+     for it) — Download moves in here instead, staying reachable exactly like it was. */
+  if(S.current&&typeOf(S.current)!=='live')rows.push({icon:ICONS.download,label:'Download',onClick:()=>{pmClose();downloadCurrent();}});
   pmRender(rows);
 }
 function pmSpeed(){pmRender([0.5,0.75,1,1.25,1.5,1.75,2].map(r=>({label:(r===1?'Normal':r+'×'),tick:curSpeed()===r,on:curSpeed()===r,onClick:()=>{setSpeed(r);pmRoot();}})),'Playback Speed');}
