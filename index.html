@@ -1967,7 +1967,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.70';
+const APP_VERSION='24.71';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7521,8 +7521,11 @@ const EPG_TTL_MS=3*60*60*1000;
 const EPG_MAX_BYTES=20*1024*1024; /* a guide bigger than this would freeze parsing on a phone */
 function epgApiBase(){
   if(S.source==='stalker'||!S.user||!S.pass)return '';
-  const ch=(S.live&&S.live.length)?S.live[0]:null;
-  if(ch){
+  /* v24.71: don't trust the FIRST channel alone — some catalogues lead with an entry that has no
+     usable direct_source (a placeholder row, a dead link). Check the first handful before
+     falling back to the raw panel URL the user typed in. */
+  const list=(S.live||[]).slice(0,10);
+  for(const ch of list){
     const raw=String(ch.direct_source||ch.stream_url||'').trim();
     const m=raw&&/^(https?:\/\/[^/]+)/i.exec(raw);
     if(m)return m[1];
@@ -7537,13 +7540,17 @@ function parseXmltvTime(s){
   if(off){const sign=off[0]==='-'?1:-1,oh=+off.slice(1,3),om=+off.slice(3,5);return Date.UTC(Y,Mo-1,D,H,Mi,Se)+sign*(oh*60+om)*60000;}
   return new Date(Y,Mo-1,D,H,Mi,Se).getTime();
 }
+/* v24.71: normalise both sides of the tvg-id <-> XMLTV channel-id match the same way — a panel's
+   M3U and its own xmltv.php disagreeing on case or padding whitespace is common, and this app was
+   comparing the raw strings, silently matching nothing. */
+function epgIdKey(s){return String(s||'').trim().toLowerCase()}
 function parseXmltv(text){
   const map=new Map();
   let doc;try{doc=new DOMParser().parseFromString(text,'application/xml');}catch(e){return map}
   if(!doc||doc.getElementsByTagName('parsererror').length)return map;
   const progs=doc.getElementsByTagName('programme');
   for(let i=0;i<progs.length;i++){
-    const p=progs[i],chId=p.getAttribute('channel')||'';
+    const p=progs[i],chId=epgIdKey(p.getAttribute('channel'));
     if(!chId)continue;
     const start=parseXmltvTime(p.getAttribute('start')),stop=parseXmltvTime(p.getAttribute('stop'));
     if(!start||!stop||stop<=start)continue;
@@ -7556,6 +7563,7 @@ function parseXmltv(text){
   for(const arr of map.values())arr.sort((a,b)=>a.start-b.start);
   return map;
 }
+let _epgErrorToasted=false;
 function ensureEpg(){
   if(_epgMap&&Date.now()-_epgFetchedAt<EPG_TTL_MS)return Promise.resolve(_epgMap);
   if(_epgFetchPromise)return _epgFetchPromise;
@@ -7571,8 +7579,18 @@ function ensureEpg(){
       if(len&&len>EPG_MAX_BYTES)throw new Error('guide too large for this device');
       const text=await r.text();
       if(text.length>EPG_MAX_BYTES)throw new Error('guide too large for this device');
-      _epgMap=parseXmltv(text);_epgFetchedAt=Date.now();
-    }catch(e){_epgMap=_epgMap||new Map();}
+      const map=parseXmltv(text);
+      /* v24.71 (owner report: "cannot see the programs"): a fetch that succeeds but matches
+         nothing is silent otherwise — most likely the panel's xmltv.php simply doesn't cover
+         these channels (or uses different tvg-ids than its own M3U), not a bug to keep retrying,
+         but worth ONE console line so it's diagnosable instead of an unexplained blank guide. */
+      if(!map.size)console.warn('[EPG] xmltv.php answered but contained no channels/programmes:',src);
+      _epgMap=map;_epgFetchedAt=Date.now();
+    }catch(e){
+      console.warn('[EPG] guide fetch failed:',src,e&&e.message);
+      _epgMap=_epgMap||new Map();
+      if(!_epgErrorToasted){_epgErrorToasted=true;toast('TV guide unavailable for this line — channels will just show LIVE');}
+    }
     finally{_epgFetchPromise=null;}
     return _epgMap;
   })();
@@ -7580,7 +7598,7 @@ function ensureEpg(){
 }
 function nowNextFor(ch){
   if(!_epgMap||!ch)return null;
-  const id=ch.epg_channel_id;if(!id)return null;
+  const id=epgIdKey(ch.epg_channel_id);if(!id)return null;
   const arr=_epgMap.get(id);if(!arr||!arr.length)return null;
   const now=Date.now();
   for(let i=0;i<arr.length;i++){
@@ -7598,7 +7616,7 @@ async function openEpgSheet(ch){
   renderEpgSheet(ch);
 }
 function renderEpgSheet(ch){
-  const id=ch&&ch.epg_channel_id;
+  const id=epgIdKey(ch&&ch.epg_channel_id);
   const arr=(id&&_epgMap&&_epgMap.get(id))||[];
   if(!arr.length){$('epgList').innerHTML='<div class="epgEmpty">No guide data for this channel yet.</div>';return}
   const now=Date.now();
@@ -7660,17 +7678,33 @@ async function startDownload(x){
     const total=+(res.headers.get('content-length')||0);
     prog.total=total;
     const reader=res.body.getReader();
-    const chunks=[];
+    /* v24.71 (owner report: real movie downloads "just didn't work"): a real 1080p/4K MKV is
+       1-4GB, and this used to hold EVERY chunk read so far in one growing JS array for the whole
+       download, only building the final Blob at the very end — on a phone that is gigabytes of
+       raw bytes resident in the tab's memory at once, which is exactly what gets a mobile
+       browser tab silently killed partway through with no error to catch, matching "nothing
+       happens". Flushing to a Blob every 24MB keeps at most ~24MB of raw chunk data live at any
+       moment — a Blob built FROM other Blobs is just references, not a copy, so accumulating
+       `parts` afterward costs almost nothing regardless of how large the file is. */
+    const FLUSH_BYTES=24*1024*1024;
+    let chunks=[],chunkBytes=0;const parts=[];
+    const flush=()=>{if(!chunks.length)return;parts.push(new Blob(chunks));chunks=[];chunkBytes=0;};
+    let lastUiAt=0;
     for(;;){
       const {done,value}=await reader.read();
       if(done)break;
-      chunks.push(value);
+      chunks.push(value);chunkBytes+=value.byteLength;
       prog.received+=value.byteLength;
       prog.pct=total?Math.min(99,Math.round(prog.received/total*100)):0;
-      updateDlRowProgress(key,prog);
+      if(chunkBytes>=FLUSH_BYTES)flush();
+      const now=Date.now();
+      if(now-lastUiAt>250){updateDlRowProgress(key,prog);lastUiAt=now;} /* throttled — a fast connection reads far more often than any UI needs to repaint */
     }
+    flush();
+    updateDlRowProgress(key,prog);
     const mime=mimeForFile('f.'+ext);
-    const blob=new Blob(chunks,{type:mime});
+    const blob=new Blob(parts,{type:mime});
+    if(!blob.size)throw new Error('downloaded file was empty');
     await dlPut({key,name:nameOf(x),ext,mime,size:blob.size,blob,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now()});
     toast(nameOf(x)+' saved for offline');
   }catch(e){
