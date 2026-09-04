@@ -1980,7 +1980,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.75';
+const APP_VERSION='24.76';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4636,7 +4636,7 @@ $('episodeList').innerHTML=eps.map((ep,i)=>`<div class="episodeBtn" data-ep="${i
 $('episodeSheet').classList.add('show');
 /* remember this series' episodes so the list under the player shows ONLY this series */
 S.episodeView={name:nameOf(x),key:keyOf(x),logo:logoOf(x),eps};renderGrid();
-$('episodeList').onclick=e=>{const xb=e.target.closest('[data-epmode]');if(xb){e.stopPropagation();const ep=eps[Number(xb.dataset.epidx)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,xb.dataset.epmode,true);return}const sv=e.target.closest('[data-dlsaveep]');if(sv){e.stopPropagation();const ep=eps[Number(sv.dataset.dlsaveep)];if(ep)startDownload(ep);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');playItem(eps[Number(b.dataset.ep)])};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
+$('episodeList').onclick=e=>{const xb=e.target.closest('[data-epmode]');if(xb){e.stopPropagation();const ep=eps[Number(xb.dataset.epidx)];$('episodeSheet').classList.remove('show');if(ep)playItemExternal(ep,xb.dataset.epmode,true);return}const sv=e.target.closest('[data-dlsaveep]');if(sv){e.stopPropagation();const ep=eps[Number(sv.dataset.dlsaveep)];if(ep)startDownload(ep);return}const b=e.target.closest('.episodeBtn');if(!b)return;$('episodeSheet').classList.remove('show');const epI=eps[Number(b.dataset.ep)];const epIKey=epI&&keyOf(epI);if(epIKey&&S.dlKeys&&S.dlKeys.has(epIKey))playDownloadedByKey(epIKey);else playItem(epI)};}catch(e){toast(e.message||'Episodes could not load')}finally{load(false)}}
 /* v3.5: Movie/Series details popup — opens when the poster is tapped. Shows whatever metadata
    (director, cast, release date, rating, genre, plot) the M3U/Stalker entry itself carries over a
    blurred poster backdrop — most playlists carry only a name and a logo, so most of this stays
@@ -10287,8 +10287,8 @@ $('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_se
   const dls=e.target.closest('[data-dlsave]');if(dls){e.stopPropagation();const x=findByKey(dls.dataset.dlsave);if(x)startDownload(x);return}
   const dlse=e.target.closest('[data-dlsaveep]');if(dlse){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps&&S.episodeView.eps[Number(dlse.dataset.dlsaveep)];if(ep)startDownload(ep);return}
   const xe=e.target.closest('[data-epmode]');if(xe){e.stopPropagation();const ep=S.episodeView&&S.episodeView.eps[Number(xe.dataset.epidx)];if(ep)playItemExternal(ep,xe.dataset.epmode,true);return}
-  const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep)playItem(ep);return}
-  const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x)routePlayback(x,pl.dataset.play,false);return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}playItem(x)}};
+  const ec=e.target.closest('[data-ep]');if(ec){const ep=S.episodeView&&S.episodeView.eps[Number(ec.dataset.ep)];if(ep){const epKey=keyOf(ep);if(S.dlKeys&&S.dlKeys.has(epKey)){playDownloadedByKey(epKey);return}playItem(ep)}return}
+  const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x){if(pl.dataset.play==='basic'&&S.dlKeys&&S.dlKeys.has(pl.dataset.key)){playDownloadedByKey(pl.dataset.key);return}routePlayback(x,pl.dataset.play,false);}return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}/* v24.76 (owner report: tapping a downloaded title still tried the network and the customer saw it as "getting logged out" instead of playing): a title already saved offline plays straight from that local copy — no connection, no panel, nothing that can fail that way. */if(S.dlKeys&&S.dlKeys.has(c.dataset.key)){playDownloadedByKey(c.dataset.key);return}playItem(x)}};
 if($('sortToggle'))$('sortToggle').onclick=()=>toggleSortMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
