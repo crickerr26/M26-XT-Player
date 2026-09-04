@@ -456,7 +456,8 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .qp:active{transform:scale(.9)}
 .qpico{width:20px;height:20px;display:block;filter:drop-shadow(0 1px 1px rgba(0,0,0,.35))}
 .qp-here{background:linear-gradient(135deg,#12d0e6,#0ea5b7)}
-.qp-vlc{background:linear-gradient(135deg,#f97316,#ea580c)}.qp-km{background:linear-gradient(135deg,#8b5cf6,#5b6cf0)}
+.qp-vlc{background:linear-gradient(135deg,#f97316,#ea580c)}
+.qp-guide{background:linear-gradient(135deg,#8b7bff,#6d5dfc)}.qp-km{background:linear-gradient(135deg,#8b5cf6,#5b6cf0)}
 .qp-infuse{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
 .qp-nplayer{background:linear-gradient(135deg,#14b8a6,#0f766e)}
 .qp-mkv{background:linear-gradient(135deg,#e11d48,#9f1239)}
@@ -1967,7 +1968,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.71';
+const APP_VERSION='24.72';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4539,8 +4540,15 @@ function rowExternals(){return playersFor().filter(m=>PLAYERS[m].kind==='externa
    v10.8 (owner request): show BOTH VLC and KMPlayer logos on every row (Live / Movies), and on each
    series EPISODE. A series row itself opens its episode list, so its per-stream buttons live on the
    episodes, not the series card. */
+/* v24.72 (owner report: "cannot see the programs to see the guide sheet" — the "Now: …" text only
+   ever appears once EPG data has actually matched that channel, so a line with no match, or one
+   still loading, had NO way to open the guide at all). Every live row gets its own Guide button,
+   always present, ahead of Play — same idea as the qpico row buttons already do it, just a fourth
+   one. openEpgSheet() itself already handles "no data for this channel yet" gracefully. */
+const GUIDE_ICON='<svg class="qpico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M8 3l4 3 4-3"/></svg>';
 function rowPlayerButtons(key,type){
   if(type==='series')return'';
+  const guideBtn=type==='live'?'<button class="qp qp-guide" type="button" data-epg="'+key+'" title="TV Guide" aria-label="TV Guide">'+GUIDE_ICON+'</button>':'';
   /* v13.3: every row leads with PLAY HERE — the in-app player. Until now the only buttons on a
      row were VLC and KMPlayer, so the quickest tap always left the app; the built-in player was
      reachable only by tapping the title text, which is not discoverable. The external players
@@ -4548,7 +4556,7 @@ function rowPlayerButtons(key,type){
   /* v18.9: built from the registry. A player whose `platforms` excludes this device is no longer
      drawn at all — which is what removes the KMPlayer button from a computer, where it had no
      launch URL and silently opened VLC instead. */
-  return playerBtn('basic','data-play="basic" data-key="'+key+'"')+
+  return guideBtn+playerBtn('basic','data-play="basic" data-key="'+key+'"')+
          rowExternals().map(m=>playerBtn(m,'data-play="'+m+'" data-key="'+key+'"')).join('');
 }
 /* v19.3.2: keyOf() is "type:id", so which array to search is already encoded in the key — no
