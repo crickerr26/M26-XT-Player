@@ -1980,7 +1980,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.76';
+const APP_VERSION='24.77';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7826,10 +7826,37 @@ function playDownloadedBlob(rec){
   const url=URL.createObjectURL(rec.blob);
   S.current={name:rec.name,_type:rec.type||'vod',_offline:true,container_extension:rec.ext};
   S.awaitingTap=false;
-  try{$('overlay').style.display='none'}catch(e){}
+  /* v24.77 (owner report: "downloading but never playing" — the player sat on stale text from
+     an earlier NETWORK attempt, e.g. "Loading video / Direct (default port) — 6s", even though
+     this playback is 100% local and never touches the network at all): hiding the overlay
+     container is not enough if something later re-shows it — blank out its own text too, so
+     nothing stale can ever be visible again, and reset it to a real, offline-specific message. */
+  const showOfflineOverlay=(title,text)=>{
+    try{
+      const ov=$('overlay');if(!ov)return;
+      ov.style.display=title?'grid':'none';
+      if($('stateProgress'))$('stateProgress').classList.add('hidden');
+      if($('stateTitle'))$('stateTitle').textContent=title||'';
+      if($('stateText'))$('stateText').textContent=text||'';
+      if($('miniMeta'))$('miniMeta').textContent='';
+    }catch(e){}
+  };
+  showOfflineOverlay('','');
   if($('ovTitle'))$('ovTitle').textContent=nameOf(S.current);
   if(typeof updateLiveControls==='function')updateLiveControls();
-  if(mkvLike(rec.ext)&&window.Media26Mkv&&Media26Mkv.supported()){
+  const isMkv=mkvLike(rec.ext);
+  const mkvReady=isMkv&&window.Media26Mkv&&Media26Mkv.supported();
+  if(isMkv&&!mkvReady){
+    /* This device has no MediaSource/ManagedMediaSource at all — a raw MKV container CANNOT
+       play through a plain <video src>, on any browser. Falling through to that anyway used to
+       fail with total silence: black screen, 0:00, no error, nothing — say so instead. Still
+       close the Downloads sheet so this message is actually visible, not hidden behind it. */
+    showOfflineOverlay('Can’t play this file on this device','This device can’t decode MKV in the app. Use "Download" from the ⋯ menu instead to save it to Files and open it in another video player.');
+    toast('This device can’t play MKV in-app');
+    $('downloadsSheet').classList.remove('show');
+    return;
+  }
+  if(mkvReady){
     try{v.disableRemotePlayback=true;v.setAttribute('disableremoteplayback','')}catch(e){}
     /* v24.75 (owner report: tapping a downloaded MKV opens the player but never plays — stuck at
        0:00/0:00): Media26Mkv.play() only ATTACHES the MediaSource and starts appending buffers,
@@ -7837,7 +7864,11 @@ function playDownloadedBlob(rec){
        own route-monitoring loop, which this standalone offline-playback path never goes through.
        Its promise resolves once the first fragment has actually been appended (see mkv.js
        rx.onFragment), which is the right moment to ask the element to start. */
-    Media26Mkv.play(v,url,{}).then(()=>{v.play().catch(()=>{S.awaitingTap=true})}).catch(()=>toast('This downloaded file could not be played in-app'));
+    Media26Mkv.play(v,url,{}).then(()=>{v.play().catch(()=>{S.awaitingTap=true})}).catch(e=>{
+      const why=(e&&e.message)?String(e.message):'unsupported file';
+      showOfflineOverlay('Could not play this download',why);
+      toast('Could not play this download: '+why);
+    });
   }else{
     try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
     v.src=url;
