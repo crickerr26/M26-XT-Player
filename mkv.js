@@ -271,7 +271,15 @@
     const traf = box('traf', tfhd, tfdt, trun);
     const moof = box('moof', box('mfhd', u32(0), u32(seq)), traf);
     const mdat = box('mdat', ...samples.map(s => s.data));
-    return cat([moof, mdat]);
+    /* v24.92: `base` and `clock` (this fragment's real decode-time span, already computed above
+       for the tfdt/trun boxes) are the ONLY fully-accurate per-fragment timestamps anywhere in this
+       remuxer — every external consumer of onFragment previously had no way to see them and fell
+       back to the Remuxer's own `clusterTime` (the CURRENT Cluster's raw start tick, not even this
+       specific fragment's own time, and not adjusted for the open-GOP overlap correction above).
+       Returning them alongside the bytes costs nothing for the one existing caller (live playback,
+       which still only reads frag/track and ignores the rest) and gives a precise, page-owned
+       fast-seek index a real timeline to build on instead of guessing from clusterTime. */
+    return { bytes: cat([moof, mdat]), startMs: base, endMs: clock };
   }
 
   /* ── codec identification ─────────────────────────────────────────────────────────────────── */
@@ -733,7 +741,10 @@
        otherwise mark the video track as "already started" before it had emitted anything at all,
        which is precisely what stopped the early first video fragment below from ever firing. */
     track._firstOut = true;
-    if (this.onFragment) this.onFragment(fragment(track, out, this.seq++, nextDts, this.ctsShift || 0), track);
+    if (this.onFragment) {
+      const built = fragment(track, out, this.seq++, nextDts, this.ctsShift || 0);
+      this.onFragment(built.bytes, track, built.startMs, built.endMs);
+    }
   };
 
   MkvRemuxer.prototype.flushAll = function () {
@@ -752,6 +763,38 @@
 
   function supported() {
     return !!(global.ManagedMediaSource || global.MediaSource);
+  }
+
+  /* v24.93 (owner report: "Could not play this download: Failed to fetch" on a movie that had
+     downloaded and saved fine): playMkv() below was written for ONE source — a network URL — and
+     an offline download was being handed to it as a blob: URL, source unread. fetch() on a blob:
+     URL works by having the browser go read the underlying Blob back out of its own storage; if
+     that read fails for ANY reason (this file's own dlOpenDb() note on why a large Blob's storage
+     read can fail under low disk headroom applies here just as much as it does to the fast-seek
+     preprocessing pass), fetch() surfaces it as a bare, generic "Failed to fetch" — no code, no
+     reason, and no fallback exists for it because until now nothing NEEDED one: the live-playback
+     path this function was designed for has no such failure mode at all.
+     There is no reason offline playback should ever go through fetch() in the first place — the
+     bytes are already sitting in this tab's memory as a Blob object, not on some server. Reading
+     them directly (blob.stream(), the exact same primitive mkvPreprocessToSeekable already uses)
+     removes an entire unnecessary layer of indirection AND its failure mode at once, for every
+     offline title, not just ones missing the fast-seek index. */
+  function blobByteReader(blob) {
+    if (typeof blob.stream === 'function') return blob.stream().getReader();
+    /* Safari <14.1 has no Blob.stream() — read it in fixed slices instead, same interface. */
+    const CHUNK = 4 * 1024 * 1024;
+    let off = 0;
+    return {
+      read: function () {
+        if (off >= blob.size) return Promise.resolve({ done: true, value: undefined });
+        const end = Math.min(off + CHUNK, blob.size);
+        return blob.slice(off, end).arrayBuffer().then(function (buf) {
+          off = end;
+          return { done: false, value: new Uint8Array(buf) };
+        });
+      },
+      cancel: function () { off = blob.size; }
+    };
   }
 
   function playMkv(video, url, opts) {
@@ -902,10 +945,24 @@
       ms.addEventListener('sourceopen', async function () {
         try {
           controller = new AbortController();
-          const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
-          if (!res.ok) return fail(new Error('Source returned HTTP ' + res.status));
-          if (!res.body) return fail(new Error('This browser cannot stream the source'));
-          const reader = res.body.getReader();
+          let reader;
+          /* v24.94: a caller can also hand this a plain object exposing {read()} directly — e.g.
+             the offline player's dlSegmentedReader, which reads a download's stored segments back
+             in order without ever assembling them into one Blob (that assembly is itself the thing
+             a large download's "damaged" playback traced back to — see its own file for the story).
+             Used exactly as given, with no wrapping, since it already matches this shape. */
+          const isReaderSource = url && typeof url.read === 'function';
+          const isBlobSource = (typeof Blob !== 'undefined' && url instanceof Blob);
+          if (isReaderSource) {
+            reader = url;
+          } else if (isBlobSource) {
+            reader = blobByteReader(url);
+          } else {
+            const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
+            if (!res.ok) return fail(new Error('Source returned HTTP ' + res.status));
+            if (!res.body) return fail(new Error('This browser cannot stream the source'));
+            reader = res.body.getReader();
+          }
           /* Backpressure. Without it the reader pulls the whole file as fast as the network allows
              and every fragment piles into the SourceBuffer — which on a 4K title means gigabytes
              of memory and constant quota errors. Once ~30s is buffered ahead of the playhead we

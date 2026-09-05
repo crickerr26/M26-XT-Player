@@ -373,6 +373,14 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .mxSideSlider{position:absolute;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;align-items:center;gap:12px;pointer-events:auto;height:180px;justify-content:center;z-index:3}
 .mxSideSlider.mxBrightness{left:14px}
 .mxSideSlider.mxVolume{right:14px}
+/* v24.92 (owner request: these two dials floating over the picture "disturbed the visual"): the
+   brightness dial has no other control anywhere in the app, so it's hidden outright. The volume
+   dial's drag slider is hidden too, but its icon (#muteBtn) stays — that's the ONLY mute/unmute
+   control in the whole app (see its click handlers elsewhere), so removing it along with the
+   slider would have silently taken away the ability to mute, which wasn't asked for. */
+.mxSideSlider.mxBrightness{display:none}
+.mxSideSlider.mxVolume{height:auto;gap:0}
+.mxSideSlider.mxVolume .mxVSlider{display:none}
 .mxSliderIcon{background:none;color:#fff;width:22px;height:22px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
 .mxSliderIcon svg{width:20px;height:20px;display:block}
 .mxVSlider{-webkit-appearance:none;appearance:none;width:130px;height:4px;border-radius:4px;background:rgba(255,255,255,.32);outline:none;cursor:pointer;transform:rotate(-90deg)}
@@ -1989,7 +1997,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.90';
+const APP_VERSION='24.94';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7695,28 +7703,29 @@ if($('epgSheet'))$('epgSheet').onclick=e=>{if(e.target.id==='epgSheet')$('epgShe
    using the exact same teardown (cleanup()) and Matroska engine (Media26Mkv) live playback uses
    — a downloaded file is just another local source handed to the <video> element. */
 const DL_DB_NAME='media26-downloads',DL_STORE='files';
-/* v24.90 (owner report: a big download "struggles"/slows down consistently around the same
-   ~20% mark, across different movies, surviving five rounds of retry/resume/stall-detection —
-   none of which could explain a PROGRESSIVE symptom, since they only react to discrete failures).
-   The real gap: flush() below only ever kept the RAW chunk data small (24MB at a time) — the
-   Blob it produces was never actually written anywhere until the very end. Every one of those
-   flushed Blobs stayed referenced in the `parts` array for the ENTIRE download, so by the time a
-   2-4GB movie finished, the WHOLE FILE was still resident in this tab's own memory, all along —
-   the 24MB flush only ever capped the RAW-chunk overhead, not the total footprint. A consistent
-   pain point at a similar fraction of a similarly-sized file, on a phone, is exactly the shape of
-   "the OS starts reclaiming memory from a background/heavy tab," and once that starts, reads
-   stall and slow down — which is also why v24.88's stall-detection kept having something to catch
-   here in the first place; the stall wasn't a cause on its own, this was.
-   DL_TEMP_STORE holds the accumulated file WHILE IT'S STILL DOWNLOADING, written in ~150MB
-   increments and immediately dropped from the `parts` array afterward — so active JS memory for a
-   download is bounded by COMMIT_BYTES, not by the file's total size, regardless of whether it's
-   200MB or 4GB. IndexedDB is disk-backed; handing bytes to it and dropping the JS reference lets
-   them leave the tab's live memory instead of sitting in a JS array for minutes. Kept as a
-   SEPARATE store from DL_STORE (not just an early write into the real record) so an in-progress
-   download can never be mistaken for a finished one by dlAll()/the Downloads list, which only
-   ever reads DL_STORE. */
-const DL_TEMP_STORE='dlChunks';
-const DL_DB_VERSION=2;
+/* v24.94 (owner report: a finished, correctly-sized download plays for a while then says "this
+   download is damaged" — confirmed with pure synthetic data that never touched the network: a
+   Blob composed from many OTHER already-built Blobs (exactly what v24.71/90 below built — flush
+   raw chunks into ~24MB Blobs, then wrap ALL of those into one final `new Blob(parts)`) reads
+   back from IndexedDB as unreadable — "NotReadableError"/"network error", the browser's own
+   wording for a storage-backed Blob reference that has gone bad — once the file is large enough
+   to need more than a handful of those inner Blobs. v24.90 made this WORSE, not better: chaining
+   dlPutTemp→dlGetTemp→re-wrap→dlPutTemp every 150MB is the SAME composition, repeated, so a big
+   movie's stored Blob ends up built from dozens of Blob-of-Blob layers by the time it's done —
+   more opportunities for the one already-fragile operation to land badly, not fewer.
+   The actual fix is to never let a downloaded file exist as ONE Blob object at all, at any point,
+   for any reason. DL_SEG_STORE holds it as many independent ~32MB segments instead — each one a
+   single, flat Blob built directly from raw chunks (never from other Blobs), the exact shape that
+   has never failed in any amount of testing here. DL_STORE now holds a small metadata record per
+   download (name/ext/size/segment count — no `blob` field for anything saved this way) instead of
+   the file itself; dlSegmentedReader() below reads the segments back in order for playback without
+   EVER assembling them into one object, so there is no point at which the fragile composition this
+   bug depends on can occur again. Old records saved before this version still carry a real `.blob`
+   — every reader in this file checks for that first and keeps working exactly as before; only NEW
+   downloads get the segmented, reliable path. */
+const DL_SEG_STORE='dlSegs';
+const DL_SEG_BYTES=32*1024*1024;
+const DL_DB_VERSION=3;
 let _dlDb=null;
 S.dlProgress=S.dlProgress||{}; /* key -> {pct,received,total,name,poster,cancel} while in flight */
 function dlOpenDb(){
@@ -7726,7 +7735,12 @@ function dlOpenDb(){
     req.onupgradeneeded=()=>{
       const db=req.result;
       if(!db.objectStoreNames.contains(DL_STORE))db.createObjectStore(DL_STORE,{keyPath:'key'});
-      if(!db.objectStoreNames.contains(DL_TEMP_STORE))db.createObjectStore(DL_TEMP_STORE,{keyPath:'key'});
+      if(!db.objectStoreNames.contains(DL_SEG_STORE)){
+        db.createObjectStore(DL_SEG_STORE,{keyPath:'id'}).createIndex('byKey','key');
+      }
+      /* v1's 'dlChunks' temp store (v24.90) is left in place if it already exists on this device —
+         dropping an object store mid-upgrade is riskier than just never touching it again. Nothing
+         in this file reads or writes it any more. */
     };
     req.onsuccess=()=>{_dlDb=req.result;resolve(_dlDb)};
     req.onerror=()=>reject(req.error);
@@ -7735,10 +7749,65 @@ function dlOpenDb(){
 async function dlAll(){try{const db=await dlOpenDb();return await new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readonly'),rq=tx.objectStore(DL_STORE).getAll();rq.onsuccess=()=>res(rq.result||[]);rq.onerror=()=>rej(rq.error)})}catch(e){return []}}
 async function dlGet(key){try{const db=await dlOpenDb();return await new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readonly'),rq=tx.objectStore(DL_STORE).get(key);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error)})}catch(e){return null}}
 async function dlPut(rec){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
-async function dlDelete(key){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
-async function dlGetTemp(key){try{const db=await dlOpenDb();return await new Promise((res,rej)=>{const tx=db.transaction(DL_TEMP_STORE,'readonly'),rq=tx.objectStore(DL_TEMP_STORE).get(key);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error)})}catch(e){return null}}
-async function dlPutTemp(rec){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_TEMP_STORE,'readwrite');tx.objectStore(DL_TEMP_STORE).put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
-async function dlDeleteTemp(key){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_TEMP_STORE,'readwrite');tx.objectStore(DL_TEMP_STORE).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function dlDelete(key){
+  const db=await dlOpenDb();
+  await new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)});
+  await dlDeleteSegments(key).catch(()=>{});
+}
+async function dlPutSegment(key,index,blob){
+  const db=await dlOpenDb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DL_SEG_STORE,'readwrite');
+    tx.objectStore(DL_SEG_STORE).put({id:key+'::'+index,key,index,blob});
+    tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);
+  });
+}
+async function dlGetSegment(key,index){
+  const db=await dlOpenDb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DL_SEG_STORE,'readonly');
+    const rq=tx.objectStore(DL_SEG_STORE).get(key+'::'+index);
+    rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error);
+  });
+}
+async function dlDeleteSegments(key){
+  const db=await dlOpenDb();
+  return new Promise((res,rej)=>{
+    const tx=db.transaction(DL_SEG_STORE,'readwrite');
+    const store=tx.objectStore(DL_SEG_STORE);
+    const rq=store.index('byKey').openKeyCursor(IDBKeyRange.only(key));
+    rq.onsuccess=()=>{const cur=rq.result;if(cur){store.delete(cur.primaryKey);cur.continue();}};
+    tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error);
+  });
+}
+/* Reads a segmented download's bytes back in original order WITHOUT ever assembling them into one
+   Blob (see the v24.94 note above dlOpenDb for why that assembly is exactly what becomes
+   unreadable) — same {read()->Promise<{done,value}>} shape a real ReadableStreamDefaultReader has,
+   so every existing consumer (mkv.js's playback loop, mkvPreprocessToSeekable below) takes it
+   exactly like Blob.stream().getReader() already worked, with zero changes on their end. */
+function dlSegmentedReader(key,numSegments){
+  let i=0;
+  return {
+    read:async function(){
+      if(i>=numSegments)return {done:true,value:undefined};
+      const seg=await dlGetSegment(key,i);
+      i++;
+      if(!seg||!seg.blob)return {done:true,value:undefined}; /* a missing segment ends the stream early — mkv.js's own length/format checks surface that as a real error rather than silently truncating */
+      const buf=await seg.blob.arrayBuffer();
+      return {done:false,value:new Uint8Array(buf)};
+    },
+    cancel:function(){i=numSegments;}
+  };
+}
+/* Only for the rarer whole-file handoffs (VLC share, "Download to device") that genuinely need one
+   real File/Blob object — reconstructs it from segments on demand, right before that one use, so
+   nothing else ever pays for or risks holding a combined copy. */
+async function dlAssembleBlob(rec){
+  if(rec.blob)return rec.blob; /* legacy record saved before v24.94 */
+  const segs=[];
+  for(let i=0;i<rec.numSegments;i++){const seg=await dlGetSegment(rec.key,i);if(seg&&seg.blob)segs.push(seg.blob);}
+  return new Blob(segs,{type:rec.mime||''});
+}
 async function updateDownloadsBadge(){
   const saved=await dlAll();
   S.dlKeys=new Set(saved.map(r=>r.key));
@@ -7762,7 +7831,24 @@ async function updateDownloadsBadge(){
    this (not replaced), so if pre-processing fails for any reason — an unsupported codec, a
    browser missing a piece it needs — playback silently keeps using the exact same in-app
    Matroska engine call that already works today. */
-async function mkvPreprocessToSeekable(blob){
+/* Turns either a Blob or an already-reader-like source (dlSegmentedReader's output — anything
+   exposing {read()}) into the same {read()->Promise<{done,value}>} shape, so callers never need to
+   care which kind of download they were handed. */
+function readerFrom(source){
+  if(source&&typeof source.read==='function')return source; /* already reader-like */
+  if(typeof source.stream==='function')return source.stream().getReader();
+  /* Safari <14.1 has no Blob.stream() — read it in fixed slices instead, same interface. */
+  const CHUNK=4*1024*1024;let off=0;
+  return {
+    read:()=>{
+      if(off>=source.size)return Promise.resolve({done:true,value:undefined});
+      const end=Math.min(off+CHUNK,source.size);
+      return source.slice(off,end).arrayBuffer().then(buf=>{off=end;return {done:false,value:new Uint8Array(buf)}});
+    },
+    cancel:()=>{off=source.size;}
+  };
+}
+async function mkvPreprocessToSeekable(source){
   const Mkv=window.Media26Mkv;
   if(!Mkv||!Mkv.Remuxer||!Mkv._internals||!Mkv._internals.initSegment)throw new Error('Matroska engine not available');
   const MS=window.ManagedMediaSource||window.MediaSource;
@@ -7783,29 +7869,31 @@ async function mkvPreprocessToSeekable(blob){
       }
     }catch(e){failMsg=(e&&e.message)||'init failed'}
   };
-  rx.onFragment=(frag,track)=>{
+  rx.onFragment=(frag,track,startMs,endMs)=>{
     const rec=perTrack.get(track.id);
-    const t=rx.clusterTime||0;
+    /* v24.92 (owner reports: seek bar total reads short on a 2+ hour movie; a forward seek can
+       leave playback paused instead of resuming): this used to index every fragment by
+       `rx.clusterTime` — the CURRENT Cluster's raw start tick, not this fragment's own time. A
+       cluster commonly spans several seconds to tens of seconds of the file, so EVERY fragment
+       produced from the same cluster shared one identical, rounded-down `t` — coarse at best, and
+       silently wrong whenever a track's fragment boundaries don't line up with cluster boundaries
+       (audio and video never do). mkv.js's fragment() already computes this fragment's own exact
+       decode-time span (startMs/endMs, both real milliseconds, driven off the actual per-sample
+       timestamps that built its tfdt/trun boxes) — see its own note. Using that instead makes the
+       seek binary search land on the fragment that actually covers the target time, and makes
+       `maxT` below track the file's real last decoded moment instead of the last cluster's rounded
+       start — which is exactly the gap that made a real movie's total read shorter than it is. */
+    const t=(typeof startMs==='number')?startMs:(rx.clusterTime||0);
     if(rec)rec.frags.push({t,blob:new Blob([frag])});
-    if(t>maxT)maxT=t; /* real evidence of how far the file actually goes — see durationMs note below */
+    const end=(typeof endMs==='number')?endMs:t;
+    if(end>maxT)maxT=end; /* real evidence of how far the file actually goes — see durationMs note below */
   };
-  const CHUNK=4*1024*1024;
-  if(typeof blob.stream==='function'){
-    const reader=blob.stream().getReader();
-    for(;;){
-      const {done,value}=await reader.read();
-      if(done)break;
-      rx.append(value instanceof Uint8Array?value:new Uint8Array(value));
-      if(rx._notMatroska||failMsg){failMsg=failMsg||rx._notMatroska;break}
-    }
-  }else{
-    /* Safari <14.1 has no Blob.stream() — read it in fixed slices instead. Universally supported,
-       and reading one 4MB slice at a time keeps this from ever holding the whole file twice over. */
-    for(let off=0;off<blob.size;off+=CHUNK){
-      const buf=await blob.slice(off,off+CHUNK).arrayBuffer();
-      rx.append(new Uint8Array(buf));
-      if(rx._notMatroska||failMsg){failMsg=failMsg||rx._notMatroska;break}
-    }
+  const reader=readerFrom(source);
+  for(;;){
+    const {done,value}=await reader.read();
+    if(done)break;
+    rx.append(value instanceof Uint8Array?value:new Uint8Array(value));
+    if(rx._notMatroska||failMsg){failMsg=failMsg||rx._notMatroska;break}
   }
   if(!failMsg)rx.flushAll();
   if(failMsg)throw new Error(failMsg);
@@ -7876,12 +7964,29 @@ function playSeekableMkv(video,rec,opts){
        being read, or while its appendBuffer() is still in flight, and without this check that
        stale operation's eventual updateend would blindly do cur.idx++ on whatever the CURRENT
        (post-seek) value is, silently skipping the fragment the seek just jumped to. */
+    /* v24.92 (owner reports: forward-seeking a downloaded movie leaves it "pausing without
+       playing", and the total time shown drifts upward while just watching): every fragment is a
+       LOCAL blob, so `updateend` fires almost immediately after each `appendBuffer` — with no cap
+       here, a seek to any point used to make pumpNext race through EVERY remaining fragment to the
+       end of the file, back-to-back, as fast as the event loop would allow. That's two bugs from
+       one cause: (1) MediaSource auto-extends `duration` to match whatever's been appended, so a
+       multi-hundred-fragment append storm right after a seek is exactly what made the on-screen
+       total keep climbing well past the real runtime instead of staying fixed at what sourceopen
+       set it to; (2) chaining hundreds of arrayBuffer()+appendBuffer() calls back-to-back on the
+       main thread starves the very playback tick the <video> element needs to actually start
+       showing frames, which is what a customer sees as "seeked, then just sits there paused".
+       Capping how far ahead of the current playhead this is allowed to buffer — resuming via
+       'timeupdate' as playback consumes it, exactly like a normal streaming buffer — fixes both:
+       appends pace themselves against real playback instead of racing to the end, so duration
+       never needs to auto-extend past the correct value, and the main thread gets to breathe. */
+    const BUFFER_AHEAD_MS=45000;
     const pumpNext=trackId=>{
       if(done)return;
       const sb=sourceBuffers.get(trackId),cur=cursors.get(trackId);
       if(!sb||!cur||sb.updating||cur.idx>=cur.frags.length)return;
       const myIdx=cur.idx;
       const frag=cur.frags[myIdx];
+      if(myIdx>0&&frag.t-((video.currentTime||0)*1000)>BUFFER_AHEAD_MS)return; /* buffered far enough ahead — 'timeupdate' below resumes this once playback catches up */
       frag.blob.arrayBuffer().then(buf=>{
         if(done||sb.updating||cur.idx!==myIdx)return; /* superseded by a seek while reading */
         try{sb.appendBuffer(new Uint8Array(buf));sb.__pendingIdx=myIdx;}
@@ -7936,10 +8041,16 @@ function playSeekableMkv(video,rec,opts){
       armStallWatchdog();
     };
     video.addEventListener('seeking',onSeeking);
+    /* Resumes pumpNext as real playback advances and the BUFFER_AHEAD_MS margin above shrinks —
+       without this, once capped, a track would never be topped up again and playback would starve
+       the moment it drained the one capped buffer-ahead window. */
+    const onTimeUpdate=()=>{for(const id of sourceBuffers.keys())pumpNext(id);};
+    video.addEventListener('timeupdate',onTimeUpdate);
     video.__mkvStop=function(){
       done=true;
       clearStallTimer();
       video.removeEventListener('seeking',onSeeking);
+      video.removeEventListener('timeupdate',onTimeUpdate);
       try{if(video.srcObject)video.srcObject=null;}catch(e){}
     };
   });
@@ -7979,6 +8090,79 @@ function readWithTimeout(reader,timeoutMs){
   const stall=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('stalled — no data for '+Math.round(timeoutMs/1000)+'s')),timeoutMs);});
   return Promise.race([reader.read(),stall]).finally(()=>clearTimeout(timer));
 }
+/* v24.91 (owner report: forward-seeking a downloaded movie is STILL slow after v24.78/84):
+   mkvPreprocessToSeekable() below has to read the WHOLE finished file back out of IndexedDB — for
+   a 3-4GB movie that's real, sustained disk I/O happening right after the download itself just
+   finished WRITING that same amount of data. On a device that's short on free storage (a nearly-
+   full phone is the common case, not the exception), that re-read fails outright: Chromium's blob
+   layer throws a generic "network error"/NotReadableError with no distinguishing detail —
+   reproduced here with pure synthetic data (no network, no real file involved at all) purely by
+   letting free disk headroom run low. Before this fix that failure was invisible: a console.warn
+   nobody sees, `seekable` left false forever, and playback silently falls back to the slow
+   sequential path — which IS "seeking is slow", just with no clue why and no way to recover.
+   This guards the attempt with a headroom check (skip cleanly instead of trying and failing when
+   there obviously isn't room), tells the customer plainly when it can't happen yet, and — since
+   more space is often available again later (a cache clear, another app closed) — retries once
+   each time the Downloads screen is opened instead of only ever trying once, at the worst possible
+   moment: right after the download that just used up the space. */
+const SEEK_PREPROCESS_HEADROOM_MULT=1.5;
+async function storageHeadroomBytes(){
+  try{
+    if(!navigator.storage||!navigator.storage.estimate)return Infinity; /* API missing — fail open, exactly today's behavior */
+    const est=await navigator.storage.estimate();
+    if(typeof est.quota!=='number'||typeof est.usage!=='number')return Infinity;
+    return est.quota-est.usage;
+  }catch(e){return Infinity}
+}
+S.dlSeekAttempting=S.dlSeekAttempting||new Set(); /* keys with an attempt IN FLIGHT right now — guards against a retry racing the download-completion attempt, or two retries overlapping */
+/* Returns 'ok' | 'low-storage' | 'failed' | 'gone'. Only 'low-storage' is worth retrying later —
+   a real processing failure (unsupported codec, no MediaSource, a corrupt file) will not get
+   better with more free space, so that's persisted on the record itself (seekableUnsupported) so
+   NEITHER this session NOR a later one ever burns a full multi-GB re-demux on it again. */
+async function tryMakeSeekable(key,opts){
+  opts=opts||{};
+  const rec=await dlGet(key);
+  if(!rec||!rec.size)return 'gone';
+  const headroom=await storageHeadroomBytes();
+  if(headroom<rec.size*SEEK_PREPROCESS_HEADROOM_MULT){
+    console.warn('[Downloads] fast-seek preprocessing skipped: low storage headroom ('+humanSize(headroom)+' free, need ~'+humanSize(rec.size*SEEK_PREPROCESS_HEADROOM_MULT)+')');
+    if(opts.announce)toast('Saved, but couldn\'t enable fast seeking yet (low storage) — will try again next time you open Downloads');
+    return 'low-storage';
+  }
+  try{
+    /* v24.94: rec.blob only exists on a download saved before this version — everything new is
+       segmented (see dlOpenDb's own note), and reading it back for preprocessing never assembles
+       those segments into one Blob, for the same reason playback itself doesn't. */
+    const source=rec.blob?rec.blob:dlSegmentedReader(rec.key,rec.numSegments);
+    const seek=await mkvPreprocessToSeekable(source);
+    const cur=await dlGet(key);if(!cur)return 'gone'; /* removed before this finished */
+    cur.seekable=true;cur.durationMs=seek.durationMs;cur.tracks=seek.tracks;
+    await dlPut(cur);
+    return 'ok';
+  }catch(e){
+    console.warn('[Downloads] fast-seek preprocessing skipped:',(e&&e.message)||e);
+    if(opts.announce)toast('Saved, but fast seeking couldn\'t be enabled on this device — seeking will replay from the start');
+    try{const cur=await dlGet(key);if(cur){cur.seekableUnsupported=true;await dlPut(cur);}}catch(e2){}
+    return 'failed';
+  }
+}
+/* Gives a fast-seek attempt that skipped for low storage another shot each time the customer
+   opens Downloads — free space earlier in the session is often gone again later, or vice versa,
+   and this is a far better moment to retry than only right after the download finished, when free
+   space was at its tightest. Silent on failure/skip here (already announced once at download
+   time, see tryMakeSeekable's opts.announce) — this only needs to succeed quietly, never nag. */
+async function retryUnseekableDownloads(){
+  let saved;
+  try{saved=await dlAll();}catch(e){return}
+  for(const rec of saved){
+    if(rec.seekable||rec.seekableUnsupported)continue;
+    if(!mkvLike(rec.ext))continue;
+    if(S.dlProgress[rec.key])continue; /* still downloading — leave it to the completion path */
+    if(S.dlSeekAttempting.has(rec.key))continue;
+    S.dlSeekAttempting.add(rec.key);
+    tryMakeSeekable(rec.key).then(res=>{if(res==='ok'&&S.viewingDownloads)renderDownloadsSheet();}).finally(()=>S.dlSeekAttempting.delete(rec.key));
+  }
+}
 async function startDownload(x){
   if(!x){toast('Open a movie or series first');return}
   if(typeOf(x)==='live'){toast('Live channels can\'t be saved for offline — only Movies & Series');return}
@@ -8008,7 +8192,7 @@ async function startDownload(x){
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
   const ctl=new AbortController();
   const prog={pct:0,received:0,total:0,name:nameOf(x),poster:logoOf(x)||'',cancel:()=>{try{ctl.abort()}catch(e){}}};
-  let committedAny=false; /* hoisted so the catch block below can clean up DL_TEMP_STORE on failure/cancel too */
+  let segIndex=0; /* hoisted so the catch block below can clean up any segments already written on failure/cancel too */
   S.dlProgress[key]=prog;
   updateDownloadsBadge();
   if(S.viewingDownloads)renderDownloadsSheet();
@@ -8040,27 +8224,24 @@ async function startDownload(x){
        download, only building the final Blob at the very end — on a phone that is gigabytes of
        raw bytes resident in the tab's memory at once, which is exactly what gets a mobile
        browser tab silently killed partway through with no error to catch, matching "nothing
-       happens". Flushing to a Blob every 24MB keeps at most ~24MB of raw chunk data live at any
-       moment — a Blob built FROM other Blobs is just references, not a copy, so accumulating
-       `parts` afterward costs almost nothing regardless of how large the file is. */
-    const FLUSH_BYTES=24*1024*1024;
-    let chunks=[],chunkBytes=0;let parts=[];
-    const flush=()=>{if(!chunks.length)return;parts.push(new Blob(chunks));chunks=[];chunkBytes=0;};
-    /* v24.90: see DL_TEMP_STORE's own note above dlOpenDb() — `parts` on its own still holds the
-       WHOLE file by the end, just as Blobs instead of raw chunks. Every COMMIT_BYTES, flush what's
-       pending, merge it onto whatever's already been written to the temp store (reading it back
-       first — never held onto across iterations, so nothing here accumulates in a JS closure
-       either), write the merged result, and only THEN drop `parts`. IndexedDB is disk-backed, so
-       this is really handing the bytes off the tab's live heap, not just moving them around it. */
-    const COMMIT_BYTES=150*1024*1024;
-    let pendingCommitBytes=0;
-    const commitPending=async()=>{
-      flush();
-      if(!parts.length)return;
-      const prevTemp=await dlGetTemp(key);
-      const merged=(prevTemp&&prevTemp.blob)?new Blob([prevTemp.blob,...parts]):new Blob(parts);
-      await dlPutTemp({key,blob:merged});
-      parts=[];pendingCommitBytes=0;committedAny=true;
+       happens".
+       v24.94 (owner report: a fully-downloaded, correctly-sized movie later says "this download
+       is damaged" — reproduced with pure synthetic data, no network involved at all): v24.90's fix
+       for the memory problem above flushed chunks into ~24MB Blobs but then still merged ALL of
+       them into ONE final Blob at the end (worse still, through repeated dlGetTemp→re-wrap→
+       dlPutTemp merges every 150MB) — and a Blob built by wrapping many OTHER already-built Blobs
+       is exactly the shape that becomes unreadable from IndexedDB once a file needs enough of them,
+       independent of total size, memory, or disk space. See dlOpenDb's own note for the full story.
+       This writes each ~32MB segment DIRECTLY to its own IndexedDB record the moment it's ready —
+       built fresh from raw chunks (never from other Blobs) — and never merges anything, at any
+       point, for any reason. Memory stays bounded by DL_SEG_BYTES exactly as v24.71 intended, AND
+       the file is never at risk of the Blob-of-Blobs corruption, because that composition simply
+       never happens anywhere in this function any more. */
+    let chunks=[],chunkBytes=0;
+    const flushSegment=async()=>{
+      if(!chunks.length)return;
+      await dlPutSegment(key,segIndex,new Blob(chunks));
+      segIndex++;chunks=[];chunkBytes=0;
     };
     let lastUiAt=0;
     /* v24.87 (owner report: a download "becoming slow" then erroring out partway through, at 20%
@@ -8107,11 +8288,11 @@ async function startDownload(x){
         }else if(resumeRes.ok){
           /* the origin ignored the Range header and sent the file from the start again — cannot
              safely append what we already have onto that without corrupting the file, so start
-             the accumulation over cleanly rather than risk a broken download. Anything already
-             committed to the temp store is from the file we're now discarding too — clear it, or
-             the final merge would prepend stale bytes from before this restart. */
-          chunks=[];chunkBytes=0;parts=[];prog.received=0;prog.pct=0;resetAtReceived=0;pendingCommitBytes=0;
-          if(committedAny){await dlDeleteTemp(key).catch(()=>{});committedAny=false;}
+             the accumulation over cleanly rather than risk a broken download. Any segments already
+             written are from the file we're now discarding too — delete them, or the finished
+             download would have stale bytes from before this restart stitched onto its front. */
+          chunks=[];chunkBytes=0;prog.received=0;prog.pct=0;resetAtReceived=0;
+          if(segIndex>0){await dlDeleteSegments(key).catch(()=>{});segIndex=0;}
           reader=resumeRes.body.getReader();
         }else{
           throw new Error('Resume failed: HTTP '+resumeRes.status);
@@ -8122,26 +8303,17 @@ async function startDownload(x){
       const value=step.value;
       chunks.push(value);chunkBytes+=value.byteLength;
       prog.received+=value.byteLength;
-      pendingCommitBytes+=value.byteLength;
       if(resumes>0&&prog.received-resetAtReceived>=RESUME_RESET_BYTES)resumes=0;
       prog.pct=total?Math.min(99,Math.round(prog.received/total*100)):0;
-      if(chunkBytes>=FLUSH_BYTES)flush();
-      if(pendingCommitBytes>=COMMIT_BYTES)await commitPending();
+      if(chunkBytes>=DL_SEG_BYTES)await flushSegment();
       const now=Date.now();
       if(now-lastUiAt>250){updateDlRowProgress(key,prog);lastUiAt=now;} /* throttled — a fast connection reads far more often than any UI needs to repaint */
     }
-    flush();
+    await flushSegment(); /* the final, possibly-partial segment */
     updateDlRowProgress(key,prog);
     const mime=mimeForFile('f.'+ext);
-    /* v24.90: merge in whatever was already committed to the temp store (if this download ever
-       crossed COMMIT_BYTES) with whatever's still only in JS memory (the tail end since the last
-       commit) — this is the only place that needs to know the temp store exists at all; a small
-       download that never committed just falls through to exactly the old behavior. */
-    const prevTemp=await dlGetTemp(key);
-    const blob=(prevTemp&&prevTemp.blob)?new Blob([prevTemp.blob,...parts],{type:mime}):new Blob(parts,{type:mime});
-    if(!blob.size)throw new Error('downloaded file was empty');
-    await dlPut({key,name:nameOf(x),ext,mime,size:blob.size,blob,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now(),watched:false});
-    if(committedAny)await dlDeleteTemp(key).catch(()=>{});
+    if(!prog.received)throw new Error('downloaded file was empty');
+    await dlPut({key,name:nameOf(x),ext,mime,size:prog.received,numSegments:segIndex,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now(),watched:false});
     toast(nameOf(x)+' saved for offline');
     /* v24.78 (owner report: forward-seeking a downloaded movie is slow): run the same
        demux/remux mkv.js already does, ONCE, right now, instead of throwing the result away —
@@ -8151,18 +8323,15 @@ async function startDownload(x){
        raw file — if it fails for any reason (unsupported codec, this browser lacks a piece it
        needs), playback silently keeps using the raw file exactly as it does today. */
     if(mkvLike(ext)){
-      mkvPreprocessToSeekable(blob).then(async seek=>{
-        const cur=await dlGet(key);if(!cur)return; /* removed before this finished */
-        cur.seekable=true;cur.durationMs=seek.durationMs;cur.tracks=seek.tracks;
-        await dlPut(cur);
-      }).catch(e=>{console.warn('[Downloads] fast-seek preprocessing skipped:',(e&&e.message)||e);});
+      S.dlSeekAttempting.add(key); /* blocks a concurrent openDownloadsSheet() retry from racing this same attempt */
+      tryMakeSeekable(key,{announce:true}).finally(()=>S.dlSeekAttempting.delete(key));
     }
   }catch(e){
-    /* v24.90: a download that got far enough to commit to DL_TEMP_STORE but then genuinely
-       failed (or was canceled) leaves that partial data with nothing ever going to claim or
-       clean it up otherwise — it isn't in DL_STORE, so dlDelete()/the Downloads UI can't see it.
-       Clear it here so an abandoned multi-GB attempt doesn't just sit on disk forever. */
-    if(committedAny)dlDeleteTemp(key).catch(()=>{});
+    /* A download that wrote some segments but then genuinely failed (or was canceled) leaves them
+       with nothing ever going to claim or clean them up otherwise — they're not referenced by any
+       DL_STORE record, so dlDelete()/the Downloads UI can't see them. Clear them here so an
+       abandoned multi-GB attempt doesn't just sit on disk forever. */
+    if(segIndex>0)dlDeleteSegments(key).catch(()=>{});
     if(e&&e.name==='AbortError')toast('Download canceled');
     else{
       const msg=(e&&e.message)||'try again';
@@ -8238,6 +8407,7 @@ function openDownloadsSheet(){
   if($('catpage'))$('catpage').classList.add('hidden');
   renderAll();
   paintNowPlayingChip();
+  retryUnseekableDownloads();
 }
 if($('downloadsBtn'))$('downloadsBtn').onclick=openDownloadsSheet;
 /* v24.79 (owner request): "push to VLC" for a file already sitting in this browser's own local
@@ -8279,7 +8449,7 @@ async function pushDownloadToVlc(key){
   try{
     const fname=safeFileName(rec.name)+'.'+(rec.ext||'mp4');
     const type=rec.mime||mimeForFile(fname);
-    const file=new File([rec.blob],fname,{type});
+    const file=new File([await dlAssembleBlob(rec)],fname,{type});
     if(!navigator.canShare({files:[file]})){toast('This file can\'t be shared on this device');return}
     toast('Choose VLC from the share sheet');
     await navigator.share({files:[file],title:rec.name});
@@ -8319,10 +8489,9 @@ function showOfflineOverlay(title,text){
     if($('miniMeta'))$('miniMeta').textContent='';
   }catch(e){}
 }
-function playDownloadedBlob(rec){
+async function playDownloadedBlob(rec){
   cleanup();
   const v=$('video');
-  const url=URL.createObjectURL(rec.blob);
   S.current={name:rec.name,_type:rec.type||'vod',_offline:true,container_extension:rec.ext};
   S.awaitingTap=false;
   showOfflineOverlay('','');
@@ -8346,7 +8515,19 @@ function playDownloadedBlob(rec){
        own route-monitoring loop, which this standalone offline-playback path never goes through.
        Its promise resolves once the first fragment has actually been appended (see mkv.js
        rx.onFragment), which is the right moment to ask the element to start. */
-    const startPlain=resumeAt=>Media26Mkv.play(v,url,{}).then(()=>{
+    /* v24.93: hand the Blob itself to Media26Mkv.play(), not the blob: URL — see its own note for
+       why routing offline playback through fetch(blobURL) was the real cause of "Failed to fetch"
+       on a movie that had downloaded and saved just fine.
+       v24.94: a download saved by THIS version has no `.blob` at all any more (see dlOpenDb's own
+       note) — it's read via dlSegmentedReader instead, which Media26Mkv.play() takes exactly like
+       a Blob (same {read()} shape) without ever assembling the file into one object. A record
+       saved before v24.94 still has a real `.blob` and keeps using it directly.
+       A fresh reader is built on EVERY call, not shared — startPlain can run a second time (the
+       onStall fallback below calls it after a failed seek), and unlike a Blob (restartable from
+       byte 0 any number of times via a new .stream()), a dlSegmentedReader is single-use: reusing
+       one that already ran would resume mid-file instead of replaying from the start, which is
+       exactly what this function always needs to do. */
+    const startPlain=resumeAt=>Media26Mkv.play(v,rec.blob?rec.blob:dlSegmentedReader(rec.key,rec.numSegments),{}).then(()=>{
       v.play().catch(()=>{S.awaitingTap=true});
       if(resumeAt)try{v.currentTime=resumeAt;}catch(e){}
     });
@@ -8370,12 +8551,33 @@ function playDownloadedBlob(rec){
     const attempt=(rec.seekable&&rec.tracks&&rec.tracks.length)?startSeekable().catch(e=>{console.warn('[Downloads] seekable playback failed, falling back:',(e&&e.message)||e);cleanup();return startPlain();}):startPlain();
     attempt.catch(e=>{
       const why=(e&&e.message)?String(e.message):'unsupported file';
-      showOfflineOverlay('Could not play this download',why);
-      toast('Could not play this download: '+why);
+      /* v24.93 (owner report: "Could not play this download: Failed to fetch"): startPlain() no
+         longer routes through fetch() at all (see Media26Mkv.play's own note on why that was ever
+         wrong for a local file), so a failure reaching here is the browser genuinely unable to read
+         the bytes back out of its own storage — "network error"/"NotReadableError" are Chromium's
+         and Safari's own wording for exactly that, not a codec or file-format problem. That is not
+         recoverable by retrying playback: the stored copy itself is the casualty (seen in the wild
+         after heavy, sustained storage churn), and no amount of re-attempting play will read it any
+         differently. Saying so plainly, and pointing at the fix that actually works — delete and
+         re-save it — beats a dead-end error a customer has no way to act on. */
+      const isStorageRead=/network ?error|not ?readable|could not be read/i.test(why);
+      if(isStorageRead){
+        showOfflineOverlay('This download is damaged','The saved file can\'t be read back from storage — that\'s not something replaying it can fix. Delete it below and save it again.');
+        toast('This download is damaged — delete it and save it again');
+      }else{
+        showOfflineOverlay('Could not play this download',why);
+        toast('Could not play this download: '+why);
+      }
     });
   }else{
+    /* A plain (non-MKV) offline file plays through the native <video src>, which needs one real
+       Blob URL — unlike the MKV path above, there's no per-fragment reader to hand it instead.
+       rec.blob exists on a pre-v24.94 record; a segmented one is reassembled here, once, right
+       before use (see dlAssembleBlob's own note on why that's fine for this rarer, one-shot case
+       but not for the primary playback path above). */
+    const blob=rec.blob?rec.blob:await dlAssembleBlob(rec);
     try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
-    v.src=url;
+    v.src=URL.createObjectURL(blob);
     v.play().catch(()=>{S.awaitingTap=true});
   }
   if(typeof showBar==='function')showBar();
