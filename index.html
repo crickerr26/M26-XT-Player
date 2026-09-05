@@ -1997,7 +1997,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.95';
+const APP_VERSION='24.96';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7818,8 +7818,11 @@ async function dlAssembleBlob(rec){
 }
 async function updateDownloadsBadge(){
   const saved=await dlAll();
-  S.dlKeys=new Set(saved.map(r=>r.key));
-  const n=saved.length+Object.keys(S.dlProgress||{}).length;
+  const finished=saved.filter(r=>!r.partial);
+  S.dlKeys=new Set(finished.map(r=>r.key));
+  const savedKeys=new Set(saved.map(r=>r.key));
+  const inFlightKeys=Object.keys(S.dlProgress||{});
+  const n=saved.length+inFlightKeys.filter(k=>!savedKeys.has(k)).length;
   const b=$('dlBadge');if(b){b.textContent=String(n);b.classList.toggle('hidden',!n);}
   const h=$('homeDownloadsCount');if(h)h.textContent=n.toLocaleString();
 }
@@ -8131,6 +8134,7 @@ async function tryMakeSeekable(key,opts){
   opts=opts||{};
   const rec=await dlGet(key);
   if(!rec||!rec.size)return 'gone';
+  if(rec.partial)return 'partial';
   const headroom=await storageHeadroomBytes();
   if(headroom<rec.size*SEEK_PREPROCESS_HEADROOM_MULT){
     console.warn('[Downloads] fast-seek preprocessing skipped: low storage headroom ('+humanSize(headroom)+' free, need ~'+humanSize(rec.size*SEEK_PREPROCESS_HEADROOM_MULT)+')');
@@ -8163,6 +8167,7 @@ async function retryUnseekableDownloads(){
   let saved;
   try{saved=await dlAll();}catch(e){return}
   for(const rec of saved){
+    if(rec.partial)continue;
     if(rec.seekable||rec.seekableUnsupported)continue;
     if(!mkvLike(rec.ext))continue;
     if(S.dlProgress[rec.key])continue; /* still downloading — leave it to the completion path */
@@ -8176,7 +8181,8 @@ async function startDownload(x){
   if(typeOf(x)==='live'){toast('Live channels can\'t be saved for offline — only Movies & Series');return}
   const key=keyOf(x);
   if(S.dlProgress[key]){toast('Already downloading');return}
-  if(await dlGet(key)){toast('Already saved for offline — check Downloads');return}
+  const existing=await dlGet(key);
+  if(existing&&!existing.partial){toast('Already saved for offline — check Downloads');return}
   let raw=externalStreamUrl(x);
   if(!raw){toast('No downloadable file for this title');return}
   try{
@@ -8203,15 +8209,30 @@ async function startDownload(x){
   const v=$('video');
   const playerFailed=/Stream unavailable|Preview failed/i.test([$('stateTitle')&&$('stateTitle').textContent,$('stateText')&&$('stateText').textContent,$('miniMeta')&&$('miniMeta').textContent].filter(Boolean).join(' '));
   const hasActiveStream=!playerFailed&&!!(S.hls||S.ts||(v&&v.currentSrc&&v.readyState>0));
-  const url=hasActiveStream?(streamRelayUrl(raw,x)||(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw)):(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
+  let url=hasActiveStream?(streamRelayUrl(raw,x)||(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw)):(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
+  if(existing&&existing.partial&&existing.sourceUrl)url=existing.sourceUrl;
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
   const ctl=new AbortController();
   const prog={pct:0,received:0,total:0,name:nameOf(x),poster:logoOf(x)||'',cancel:()=>{try{ctl.abort()}catch(e){}}};
+  const mime=mimeForFile('f.'+ext);
   let segIndex=0; /* hoisted so the catch block below can clean up any segments already written on failure/cancel too */
+  if(existing&&existing.partial){
+    prog.received=existing.received||0;
+    prog.total=existing.total||existing.size||0;
+    prog.pct=prog.total?Math.min(99,Math.round(prog.received/prog.total*100)):0;
+    segIndex=existing.numSegments||0;
+  }
   S.dlProgress[key]=prog;
   updateDownloadsBadge();
   if(S.viewingDownloads)renderDownloadsSheet();
-  toast('Downloading '+nameOf(x)+' for offline…');
+  toast((existing&&existing.partial?'Resuming ':'Downloading ')+nameOf(x)+' for offline…');
+  let chunks=[],chunkBytes=0;
+  const flushSegment=async()=>{
+    if(!chunks.length)return;
+    await dlPutSegment(key,segIndex,new Blob(chunks));
+    segIndex++;chunks=[];chunkBytes=0;
+    await dlPut({key,name:nameOf(x),ext,mime,size:prog.received,numSegments:segIndex,poster:logoOf(x)||'',type:typeOf(x),addedAt:(existing&&existing.addedAt)||Date.now(),watched:false,partial:true,received:prog.received,sourceUrl:url});
+  };
   try{
     /* v24.85 (owner report: "Offline save failed — Load failed" while a movie was also open in the
        player): "Load failed" is Safari/WebKit's own generic message for a connection that broke at
@@ -8227,12 +8248,23 @@ async function startDownload(x){
     const CONNECT_TIMEOUT_MS=20000;
     let res;
     for(let attempt=1;attempt<=3;attempt++){
-      try{res=await fetchDlWithTimeout(url,{signal:ctl.signal},CONNECT_TIMEOUT_MS);break;}
+      try{
+        const opts={signal:ctl.signal};
+        if(existing&&existing.partial&&prog.received>0)opts.headers={Range:'bytes='+prog.received+'-'};
+        res=await fetchDlWithTimeout(url,opts,CONNECT_TIMEOUT_MS);break;
+      }
       catch(e){if(ctl.signal.aborted||attempt===3)throw e;await new Promise(r=>setTimeout(r,900*attempt));}
     }
+    if(existing&&existing.partial&&prog.received>0&&res&&res.ok&&res.status!==206){
+      chunks=[];chunkBytes=0;prog.received=0;prog.pct=0;segIndex=0;
+      await dlDeleteSegments(key).catch(()=>{});
+    }
     if(!res.ok||!res.body)throw new Error('HTTP '+(res.status||0));
-    const total=+(res.headers.get('content-length')||0);
-    prog.total=total;
+    const len=+(res.headers.get('content-length')||0);
+    const cr=String(res.headers.get('content-range')||'');
+    const crTotal=(cr.match(/\/(\d+)\s*$/)||[])[1];
+    const total=crTotal?Number(crTotal):(res.status===206&&len?prog.received+len:len);
+    prog.total=total||prog.total;
     let reader=res.body.getReader();
     /* v24.71 (owner report: real movie downloads "just didn't work"): a real 1080p/4K MKV is
        1-4GB, and this used to hold EVERY chunk read so far in one growing JS array for the whole
@@ -8252,12 +8284,6 @@ async function startDownload(x){
        point, for any reason. Memory stays bounded by DL_SEG_BYTES exactly as v24.71 intended, AND
        the file is never at risk of the Blob-of-Blobs corruption, because that composition simply
        never happens anywhere in this function any more. */
-    let chunks=[],chunkBytes=0;
-    const flushSegment=async()=>{
-      if(!chunks.length)return;
-      await dlPutSegment(key,segIndex,new Blob(chunks));
-      segIndex++;chunks=[];chunkBytes=0;
-    };
     let lastUiAt=0;
     /* v24.87 (owner report: a download "becoming slow" then erroring out partway through, at 20%
        on a real movie): everything above only ever protected the CONNECTION-OPENING moment — once
@@ -8326,9 +8352,8 @@ async function startDownload(x){
     }
     await flushSegment(); /* the final, possibly-partial segment */
     updateDlRowProgress(key,prog);
-    const mime=mimeForFile('f.'+ext);
     if(!prog.received)throw new Error('downloaded file was empty');
-    await dlPut({key,name:nameOf(x),ext,mime,size:prog.received,numSegments:segIndex,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now(),watched:false});
+    await dlPut({key,name:nameOf(x),ext,mime,size:prog.received,numSegments:segIndex,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now(),watched:false,partial:false});
     toast(nameOf(x)+' saved for offline');
     /* v24.78 (owner report: forward-seeking a downloaded movie is slow): run the same
        demux/remux mkv.js already does, ONCE, right now, instead of throwing the result away —
@@ -8342,13 +8367,19 @@ async function startDownload(x){
       tryMakeSeekable(key,{announce:true}).finally(()=>S.dlSeekAttempting.delete(key));
     }
   }catch(e){
-    /* A download that wrote some segments but then genuinely failed (or was canceled) leaves them
-       with nothing ever going to claim or clean them up otherwise — they're not referenced by any
-       DL_STORE record, so dlDelete()/the Downloads UI can't see them. Clear them here so an
-       abandoned multi-GB attempt doesn't just sit on disk forever. */
-    if(segIndex>0)dlDeleteSegments(key).catch(()=>{});
-    if(e&&e.name==='AbortError')toast('Download canceled');
-    else{
+    if(ctl.signal.aborted){
+      if(segIndex>0)await dlDeleteSegments(key).catch(()=>{});
+      await dlDelete(key).catch(()=>{});
+      toast('Download canceled');
+      return;
+    }
+    if(chunks.length)await flushSegment().catch(()=>{});
+    if(prog.received>0&&segIndex>0){
+      try{
+        await dlPut({key,name:nameOf(x),ext,mime,size:prog.received,numSegments:segIndex,poster:logoOf(x)||'',type:typeOf(x),addedAt:(existing&&existing.addedAt)||Date.now(),watched:false,partial:true,received:prog.received,sourceUrl:url});
+      }catch(e2){}
+      toast('Download interrupted — tap Save Offline again to resume');
+    }else{
       const msg=(e&&e.message)||'try again';
       /* v24.85: this generic browser-level wording (no HTTP status, no server reason) is the
          signature of a connection that broke before any response came back — the single most
@@ -8375,14 +8406,19 @@ function humanSize(n){
 }
 function dlRowHtml(rec){
   const inFlight=S.dlProgress[rec.key];
-  const posterHtml=rec.poster?`<img src="${esc(rec.poster)}" onerror="this.remove()">`:(inFlight?'⇩':'▶');
+  const partial=rec.partial&&!inFlight;
+  const posterHtml=rec.poster?`<img src="${esc(rec.poster)}" onerror="this.remove()">`:(inFlight?'⇩':(partial?'↻':'▶'));
   const metaHtml=inFlight
     ?`<div class="dlMeta" id="dlmeta-${esc(rec.key)}">Downloading… ${inFlight.pct}%</div><div class="dlBar"><div class="dlBarFill" id="dlbar-${esc(rec.key)}" style="width:${inFlight.pct}%"></div></div>`
+    :partial
+      ?`<div class="dlMeta">Interrupted · ${esc(humanSize(rec.received||rec.size))} saved</div>`
     :`<div class="dlMeta">${esc((rec.ext||'').toUpperCase())} · ${esc(humanSize(rec.size))}</div>`;
   const actions=inFlight
     ?`<button type="button" data-dlcancel="${esc(rec.key)}" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>`
+    :partial
+      ?`<button type="button" data-dlresume="${esc(rec.key)}" aria-label="Resume download" title="Resume download">${SAVE_OFFLINE_ICON}</button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`
     :`<button type="button" data-dlplay="${esc(rec.key)}" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></button><button type="button" class="vlc" data-dlvlc="${esc(rec.key)}" aria-label="Open in VLC" title="Open in VLC"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 4l2.6 6.2h-5.2L16 4zm-4.2 9.4h8.4l4.3 10.2a1.6 1.6 0 0 1-1.5 2.2H9a1.6 1.6 0 0 1-1.5-2.2l4.3-10.2z"/></svg></button><button type="button" class="${rec.watched?'on':''}" data-dlwatch="${esc(rec.key)}" aria-label="Toggle watched" title="${rec.watched?'Mark as unwatched':'Mark as watched'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.4"/></svg></button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`;
-  return `<div class="card dlRow${rec.watched?' watched':''}" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div class="dlInfo"><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
+  return `<div class="card dlRow${rec.watched?' watched':''}${partial?' partial':''}" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div class="dlInfo"><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
 }
 async function dlToggleWatched(key){
   const rec=await dlGet(key);if(!rec)return;
@@ -8406,7 +8442,9 @@ async function renderDownloadsSheet(){
   const rows=saved.slice().sort((a,b)=>b.addedAt-a.addedAt).map(dlRowHtml);
   const all=inFlightRows.join('')+rows.join('');
   $('grid').innerHTML=all||'<div style="padding:18px"><div style="color:var(--muted)">No offline downloads yet. Open a movie or series and choose Save Offline from the player\'s ⋯ menu.</div></div>';
-  $('sectionSub').textContent=saved.length.toLocaleString()+' saved offline';
+  const finished=saved.filter(r=>!r.partial).length;
+  const partials=saved.length-finished;
+  $('sectionSub').textContent=finished.toLocaleString()+' saved offline'+(partials?' · '+partials.toLocaleString()+' interrupted':'');
 }
 /* v24.83 (owner request: "build the inbuilt player here like how it on other categories... when
    clicked the downloaded video it should play in the inbuilt player") — the v24.81 full-page
@@ -8477,7 +8515,14 @@ async function pushDownloadToVlc(key){
 async function playDownloadedByKey(key){
   const rec=await dlGet(key);
   if(!rec){toast('That download is gone — try re-saving it');return}
+  if(rec.partial){resumeDownloadByKey(key);return}
   playDownloadedBlob(rec);
+}
+async function resumeDownloadByKey(key){
+  const rec=await dlGet(key);
+  if(!rec||!rec.partial){toast('That partial download is gone — save it again');return}
+  const id=String(key).replace(/^[^:]+:/,'');
+  startDownload({id,stream_id:id,_type:rec.type||'vod',name:rec.name,container_extension:rec.ext,direct_source:rec.sourceUrl||''});
 }
 /* v24.70: hands a stored Blob to the SAME <video> element live playback uses. cleanup() (used by
    tryPlans() for every channel/title switch) already tears down hls.js/mpegts.js/mkv.js safely,
@@ -11037,6 +11082,7 @@ $('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_se
      actions — play/VLC/watched/delete/cancel, and tapping the row itself — are handled right
      here alongside every other section's, instead of a separate sheet with its own handler. */
   const dlPlayBtn=e.target.closest('[data-dlplay]');if(dlPlayBtn){playDownloadedByKey(dlPlayBtn.dataset.dlplay);return}
+  const dlResumeBtn=e.target.closest('[data-dlresume]');if(dlResumeBtn){resumeDownloadByKey(dlResumeBtn.dataset.dlresume);return}
   const dlVlcBtn=e.target.closest('[data-dlvlc]');if(dlVlcBtn){pushDownloadToVlc(dlVlcBtn.dataset.dlvlc);return}
   const dlWatchBtn=e.target.closest('[data-dlwatch]');if(dlWatchBtn){dlToggleWatched(dlWatchBtn.dataset.dlwatch);return}
   const dlDelBtn=e.target.closest('[data-dldel]');if(dlDelBtn){const k=dlDelBtn.dataset.dldel;dlDelete(k).then(()=>{renderGrid(true);updateDownloadsBadge();toast('Removed from Downloads')});return}
