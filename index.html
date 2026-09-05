@@ -280,6 +280,8 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 /* v24.70: TV guide + offline downloads */
 #downloadsBtn{position:relative}
 .dlBadge{position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--blue);color:#04111e;font-size:10px;font-weight:900;line-height:16px;text-align:center}
+.downloadsNotice{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:0 0 2px;padding:8px 11px;border-radius:8px;border:1px solid rgba(47,211,242,.28);background:linear-gradient(90deg,rgba(47,211,242,.14),rgba(34,197,94,.12));color:#e8fbff;font-size:12px;font-weight:900}
+.downloadsNotice::before{content:"";width:7px;height:7px;border-radius:50%;background:#2fd3f2;box-shadow:0 0 12px rgba(47,211,242,.8);flex:none}
 .epgNow{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
 .epgRow{display:flex;gap:12px;align-items:flex-start;padding:11px 4px;border-bottom:1px solid var(--line)}
 .epgRow:last-child{border-bottom:0}
@@ -542,6 +544,7 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .hc-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
 .hc-txt b{font-size:22px;font-weight:900;letter-spacing:-.3px}
 .hc-txt small{font-size:13px;opacity:.92;font-weight:700}.hc-txt small i{font-style:normal;font-weight:900}
+.hc-soon{align-self:flex-start;padding:5px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.32);background:rgba(6,24,16,.22);color:#fff;font-size:11px;font-style:normal;font-weight:900;line-height:1.1}
 /* ── v19.1.0: per-category fetch status ────────────────────────────────────────────────────────
    A card says what it is doing while it does it: "loading…" (with a live count against the
    portal's own total where it reports one) and then "load completed". The bar underneath runs a
@@ -1426,7 +1429,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       <button class="home-card hc-downloads" id="homeDownloads" type="button">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
-        <span class="hc-txt"><b>Downloads</b><small><i id="homeDownloadsCount">—</i> saved offline</small></span>
+        <span class="hc-txt"><b>Downloads</b><small><i id="homeDownloadsCount">—</i> saved offline</small><em class="hc-soon">Testing mode - feature coming soon</em></span>
         <span class="hc-arrow">→</span>
       </button>
     </div>
@@ -1997,7 +2000,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.98';
+const APP_VERSION='24.99';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -8455,7 +8458,8 @@ async function renderDownloadsSheet(){
   const inFlightRows=inFlightKeys.filter(k=>!savedKeys.has(k)).map(k=>dlRowHtml({key:k,name:S.dlProgress[k].name||'Downloading…',ext:'',size:0,poster:S.dlProgress[k].poster||''}));
   const rows=saved.slice().sort((a,b)=>b.addedAt-a.addedAt).map(dlRowHtml);
   const all=inFlightRows.join('')+rows.join('');
-  $('grid').innerHTML=all||'<div style="padding:18px"><div style="color:var(--muted)">No offline downloads yet. Open a movie or series and choose Save Offline from the player\'s ⋯ menu.</div></div>';
+  const notice='<div class="downloadsNotice" role="note">Testing mode - feature coming soon</div>';
+  $('grid').innerHTML=notice+(all||'<div style="padding:18px"><div style="color:var(--muted)">No offline downloads yet. Open a movie or series and choose Save Offline from the player\'s ⋯ menu.</div></div>');
   const finished=saved.filter(r=>!r.partial).length;
   const partials=saved.length-finished;
   $('sectionSub').textContent=finished.toLocaleString()+' saved offline'+(partials?' · '+partials.toLocaleString()+' interrupted':'');
