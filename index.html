@@ -1989,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.85';
+const APP_VERSION='24.86';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7925,7 +7925,22 @@ async function startDownload(x){
   if(!raw){toast('No downloadable file for this title');return}
   let ext=String(x.container_extension||'').replace(/^\./,'').toLowerCase();
   if(!ext){const m=raw.split('?')[0].match(/\.([a-z0-9]{2,4})$/i);ext=m?m[1].toLowerCase():'mp4';}
-  const url=(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
+  /* v24.86 (owner report: downloading while something is playing fails or runs slow — "I want
+     background download without any issues"): the built-in player's own live/VOD connections go
+     out through PROXY/SAME_ORIGIN_PROXY — Cloudflare's edge. A download used to go out the exact
+     same way, so on a panel that allows only one connection per account (or throttles a second one
+     sharing the same egress), the download and whatever is already playing were, as far as the
+     panel could tell, THE SAME visitor fighting itself for one slot — exactly what a v24.85 retry
+     could only paper over, not prevent.
+     streamRelayUrl() already exists for this: it's the same "different visitor" relay this app
+     uses when a MAG/Stalker portal blocks Cloudflare outright (see its own note, and server.js's
+     relayFetch — ordinary hosting, an entirely different IP, kept warm in the background by
+     keepTranscoderWarm() specifically so it's never a cold start). Only switch to it when
+     something is actually connected right now (cleanup()'s own test for "is a stream open") —
+     when nothing is competing for the account's one slot there is no conflict to route around, and
+     Cloudflare's edge is the better-tested, presumably faster path for the common case. */
+  const hasActiveStream=!!(S.hls||S.ts||($('video')&&$('video').currentSrc));
+  const url=hasActiveStream?(streamRelayUrl(raw,x)||(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw)):(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
   const ctl=new AbortController();
   const prog={pct:0,received:0,total:0,name:nameOf(x),poster:logoOf(x)||'',cancel:()=>{try{ctl.abort()}catch(e){}}};
