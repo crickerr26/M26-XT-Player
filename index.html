@@ -1989,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.83';
+const APP_VERSION='24.84';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7801,11 +7801,36 @@ async function mkvPreprocessToSeekable(blob){
    mode (same as mkv.js uses) places appended data by each fragment's own embedded timestamp, so
    appending out of order — which is exactly what a seek does here — is the mode working as
    intended, not a special case. */
-function playSeekableMkv(video,rec){
+function playSeekableMkv(video,rec,opts){
+  opts=opts||{};
   return new Promise((resolve,reject)=>{
     const MS=window.ManagedMediaSource||window.MediaSource;
     if(!MS)return reject(new Error('No MediaSource support'));
     let done=false,resolved=false;
+    /* v24.84 (owner report: forward-seeking a downloaded movie left it paused and never resumed):
+       dragging the scrub bar can fire dozens of 'seeking' events in under a second (see the
+       seek-bar throttling fix alongside this), each one restarting the binary-search-and-append
+       dance below on an overlapping async timeline — the code already discards a stale fragment
+       read that lands after a NEWER seek moved the cursor again, but that is a "don't corrupt
+       state" guard, not a guarantee that the FINAL seek's fragment always ends up requested and
+       appended. If it doesn't, the video is left exactly where the last seek put it with no data
+       ever arriving there, and nothing above notices. This is a safety net, not a fix for a fully
+       understood race — if a seek hasn't produced real playback within 7s, treat it as stuck and
+       let the caller fall back to the plain (proven, if slower-to-seek) playback path instead of
+       leaving the customer stuck on a paused video forever. */
+    let stallTimer=null;
+    const clearStallTimer=()=>{if(stallTimer){clearTimeout(stallTimer);stallTimer=null;}};
+    const armStallWatchdog=()=>{
+      clearStallTimer();
+      if(!opts.onStall)return;
+      const seekTarget=video.currentTime;
+      stallTimer=setTimeout(()=>{
+        stallTimer=null;
+        if(done)return;
+        if(video.readyState<3&&Math.abs(video.currentTime-seekTarget)<0.75){try{opts.onStall();}catch(e){}}
+      },7000);
+    };
+    video.addEventListener('playing',clearStallTimer);
     const ms=new MS();
     const sourceBuffers=new Map(),cursors=new Map();
     const isManaged=!!(window.ManagedMediaSource&&ms instanceof window.ManagedMediaSource);
@@ -7879,10 +7904,12 @@ function playSeekableMkv(video,rec){
         cur.idx=best;
         pumpNext(id);
       }
+      armStallWatchdog();
     };
     video.addEventListener('seeking',onSeeking);
     video.__mkvStop=function(){
       done=true;
+      clearStallTimer();
       video.removeEventListener('seeking',onSeeking);
       try{if(video.srcObject)video.srcObject=null;}catch(e){}
     };
@@ -8041,12 +8068,21 @@ const VLC_SHARE_LIMIT_BYTES=700*1024*1024;
 async function pushDownloadToVlc(key){
   const rec=await dlGet(key);
   if(!rec){toast('That download is gone — try re-saving it');return}
+  /* v24.84 (owner report: tapping VLC showed "Playing in VLC" AND an error at the same time —
+     "there is an error"): that success text is left over from a completely unrelated feature (a
+     LIVE channel's VLC row button, playItemExternal()'s own overlay) and this function never
+     touched the shared #overlay at all, so whatever it last said just sat there looking like it
+     contradicted whatever this function's own toast said. Clearing it up front means the two can
+     never again show two different stories about the same tap. */
+  showOfflineOverlay('','');
   if(!(navigator.share&&navigator.canShare&&window.File&&window.Blob)){
-    toast('This browser can\'t share files — play it in the built-in player instead.');
+    const why='This browser can\'t share files — play it in the built-in player instead.';
+    toast(why);showOfflineOverlay('Can’t open in VLC',why);
     return;
   }
   if(rec.size>VLC_SHARE_LIMIT_BYTES){
-    toast('This file is too large to hand off to VLC — some devices run out of memory and crash. Play it in the built-in player instead.');
+    const why='This file is too large to hand off to VLC — some devices run out of memory and crash. Play it in the built-in player instead.';
+    toast(why);showOfflineOverlay('Can’t open in VLC',why);
     return;
   }
   try{
@@ -8058,7 +8094,8 @@ async function pushDownloadToVlc(key){
     await navigator.share({files:[file],title:rec.name});
   }catch(e){
     if(e&&String(e.name||'')==='AbortError')return;
-    toast('Could not open the share sheet — '+((e&&e.message)||'try again'));
+    const why='Could not open the share sheet — '+((e&&e.message)||'try again');
+    toast(why);showOfflineOverlay('Could not open the share sheet',why);
   }
 }
 async function playDownloadedByKey(key){
@@ -8072,27 +8109,31 @@ async function playDownloadedByKey(key){
    same container check tryPlans() uses to decide between native <video> and the in-app Matroska
    engine — mkv.js reads via a plain fetch(), which works on a blob: URL exactly like a network
    one (see mkv.js's sourceopen handler: one fetch(url), no manual byte ranges). */
+/* v24.77 (owner report: "downloading but never playing" — the player sat on stale text from an
+   earlier NETWORK attempt, e.g. "Loading video / Direct (default port) — 6s", even though this
+   playback is 100% local and never touches the network at all): hiding the overlay container is
+   not enough if something later re-shows it — blank out its own text too, so nothing stale can
+   ever be visible again. v24.84: hoisted out of playDownloadedBlob so pushDownloadToVlc can reuse
+   it too — the shared #overlay only ever shows whatever was last written to it, so refusing a VLC
+   share without touching this left a totally unrelated "Playing in VLC" (from an earlier NETWORK
+   channel's VLC launch, a different feature entirely) sitting on screen looking like it
+   contradicted the "too large" toast, when really neither one knew the other existed. */
+function showOfflineOverlay(title,text){
+  try{
+    const ov=$('overlay');if(!ov)return;
+    ov.style.display=title?'grid':'none';
+    if($('stateProgress'))$('stateProgress').classList.add('hidden');
+    if($('stateTitle'))$('stateTitle').textContent=title||'';
+    if($('stateText'))$('stateText').textContent=text||'';
+    if($('miniMeta'))$('miniMeta').textContent='';
+  }catch(e){}
+}
 function playDownloadedBlob(rec){
   cleanup();
   const v=$('video');
   const url=URL.createObjectURL(rec.blob);
   S.current={name:rec.name,_type:rec.type||'vod',_offline:true,container_extension:rec.ext};
   S.awaitingTap=false;
-  /* v24.77 (owner report: "downloading but never playing" — the player sat on stale text from
-     an earlier NETWORK attempt, e.g. "Loading video / Direct (default port) — 6s", even though
-     this playback is 100% local and never touches the network at all): hiding the overlay
-     container is not enough if something later re-shows it — blank out its own text too, so
-     nothing stale can ever be visible again, and reset it to a real, offline-specific message. */
-  const showOfflineOverlay=(title,text)=>{
-    try{
-      const ov=$('overlay');if(!ov)return;
-      ov.style.display=title?'grid':'none';
-      if($('stateProgress'))$('stateProgress').classList.add('hidden');
-      if($('stateTitle'))$('stateTitle').textContent=title||'';
-      if($('stateText'))$('stateText').textContent=text||'';
-      if($('miniMeta'))$('miniMeta').textContent='';
-    }catch(e){}
-  };
   showOfflineOverlay('','');
   if($('ovTitle'))$('ovTitle').textContent=nameOf(S.current);
   if(typeof updateLiveControls==='function')updateLiveControls();
@@ -8114,12 +8155,27 @@ function playDownloadedBlob(rec){
        own route-monitoring loop, which this standalone offline-playback path never goes through.
        Its promise resolves once the first fragment has actually been appended (see mkv.js
        rx.onFragment), which is the right moment to ask the element to start. */
-    const startPlain=()=>Media26Mkv.play(v,url,{}).then(()=>{v.play().catch(()=>{S.awaitingTap=true})});
+    const startPlain=resumeAt=>Media26Mkv.play(v,url,{}).then(()=>{
+      v.play().catch(()=>{S.awaitingTap=true});
+      if(resumeAt)try{v.currentTime=resumeAt;}catch(e){}
+    });
     /* v24.78: prefer the pre-processed, seekable version when this download has one — same
        playback, but forward-seeking is fast instead of needing to replay from the start. Any
        failure here (a bug in this newer path, a browser quirk) falls straight back to the exact
        call above that already works today, so this can only ever help, never regress. */
-    const startSeekable=()=>playSeekableMkv(v,rec).then(()=>{v.play().catch(()=>{S.awaitingTap=true})});
+    const startSeekable=()=>playSeekableMkv(v,rec,{
+      /* v24.84 (owner report: forward-seeking left it paused forever): playSeekableMkv's own
+         stall watchdog calls this if a seek never actually produces playable data. Drop back to
+         the plain, proven-reliable path and resume at the SAME spot rather than restarting from
+         zero — slower to reach (has to replay up to it), but it always gets there. */
+      onStall:()=>{
+        console.warn('[Downloads] seekable playback stalled after a seek — falling back to plain playback');
+        const resumeAt=v.currentTime;
+        toast('Seek hit a snag — switching to normal playback…');
+        cleanup();
+        startPlain(resumeAt);
+      }
+    }).then(()=>{v.play().catch(()=>{S.awaitingTap=true})});
     const attempt=(rec.seekable&&rec.tracks&&rec.tracks.length)?startSeekable().catch(e=>{console.warn('[Downloads] seekable playback failed, falling back:',(e&&e.message)||e);cleanup();return startPlain();}):startPlain();
     attempt.catch(e=>{
       const why=(e&&e.message)?String(e.message):'unsupported file';
@@ -10859,17 +10915,46 @@ applyColour(savedColour());updateVolPct();
   };
   ['timeupdate','loadedmetadata','durationchange','progress','seeked'].forEach(ev=>v.addEventListener(ev,sync));
   let dragging=false;
-  const seekTo=clientX=>{
-    if(isLiveNow())return;                     /* live is not seekable — keep it live */
+  /* v24.84 (owner report: forward-seeking a downloaded movie left it paused, never resumed): a
+     drag gesture fires pointermove dozens of times a second, and this used to commit a REAL
+     v.currentTime seek on every single one — for the in-app Matroska engine that means dozens of
+     overlapping "find the fragment nearest this time, fetch it, append it" attempts racing each
+     other per drag, not just one. Painting the scrub position is still instant on every move; the
+     actual seek now only commits at most every 200ms while dragging (and always once more on
+     release, so the final drop position is never skipped) — far fewer real seeks for the exact
+     same drag, which is both smoother and gives the engine a real chance to keep up. */
+  const SEEK_COMMIT_MS=200;
+  let lastSeekCommitAt=0,pendingSeekPct=null;
+  const pctFromClientX=clientX=>{const r=track.getBoundingClientRect();return Math.max(0,Math.min(1,(clientX-r.left)/r.width));};
+  const paintAt=pct=>{
     const D=effDur();if(!D)return;
-    const r=track.getBoundingClientRect();
-    const pct=Math.max(0,Math.min(1,(clientX-r.left)/r.width));
-    S.lastSeekAt=Date.now();
+    const t=pct*D;
+    fill.style.width=(pct*100)+'%';handle.style.left=(pct*100)+'%';
+    cur.textContent=fmt(t);dur.textContent='-'+fmt(Math.max(0,D-t));
+  };
+  const commitSeek=pct=>{
+    const D=effDur();if(!D)return;
+    S.lastSeekAt=Date.now();lastSeekCommitAt=Date.now();
     v.currentTime=Math.min(D-0.5,pct*D);sync();
   };
-  track.addEventListener('pointerdown',e=>{if(isLiveNow()||!effDur())return;dragging=true;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
-  track.addEventListener('pointermove',e=>{if(dragging)seekTo(e.clientX)});
-  const stopDrag=e=>{dragging=false;try{track.releasePointerCapture(e.pointerId)}catch{}};
+  const seekTo=clientX=>{
+    if(isLiveNow())return;                     /* live is not seekable — keep it live */
+    if(!effDur())return;
+    commitSeek(pctFromClientX(clientX));
+  };
+  track.addEventListener('pointerdown',e=>{if(isLiveNow()||!effDur())return;dragging=true;pendingSeekPct=null;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
+  track.addEventListener('pointermove',e=>{
+    if(!dragging||isLiveNow()||!effDur())return;
+    const pct=pctFromClientX(e.clientX);
+    paintAt(pct);
+    if(Date.now()-lastSeekCommitAt>=SEEK_COMMIT_MS){pendingSeekPct=null;commitSeek(pct);}
+    else pendingSeekPct=pct;
+  });
+  const stopDrag=e=>{
+    dragging=false;
+    try{track.releasePointerCapture(e.pointerId)}catch{}
+    if(pendingSeekPct!=null){commitSeek(pendingSeekPct);pendingSeekPct=null;}
+  };
   track.addEventListener('pointerup',stopDrag);track.addEventListener('pointercancel',stopDrag);
 })();
 /* v51: touch gestures on the video area (never touches the playback engine):
