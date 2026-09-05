@@ -290,6 +290,12 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .epgDesc{margin-top:3px;font-size:12px;color:var(--muted);line-height:1.4}
 .epgEmpty{padding:20px 8px;color:var(--muted);font-size:13px;text-align:center}
 .dlRow{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line)}
+/* v24.81: a nowrap+ellipsis title only shrinks the TEXT, not the grid column it sits in — the
+   column itself still demands room for the full untruncated title unless the grid ITEM (this
+   wrapper, not just .dlName inside it) is told it's allowed to go below its content's natural
+   width. Without this a long movie title pushed the Delete button (sometimes Watched too) right
+   off the edge of the screen instead of the name properly ellipsizing. */
+.dlInfo{min-width:0}
 .dlRow:last-child{border-bottom:0}
 .dlPoster{width:52px;height:52px;border-radius:12px;background:linear-gradient(135deg,var(--blue),var(--green));display:grid;place-items:center;overflow:hidden;color:#04111e;font-weight:900}
 .dlPoster img{width:100%;height:100%;object-fit:cover}
@@ -651,6 +657,7 @@ body.light .home-footer{background:linear-gradient(180deg,rgba(238,245,255,0),rg
 .catpage.theme-live{--cp-a:#0A84FF;--cp-b:#32D0FF;--cp-rgb:10,132,255}      /* Live TV — Apple blue → cyan */
 .catpage.theme-vod{--cp-a:#FF375F;--cp-b:#FF9F0A;--cp-rgb:255,55,95}        /* Movies — Apple pink → orange */
 .catpage.theme-series{--cp-a:#BF5AF2;--cp-b:#7A5CFF;--cp-rgb:191,90,242}    /* Series — Apple purple → indigo */
+.catpage.theme-downloads{--cp-a:#22c55e;--cp-b:#16a34a;--cp-rgb:34,197,94} /* Downloads — matches the home card's green */
 .cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
 .cp-head{display:flex;align-items:center;gap:12px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) both}
 .cp-back{flex-shrink:0;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
@@ -1603,7 +1610,21 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 <!-- v24.70: offline downloads library — Movies/Series saved in-app (IndexedDB) for one-tap
      playback with no network, separate from the OS-level "Download to device" the player's
      "…" menu already offers. -->
-<div class="episodeSheet" id="downloadsSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="downloadsTitle">Downloads</h3><button class="iconbtn" id="downloadsClose">×</button></div><div class="episodeList" id="downloadsList"></div></div></div>
+<div class="catpage theme-downloads hidden" id="downloadsSheet">
+  <div class="home-bg"><span></span><span></span><span></span><span></span></div>
+  <div class="cp-inner">
+    <div class="cp-head">
+      <button class="cp-back" id="downloadsClose" aria-label="Back">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      </button>
+      <div class="cp-titlewrap">
+        <span class="cp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
+        <div class="cp-tt"><h1 id="downloadsTitle">Downloads</h1><p id="downloadsSub">— saved offline</p></div>
+      </div>
+    </div>
+    <div class="cp-list" id="downloadsList"></div>
+  </div>
+</div>
 <div class="infoSheet" id="infoSheet">
   <div class="infoPanel">
     <button class="infoClose" id="infoClose" aria-label="Close">&times;</button>
@@ -1982,7 +2003,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.80';
+const APP_VERSION='24.81';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7882,7 +7903,7 @@ async function startDownload(x){
   const prog={pct:0,received:0,total:0,name:nameOf(x),poster:logoOf(x)||'',cancel:()=>{try{ctl.abort()}catch(e){}}};
   S.dlProgress[key]=prog;
   updateDownloadsBadge();
-  if($('downloadsSheet')&&$('downloadsSheet').classList.contains('show'))renderDownloadsSheet();
+  if($('downloadsSheet')&&!$('downloadsSheet').classList.contains('hidden'))renderDownloadsSheet();
   toast('Downloading '+nameOf(x)+' for offline…');
   try{
     const res=await fetch(url,{signal:ctl.signal});
@@ -7939,7 +7960,7 @@ async function startDownload(x){
   }finally{
     delete S.dlProgress[key];
     updateDownloadsBadge().then(()=>{if(typeof renderGrid==='function')renderGrid(true);}); /* flips the row's Save-Offline button to its "saved" state */
-    if($('downloadsSheet')&&$('downloadsSheet').classList.contains('show'))renderDownloadsSheet();
+    if($('downloadsSheet')&&!$('downloadsSheet').classList.contains('hidden'))renderDownloadsSheet();
   }
 }
 function humanSize(n){
@@ -7958,7 +7979,7 @@ function dlRowHtml(rec){
   const actions=inFlight
     ?`<button type="button" data-dlcancel="${esc(rec.key)}" aria-label="Cancel"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="5" y1="5" x2="19" y2="19"/><line x1="19" y1="5" x2="5" y2="19"/></svg></button>`
     :`<button type="button" data-dlplay="${esc(rec.key)}" aria-label="Play"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg></button><button type="button" class="vlc" data-dlvlc="${esc(rec.key)}" aria-label="Open in VLC" title="Open in VLC"><svg viewBox="0 0 32 32" aria-hidden="true"><path fill="#fff" d="M16 4l2.6 6.2h-5.2L16 4zm-4.2 9.4h8.4l4.3 10.2a1.6 1.6 0 0 1-1.5 2.2H9a1.6 1.6 0 0 1-1.5-2.2l4.3-10.2z"/></svg></button><button type="button" class="${rec.watched?'on':''}" data-dlwatch="${esc(rec.key)}" aria-label="Toggle watched" title="${rec.watched?'Mark as unwatched':'Mark as watched'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12.3l2.6 2.6L16 9.4"/></svg></button><button type="button" data-dldel="${esc(rec.key)}" aria-label="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13h10l1-13"/></svg></button>`;
-  return `<div class="dlRow${rec.watched?' watched':''}" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
+  return `<div class="card dlRow${rec.watched?' watched':''}" data-dlkey="${esc(rec.key)}"><div class="dlPoster">${posterHtml}</div><div class="dlInfo"><div class="dlName">${esc(rec.name)}</div>${metaHtml}</div><div class="dlActions">${actions}</div></div>`;
 }
 async function dlToggleWatched(key){
   const rec=await dlGet(key);if(!rec)return;
@@ -7982,11 +8003,15 @@ async function renderDownloadsSheet(){
   const all=inFlightRows.join('')+rows.join('');
   $('downloadsList').innerHTML=all||'<div class="epgEmpty">No offline downloads yet. Open a movie or series and choose Save Offline from the player\'s ⋯ menu.</div>';
 }
-function openDownloadsSheet(){$('downloadsSheet').classList.add('show');renderDownloadsSheet();}
+/* v24.81 (owner request: Downloads should open "as how the movies and series and tv shows are
+   opening" — it used to be a small bottom sheet, cut off mid-screen, unlike every other section
+   which opens as a full page). Now reuses the same full-screen .catpage shell Live TV/Movies/
+   Series already use (same header-with-back-arrow layout, same list styling), just themed green
+   to match the home card — rather than a modal that only ever showed one row at a time. */
+function openDownloadsSheet(){$('downloadsSheet').classList.remove('hidden');renderDownloadsSheet();}
 if($('downloadsBtn'))$('downloadsBtn').onclick=openDownloadsSheet;
-if($('downloadsClose'))$('downloadsClose').onclick=()=>$('downloadsSheet').classList.remove('show');
+if($('downloadsClose'))$('downloadsClose').onclick=()=>$('downloadsSheet').classList.add('hidden');
 if($('downloadsSheet'))$('downloadsSheet').onclick=e=>{
-  if(e.target.id==='downloadsSheet'){$('downloadsSheet').classList.remove('show');return}
   const playBtn=e.target.closest('[data-dlplay]');
   if(playBtn){playDownloadedByKey(playBtn.dataset.dlplay);return}
   const vlcBtn=e.target.closest('[data-dlvlc]');
@@ -8073,7 +8098,7 @@ function playDownloadedBlob(rec){
        close the Downloads sheet so this message is actually visible, not hidden behind it. */
     showOfflineOverlay('Can’t play this file on this device','This device can’t decode MKV in the app. Use "Download" from the ⋯ menu instead to save it to Files and open it in another video player.');
     toast('This device can’t play MKV in-app');
-    $('downloadsSheet').classList.remove('show');
+    $('downloadsSheet').classList.add('hidden');
     return;
   }
   if(mkvReady){
@@ -8101,7 +8126,7 @@ function playDownloadedBlob(rec){
     v.src=url;
     v.play().catch(()=>{S.awaitingTap=true});
   }
-  $('downloadsSheet').classList.remove('show');
+  $('downloadsSheet').classList.add('hidden');
   if(typeof showBar==='function')showBar();
 }
 $('loginBtn').onclick=login;/* v18.3: the toolbar Refresh goes back to the provider now (resyncSource), not just re-slice the copy already in memory — see the note there for why that was not a refresh at all on a playlist line. */$('refreshBtn').onclick=()=>refreshTab(S.tab||'live');
@@ -10288,7 +10313,8 @@ if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(
     return false;
   };
   const goBack=()=>{
-    const cp=$('catpage'),hm=$('home');
+    const cp=$('catpage'),hm=$('home'),dl=$('downloadsSheet');
+    if(dl&&!dl.classList.contains('hidden')){dl.classList.add('hidden');return true;}
     if(cp&&!cp.classList.contains('hidden')){showHome();return true;}
     if(hm&&!hm.classList.contains('hidden'))return false;/* already home */
     backToCategories();return true;
