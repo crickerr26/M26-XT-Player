@@ -1989,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.86';
+const APP_VERSION='24.87';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7969,7 +7969,7 @@ async function startDownload(x){
     if(!res.ok||!res.body)throw new Error('HTTP '+(res.status||0));
     const total=+(res.headers.get('content-length')||0);
     prog.total=total;
-    const reader=res.body.getReader();
+    let reader=res.body.getReader();
     /* v24.71 (owner report: real movie downloads "just didn't work"): a real 1080p/4K MKV is
        1-4GB, and this used to hold EVERY chunk read so far in one growing JS array for the whole
        download, only building the final Blob at the very end — on a phone that is gigabytes of
@@ -7982,9 +7982,44 @@ async function startDownload(x){
     let chunks=[],chunkBytes=0;const parts=[];
     const flush=()=>{if(!chunks.length)return;parts.push(new Blob(chunks));chunks=[];chunkBytes=0;};
     let lastUiAt=0;
+    /* v24.87 (owner report: a download "becoming slow" then erroring out partway through, at 20%
+       on a real movie): everything above only ever protected the CONNECTION-OPENING moment — once
+       reading was under way, a single dropped read (the origin cutting the connection, a WiFi
+       blip, anything) threw the file away and failed the whole download, discarding every byte
+       already received. There is no reason a mid-download hiccup should cost the WHOLE file: the
+       proxy already forwards Range headers (used for exactly this by the browser's own native
+       download manager elsewhere in this file), so a read failure now resumes from the exact byte
+       already received instead of giving up — the file only fails for good after several resumes
+       in a row genuinely can't get any further. */
+    const MAX_RESUMES=8;
+    let resumes=0;
     for(;;){
-      const {done,value}=await reader.read();
-      if(done)break;
+      let step;
+      try{
+        step=await reader.read();
+      }catch(readErr){
+        if(ctl.signal.aborted)throw readErr;
+        if(resumes>=MAX_RESUMES)throw readErr;
+        resumes++;
+        toast('Download interrupted — resuming '+nameOf(x)+'…');
+        await new Promise(r=>setTimeout(r,Math.min(1000*resumes,5000)));
+        const resumeRes=await fetch(url,{signal:ctl.signal,headers:{Range:'bytes='+prog.received+'-'}});
+        if(!resumeRes.body)throw new Error('Resume failed: no body');
+        if(resumeRes.status===206){
+          reader=resumeRes.body.getReader();
+        }else if(resumeRes.ok){
+          /* the origin ignored the Range header and sent the file from the start again — cannot
+             safely append what we already have onto that without corrupting the file, so start
+             the accumulation over cleanly rather than risk a broken download. */
+          chunks=[];chunkBytes=0;parts.length=0;prog.received=0;prog.pct=0;
+          reader=resumeRes.body.getReader();
+        }else{
+          throw new Error('Resume failed: HTTP '+resumeRes.status);
+        }
+        continue;
+      }
+      if(step.done)break;
+      const value=step.value;
       chunks.push(value);chunkBytes+=value.byteLength;
       prog.received+=value.byteLength;
       prog.pct=total?Math.min(99,Math.round(prog.received/total*100)):0;
