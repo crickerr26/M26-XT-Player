@@ -657,7 +657,6 @@ body.light .home-footer{background:linear-gradient(180deg,rgba(238,245,255,0),rg
 .catpage.theme-live{--cp-a:#0A84FF;--cp-b:#32D0FF;--cp-rgb:10,132,255}      /* Live TV — Apple blue → cyan */
 .catpage.theme-vod{--cp-a:#FF375F;--cp-b:#FF9F0A;--cp-rgb:255,55,95}        /* Movies — Apple pink → orange */
 .catpage.theme-series{--cp-a:#BF5AF2;--cp-b:#7A5CFF;--cp-rgb:191,90,242}    /* Series — Apple purple → indigo */
-.catpage.theme-downloads{--cp-a:#22c55e;--cp-b:#16a34a;--cp-rgb:34,197,94} /* Downloads — matches the home card's green */
 .cp-inner{position:relative;z-index:1;width:min(820px,100%);margin:0 auto;height:100%;display:flex;flex-direction:column;gap:14px}
 .cp-head{display:flex;align-items:center;gap:12px;animation:homeRise .5s cubic-bezier(.2,.8,.2,1) both}
 .cp-back{flex-shrink:0;width:46px;height:46px;border-radius:15px;display:grid;place-items:center;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);color:#dce8fb;transition:transform .15s ease,background .15s ease}
@@ -1609,22 +1608,9 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 <div class="episodeSheet" id="epgSheet"><div class="episodePanel"><div class="episodeHead"><h3 id="epgTitle">Guide</h3><button class="iconbtn" id="epgClose">×</button></div><div class="episodeList" id="epgList"></div></div></div>
 <!-- v24.70: offline downloads library — Movies/Series saved in-app (IndexedDB) for one-tap
      playback with no network, separate from the OS-level "Download to device" the player's
-     "…" menu already offers. -->
-<div class="catpage theme-downloads hidden" id="downloadsSheet">
-  <div class="home-bg"><span></span><span></span><span></span><span></span></div>
-  <div class="cp-inner">
-    <div class="cp-head">
-      <button class="cp-back" id="downloadsClose" aria-label="Back">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
-      </button>
-      <div class="cp-titlewrap">
-        <span class="cp-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></span>
-        <div class="cp-tt"><h1 id="downloadsTitle">Downloads</h1><p id="downloadsSub">— saved offline</p></div>
-      </div>
-    </div>
-    <div class="cp-list" id="downloadsList"></div>
-  </div>
-</div>
+     "…" menu already offers. v24.83: no longer its own overlay page — see openDownloadsSheet()
+     and the S.viewingDownloads branch in renderGrid(), which render it straight into #app so its
+     player is the SAME #video every other section already uses. -->
 <div class="infoSheet" id="infoSheet">
   <div class="infoPanel">
     <button class="infoClose" id="infoClose" aria-label="Close">&times;</button>
@@ -2003,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.82';
+const APP_VERSION='24.83';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2117,7 +2103,7 @@ const ICONS={
      icon, which is the OS-level "hand it to Files/Downloads" action. */
   offline:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4.5 4.5 0 0 1-1-8.9 5.5 5.5 0 0 1 10.8-1.6A4 4 0 0 1 17 18H7z"/><path d="M12 11v6"/><polyline points="9.5 14.5 12 17 14.5 14.5"/></svg>'
 };
-const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),hiddenCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'list',series:'list'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:''};
+const S={url:'',rawUrl:'',user:'',pass:'',tab:'live',cat:'',q:'',liveCats:[],live:[],vodCats:[],vod:[],seriesCats:[],series:[],current:null,hls:null,ts:null,seq:0,playAttempt:0,favs:new Set(),favCats:new Set(),hiddenCats:new Set(),orders:{live:[],vod:[],series:[]},recent:[],busy:false,playerModes:{live:'auto',vod:'auto',series:'auto'},extLaunch:null,lastStreamStopAt:0,lastExtLaunchAt:0,resume:{},resumeOverride:{},catQ:'',catScroll:0,catScrollTab:'',viewModes:{live:'list',vod:'list',series:'list'},sortModes:{vod:'default',series:'default'},progress:{live:{done:0,total:0},vod:{done:0,total:0},series:{done:0,total:0}},transFast:false,quality:'auto',source:'xtream',m3u:null,xtreamApiOnly:false,xtreamApiLoaded:{},xtreamApiServerInfo:null,lastPreviewError:'',viewingDownloads:false};
 function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('show'),2200)}
 /* v16.3: turn the toast just shown into an UNDO for a few seconds. It stays on screen and stays
    tappable for the whole window rather than the usual 2.2s, because an undo the user cannot reach
@@ -3190,7 +3176,7 @@ function paintNowPlayingChip(){
   $('npcMeta').textContent=live?'Live now':'Now playing';
   chip.classList.remove('hidden');
 }
-function showHome(){applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');paintNowPlayingChip();try{paintHomeSubLines();}catch(e){}}
+function showHome(){S.viewingDownloads=false;applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');paintNowPlayingChip();try{paintHomeSubLines();}catch(e){}}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
    (All / Favorites / Recently Played + every category with its count + a favorite star).
    Tapping a category then drops into that category's channel grid. */
@@ -4419,7 +4405,7 @@ function paintTabLoading(){document.querySelectorAll('.tab').forEach(b=>b.classL
    WRONG text — silently clobbering "N episodes" back to the movie/series count). On a large
    Stalker catalogue sweep renderAll() fires roughly 200 times while Movies loads (see
    growGridInChunks' notes), so this was 200 extra full-array filter+sort passes for nothing. */
-function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
+function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.viewingDownloads?'Downloads':S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
 function renderCats(){
   const q=S.q.toLowerCase().trim();
   /* v24.69 (owner request): typing in search now filters the CATEGORY list too — "tamil" surfaces
@@ -4527,6 +4513,13 @@ function growGridInChunks(g,arr,cardHtml,start){
    moveItem()) still gets the full rebuild, via renderGrid(true) or a signature mismatch below. */
 let _gridSig='';
 function renderGrid(force){
+  /* v24.83 (owner request): Downloads should open "like how it is on other categories" — the
+     player pinned at the top with its list below, not a separate full-page overlay the actual
+     #video element sits behind (unreachable, only a floating mini "Now Playing" chip showed).
+     Downloads has no categories/search/sort of its own, so it borrows the SAME #app shell/#video/
+     #grid every other section already uses, the same way S.episodeView below already makes this
+     one grid show something other than the tab's plain catalog list. */
+  if(S.viewingDownloads)return renderDownloadsSheet();
   /* v24.70: lazily kick off the EPG fetch the first time Live is actually rendered (covers the
      opening screen, not just a later tab click) — ensureEpg() itself no-ops instantly on a
      Stalker/MAG line or a bare M3U with no credentials, and re-renders once real data lands. */
@@ -7537,6 +7530,14 @@ async function shareVideoFile(url,fname){
     toast('Preparing video for Save / Share...');
     const r=await fetch(url,{cache:'no-store'});
     if(!r.ok)throw Error('download failed');
+    /* v24.83: same crash this size guard fixes for the offline VLC button below — sharing a file
+       this large means the OS makes its own copy for the target app, which can exceed what the
+       tab's process can hold and kill the whole page. Returning false here just falls back to
+       downloadViaAnchor() (the browser's own native download manager, which streams to disk
+       without ever holding the whole file in this page's memory), so nothing is lost — the
+       download still happens, just without the "hand it straight to Share" shortcut. */
+    const len=+(r.headers.get('content-length')||0);
+    if(len>VLC_SHARE_LIMIT_BYTES)return false;
     const blob=await r.blob();
     const type=blob.type||mimeForFile(fname);
     const file=new File([blob],fname,{type});
@@ -7903,7 +7904,7 @@ async function startDownload(x){
   const prog={pct:0,received:0,total:0,name:nameOf(x),poster:logoOf(x)||'',cancel:()=>{try{ctl.abort()}catch(e){}}};
   S.dlProgress[key]=prog;
   updateDownloadsBadge();
-  if($('downloadsSheet')&&!$('downloadsSheet').classList.contains('hidden'))renderDownloadsSheet();
+  if(S.viewingDownloads)renderDownloadsSheet();
   toast('Downloading '+nameOf(x)+' for offline…');
   try{
     const res=await fetch(url,{signal:ctl.signal});
@@ -7960,7 +7961,7 @@ async function startDownload(x){
   }finally{
     delete S.dlProgress[key];
     updateDownloadsBadge().then(()=>{if(typeof renderGrid==='function')renderGrid(true);}); /* flips the row's Save-Offline button to its "saved" state */
-    if($('downloadsSheet')&&!$('downloadsSheet').classList.contains('hidden'))renderDownloadsSheet();
+    if(S.viewingDownloads)renderDownloadsSheet();
   }
 }
 function humanSize(n){
@@ -7997,49 +7998,55 @@ function updateDlRowProgress(key,prog){
 async function renderDownloadsSheet(){
   const inFlightKeys=Object.keys(S.dlProgress||{});
   const saved=await dlAll();
+  if(!S.viewingDownloads)return; /* user backed out of Downloads while this was loading */
   const savedKeys=new Set(saved.map(r=>r.key));
   const inFlightRows=inFlightKeys.filter(k=>!savedKeys.has(k)).map(k=>dlRowHtml({key:k,name:S.dlProgress[k].name||'Downloading…',ext:'',size:0,poster:S.dlProgress[k].poster||''}));
   const rows=saved.slice().sort((a,b)=>b.addedAt-a.addedAt).map(dlRowHtml);
   const all=inFlightRows.join('')+rows.join('');
-  $('downloadsList').innerHTML=all||'<div class="epgEmpty">No offline downloads yet. Open a movie or series and choose Save Offline from the player\'s ⋯ menu.</div>';
+  $('grid').innerHTML=all||'<div style="padding:18px"><div style="color:var(--muted)">No offline downloads yet. Open a movie or series and choose Save Offline from the player\'s ⋯ menu.</div></div>';
+  $('sectionSub').textContent=saved.length.toLocaleString()+' saved offline';
 }
-/* v24.81 (owner request: Downloads should open "as how the movies and series and tv shows are
-   opening" — it used to be a small bottom sheet, cut off mid-screen, unlike every other section
-   which opens as a full page). Now reuses the same full-screen .catpage shell Live TV/Movies/
-   Series already use (same header-with-back-arrow layout, same list styling), just themed green
-   to match the home card — rather than a modal that only ever showed one row at a time. */
-function openDownloadsSheet(){$('downloadsSheet').classList.remove('hidden');renderDownloadsSheet();}
+/* v24.83 (owner request: "build the inbuilt player here like how it on other categories... when
+   clicked the downloaded video it should play in the inbuilt player") — the v24.81 full-page
+   overlay fixed Downloads being a cramped bottom sheet, but it still covered #app, so the ACTUAL
+   #video element (and every control around it — seek bar, casting, PiP) sat hidden behind it;
+   playing a download only ever surfaced as the small floating "Now Playing" chip. Downloads now
+   opens the exact same way Live TV/Movies/Series do: hide Home, render straight into #app's own
+   player+grid (see the S.viewingDownloads branch in renderGrid()), so the player is pinned at the
+   top and the downloaded titles list sits below it, and tapping one plays it right there. */
+function openDownloadsSheet(){
+  S.viewingDownloads=true;S.episodeView=null;
+  if($('home'))$('home').classList.add('hidden');
+  if($('catpage'))$('catpage').classList.add('hidden');
+  renderAll();
+  paintNowPlayingChip();
+}
 if($('downloadsBtn'))$('downloadsBtn').onclick=openDownloadsSheet;
-if($('downloadsClose'))$('downloadsClose').onclick=()=>$('downloadsSheet').classList.add('hidden');
-if($('downloadsSheet'))$('downloadsSheet').onclick=e=>{
-  const playBtn=e.target.closest('[data-dlplay]');
-  if(playBtn){playDownloadedByKey(playBtn.dataset.dlplay);return}
-  const vlcBtn=e.target.closest('[data-dlvlc]');
-  if(vlcBtn){pushDownloadToVlc(vlcBtn.dataset.dlvlc);return}
-  const watchBtn=e.target.closest('[data-dlwatch]');
-  if(watchBtn){dlToggleWatched(watchBtn.dataset.dlwatch);return}
-  const delBtn=e.target.closest('[data-dldel]');
-  if(delBtn){const k=delBtn.dataset.dldel;dlDelete(k).then(()=>{renderDownloadsSheet();updateDownloadsBadge();toast('Removed from Downloads')});return}
-  const cancelBtn=e.target.closest('[data-dlcancel]');
-  if(cancelBtn){const p=S.dlProgress[cancelBtn.dataset.dlcancel];if(p)p.cancel();return}
-  /* v24.79 (owner request): tapping the row itself — the title, the poster, anywhere that isn't
-     one of the specific buttons above — plays it too, same as tapping a title anywhere else in
-     the app already does. Guarded against an in-flight row (still downloading, not saved yet;
-     every row carries data-dlkey regardless, so check S.dlProgress rather than the attribute). */
-  const row=e.target.closest('.dlRow[data-dlkey]');
-  if(row&&!S.dlProgress[row.dataset.dlkey])playDownloadedByKey(row.dataset.dlkey);
-};
 /* v24.79 (owner request): "push to VLC" for a file already sitting in this browser's own local
    storage. A live channel's VLC button hands VLC a network URL it fetches itself — a downloaded
    file has no such URL (a blob: URL only means anything inside THIS tab), so the only way to
    truly hand its bytes to another app is the OS share sheet: it lets the user pick VLC (Android
    shows it directly among the share targets; other platforms show whatever app declares it can
    open a video). Same mechanism the "Download" button already uses for "Save to Files". */
+/* v24.83 (owner report: tapping VLC on a downloaded movie "reloaded the page" instead of opening
+   the share sheet): handing a file to navigator.share() means the OS has to make its own copy for
+   the target app to read — on a real 2.78GB movie that momentarily needs roughly double the
+   file's size in memory, and the tab's process gets killed for it, which looks exactly like an
+   unexplained reload with no error to catch (there is nothing here for a try/catch to see; the
+   whole page is gone). There's no reliable way to detect a device's memory headroom in advance, so
+   this stays well clear of the size that already failed instead of trying again and crashing the
+   same way. The in-app player has no such ceiling — it already streams and seeks files of any size
+   fine — so that's the fallback pointed to below, not a re-attempt of the same risky handoff. */
+const VLC_SHARE_LIMIT_BYTES=700*1024*1024;
 async function pushDownloadToVlc(key){
   const rec=await dlGet(key);
   if(!rec){toast('That download is gone — try re-saving it');return}
   if(!(navigator.share&&navigator.canShare&&window.File&&window.Blob)){
-    toast('This browser can\'t share files — use "Download" from the ⋯ menu instead, then open it in VLC from Files.');
+    toast('This browser can\'t share files — play it in the built-in player instead.');
+    return;
+  }
+  if(rec.size>VLC_SHARE_LIMIT_BYTES){
+    toast('This file is too large to hand off to VLC — some devices run out of memory and crash. Play it in the built-in player instead.');
     return;
   }
   try{
@@ -8094,11 +8101,9 @@ function playDownloadedBlob(rec){
   if(isMkv&&!mkvReady){
     /* This device has no MediaSource/ManagedMediaSource at all — a raw MKV container CANNOT
        play through a plain <video src>, on any browser. Falling through to that anyway used to
-       fail with total silence: black screen, 0:00, no error, nothing — say so instead. Still
-       close the Downloads sheet so this message is actually visible, not hidden behind it. */
+       fail with total silence: black screen, 0:00, no error, nothing — say so instead. */
     showOfflineOverlay('Can’t play this file on this device','This device can’t decode MKV in the app. Use "Download" from the ⋯ menu instead to save it to Files and open it in another video player.');
     toast('This device can’t play MKV in-app');
-    $('downloadsSheet').classList.add('hidden');
     return;
   }
   if(mkvReady){
@@ -8126,7 +8131,6 @@ function playDownloadedBlob(rec){
     v.src=url;
     v.play().catch(()=>{S.awaitingTap=true});
   }
-  $('downloadsSheet').classList.add('hidden');
   if(typeof showBar==='function')showBar();
 }
 $('loginBtn').onclick=login;/* v18.3: the toolbar Refresh goes back to the provider now (resyncSource), not just re-slice the copy already in memory — see the note there for why that was not a refresh at all on a playlist line. */$('refreshBtn').onclick=()=>refreshTab(S.tab||'live');
@@ -10313,8 +10317,8 @@ if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(
     return false;
   };
   const goBack=()=>{
-    const cp=$('catpage'),hm=$('home'),dl=$('downloadsSheet');
-    if(dl&&!dl.classList.contains('hidden')){dl.classList.add('hidden');return true;}
+    const cp=$('catpage'),hm=$('home');
+    if(S.viewingDownloads){showHome();return true;}
     if(cp&&!cp.classList.contains('hidden')){showHome();return true;}
     if(hm&&!hm.classList.contains('hidden'))return false;/* already home */
     backToCategories();return true;
@@ -10443,7 +10447,7 @@ if($('homeRefreshPlaylist'))$('homeRefreshPlaylist').onclick=async()=>{
     btn.disabled=false;btn.textContent=prevText;
   }
 };
-(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>backToCategories();$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
+(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if(S.viewingDownloads){showHome();return}backToCategories();};$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
 $('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Yez Player ready — MKV plays here in the app':'⚠️ Yez Player '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();
 if($('transcoderAdvBtn'))$('transcoderAdvBtn').onclick=()=>{const b=$('transcoderAdv');if(!b)return;const open=b.classList.toggle('hidden');$('transcoderAdvBtn').textContent=open?'Advanced — run my own transcoder':'Hide advanced';};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};/* ── v20.8: "TAP THE VIDEO ONCE TO BEGIN PLAYBACK" NOW BEGINS PLAYBACK. ─────────────────────────
    It did not. The prompt appears when the browser refuses to autoplay, and the only tap handler on
@@ -10565,6 +10569,15 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;
    short enough nobody perceives a delay but long enough to collapse a whole word into one render. */
 let _searchDebounce=0;
 $('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_searchDebounce=setTimeout(()=>{S.q=v;S.episodeView=null;renderAll()},180)};$('cats').onclick=e=>{const st=e.target.closest('[data-favcat]');if(st){e.stopPropagation();const fk=catFavKey(st.dataset.favcat);S.favCats.has(fk)?S.favCats.delete(fk):S.favCats.add(fk);saveFavCats();renderCats();return}const b=e.target.closest('.cat');if(!b)return;S.cat=b.dataset.cat;S.episodeView=null;renderAll();if(mobile())$('side').classList.remove('open')};$('episodeClose').onclick=()=>$('episodeSheet').classList.remove('show');$('episodeSheet').onclick=e=>{if(e.target.id==='episodeSheet')$('episodeSheet').classList.remove('show')};let lastCardTap={key:'',time:0};$('grid').onclick=e=>{
+  /* v24.83: Downloads renders straight into this same #grid now (see renderGrid()), so its row
+     actions — play/VLC/watched/delete/cancel, and tapping the row itself — are handled right
+     here alongside every other section's, instead of a separate sheet with its own handler. */
+  const dlPlayBtn=e.target.closest('[data-dlplay]');if(dlPlayBtn){playDownloadedByKey(dlPlayBtn.dataset.dlplay);return}
+  const dlVlcBtn=e.target.closest('[data-dlvlc]');if(dlVlcBtn){pushDownloadToVlc(dlVlcBtn.dataset.dlvlc);return}
+  const dlWatchBtn=e.target.closest('[data-dlwatch]');if(dlWatchBtn){dlToggleWatched(dlWatchBtn.dataset.dlwatch);return}
+  const dlDelBtn=e.target.closest('[data-dldel]');if(dlDelBtn){const k=dlDelBtn.dataset.dldel;dlDelete(k).then(()=>{renderGrid(true);updateDownloadsBadge();toast('Removed from Downloads')});return}
+  const dlCancelBtn=e.target.closest('[data-dlcancel]');if(dlCancelBtn){const p=S.dlProgress[dlCancelBtn.dataset.dlcancel];if(p)p.cancel();return}
+  const dlRow=e.target.closest('.dlRow[data-dlkey]');if(dlRow){if(!S.dlProgress[dlRow.dataset.dlkey])playDownloadedByKey(dlRow.dataset.dlkey);return}
   /* episode-view (a single series' episodes shown under the player) */
   const eb=e.target.closest('[data-epback]');if(eb){S.episodeView=null;renderGrid();if($('grid'))$('grid').scrollTop=0;return}
   const egt=e.target.closest('[data-epg]');if(egt){e.stopPropagation();const x=findByKey(egt.dataset.epg);if(x)openEpgSheet(x);return}
