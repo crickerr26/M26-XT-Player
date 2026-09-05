@@ -1989,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.87';
+const APP_VERSION='24.88';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7915,6 +7915,33 @@ function playSeekableMkv(video,rec,opts){
     };
   });
 }
+/* v24.88 (owner report: downloads still "struggling" after v24.85-87 added retries around every
+   REJECTION a fetch or a read could throw): none of that helps a connection that goes quiet
+   instead of failing — a request that never resolves, never rejects, just sits there. Mobile
+   networks and a struggling proxy do this constantly, and it's arguably the MOST common shape of
+   "stuck download," not the rarer clean error. await has no concept of "this is taking too long,"
+   so a silent stall before this just hung forever with no progress and no error to react to —
+   nothing built in v24.85-87 could even see it happen, because none of it fires until something
+   actually rejects. These two helpers race the real operation against a timer and turn a stall
+   into an ordinary, actionable error, so the SAME retry/resume logic already in startDownload
+   below can treat "gone quiet" exactly like "failed outright" instead of two different problems. */
+function fetchWithTimeout(url,opts,timeoutMs){
+  const ac=new AbortController();
+  const parentSignal=opts&&opts.signal;
+  const onParentAbort=()=>ac.abort();
+  if(parentSignal){if(parentSignal.aborted)ac.abort();else parentSignal.addEventListener('abort',onParentAbort);}
+  const timer=setTimeout(()=>ac.abort(),timeoutMs);
+  return fetch(url,Object.assign({},opts,{signal:ac.signal})).catch(e=>{
+    if(parentSignal&&parentSignal.aborted)throw e; /* a real user cancel — let it read as one */
+    if(e&&e.name==='AbortError')throw new Error('stalled — no response within '+Math.round(timeoutMs/1000)+'s');
+    throw e;
+  }).finally(()=>{clearTimeout(timer);if(parentSignal)parentSignal.removeEventListener('abort',onParentAbort);});
+}
+function readWithTimeout(reader,timeoutMs){
+  let timer;
+  const stall=new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('stalled — no data for '+Math.round(timeoutMs/1000)+'s')),timeoutMs);});
+  return Promise.race([reader.read(),stall]).finally(()=>clearTimeout(timer));
+}
 async function startDownload(x){
   if(!x){toast('Open a movie or series first');return}
   if(typeOf(x)==='live'){toast('Live channels can\'t be saved for offline — only Movies & Series');return}
@@ -7960,9 +7987,10 @@ async function startDownload(x){
        real cause is a transient blip, and gives a moment for another connection to actually be
        released when it isn't — either way this fetch has no partial bytes to lose yet, so retrying
        it fresh is always safe. */
+    const CONNECT_TIMEOUT_MS=20000;
     let res,lastErr;
     for(let attempt=1;attempt<=3;attempt++){
-      try{res=await fetch(url,{signal:ctl.signal});lastErr=null;break;}
+      try{res=await fetchWithTimeout(url,{signal:ctl.signal},CONNECT_TIMEOUT_MS);lastErr=null;break;}
       catch(e){lastErr=e;if(ctl.signal.aborted||attempt===3)throw e;await new Promise(r=>setTimeout(r,900*attempt));}
     }
     if(lastErr)throw lastErr;
@@ -7990,20 +8018,25 @@ async function startDownload(x){
        proxy already forwards Range headers (used for exactly this by the browser's own native
        download manager elsewhere in this file), so a read failure now resumes from the exact byte
        already received instead of giving up — the file only fails for good after several resumes
-       in a row genuinely can't get any further. */
+       in a row genuinely can't get any further.
+       v24.88: readWithTimeout() means a stall counts as exactly this same kind of "read failure"
+       too, not just an outright rejection — see its own note above startDownload for why that
+       distinction was the actual gap behind "downloading is struggling" persisting after this. */
     const MAX_RESUMES=8;
+    const READ_STALL_MS=15000;
     let resumes=0;
     for(;;){
       let step;
       try{
-        step=await reader.read();
+        step=await readWithTimeout(reader,READ_STALL_MS);
       }catch(readErr){
         if(ctl.signal.aborted)throw readErr;
         if(resumes>=MAX_RESUMES)throw readErr;
         resumes++;
+        try{reader.cancel();}catch(e){} /* abandon whatever the stalled/broken read was still waiting on */
         toast('Download interrupted — resuming '+nameOf(x)+'…');
         await new Promise(r=>setTimeout(r,Math.min(1000*resumes,5000)));
-        const resumeRes=await fetch(url,{signal:ctl.signal,headers:{Range:'bytes='+prog.received+'-'}});
+        const resumeRes=await fetchWithTimeout(url,{signal:ctl.signal,headers:{Range:'bytes='+prog.received+'-'}},CONNECT_TIMEOUT_MS);
         if(!resumeRes.body)throw new Error('Resume failed: no body');
         if(resumeRes.status===206){
           reader=resumeRes.body.getReader();
