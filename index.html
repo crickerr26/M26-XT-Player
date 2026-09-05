@@ -1989,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.89';
+const APP_VERSION='24.90';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7695,13 +7695,39 @@ if($('epgSheet'))$('epgSheet').onclick=e=>{if(e.target.id==='epgSheet')$('epgShe
    using the exact same teardown (cleanup()) and Matroska engine (Media26Mkv) live playback uses
    — a downloaded file is just another local source handed to the <video> element. */
 const DL_DB_NAME='media26-downloads',DL_STORE='files';
+/* v24.90 (owner report: a big download "struggles"/slows down consistently around the same
+   ~20% mark, across different movies, surviving five rounds of retry/resume/stall-detection —
+   none of which could explain a PROGRESSIVE symptom, since they only react to discrete failures).
+   The real gap: flush() below only ever kept the RAW chunk data small (24MB at a time) — the
+   Blob it produces was never actually written anywhere until the very end. Every one of those
+   flushed Blobs stayed referenced in the `parts` array for the ENTIRE download, so by the time a
+   2-4GB movie finished, the WHOLE FILE was still resident in this tab's own memory, all along —
+   the 24MB flush only ever capped the RAW-chunk overhead, not the total footprint. A consistent
+   pain point at a similar fraction of a similarly-sized file, on a phone, is exactly the shape of
+   "the OS starts reclaiming memory from a background/heavy tab," and once that starts, reads
+   stall and slow down — which is also why v24.88's stall-detection kept having something to catch
+   here in the first place; the stall wasn't a cause on its own, this was.
+   DL_TEMP_STORE holds the accumulated file WHILE IT'S STILL DOWNLOADING, written in ~150MB
+   increments and immediately dropped from the `parts` array afterward — so active JS memory for a
+   download is bounded by COMMIT_BYTES, not by the file's total size, regardless of whether it's
+   200MB or 4GB. IndexedDB is disk-backed; handing bytes to it and dropping the JS reference lets
+   them leave the tab's live memory instead of sitting in a JS array for minutes. Kept as a
+   SEPARATE store from DL_STORE (not just an early write into the real record) so an in-progress
+   download can never be mistaken for a finished one by dlAll()/the Downloads list, which only
+   ever reads DL_STORE. */
+const DL_TEMP_STORE='dlChunks';
+const DL_DB_VERSION=2;
 let _dlDb=null;
 S.dlProgress=S.dlProgress||{}; /* key -> {pct,received,total,name,poster,cancel} while in flight */
 function dlOpenDb(){
   if(_dlDb)return Promise.resolve(_dlDb);
   return new Promise((resolve,reject)=>{
-    let req;try{req=indexedDB.open(DL_DB_NAME,1)}catch(e){reject(e);return}
-    req.onupgradeneeded=()=>{const db=req.result;if(!db.objectStoreNames.contains(DL_STORE))db.createObjectStore(DL_STORE,{keyPath:'key'});};
+    let req;try{req=indexedDB.open(DL_DB_NAME,DL_DB_VERSION)}catch(e){reject(e);return}
+    req.onupgradeneeded=()=>{
+      const db=req.result;
+      if(!db.objectStoreNames.contains(DL_STORE))db.createObjectStore(DL_STORE,{keyPath:'key'});
+      if(!db.objectStoreNames.contains(DL_TEMP_STORE))db.createObjectStore(DL_TEMP_STORE,{keyPath:'key'});
+    };
     req.onsuccess=()=>{_dlDb=req.result;resolve(_dlDb)};
     req.onerror=()=>reject(req.error);
   });
@@ -7710,6 +7736,9 @@ async function dlAll(){try{const db=await dlOpenDb();return await new Promise((r
 async function dlGet(key){try{const db=await dlOpenDb();return await new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readonly'),rq=tx.objectStore(DL_STORE).get(key);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error)})}catch(e){return null}}
 async function dlPut(rec){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
 async function dlDelete(key){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_STORE,'readwrite');tx.objectStore(DL_STORE).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function dlGetTemp(key){try{const db=await dlOpenDb();return await new Promise((res,rej)=>{const tx=db.transaction(DL_TEMP_STORE,'readonly'),rq=tx.objectStore(DL_TEMP_STORE).get(key);rq.onsuccess=()=>res(rq.result||null);rq.onerror=()=>rej(rq.error)})}catch(e){return null}}
+async function dlPutTemp(rec){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_TEMP_STORE,'readwrite');tx.objectStore(DL_TEMP_STORE).put(rec);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
+async function dlDeleteTemp(key){const db=await dlOpenDb();return new Promise((res,rej)=>{const tx=db.transaction(DL_TEMP_STORE,'readwrite');tx.objectStore(DL_TEMP_STORE).delete(key);tx.oncomplete=()=>res();tx.onerror=()=>rej(tx.error)})}
 async function updateDownloadsBadge(){
   const saved=await dlAll();
   S.dlKeys=new Set(saved.map(r=>r.key));
@@ -7979,6 +8008,7 @@ async function startDownload(x){
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
   const ctl=new AbortController();
   const prog={pct:0,received:0,total:0,name:nameOf(x),poster:logoOf(x)||'',cancel:()=>{try{ctl.abort()}catch(e){}}};
+  let committedAny=false; /* hoisted so the catch block below can clean up DL_TEMP_STORE on failure/cancel too */
   S.dlProgress[key]=prog;
   updateDownloadsBadge();
   if(S.viewingDownloads)renderDownloadsSheet();
@@ -8014,8 +8044,24 @@ async function startDownload(x){
        moment — a Blob built FROM other Blobs is just references, not a copy, so accumulating
        `parts` afterward costs almost nothing regardless of how large the file is. */
     const FLUSH_BYTES=24*1024*1024;
-    let chunks=[],chunkBytes=0;const parts=[];
+    let chunks=[],chunkBytes=0;let parts=[];
     const flush=()=>{if(!chunks.length)return;parts.push(new Blob(chunks));chunks=[];chunkBytes=0;};
+    /* v24.90: see DL_TEMP_STORE's own note above dlOpenDb() — `parts` on its own still holds the
+       WHOLE file by the end, just as Blobs instead of raw chunks. Every COMMIT_BYTES, flush what's
+       pending, merge it onto whatever's already been written to the temp store (reading it back
+       first — never held onto across iterations, so nothing here accumulates in a JS closure
+       either), write the merged result, and only THEN drop `parts`. IndexedDB is disk-backed, so
+       this is really handing the bytes off the tab's live heap, not just moving them around it. */
+    const COMMIT_BYTES=150*1024*1024;
+    let pendingCommitBytes=0;
+    const commitPending=async()=>{
+      flush();
+      if(!parts.length)return;
+      const prevTemp=await dlGetTemp(key);
+      const merged=(prevTemp&&prevTemp.blob)?new Blob([prevTemp.blob,...parts]):new Blob(parts);
+      await dlPutTemp({key,blob:merged});
+      parts=[];pendingCommitBytes=0;committedAny=true;
+    };
     let lastUiAt=0;
     /* v24.87 (owner report: a download "becoming slow" then erroring out partway through, at 20%
        on a real movie): everything above only ever protected the CONNECTION-OPENING moment — once
@@ -8061,8 +8107,11 @@ async function startDownload(x){
         }else if(resumeRes.ok){
           /* the origin ignored the Range header and sent the file from the start again — cannot
              safely append what we already have onto that without corrupting the file, so start
-             the accumulation over cleanly rather than risk a broken download. */
-          chunks=[];chunkBytes=0;parts.length=0;prog.received=0;prog.pct=0;resetAtReceived=0;
+             the accumulation over cleanly rather than risk a broken download. Anything already
+             committed to the temp store is from the file we're now discarding too — clear it, or
+             the final merge would prepend stale bytes from before this restart. */
+          chunks=[];chunkBytes=0;parts=[];prog.received=0;prog.pct=0;resetAtReceived=0;pendingCommitBytes=0;
+          if(committedAny){await dlDeleteTemp(key).catch(()=>{});committedAny=false;}
           reader=resumeRes.body.getReader();
         }else{
           throw new Error('Resume failed: HTTP '+resumeRes.status);
@@ -8073,18 +8122,26 @@ async function startDownload(x){
       const value=step.value;
       chunks.push(value);chunkBytes+=value.byteLength;
       prog.received+=value.byteLength;
+      pendingCommitBytes+=value.byteLength;
       if(resumes>0&&prog.received-resetAtReceived>=RESUME_RESET_BYTES)resumes=0;
       prog.pct=total?Math.min(99,Math.round(prog.received/total*100)):0;
       if(chunkBytes>=FLUSH_BYTES)flush();
+      if(pendingCommitBytes>=COMMIT_BYTES)await commitPending();
       const now=Date.now();
       if(now-lastUiAt>250){updateDlRowProgress(key,prog);lastUiAt=now;} /* throttled — a fast connection reads far more often than any UI needs to repaint */
     }
     flush();
     updateDlRowProgress(key,prog);
     const mime=mimeForFile('f.'+ext);
-    const blob=new Blob(parts,{type:mime});
+    /* v24.90: merge in whatever was already committed to the temp store (if this download ever
+       crossed COMMIT_BYTES) with whatever's still only in JS memory (the tail end since the last
+       commit) — this is the only place that needs to know the temp store exists at all; a small
+       download that never committed just falls through to exactly the old behavior. */
+    const prevTemp=await dlGetTemp(key);
+    const blob=(prevTemp&&prevTemp.blob)?new Blob([prevTemp.blob,...parts],{type:mime}):new Blob(parts,{type:mime});
     if(!blob.size)throw new Error('downloaded file was empty');
     await dlPut({key,name:nameOf(x),ext,mime,size:blob.size,blob,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now(),watched:false});
+    if(committedAny)await dlDeleteTemp(key).catch(()=>{});
     toast(nameOf(x)+' saved for offline');
     /* v24.78 (owner report: forward-seeking a downloaded movie is slow): run the same
        demux/remux mkv.js already does, ONCE, right now, instead of throwing the result away —
@@ -8101,6 +8158,11 @@ async function startDownload(x){
       }).catch(e=>{console.warn('[Downloads] fast-seek preprocessing skipped:',(e&&e.message)||e);});
     }
   }catch(e){
+    /* v24.90: a download that got far enough to commit to DL_TEMP_STORE but then genuinely
+       failed (or was canceled) leaves that partial data with nothing ever going to claim or
+       clean it up otherwise — it isn't in DL_STORE, so dlDelete()/the Downloads UI can't see it.
+       Clear it here so an abandoned multi-GB attempt doesn't just sit on disk forever. */
+    if(committedAny)dlDeleteTemp(key).catch(()=>{});
     if(e&&e.name==='AbortError')toast('Download canceled');
     else{
       const msg=(e&&e.message)||'try again';
