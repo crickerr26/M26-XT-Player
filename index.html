@@ -1997,7 +1997,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.96';
+const APP_VERSION='24.97';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6153,6 +6153,10 @@ function plan(x){
   }
   return p;
 }
+let _lastManualPauseAt=0,_manualPauseHeld=false;
+function markManualPause(){_lastManualPauseAt=Date.now();_manualPauseHeld=true}
+function clearManualPause(){_manualPauseHeld=false}
+function manualPauseActive(v){return _manualPauseHeld&&v&&v.paused&&!v.ended}
 /* v24.3 (owner report, with a screenshot: audio/video kept running in the background — Dynamic
    Island still showing "Now Playing" — after the player was closed): whenever Picture-in-Picture
    IS active (Movies/Series and Android/desktop live channels can all reach it — see the v24.4 note
@@ -6163,7 +6167,7 @@ function plan(x){
    down, so nothing is left playing to a window the app no longer has a reference to. Kept even
    though v24.4 reverted the change that made this reachable on iOS live TV specifically — this is
    the correct behavior for every other route PiP does work on. */
-function cleanup(){const v=$('video');clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;try{toggleInlinePip(false)}catch(e){}if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
+function cleanup(){const v=$('video');clearManualPause();clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;try{toggleInlinePip(false)}catch(e){}if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
 /* ── v22.6: NATIVE VLC BRIDGE (only inside the iOS wrapper app). ──────────────────────────────
    When this same web app is loaded inside the Media26 native iOS shell (ios-app/), that shell
    exposes a message handler, window.webkit.messageHandlers.m26vlc. It is ABSENT in every normal
@@ -6946,6 +6950,12 @@ async function tryPlans(plans,i){
        move, forever, for a title that might have played fine on the very next route. */
     try{
     const now=Date.now(),t=v.currentTime||0,be=bufEnd();
+    if(E.started&&manualPauseActive(v)){
+      E.lastProgress=now;E.frozenAt=0;E.progressStreak=0;
+      $('netStatus').textContent='Paused';$('miniMeta').textContent='Paused';
+      if($('playBtn'))$('playBtn').innerHTML=ICONS.play;
+      S.timer=setTimeout(beat,1000);return
+    }
     if(be>E.lastBuf+0.2){E.lastBuf=be;E.frozenAt=0}
     else if(!E.frozenAt)E.frozenAt=now;
     if(t>E.lastT+0.2){
@@ -7342,9 +7352,11 @@ function seekBy(sec){
 }
 /* v24.30: the timestamp of the last DELIBERATE pause (this button), so the exit-fullscreen resume
    guard below can tell "the user paused it" from "the browser paused it during the fullscreen
-   transition" — the two look identical as a bare video.paused check. */
-let _lastManualPauseAt=0;
-function togglePlay(){const v=$('video');if(v.paused){v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{v.pause();_lastManualPauseAt=Date.now();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
+   transition" — the two look identical as a bare video.paused check.
+   v24.97: keep a held manual-pause state too. The stream watchdog is allowed to recover a real
+   stall, but it must never treat "the customer pressed pause" as a frozen stream and call play()
+   a few seconds later. */
+function togglePlay(){const v=$('video');if(v.paused){clearManualPause();v.play().catch(()=>toast('Tap the video once to start playback'));if($('playBtn'))$('playBtn').innerHTML=ICONS.pause}else{markManualPause();v.pause();if($('playBtn'))$('playBtn').innerHTML=ICONS.play}}
 function iosLike(){const ua=navigator.userAgent||'';return /iphone|ipad|ipod/i.test(ua)||(/macintosh/i.test(ua)&&'ontouchend'in document)}
 function toggleInlinePip(force){
   const box=$('playerBox'),v=$('video');
@@ -7486,8 +7498,8 @@ function updateMediaSession(x){
   if(!('mediaSession'in navigator))return;
   const v=$('video');if(!v)return;
   const set=(a,fn)=>{try{navigator.mediaSession.setActionHandler(a,fn)}catch(e){}};
-  set('play',()=>{v.play().catch(()=>{})});
-  set('pause',()=>{v.pause()});
+  set('play',()=>{clearManualPause();v.play().catch(()=>{})});
+  set('pause',()=>{markManualPause();v.pause()});
   set('stop',()=>{try{cleanup()}catch(e){}});
   v.addEventListener('playing',()=>{try{navigator.mediaSession.playbackState='playing'}catch(e){}});
   v.addEventListener('play',()=>{try{navigator.mediaSession.playbackState='playing'}catch(e){}});
