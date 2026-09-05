@@ -1989,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.84';
+const APP_VERSION='24.85';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7934,7 +7934,23 @@ async function startDownload(x){
   if(S.viewingDownloads)renderDownloadsSheet();
   toast('Downloading '+nameOf(x)+' for offline…');
   try{
-    const res=await fetch(url,{signal:ctl.signal});
+    /* v24.85 (owner report: "Offline save failed — Load failed" while a movie was also open in the
+       player): "Load failed" is Safari/WebKit's own generic message for a connection that broke at
+       the network level, before any HTTP response even came back — it carries no status code or
+       server reason, unlike a clean 4xx/5xx. Many of these panels allow only ONE connection per
+       account (see the external-player handoff note elsewhere in this file, and the MAG/Stalker
+       rule in CLAUDE.md) — opening a download's own connection while the built-in player already
+       holds the account's one slot is exactly the kind of thing that gets reset this way. Retrying
+       a genuine network-level failure a couple of times, with a short pause, costs nothing when the
+       real cause is a transient blip, and gives a moment for another connection to actually be
+       released when it isn't — either way this fetch has no partial bytes to lose yet, so retrying
+       it fresh is always safe. */
+    let res,lastErr;
+    for(let attempt=1;attempt<=3;attempt++){
+      try{res=await fetch(url,{signal:ctl.signal});lastErr=null;break;}
+      catch(e){lastErr=e;if(ctl.signal.aborted||attempt===3)throw e;await new Promise(r=>setTimeout(r,900*attempt));}
+    }
+    if(lastErr)throw lastErr;
     if(!res.ok||!res.body)throw new Error('HTTP '+(res.status||0));
     const total=+(res.headers.get('content-length')||0);
     prog.total=total;
@@ -7984,7 +8000,18 @@ async function startDownload(x){
     }
   }catch(e){
     if(e&&e.name==='AbortError')toast('Download canceled');
-    else toast('Offline save failed — '+((e&&e.message)||'try again'));
+    else{
+      const msg=(e&&e.message)||'try again';
+      /* v24.85: this generic browser-level wording (no HTTP status, no server reason) is the
+         signature of a connection that broke before any response came back — the single most
+         common real cause on these panels is the account's one allowed connection already being
+         held by whatever is currently playing. Say that plainly instead of just echoing a phrase
+         that means nothing to the customer. */
+      const isNetworkLevel=/load failed|failed to fetch|network ?error|network request failed/i.test(msg);
+      toast(isNetworkLevel
+        ?'Offline save failed — the connection was cut off. If something is currently playing, stop it and try the download again (some lines only allow one connection at a time).'
+        :'Offline save failed — '+msg);
+    }
   }finally{
     delete S.dlProgress[key];
     updateDownloadsBadge().then(()=>{if(typeof renderGrid==='function')renderGrid(true);}); /* flips the row's Save-Offline button to its "saved" state */
