@@ -828,6 +828,18 @@
 
       rx.onInit = function (init, tracks, unsupportedAudio) {
         try {
+          /* v24.82 (owner report: a 2+ hour movie's seek bar total kept reading far short of the
+             real length while streaming it live, not just after downloading it): the ONE place
+             this file used to set ms.duration from the movie's own EBML Duration header ran at
+             sourceopen, before the fetch() below has even started — rx.durationMs is always still
+             its constructor default (0) at that point, so the assignment there was silently a
+             no-op on every single play, live or not. By onInit, the Segment's Info element (which
+             carries Duration) has already been parsed — Info always precedes Tracks in a valid
+             Matroska file — so rx.durationMs is real here, and this is the first point it's safe
+             to trust. Without this the on-screen total fell straight back to however much has
+             actually buffered so far, which is why it read low early on and grew as playback
+             continued instead of showing the real length from the start. */
+          if (rx.durationMs) { try { ms.duration = rx.durationMs / 1000; } catch (_) {} }
           const big = tracks.some(function (t) { return t.type === 'video' && (t.width || 0) >= 2560; });
           if (big) { aheadTarget = 10; evictKeep = 4; }
           for (const t of tracks) {
@@ -888,7 +900,6 @@
       };
 
       ms.addEventListener('sourceopen', async function () {
-        try { if (rx.durationMs) ms.duration = rx.durationMs / 1000; } catch (_) {}
         try {
           controller = new AbortController();
           const res = await fetch(url, { signal: controller.signal, cache: 'no-store' });
