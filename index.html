@@ -1989,7 +1989,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.88';
+const APP_VERSION='24.89';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7924,8 +7924,16 @@ function playSeekableMkv(video,rec,opts){
    nothing built in v24.85-87 could even see it happen, because none of it fires until something
    actually rejects. These two helpers race the real operation against a timer and turn a stall
    into an ordinary, actionable error, so the SAME retry/resume logic already in startDownload
-   below can treat "gone quiet" exactly like "failed outright" instead of two different problems. */
-function fetchWithTimeout(url,opts,timeoutMs){
+   below can treat "gone quiet" exactly like "failed outright" instead of two different problems.
+   v24.89 FIX: this was originally also named fetchWithTimeout, silently shadowing the
+   fetchWithTimeout(u,ms) already defined above (used by fetchJsonChain/fetchTextChain — login,
+   playlist loading, EPG, the Series Xtream fallback). Two top-level function declarations with
+   the same name in one script is legal JS with no warning; the later one just wins. Every 2-arg
+   call to the OLD one (e.g. fetchWithTimeout(u,25000)) was silently binding 25000 to this one's
+   `opts` param and leaving `timeoutMs` undefined — setTimeout(fn,undefined) fires almost
+   immediately, so those calls started aborting within a tick. Renamed so the two can never
+   collide again; the old one is untouched and still exists purely for its own callers. */
+function fetchDlWithTimeout(url,opts,timeoutMs){
   const ac=new AbortController();
   const parentSignal=opts&&opts.signal;
   const onParentAbort=()=>ac.abort();
@@ -7988,12 +7996,11 @@ async function startDownload(x){
        released when it isn't — either way this fetch has no partial bytes to lose yet, so retrying
        it fresh is always safe. */
     const CONNECT_TIMEOUT_MS=20000;
-    let res,lastErr;
+    let res;
     for(let attempt=1;attempt<=3;attempt++){
-      try{res=await fetchWithTimeout(url,{signal:ctl.signal},CONNECT_TIMEOUT_MS);lastErr=null;break;}
-      catch(e){lastErr=e;if(ctl.signal.aborted||attempt===3)throw e;await new Promise(r=>setTimeout(r,900*attempt));}
+      try{res=await fetchDlWithTimeout(url,{signal:ctl.signal},CONNECT_TIMEOUT_MS);break;}
+      catch(e){if(ctl.signal.aborted||attempt===3)throw e;await new Promise(r=>setTimeout(r,900*attempt));}
     }
-    if(lastErr)throw lastErr;
     if(!res.ok||!res.body)throw new Error('HTTP '+(res.status||0));
     const total=+(res.headers.get('content-length')||0);
     prog.total=total;
@@ -8024,7 +8031,17 @@ async function startDownload(x){
        distinction was the actual gap behind "downloading is struggling" persisting after this. */
     const MAX_RESUMES=8;
     const READ_STALL_MS=15000;
-    let resumes=0;
+    /* v24.89 (code-review finding, owner still reporting downloads failing partway through after
+       v24.85-88): MAX_RESUMES was a LIFETIME cap that never went back up — a connection with
+       sporadic, individually-recoverable hiccups spread across a large file (the normal pattern
+       on mobile: a stall every 10-15% is not a dying connection, it's just mobile) burned through
+       the whole budget well before the file finished, even though every single hiccup on its own
+       was perfectly fine. The 9th one then failed the ENTIRE download outright. A connection that
+       proves it can still move real data deserves its budget back — 20MB of uninterrupted
+       progress after a resume resets the counter, so what actually runs out is "genuinely dead
+       connection," not "file was just long enough to add up." */
+    const RESUME_RESET_BYTES=20*1024*1024;
+    let resumes=0,resetAtReceived=0;
     for(;;){
       let step;
       try{
@@ -8033,10 +8050,11 @@ async function startDownload(x){
         if(ctl.signal.aborted)throw readErr;
         if(resumes>=MAX_RESUMES)throw readErr;
         resumes++;
+        resetAtReceived=prog.received;
         try{reader.cancel();}catch(e){} /* abandon whatever the stalled/broken read was still waiting on */
         toast('Download interrupted — resuming '+nameOf(x)+'…');
         await new Promise(r=>setTimeout(r,Math.min(1000*resumes,5000)));
-        const resumeRes=await fetchWithTimeout(url,{signal:ctl.signal,headers:{Range:'bytes='+prog.received+'-'}},CONNECT_TIMEOUT_MS);
+        const resumeRes=await fetchDlWithTimeout(url,{signal:ctl.signal,headers:{Range:'bytes='+prog.received+'-'}},CONNECT_TIMEOUT_MS);
         if(!resumeRes.body)throw new Error('Resume failed: no body');
         if(resumeRes.status===206){
           reader=resumeRes.body.getReader();
@@ -8044,7 +8062,7 @@ async function startDownload(x){
           /* the origin ignored the Range header and sent the file from the start again — cannot
              safely append what we already have onto that without corrupting the file, so start
              the accumulation over cleanly rather than risk a broken download. */
-          chunks=[];chunkBytes=0;parts.length=0;prog.received=0;prog.pct=0;
+          chunks=[];chunkBytes=0;parts.length=0;prog.received=0;prog.pct=0;resetAtReceived=0;
           reader=resumeRes.body.getReader();
         }else{
           throw new Error('Resume failed: HTTP '+resumeRes.status);
@@ -8055,6 +8073,7 @@ async function startDownload(x){
       const value=step.value;
       chunks.push(value);chunkBytes+=value.byteLength;
       prog.received+=value.byteLength;
+      if(resumes>0&&prog.received-resetAtReceived>=RESUME_RESET_BYTES)resumes=0;
       prog.pct=total?Math.min(99,Math.round(prog.received/total*100)):0;
       if(chunkBytes>=FLUSH_BYTES)flush();
       const now=Date.now();
