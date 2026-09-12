@@ -28,6 +28,12 @@
     return out;
   }
 
+  function extinfDurationSeconds(line) {
+    const m = /^#EXTINF\s*:\s*(-?\d+(?:\.\d+)?)/i.exec(String(line || ''));
+    const n = m ? Number(m[1]) : 0;
+    return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+  }
+
   function extOf(url) {
     const m = /\.([a-z0-9]{2,4})(?:$|\?)/i.exec(String(url || ''));
     return m ? m[1].toLowerCase() : '';
@@ -119,7 +125,9 @@
           name: (comma >= 0 ? line.slice(comma + 1) : '').trim() || a['tvg-name'] || 'Untitled',
           logo: a['tvg-logo'] || '',
           group: a['group-title'] || '',
-          tvgId: a['tvg-id'] || ''
+          tvgId: a['tvg-id'] || '',
+          duration_secs: extinfDurationSeconds(line),
+          duration: a.duration || a['tvg-duration'] || ''
         };
         continue;
       }
@@ -152,7 +160,9 @@
         show._m3uEpisodes.push({
           _type: 'series', episode_id: stableId('m3u_e', url), title: pending.name, name: pending.name,
           direct_source: url, container_extension: extOf(url) || 'mp4',
-          stream_icon: pending.logo || show.cover, category_id: catId
+          stream_icon: pending.logo || show.cover, category_id: catId,
+          duration_secs: pending.duration_secs || undefined,
+          duration: pending.duration || undefined
         });
         if (!show.cover && pending.logo) { show.cover = show.stream_icon = pending.logo; }
         /* Clear the pending EXTINF exactly like the live/vod branch below does. Without this a
@@ -171,7 +181,9 @@
         category_name: group,
         direct_source: url,
         container_extension: extOf(url) || (type === 'live' ? 'ts' : 'mp4'),
-        epg_channel_id: pending.tvgId
+        epg_channel_id: pending.tvgId,
+        duration_secs: pending.duration_secs || undefined,
+        duration: pending.duration || undefined
       });
       pending = null;
     }
@@ -483,6 +495,8 @@
         category_name: vodNames.get(cid) || 'Movies',
         direct_source: (it && it.direct_source) || (root + '/movie/' + u + '/' + p + '/' + encodeURIComponent(id) + '.' + encodeURIComponent(ext)),
         container_extension: ext,
+        duration_secs: it && (it.duration_secs || it.duration_seconds),
+        duration: it && (it.duration || it.episode_run_time || it.runtime),
         rating: it && it.rating,
         plot: (it && it.plot) || ''
       };

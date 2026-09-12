@@ -2000,7 +2000,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.0';
+const APP_VERSION='25.01';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2436,6 +2436,54 @@ async function fetchJsonChain(raw){
 }
 function idOf(x){return String(x.stream_id!=null?x.stream_id:x.series_id!=null?x.series_id:x.episode_id!=null?x.episode_id:x.id!=null?x.id:'')}
 function nameOf(x){return x.name||x.title||x.movie_name||'Untitled'}
+function parseDurationSeconds(value,unit){
+  if(value==null)return 0;
+  const raw=String(value).trim();
+  if(!raw||/^n\/?a$/i.test(raw))return 0;
+  const num=Number(raw);
+  if(Number.isFinite(num)&&num>0){
+    if(unit==='ms')return Math.round(num/1000);
+    if(unit==='seconds')return Math.round(num);
+    if(unit==='minutes')return Math.round(num*60);
+    return Math.round(num>300?num:num*60);
+  }
+  const hms=raw.match(/^(\d{1,3}):([0-5]?\d)(?::([0-5]?\d))?$/);
+  if(hms){
+    const a=Number(hms[1]),b=Number(hms[2]),c=hms[3]==null?null:Number(hms[3]);
+    return c==null?(a*60+b):(a*3600+b*60+c);
+  }
+  const h=(raw.match(/(\d+(?:\.\d+)?)\s*h(?:ours?|rs?)?/i)||[])[1];
+  const m=(raw.match(/(\d+(?:\.\d+)?)\s*m(?:in(?:ute)?s?)?/i)||[])[1];
+  const s=(raw.match(/(\d+(?:\.\d+)?)\s*s(?:ec(?:ond)?s?)?/i)||[])[1];
+  const total=(Number(h||0)*3600)+(Number(m||0)*60)+Number(s||0);
+  return total>0?Math.round(total):0;
+}
+function durationSecondsOf(x){
+  if(!x)return 0;
+  const info=x.info||{};
+  const secondFields=[x.duration_secs,x.duration_seconds,x.durationSec,info.duration_secs,info.duration_seconds,info.durationSec];
+  for(const v of secondFields){const n=parseDurationSeconds(v,'seconds');if(n)return n}
+  const msFields=[x.duration_ms,x.durationMs,info.duration_ms,info.durationMs];
+  for(const v of msFields){const n=parseDurationSeconds(v,'ms');if(n)return n}
+  const genericFields=[x.duration,x.episode_run_time,x.runtime,x.time,info.duration,info.episode_run_time,info.runtime,info.time];
+  for(const v of genericFields){const n=parseDurationSeconds(v);if(n)return n}
+  return 0;
+}
+function effectiveVideoDuration(v,x){
+  let base=0;
+  try{const d=v&&v.duration;if(isFinite(d)&&d>0)base=d}catch(e){}
+  try{if(v&&v.seekable&&v.seekable.length){const se=v.seekable.end(v.seekable.length-1);if(se>base)base=se}}catch(e){}
+  try{if(v&&v.buffered&&v.buffered.length){const be=v.buffered.end(v.buffered.length-1);if(be>base)base=be}}catch(e){}
+  try{if(v&&v.currentTime>base)base=v.currentTime}catch(e){}
+  const declared=durationSecondsOf(x);
+  if(declared>base)base=declared;
+  return base;
+}
+function formatMediaTime(s){
+  if(!isFinite(s)||s<0)s=0;
+  const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60);
+  return(h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(sec).padStart(2,'0');
+}
 /* v19.50 (owner report): "the movies are not playing — fix this forever." Some titles never can:
    this provider pads its VOD catalogue with not-yet-released movies, printing the date right in
    the name — "Awarapan 2 (Release Date 14-08-2026)" — and create_link correctly refuses every one
@@ -4651,7 +4699,9 @@ async function openEpisodePicker(x){load(true,'Loading episodes...');try{/* v12.
         eps.push({_type:'series',episode_id:'xte'+String(ep.id),title:title,name:title,
           direct_source:S.url+'/series/'+encodeURIComponent(S.user)+'/'+encodeURIComponent(S.pass)+'/'+ep.id+'.'+ext,
           container_extension:ext,stream_icon:(ep.info&&ep.info.movie_image)||x.cover||'',
-          category_id:x.category_id,season:Number(season)||0,episode_num:ep.episode_num});
+          category_id:x.category_id,season:Number(season)||0,episode_num:ep.episode_num,
+          duration_secs:ep.duration_secs||ep.duration_seconds||(ep.info&&((ep.info.duration_secs)||(ep.info.duration_seconds))),
+          duration:ep.duration||ep.episode_run_time||ep.runtime||(ep.info&&(ep.info.duration||ep.info.episode_run_time||ep.info.runtime))});
       });
     });
     d={episodes:eps};
@@ -5593,6 +5643,9 @@ function yezRoutes(x){
      address first if it has one. Applied last on purpose — a route proven for this exact title is
      stronger evidence than the host's general shape, which is all expand() can reason about. */
   try{out=leadWithPlayed(x,out)}catch(e){}
+  /* v25.00: route memory must never make Live TV wait on the transcoder first. The direct/proxy
+     live paths are the normal player routes; transcoding is only a fallback when those fail. */
+  try{out=keepLiveTranscodedLast(x,out)}catch(e){}
   return out;
 }
 /* v14.0: say WHO refused. When every route fails the last thing tried is the transcoder, so its
@@ -6301,6 +6354,13 @@ function leadWithPlayed(x,routes){
     out.unshift(out.splice(i,1)[0]);
     return out;
   }catch(e){return routes}
+}
+function isTranscodedRoute(r){return !!(r&&(/Transcoded/i.test(String(r.label||''))||/\/transcoder\//.test(String(r.url||''))))}
+function keepLiveTranscodedLast(x,routes){
+  if(typeOf(x)!=='live'||!Array.isArray(routes)||routes.length<2)return routes;
+  const normal=[],transcoded=[];
+  routes.forEach(r=>(isTranscodedRoute(r)?transcoded:normal).push(r));
+  return normal.length?normal.concat(transcoded):routes;
 }
 const VOD_EXT_KEY='m26.vodExternal.v1';
 function _vodExtKey(){return String((S.rawUrl||S.url||'')).trim().toLowerCase()+'|'+String(S.user||'').trim().toLowerCase();}
@@ -7371,7 +7431,7 @@ function seekBy(sec){
   /* v52: fall back to the seekable range when duration isn't a finite number (streamed VOD),
      and record the seek so the stall watchdog treats the buffering that follows as "seeking",
      not "dead stream" — the watchdog reloading was what snapped the movie back to the start. */
-  const dur=isFinite(v.duration)&&v.duration>0?v.duration:(v.seekable&&v.seekable.length?v.seekable.end(v.seekable.length-1):0);
+  const dur=effectiveVideoDuration(v,S.current);
   if(!dur){toast('This source does not allow seeking');return}
   S.lastSeekAt=Date.now();
   v.currentTime=Math.max(0,Math.min(dur-0.5,(v.currentTime||0)+sec));
@@ -8417,7 +8477,7 @@ async function startDownload(x){
       try{
         await dlPut({key,name:nameOf(x),ext,mime,size:prog.received,numSegments:segIndex,poster:logoOf(x)||'',type:typeOf(x),addedAt:(existing&&existing.addedAt)||Date.now(),watched:false,partial:true,received:prog.received,sourceUrl:url});
       }catch(e2){}
-      toast('Download interrupted — tap Save Offline again to resume');
+      toast('Download interrupted — press Resume in Downloads');
     }else{
       const msg=(e&&e.message)||'try again';
       /* v24.85: this generic browser-level wording (no HTTP status, no server reason) is the
@@ -8425,10 +8485,15 @@ async function startDownload(x){
          common real cause on these panels is the account's one allowed connection already being
          held by whatever is currently playing. Say that plainly instead of just echoing a phrase
          that means nothing to the customer. */
-      const isNetworkLevel=/load failed|failed to fetch|network ?error|network request failed/i.test(msg);
-      toast(isNetworkLevel
-        ?'Offline save failed — the connection was cut off. If something is currently playing, stop it and try the download again (some lines only allow one connection at a time).'
-        :'Offline save failed — '+msg);
+      const isNetworkLevel=/load failed|failed to fetch|network ?error|network request failed|stalled|timed? out|connection/i.test(msg);
+      if(isNetworkLevel){
+        try{
+          await dlPut({key,name:nameOf(x),ext,mime,size:0,numSegments:0,poster:logoOf(x)||'',type:typeOf(x),addedAt:(existing&&existing.addedAt)||Date.now(),watched:false,partial:true,received:0,total:prog.total||0,sourceUrl:url});
+        }catch(e2){}
+        toast('Download interrupted — press Resume in Downloads');
+      }else{
+        toast('Offline save failed — '+msg);
+      }
     }
   }finally{
     delete S.dlProgress[key];
@@ -11376,7 +11441,7 @@ applyColour(savedColour());updateVolPct();
 (function(){
   const v=$('video'),track=$('seekTrack'),fill=$('seekFill'),handle=$('seekHandle'),cur=$('curTime'),dur=$('durTime');
   if(!v||!track)return;
-  const fmt=s=>{if(!isFinite(s)||s<0)s=0;const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=Math.floor(s%60);return(h?h+':'+String(m).padStart(2,'0'):String(m))+':'+String(sec).padStart(2,'0')};
+  const fmt=formatMediaTime;
   /* v52: effective duration — use v.duration, else the seekable range end (streamed VOD
      often reports duration=Infinity but IS seekable). This is why the slider looked "not
      built": it bailed the moment duration wasn't a plain finite number. */
@@ -11389,14 +11454,7 @@ applyColour(savedColour());updateVolPct();
      that's real, known-good evidence a declared duration cannot override, and correcting up
      to it as more of the file streams in is always safe, whereas trusting a too-small number
      silently caps how far the customer can even try to seek. */
-  const effDur=()=>{
-    const d=v.duration;
-    let base=(isFinite(d)&&d>0)?d:0;
-    try{if(v.seekable&&v.seekable.length){const se=v.seekable.end(v.seekable.length-1);if(se>base)base=se}}catch(e){}
-    try{if(v.buffered&&v.buffered.length){const be=v.buffered.end(v.buffered.length-1);if(be>base)base=be}}catch(e){}
-    if(v.currentTime>base)base=v.currentTime;
-    return base;
-  };
+  const effDur=()=>effectiveVideoDuration(v,S.current);
   const isLiveNow=()=>!!(S.current&&typeOf(S.current)==='live');
   const sync=()=>{
     /* v70: live shows the SAME scrubber design but as a read-only LIVE indicator — a full red
@@ -11406,8 +11464,7 @@ applyColour(savedColour());updateVolPct();
     if(!D){fill.style.width='0%';handle.style.left='0%';cur.textContent='0:00';dur.textContent='0:00';return}
     const pct=Math.max(0,Math.min(100,(v.currentTime/D)*100));
     fill.style.width=pct+'%';handle.style.left=pct+'%';
-    /* v71: Infuse shows time-remaining on the right (-H:MM:SS), current on the left */
-    cur.textContent=fmt(v.currentTime);dur.textContent='-'+fmt(Math.max(0,D-v.currentTime));
+    cur.textContent=fmt(v.currentTime);dur.textContent=fmt(D);
   };
   ['timeupdate','loadedmetadata','durationchange','progress','seeked'].forEach(ev=>v.addEventListener(ev,sync));
   let dragging=false;
@@ -11426,7 +11483,7 @@ applyColour(savedColour());updateVolPct();
     const D=effDur();if(!D)return;
     const t=pct*D;
     fill.style.width=(pct*100)+'%';handle.style.left=(pct*100)+'%';
-    cur.textContent=fmt(t);dur.textContent='-'+fmt(Math.max(0,D-t));
+    cur.textContent=fmt(t);dur.textContent=fmt(D);
   };
   const commitSeek=pct=>{
     const D=effDur();if(!D)return;

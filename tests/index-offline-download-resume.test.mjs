@@ -17,7 +17,7 @@ assert.match(
 
 assert.match(
   html,
-  /if\(ctl\.signal\.aborted\)\{[\s\S]*?if\(segIndex>0\)await dlDeleteSegments\(key\)[\s\S]*?toast\('Download canceled'\)[\s\S]*?return[\s\S]*?\}[\s\S]*?if\(prog\.received>0&&segIndex>0\)\{[\s\S]*?partial:true[\s\S]*?toast\('Download interrupted — tap Save Offline again to resume'\)/,
+  /if\(ctl\.signal\.aborted\)\{[\s\S]*?if\(segIndex>0\)await dlDeleteSegments\(key\)[\s\S]*?toast\('Download canceled'\)[\s\S]*?return[\s\S]*?\}[\s\S]*?if\(prog\.received>0&&segIndex>0\)\{[\s\S]*?partial:true[\s\S]*?toast\('Download interrupted — press Resume in Downloads'\)/,
   'A non-cancel interruption should keep partial segments instead of deleting the iPhone download progress'
 );
 
