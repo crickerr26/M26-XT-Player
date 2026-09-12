@@ -2000,7 +2000,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='24.99';
+const APP_VERSION='25.0';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5448,9 +5448,15 @@ async function doctorProbe(u){
   return out;
 }
 /* Turn the relay's status into the sentence that actually names the fault. The relay is used for
-   the verdict because it is the route with nothing in front of it. */
-function doctorVerdict(p){
-  if(p.ok)return '<b>The line is answering.</b> Your provider is serving this stream, so a playback failure is on the app side — not your provider.';
+   the verdict because it is the route with nothing in front of it.
+   v25.0: `viaFallback` marks a verdict reached only after the ORIGINAL address failed and the
+   panel's default-port twin (see the note by the ladder probe in streamDoctor()) was the one that
+   actually answered — say so, instead of a plain "the line is answering" that hides that the
+   published address is the broken half. */
+function doctorVerdict(p,viaFallback){
+  if(p.ok)return viaFallback
+    ? '<b>The line answers on the default port.</b> The address the panel published (with its port) is refused, but this app already detects that and retries on the default port automatically — playback should work despite the address below reading as blocked.'
+    : '<b>The line is answering.</b> Your provider is serving this stream, so a playback failure is on the app side — not your provider.';
   if(p.status===401||p.status===403||p.status===511)
     return '<b>The stream route returned HTTP '+p.status+'.</b> Usually that means this device/session cannot open that stream right now — another device may be using the line, the line may be expired, or this content may not be in the package.';
   if(p.status===404)return '<b>This channel address is dead (HTTP 404).</b> The playlist lists it but the panel no longer serves it.';
@@ -5478,12 +5484,30 @@ async function streamDoctor(){
     +(viaRelay.note?' — '+esc(viaRelay.note):'')+(viaRelay.ok&&viaRelay.ct?' ('+esc(viaRelay.ct)+')':''));
   put();
 
+  /* v25.0: this test used to stop here, so a line shaped exactly like redproibo's — the panel
+     PUBLISHES a port (e.g. :8080) and refuses it, while the identical stream plays on the default
+     port — reported "stream route returned HTTP 401/403/511" even though yezRoutes()/
+     externalStreamUrl() would have tried the default-port twin one hop later and actually played
+     it. That contradiction sent real troubleshooting down the wrong path ("the line is dead") for
+     an account this app already knows how to route around. Test the same twin the real player
+     would try next, using YezPlayer's own host ladder so this never drifts out of step with it. */
+  let altRelay=null;
+  if(!viaRelay.ok&&/^(401|403|511)$/.test(String(viaRelay.status||''))){
+    let alt='';try{alt=(window.YezPlayer&&YezPlayer.ladder)?(YezPlayer.ladder(u)[0]||''):''}catch(e){alt=''}
+    if(alt){
+      altRelay=await doctorProbe(proxyUrl(alt)||alt);
+      lines.push('&nbsp;&nbsp;• via relay (default port): '+(altRelay.status?('HTTP '+altRelay.status):'no response')
+        +(altRelay.note?' — '+esc(altRelay.note):'')+(altRelay.ok&&altRelay.ct?' ('+esc(altRelay.ct)+')':''));
+      put();
+    }
+  }
+
   const direct=await doctorProbe(u);
   lines.push('&nbsp;&nbsp;• direct from this device: '+(direct.status?('HTTP '+direct.status):('not reachable from this browser'+(direct.note?' ('+esc(direct.note)+')':'')))
     +(direct.status?'':' — normal for a panel with no CORS headers, not a fault'));
   put();
 
-  lines.push('3. '+doctorVerdict(viaRelay));
+  lines.push('3. '+(altRelay&&altRelay.ok?doctorVerdict(altRelay,true):doctorVerdict(viaRelay)));
   put();
 }
 function openNativePlayer(){showNativePopup(S.current?'Use this panel to set the FFmpeg transcoder. With a transcoder URL saved, preview playback uses browser-safe HLS for hard streams.':'Set the FFmpeg transcoder URL here. After that, choose Live TV, Movies or Series and tap an item.');try{if(transcoderBase()){testTranscoder()}else{setTStatus('idle','No transcoder URL set')}}catch(e){}}
