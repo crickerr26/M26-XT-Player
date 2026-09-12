@@ -1258,8 +1258,16 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Media26">
-<link rel="apple-touch-icon" href="image_482ee8.png">
-<link rel="icon" type="image/png" sizes="192x192" href="image_482ee8.png">
+<!-- v25.02 (owner report: Android install left no icon on the home screen): image_482ee8.png is
+     528x502 — not square, not the 512x512 it was declared as everywhere below. Android's home
+     screen install (WebAPK) fetches these icons and validates them against the manifest before it
+     will mint a real home-screen icon; a mismatched, non-square source is exactly the kind of
+     manifest defect that lets the mint fail silently — Chrome reports "Installed" from the tap,
+     but no icon (and sometimes no app at all) ever lands on the launcher. icon-192.png/icon-512.png
+     /icon-512-maskable.png are real square renders of the same logo (see manifest.json) — always
+     use those for anything the OS reads as an app icon; image_482ee8.png stays for in-app UI only. -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 </head>
 <body>
 <div id="splashScreen" class="splash-screen" aria-hidden="true">
@@ -2000,7 +2008,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.01';
+const APP_VERSION='25.02';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
