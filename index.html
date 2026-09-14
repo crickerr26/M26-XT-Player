@@ -2008,7 +2008,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.02';
+const APP_VERSION='25.03';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6203,12 +6203,21 @@ function plan(x){
          https URL that starts immediately (the proxy relays byte ranges, so seeking works). */
       const W=u=>blocked(u)?proxyUrl(u):u;
       if(direct)add(direct.includes('.m3u8')?'hls':'native','Direct',W(direct));
-      /* the one address on this list that is not a Cloudflare Worker — see addRelay above */
-      addRelay('Server Relay',direct||rawMp4);
       add('native','MP4',W(rawMp4));
       add('hls','HLS',W(rawM3u8));
       add('native','MP4 Proxy',proxyUrl(rawMp4));
       add('hls','HLS Proxy',proxyUrl(rawM3u8));
+      /* the one address on this list that is not a Cloudflare Worker — see addRelay above.
+         v25.03 (owner report: movies "taking tooooo long" to start): this used to run 2nd, right
+         after Direct and BEFORE every plain native/proxy attempt above — so an ordinary browser-
+         safe mp4 paid a hop through this separate transcoder-box service, cold-start and all,
+         before the app ever tried the fast path that was going to work anyway. It exists to rescue
+         one narrow case (v21.4): a provider's stream node that blocks Cloudflare's egress IPs
+         outright, where /proxy and a direct https fetch both fail. That failure is an edge-level
+         refusal — fast, not a hang — so trying native/proxy FIRST costs a fraction of a second even
+         in that case, while skipping this hop entirely is exactly what makes a normal mp4 line
+         start "ultra fast" instead of waiting out a relay it never needed. */
+      addRelay('Server Relay',direct||rawMp4);
       add('hls','Relay MP4',liveHlsUrl(rawMp4));
       if(!browserSafeExt(preferred)){addTrans(preferred.toUpperCase(),preferredUrl,true);addTrans('MP4',rawMp4);}
       else addTrans('Preview',rawFirst);
