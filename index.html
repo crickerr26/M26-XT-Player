@@ -118,24 +118,45 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
 .toast.tappable{pointer-events:auto;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.loader{position:fixed;inset:0;display:none;place-items:center;background:rgba(5,10,20,.54);backdrop-filter:blur(7px);z-index:20}.loader.show{display:grid}.spin{width:44px;height:44px;border-radius:50%;border:4px solid rgba(255,255,255,.25);border-top-color:var(--blue);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media(max-width:1120px){.layout{grid-template-columns:290px 1fr}.info{display:none}.main{grid-template-rows:minmax(240px,44vh) auto auto minmax(0,1fr)}}
 @media(max-width:760px){body{overflow:hidden;height:100dvh}.top{height:calc(58px + env(safe-area-inset-top))}.brand p{display:none}.pilltxt{display:none}.layout{grid-template-columns:1fr;grid-template-rows:auto 1fr;padding:8px;gap:8px}.side{position:fixed;left:0;right:0;bottom:0;top:58px;z-index:7;transform:translateY(100%);transition:.25s;background:var(--bg);padding:8px}.side.open{transform:translateY(0)}.main{grid-template-rows:34vh auto auto minmax(0,1fr);gap:8px}.player{border-radius:14px;min-height:210px}.player.pipFloat{left:12px;right:12px;bottom:calc(86px + env(safe-area-inset-bottom));width:auto;max-width:none;border-radius:14px;z-index:180}.player.pipFloat+.now{padding-right:0}.grid{grid-template-columns:1fr;padding-bottom:88px}.card{min-height:68px}.now h2{font-size:15px}.status{display:none}.cats{padding-bottom:78px}.top-actions{gap:6px}.iconbtn,.pillbtn{height:38px;border-radius:11px}.tabs{padding:8px}.searchbox{padding:0 8px 8px}}
+/* v25.11 (owner request, approved from a mockup first): the icon rail and the "now playing" strip
+   below the video only ever exist in the landscape breakpoint below, but their own rules live here
+   (hidden by default) rather than nested inside the media query, so they read as real components
+   with a landscape-only visibility switch, not landscape-only markup bolted on. */
+.landRail{display:none;flex-direction:column;align-items:center;gap:6px;padding:10px 0;background:var(--panel);border:1px solid var(--line);border-radius:14px}
+.landRailBtn{width:38px;height:38px;border-radius:11px;background:transparent;border:0;color:var(--muted);display:grid;place-items:center;flex:none}
+.landRailBtn.active{background:rgba(56,189,248,.16);color:var(--blue)}
+.landRailSpacer{flex:1}
+.landNowPlaying{display:none;align-items:center;gap:10px;min-width:0}
+.landNPInfo{flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+.landNPInfo b{font-size:15px;font-weight:900;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.landNPFav{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);flex:none;display:grid;place-items:center}
+.landNPFav.on{color:var(--pink);border-color:rgba(251,113,133,.4)}
+.landNPBtn{height:34px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);display:inline-flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;font-weight:800;flex:none}
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
    which never matches in landscape (the width is > 760), so landscape fell back to the cramped
-   desktop layout. Key on height instead and lay out a neat two-pane: big video on the left, a
-   scrollable channel list on the right, categories via the menu drawer. */
+   desktop layout. Key on height instead.
+   v25.11: was a two-pane layout (video + channel list, categories tucked behind the menu drawer).
+   Owner asked for categories to stay visible instead of hidden behind a tap, plus quick top-level
+   navigation, after reviewing a mockup of the change first. Now four panes: a narrow icon rail,
+   categories, the channel/title list, and the player — categories and the rail replace the old
+   drawer entirely, so .side is a normal grid column here instead of the fixed off-canvas panel. */
 @media (orientation:landscape) and (max-height:600px){
   body{overflow:hidden;height:100dvh}
   .top{height:calc(44px + env(safe-area-inset-top));padding:calc(4px + env(safe-area-inset-top)) 10px 4px}
   .brand p,.pilltxt{display:none}
-  .layout{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr);padding:6px;gap:6px}
-  .side{position:fixed;left:0;top:calc(44px + env(safe-area-inset-top));bottom:0;width:min(320px,70vw);z-index:8;transform:translateX(-100%);transition:.25s;background:var(--bg);padding:6px;grid-template-rows:auto auto minmax(0,1fr);box-shadow:var(--shadow)}
-  .side.open{transform:translateX(0)}
-  .main{grid-template-columns:1.55fr 1fr;grid-template-rows:auto minmax(0,1fr);gap:8px;min-height:0}
-  .player{grid-column:1;grid-row:1 / 3;min-height:0;height:100%;border-radius:12px}
+  #menuBtn{display:none}
+  .landRail{display:flex}
+  .layout{grid-template-columns:56px 200px 1fr;grid-template-rows:minmax(0,1fr);padding:6px;gap:6px}
+  .side{position:static;transform:none;width:auto;z-index:auto;background:transparent;padding:0;box-shadow:none;grid-template-rows:minmax(0,1fr)}
+  .side .tabs{display:none}
+  .main{grid-template-columns:220px 1fr;grid-template-rows:auto minmax(0,1fr) auto;gap:8px;min-height:0}
+  .player{grid-column:2;grid-row:1 / 3;min-height:0;height:100%;border-radius:12px}
   .recBanner{display:none}
-  .now{grid-column:2;grid-row:1;padding:0 2px}.now h2{font-size:13px}.now p{font-size:10px}.status{display:none}
-  .grid{grid-column:2;grid-row:2;grid-template-columns:1fr;gap:6px;padding:0 0 6px 0}
+  .now{grid-column:1;grid-row:1;padding:0 2px}.now h2{font-size:13px}.now p{font-size:10px}.status{display:none}
+  .grid{grid-column:1;grid-row:2 / 4;grid-template-columns:1fr;gap:6px;padding:0 0 6px 0}
   .card{min-height:50px}
   .info{display:none}
+  .landNowPlaying{grid-column:2;grid-row:3;display:flex}
 }
 .episodeSheet{position:fixed;inset:0;background:rgba(3,7,18,.64);z-index:25;display:none;align-items:flex-end}.episodeSheet.show{display:flex}.episodePanel{width:100%;max-height:76vh;background:var(--panel);border-top:1px solid var(--line);border-radius:20px 20px 0 0;--sheetPad:12px;padding:var(--sheetPad);padding-bottom:calc(var(--sheetPad) + env(safe-area-inset-bottom));box-shadow:var(--shadow);display:grid;grid-template-rows:auto minmax(0,1fr);gap:10px}.episodeHead{display:flex;align-items:center;justify-content:space-between;gap:10px}.episodeHead h3{font-size:16px;line-height:1.2}.episodeList{min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;display:grid;gap:7px}/* v24.10 (owner report: a long episode title pushed the VLC button off-screen instead of shrinking
    next to it): the title used white-space:nowrap+ellipsis, which needs a block-level box to
@@ -1310,6 +1331,18 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </div>
   </header>
   <div class="layout">
+    <!-- v25.11: landscape-only icon rail (see .landRail CSS) — hidden outside the landscape
+         breakpoint, so it always exists in the DOM rather than being injected/removed on
+         orientation change. -->
+    <nav class="landRail" id="landRail">
+      <button class="landRailBtn" id="landHome" type="button" title="Home" aria-label="Home"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg></button>
+      <button class="landRailBtn" data-tab="live" type="button" title="Live TV" aria-label="Live TV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4"/></svg></button>
+      <button class="landRailBtn" data-tab="vod" type="button" title="Movies" aria-label="Movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg></button>
+      <button class="landRailBtn" data-tab="series" type="button" title="Series" aria-label="Series"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></button>
+      <div class="landRailSpacer"></div>
+      <button class="landRailBtn" id="landDownloads" type="button" title="Downloads" aria-label="Downloads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></button>
+      <button class="landRailBtn" id="landSettings" type="button" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg></button>
+    </nav>
     <aside class="panel side" id="side">
       <div class="tabs">
         <button class="tab active" data-tab="live">Live TV</button>
@@ -1376,6 +1409,13 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           <div class="playerMenu hidden" id="playerMenu" role="menu" aria-label="Player settings"></div>
         </div>
       </section>
+      <!-- v25.11: landscape-only "now playing" strip under the player — title, favorite toggle
+           and TV Guide, kept in sync from setCurrentItem/renderAll via paintLandNowPlaying(). -->
+      <div class="landNowPlaying" id="landNowPlaying">
+        <div class="landNPInfo"><b id="landNPTitle">Choose a channel</b></div>
+        <button class="landNPFav hidden" id="landNPFav" type="button" data-fav="" title="Favorite" aria-label="Favorite">☆</button>
+        <button class="landNPBtn hidden" id="landNPGuide" type="button" data-epg="" title="TV Guide" aria-label="TV Guide"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px;height:16px" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M8 3l4 3 4-3"/></svg>TV Guide</button>
+      </div>
       <section class="now"><div><h2 id="sectionTitle">Live Channels</h2><p id="sectionSub">0 items</p></div><div class="nowRight"><button class="sortToggle hidden" id="sortToggle" type="button" aria-label="Sort by newest uploads" title="Sort: newest uploads first"></button><div class="status" id="netStatus">Ready</div></div></section>
       <div class="recBanner hidden" id="recBanner">
         <button class="recClose" id="recClose" aria-label="Dismiss">×</button>
@@ -2012,7 +2052,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.10';
+const APP_VERSION='25.11';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3237,6 +3277,7 @@ function updateHomeCounts(){
    #home/#catpage/the base grid+player trade places, plus whenever S.current changes, so the chip
    is never stale and never shown when there is nothing playing to return to. */
 function paintNowPlayingChip(){
+  paintLandNowPlaying();
   const chip=$('nowPlayingChip');if(!chip)return;
   const covered=($('home')&&!$('home').classList.contains('hidden'))||($('catpage')&&!$('catpage').classList.contains('hidden'));
   const x=S.current;
@@ -3246,6 +3287,29 @@ function paintNowPlayingChip(){
   $('npcTitle').textContent=nameOf(x);
   $('npcMeta').textContent=live?'Live now':'Now playing';
   chip.classList.remove('hidden');
+}
+/* v25.11: the landscape rail's "now playing" strip tracks S.current the same way the chip above
+   does, so it is driven from the same call sites instead of needing its own set scattered
+   through every place S.current changes. */
+function paintLandNowPlaying(){
+  const title=$('landNPTitle');if(!title)return;
+  const x=S.current;
+  title.textContent=x?nameOf(x):'Choose a channel';
+  const fav=$('landNPFav');
+  if(fav){
+    const k=x?keyOf(x):'';
+    fav.dataset.fav=k;
+    const on=!!k&&S.favs.has(k);
+    fav.classList.toggle('on',on);
+    fav.textContent=on?'★':'☆';
+    fav.classList.toggle('hidden',!x);
+  }
+  const guide=$('landNPGuide');
+  if(guide){
+    const isLive=!!x&&typeOf(x)==='live';
+    guide.dataset.epg=isLive?keyOf(x):'';
+    guide.classList.toggle('hidden',!isLive);
+  }
 }
 function showHome(){S.viewingDownloads=false;applyCatalogUi();updateHomeCounts();if($('catpage'))$('catpage').classList.add('hidden');if($('home'))$('home').classList.remove('hidden');paintNowPlayingChip();try{paintHomeSubLines();}catch(e){}}
 /* v90: tapping a Home card now opens a beautiful full-screen CATEGORY page for that type
@@ -4468,7 +4532,7 @@ function resetProgress(type){if(S.progress&&S.progress[type]){S.progress[type].d
    Movies and Series each signal "still loading" independently — the same cue as the category
    rows. Driven straight off the per-type loading flags, so it appears and clears on its own. */
 function tabIsLoading(t){return t==='live'?S.loadingLive:t==='vod'?S.loadingVod:S.loadingSeries}
-function paintTabLoading(){document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.tab)));document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.cattab)));}
+function paintTabLoading(){document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.tab)));document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.cattab)));}
 /* v23.0 perf: renderGrid() (called just below) already computes filtered() once and writes the
    correct #sectionSub text itself — including the "N episodes" text for the episode-view case,
    via renderEpisodeGrid(). A second filtered() call here used to re-run the full filter+sort just
@@ -4476,7 +4540,7 @@ function paintTabLoading(){document.querySelectorAll('.tab').forEach(b=>b.classL
    WRONG text — silently clobbering "N episodes" back to the movie/series count). On a large
    Stalker catalogue sweep renderAll() fires roughly 200 times while Movies loads (see
    growGridInChunks' notes), so this was 200 extra full-array filter+sort passes for nothing. */
-function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.viewingDownloads?'Downloads':S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
+function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.viewingDownloads?'Downloads':S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
 function renderCats(){
   const q=S.q.toLowerCase().trim();
   /* v24.69 (owner request): typing in search now filters the CATEGORY list too — "tamil" surfaces
@@ -11338,7 +11402,12 @@ const _resumeAfterFsExit=()=>{
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
 document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
+document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
+/* v25.11: landscape rail's Home/Downloads/Settings reuse the exact same handlers as the header's
+   equivalents — no separate logic to keep in sync. */
+if($('landHome'))$('landHome').onclick=()=>showHome();
+if($('landDownloads'))$('landDownloads').onclick=openDownloadsSheet;
+if($('landSettings'))$('landSettings').onclick=openNativePlayer;/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
    grid rebuild) immediately — on a large Movies catalogue that is real work, and it ran once per
    character, so typing "tamil" fired it 5 times in well under a second, each one blocking the next
    keystroke from registering smoothly. Debounced to fire once 180ms after typing pauses, which is
