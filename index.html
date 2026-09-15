@@ -2012,7 +2012,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.06';
+const APP_VERSION='25.07';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5849,6 +5849,30 @@ async function playItemBasic(x){
   /* A MAG/Stalker title is a portal command, not a URL — exchange it for a real link first. */
   if(x&&x._stalkerCmd)await stalkerResolve(x);
   if(_playTok!==S.playAttempt)return;   /* a later tap already won while this one was resolving */
+  /* v25.07 (owner, with hard evidence across three movies on v25.06: "Direct" still won route 1 in
+     14-21s every time, and Server Relay never even got tried — meaning this line answers https, so
+     v25.06's Cloudflare-Worker theory does not apply here. VLC still plays the same titles in under
+     2s). The one thing VLC's launch does that this tap-to-play path never did: playItemExternal()
+     calls YezPlayer.verifyPort() BEFORE building VLC's URL — a single cheap ranged probe (see
+     yezProbeOriginal) that settles, proactively, whether the panel's PUBLISHED port truly serves
+     media or is the slow/gated one, and gates it immediately if not, before ANYTHING is launched.
+     The in-app route walk has always been reactive instead: it only learns a port is bad from an
+     actual failed attempt (see GATE MEMORY in yezplayer.js), and this line's slow port isn't
+     failing — it's succeeding, just slowly (indistinguishable from "a real but slow connection" to
+     every existing check) — so the walk never had a reason to even try the alternate port sitting
+     right behind it in the list. Running the exact same proactive probe here, once, gives the
+     in-app player the same head start VLC already gets. Costs nothing on repeat plays: verifyPort()
+     itself skips the probe once a host:port is already settled (gated or not), so this only ever
+     pays for itself on the first title tried on a given host. Live is excluded — the tuning on how
+     instantly a live channel tap responds is its own, separately hard-won balance (see the pre-play
+     cushion notes further down), and VOD/series is where every report so far has actually been. */
+  if(typeOf(x)!=='live'){
+    try{
+      const raw=String(x.direct_source||x.stream_url||'').trim();
+      if(raw&&window.YezPlayer&&YezPlayer.verifyPort)await YezPlayer.verifyPort(raw,yezProbeOriginal);
+    }catch(e){}
+    if(_playTok!==S.playAttempt)return;   /* a later tap already won while this one was resolving */
+  }
   /* v19.74: rebuild Player 1 around the simpler exact-stream engine instead of M26Player2's
      catalogue/probe machine. This playlist is live TS/HLS, not an MKV-first library; the old
      engine already knows how to try the selected channel's authenticated MAG relay, HLS/TS, and
