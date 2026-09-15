@@ -2012,7 +2012,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.09';
+const APP_VERSION='25.10';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -8565,7 +8565,19 @@ async function startDownload(x){
       prog.pct=total?Math.min(99,Math.round(prog.received/total*100)):0;
       if(chunkBytes>=DL_SEG_BYTES)await flushSegment();
       const now=Date.now();
-      if(now-lastUiAt>250){updateDlRowProgress(key,prog);lastUiAt=now;} /* throttled — a fast connection reads far more often than any UI needs to repaint */
+      if(now-lastUiAt>250){
+        /* v25.10 (owner report: downloads no longer stall/fail, but "taking too long" — no way to
+           tell whether that means "slow right now" or "big file, actually on pace"): a rolling
+           bytes/sec estimate, smoothed (70% previous / 30% this tick) so it reads as a trend
+           rather than jumping every 250ms with normal network jitter. lastUiBytes/lastUiAt double
+           as the sampling window — already ticking every 250ms for the bar repaint, so this adds
+           no extra work, just a second thing computed on the same tick. */
+        const dt=(now-(lastUiAt||now-250))/1000,dBytes=prog.received-(prog.lastUiBytes||0);
+        const instBps=dt>0?dBytes/dt:0;
+        prog.bps=prog.bps?Math.round(prog.bps*0.7+instBps*0.3):Math.round(instBps);
+        prog.lastUiBytes=prog.received;
+        updateDlRowProgress(key,prog);lastUiAt=now;
+      } /* throttled — a fast connection reads far more often than any UI needs to repaint */
     }
     await flushSegment(); /* the final, possibly-partial segment */
     updateDlRowProgress(key,prog);
@@ -8626,12 +8638,24 @@ function humanSize(n){
   if(n>=1024)return Math.round(n/1024)+' KB';
   return n+' B';
 }
+/* v25.10: speed/ETA text for an in-progress download row — see the prog.bps note above where it's
+   computed. Shown only once a real sample exists (bps>0); a fresh download's first 250ms tick has
+   nothing to report yet, and that's a truthful "not measured yet" rather than a misleading 0 B/s. */
+function humanSpeed(bps){return bps>0?humanSize(bps)+'/s':''}
+function humanEta(prog){
+  if(!(prog.bps>0)||!prog.total)return'';
+  const remain=Math.max(0,prog.total-prog.received);
+  const secs=Math.round(remain/prog.bps);
+  if(secs<=0)return'';
+  const m=Math.floor(secs/60),s=secs%60;
+  return m>0?(m+'m '+s+'s left'):(s+'s left');
+}
 function dlRowHtml(rec){
   const inFlight=S.dlProgress[rec.key];
   const partial=rec.partial&&!inFlight;
   const posterHtml=rec.poster?`<img src="${esc(rec.poster)}" onerror="this.remove()">`:(inFlight?'⇩':(partial?'↻':'▶'));
   const metaHtml=inFlight
-    ?`<div class="dlMeta" id="dlmeta-${esc(rec.key)}">Downloading… ${inFlight.pct}%</div><div class="dlBar"><div class="dlBarFill" id="dlbar-${esc(rec.key)}" style="width:${inFlight.pct}%"></div></div>`
+    ?`<div class="dlMeta" id="dlmeta-${esc(rec.key)}">${esc(dlProgressText(inFlight))}</div><div class="dlBar"><div class="dlBarFill" id="dlbar-${esc(rec.key)}" style="width:${inFlight.pct}%"></div></div>`
     :partial
       ?`<div class="dlMeta">Interrupted · ${esc(humanSize(rec.received||rec.size))} saved</div>`
     :`<div class="dlMeta">${esc((rec.ext||'').toUpperCase())} · ${esc(humanSize(rec.size))}</div>`;
@@ -8648,11 +8672,18 @@ async function dlToggleWatched(key){
   await dlPut(rec);
   renderDownloadsSheet();
 }
+/* v25.10: the one line shared by the row's initial render (dlRowHtml) and every live update
+   (updateDlRowProgress) below, so the two can never drift into showing different text for the
+   same state. Speed/ETA only appear once a real sample exists — see humanSpeed/humanEta. */
+function dlProgressText(prog){
+  const speed=humanSpeed(prog.bps),eta=humanEta(prog);
+  return 'Downloading… '+prog.pct+'%'+(speed?' · '+speed:'')+(eta?' · '+eta:'');
+}
 function updateDlRowProgress(key,prog){
   const bar=document.getElementById('dlbar-'+key);
   if(bar)bar.style.width=prog.pct+'%';
   const meta=document.getElementById('dlmeta-'+key);
-  if(meta)meta.textContent='Downloading… '+prog.pct+'%';
+  if(meta)meta.textContent=dlProgressText(prog);
   updateDownloadsBadge();
 }
 async function renderDownloadsSheet(){
