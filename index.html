@@ -2092,7 +2092,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.13';
+const APP_VERSION='25.14';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5953,30 +5953,22 @@ async function playItemBasic(x){
   /* A MAG/Stalker title is a portal command, not a URL — exchange it for a real link first. */
   if(x&&x._stalkerCmd)await stalkerResolve(x);
   if(_playTok!==S.playAttempt)return;   /* a later tap already won while this one was resolving */
-  /* v25.07 (owner, with hard evidence across three movies on v25.06: "Direct" still won route 1 in
-     14-21s every time, and Server Relay never even got tried — meaning this line answers https, so
-     v25.06's Cloudflare-Worker theory does not apply here. VLC still plays the same titles in under
-     2s). The one thing VLC's launch does that this tap-to-play path never did: playItemExternal()
-     calls YezPlayer.verifyPort() BEFORE building VLC's URL — a single cheap ranged probe (see
-     yezProbeOriginal) that settles, proactively, whether the panel's PUBLISHED port truly serves
-     media or is the slow/gated one, and gates it immediately if not, before ANYTHING is launched.
-     The in-app route walk has always been reactive instead: it only learns a port is bad from an
-     actual failed attempt (see GATE MEMORY in yezplayer.js), and this line's slow port isn't
-     failing — it's succeeding, just slowly (indistinguishable from "a real but slow connection" to
-     every existing check) — so the walk never had a reason to even try the alternate port sitting
-     right behind it in the list. Running the exact same proactive probe here, once, gives the
-     in-app player the same head start VLC already gets. Costs nothing on repeat plays: verifyPort()
-     itself skips the probe once a host:port is already settled (gated or not), so this only ever
-     pays for itself on the first title tried on a given host. Live is excluded — the tuning on how
-     instantly a live channel tap responds is its own, separately hard-won balance (see the pre-play
-     cushion notes further down), and VOD/series is where every report so far has actually been. */
-  if(typeOf(x)!=='live'){
-    try{
-      const raw=String(x.direct_source||x.stream_url||'').trim();
-      if(raw&&window.YezPlayer&&YezPlayer.verifyPort)await YezPlayer.verifyPort(raw,yezProbeOriginal);
-    }catch(e){}
-    if(_playTok!==S.playAttempt)return;   /* a later tap already won while this one was resolving */
-  }
+  /* v25.14: v25.07 ran YezPlayer.verifyPort() here — the same proactive ranged probe VLC's handoff
+     uses — to settle the panel's published port before the in-app walk started. REMOVED, because it
+     made movies stop playing altogether (owner report, with diagnostics: every route failing, two
+     of them with "media element src not supported"). VLC needs that probe because it is a different
+     app: it is handed ONE address and nothing it does is observable from here, so a wrong port is a
+     black screen with no way back. The in-app walk is the opposite — it has the whole route list and
+     learns a bad port by actually failing on one, which costs a single attempt and self-corrects.
+     Bolting the probe onto it added a way to be wrong that the walk itself does not have: one failed
+     probe (for ANY reason — a refused range request, a slow proxy hop, a hiccup on the one request
+     it makes) writes that host:port into GATE MEMORY permanently, which then makes every route on
+     the panel's REAL port get demoted behind untested "(default port)" variants that serve nothing.
+     The panel then answers those with an HTML error page under a 200, which is exactly what
+     "src not supported" is, and gate memory learns from that verdict too — so the wrong verdict
+     re-confirms itself on every subsequent play and the line never recovers on its own.
+     A reactive walk that costs one failed attempt is strictly better than a proactive guess that can
+     latch permanently. Do not reintroduce this on the in-app path; playItemExternal() keeps it. */
   /* v19.74: rebuild Player 1 around the simpler exact-stream engine instead of M26Player2's
      catalogue/probe machine. This playlist is live TS/HLS, not an MKV-first library; the old
      engine already knows how to try the selected channel's authenticated MAG relay, HLS/TS, and
@@ -6366,8 +6358,14 @@ function plan(x){
          This costs nothing when Server Relay itself is the thing that's down: yezplayer.js's own
          transcoderDown penalty already sinks it behind everything else automatically regardless of
          where it sits in this base list. */
-      const needsWorkerRelay=blocked(direct||rawMp4);
-      if(needsWorkerRelay)addRelay('Server Relay',direct||rawMp4);
+      /* v25.14: v25.06 hoisted Server Relay to the FRONT whenever the panel needed Worker-proxying
+         at all (needsWorkerRelay), on evidence that it was then the fastest address on this line.
+         That evidence has since reversed: the owner's v25.13 diagnostics show Server Relay failing
+         outright with "media element src not supported" — an HTML error page under a 200 — and
+         because it led, every play burned ~17s on it before Direct, the address that historically
+         won, got its first byte. Back to last, where v25.04 had it. Leading with the route that
+         actually plays is worth more than any theory about which hop should be faster; if Server
+         Relay starts working again, ROUTE MEMORY promotes it on its own the first time it wins. */
       if(direct)add(direct.includes('.m3u8')?'hls':'native','Direct',W(direct));
       add('native','MP4',W(rawMp4));
       add('native','MP4 Proxy',proxyUrl(rawMp4));
@@ -6385,11 +6383,9 @@ function plan(x){
          after Direct and BEFORE every plain native/proxy attempt above — so an ordinary browser-
          safe mp4 paid a hop through this separate transcoder-box service, cold-start and all,
          before the app ever tried the fast path that was going to work anyway. Still true, and
-         still the reason this stays LAST when the panel does NOT need Worker-proxying at all (a
-         same-origin/https panel — direct/proxy there is genuinely fast, with no Cloudflare-vs-
-         origin trust question in play). See the v25.06 note above for the http-panel case, which
-         is everything else this app actually serves. */
-      if(!needsWorkerRelay)addRelay('Server Relay',direct||rawMp4);
+         still the reason this stays LAST — for every panel, http or https, as of v25.14 (see the
+         note above the Direct route for why the v25.06 hoist was taken back out). */
+      addRelay('Server Relay',direct||rawMp4);
       add('hls','Relay MP4',liveHlsUrl(rawMp4));
       if(!browserSafeExt(preferred)){addTrans(preferred.toUpperCase(),preferredUrl,true);addTrans('MP4',rawMp4);}
       else addTrans('Preview',rawFirst);
@@ -6861,21 +6857,17 @@ async function tryPlans(plans,i){
        the FIRST route on this host to actually reach PLAYING is remembered (see ROUTE MEMORY in
        yezplayer.js) — this guard already fires this branch only once per attempt, so a route
        cannot re-teach the same win on every progress tick.
-       v25.06 (same evidence as the plan() note above: Direct won in 14.8s through this app's own
-       Cloudflare Worker while VLC played the same title in under 2s going straight to the origin):
-       a win THAT SLOW, and THAT SPECIFICALLY via this Worker's own /proxy, must not calcify into
-       "the proven route for this host" — that is exactly what would stop Server Relay (now leading
-       for a Worker-proxied panel, see plan()) from ever getting tried on the next NEW title, since
-       ROUTE MEMORY promotes a remembered shape ahead of everything untested. A route that is fast,
-       or that is not a Worker hop at all (direct/unproxied, or already Server Relay), is still
-       remembered exactly as before — this only withholds the promotion a slow Worker hop does not
-       deserve. Diagnostics/the "already played" dot are untouched (see markPlayed below): the
-       title still shows as played, and a REPLAY of this exact title can still find this route —
-       this only stops it from spreading to every other title on the host. */
+       v25.06 withheld this memory when the win was slow (>=6s) AND went through this app's own
+       Cloudflare Worker, so a slow Worker hop could not calcify as "the proven route" and crowd out
+       Server Relay on the next new title. v25.14 REVERTS that: on a line whose only working address
+       IS a Worker-proxied one, refusing to remember it means every single play re-walks the entire
+       ladder from scratch and pays the full cost of every failing route ahead of the winner, every
+       time — which is precisely the "movies take a long time to play" report it was meant to help.
+       Remembering the winner is the single biggest lever there is on start time, and a memory that
+       turns out to be wrong already self-corrects: noteRouteLost() drops it the moment that shape
+       stops working. Slow-but-works beats re-walking on principle. */
     try{
-      const _wonMs=Date.now()-attachAt;
-      const _wonViaWorkerProxy=typeof PROXY==='string'&&!!PROXY&&String(p.url||'').indexOf(PROXY)===0;
-      if(window.YezPlayer&&YezPlayer.noteRouteWon&&!(_wonViaWorkerProxy&&_wonMs>=6000))YezPlayer.noteRouteWon(p.url,p.kind,p.label);
+      if(window.YezPlayer&&YezPlayer.noteRouteWon)YezPlayer.noteRouteWon(p.url,p.kind,p.label);
     }catch(e){}
     /* v24.37: record the win for diagnostics too — "route 7 of 11 won after 14s" is the single
        most useful line when a customer says a channel is slow but does eventually play, and it is
@@ -11780,6 +11772,24 @@ document.addEventListener('click',e=>{
 /* apply persisted prefs on load */
 applyColour(savedColour());updateVolPct();
 applySubtitleStyle();wireSubtitleStyleTracking();
+/* v25.14: one-time wipe of the route memory v25.07's probe could have poisoned. Removing the probe
+   (see playItemBasic) stops NEW devices being gated, but a phone that already ran v25.07-v25.13 has
+   the verdict written to localStorage, where it survives every reload and keeps demoting the panel's
+   real port behind variants that serve nothing — the customer would stay broken forever on a build
+   that is itself fixed. Runs once per device, guarded by its own marker key so it can never wipe
+   memory this build earned legitimately: everything cleared here is re-learned from one play. */
+(function(){
+  const K='media26-gatereset-v25.14';
+  try{
+    if(store.getItem(K))return;
+    store.setItem(K,'1');
+    if(window.YezPlayer){
+      if(YezPlayer.forgetGates)YezPlayer.forgetGates();
+      if(YezPlayer.forgetSlow)YezPlayer.forgetSlow();
+    }
+    try{localStorage.removeItem('yez.wonRoute.v1');localStorage.removeItem('yez.wonRoute.v1.global');}catch(e){}
+  }catch(e){}
+})();
 (function(){const g=savedEq();if(isFlat(g)){setEqGains(g,false);}else{const arm=()=>{setEqGains(g,false);document.removeEventListener('pointerdown',arm);};document.addEventListener('pointerdown',arm,{once:true});}})();
 
 /* Seek/progress bar for VOD & Series — hidden for live via updateLiveControls(). Uses
