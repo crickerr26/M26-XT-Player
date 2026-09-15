@@ -487,8 +487,12 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 /* the star now sits inline in the row actions, not absolutely positioned */
 .rowActions .star{position:static;transform:none;right:auto;top:auto}
 @media(max-width:760px){
-  .rowActions{gap:4px}
-  .qp{height:32px;min-width:42px;padding:0 9px;font-size:10px}.qpico{width:19px;height:19px}
+  /* v25.05 (owner report, with a screenshot: the row's icon cluster overlapping the title text):
+     shrunk further on top of dropping the row's blue Play button (see rowPlayerButtons()) — two
+     buttons at this size still crowded a long title on a narrow phone. */
+  .rowActions{gap:3px}
+  .qp{height:27px;min-width:30px;padding:0 6px;font-size:9px}.qpico{width:15px;height:15px}
+  .rowActions .star{width:24px;height:24px;font-size:13px}
 }
 /* v19.79: the channel name rendered at ZERO width on every desktop size.
    .rowActions is flex-shrink:0 and measures a fixed 132px (44+44+34 plus two 5px gaps),
@@ -2008,7 +2012,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.04';
+const APP_VERSION='25.05';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4544,7 +4548,7 @@ function epgMetaHtml(x){
   if(!nn||!nn.cur)return 'LIVE';
   return `<span class="epgNow" data-epg="${esc(keyOf(x))}">Now: ${esc(nn.cur.title)}</span>`;
 }
-function listCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="card ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${live?`<span class="chNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="${live?'posterLogoFail(this)':'this.remove()'}">`:(live?'':'▶')}</div><div class="cardText"><div class="ctitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="cmeta">${live?epgMetaHtml(x):(rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(typeOf(x).toUpperCase())+' '+(x.container_extension?'- '+esc(x.container_extension):''))}</div></div><div class="rowActions">${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}<button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button></div></div>`}
+function listCardHtml(x,idx){const logo=logoOf(x);const active=S.current&&keyOf(S.current)===keyOf(x);const live=typeOf(x)==='live';const rel=futureReleaseAt(x);return `<div class="card ${active?'active':''} ${rel?'future':''}" data-key="${esc(keyOf(x))}" role="button" tabindex="0"><div class="poster">${live?`<span class="chNum">${idx+1}</span>`:''}${logo?`<img loading="lazy" src="${esc(logo)}" onerror="${live?'posterLogoFail(this)':'this.remove()'}">`:(live?'':'▶')}</div><div class="cardText"><div class="ctitle">${playedDotHtml(x)}${esc(nameOf(x))}</div><div class="cmeta">${live?epgMetaHtml(x):(rel?'<span class="releaseBadge">Releases '+esc(releaseDateLabel(rel))+'</span>':esc(typeOf(x).toUpperCase())+' '+(x.container_extension?'- '+esc(x.container_extension):''))}</div></div><div class="rowActions"><button class="star" type="button" aria-label="Favorite" data-fav="${esc(keyOf(x))}">${S.favs.has(keyOf(x))?'★':'☆'}</button>${rowPlayerButtons(esc(keyOf(x)),typeOf(x))}</div></div>`}
 /* v19.35: THE WHOLE LIBRARY, NOT THE FIRST 900. A hard `.slice(0,900)` used to cap every grid no
    matter how many titles actually matched — "12,540 items" in the header with a wall at 900 cards
    and no way past it, which is exactly the "I only see a few loaded" complaint on any Movies
@@ -4664,12 +4668,17 @@ function rowPlayerButtons(key,type){
   /* v13.3: every row leads with PLAY HERE — the in-app player. Until now the only buttons on a
      row were VLC and KMPlayer, so the quickest tap always left the app; the built-in player was
      reachable only by tapping the title text, which is not discoverable. The external players
-     stay, one tap away, but they are no longer the only visible option. */
+     stay, one tap away, but they are no longer the only visible option.
+     v25.05 (owner report, with a screenshot: the row's icon cluster overlapping the title text):
+     the row's own blue "Play here" button is dropped again — tapping anywhere on the card (see the
+     click handler's plain `.card` branch) has ALWAYS played the title in the built-in player, so
+     this button was a second, crowded way to do what a tap on the row already does. Removing it
+     matches epPlayerButtons() below, which never had one. The built-in player stays exactly as
+     discoverable as it was — the whole row is still the button for it. */
   /* v18.9: built from the registry. A player whose `platforms` excludes this device is no longer
      drawn at all — which is what removes the KMPlayer button from a computer, where it had no
      launch URL and silently opened VLC instead. */
-  return guideBtn+playerBtn('basic','data-play="basic" data-key="'+key+'"')+
-         rowExternals().map(m=>playerBtn(m,'data-play="'+m+'" data-key="'+key+'"')).join('')+saveBtn;
+  return guideBtn+rowExternals().map(m=>playerBtn(m,'data-play="'+m+'" data-key="'+key+'"')).join('')+saveBtn;
 }
 /* v19.3.2: keyOf() is "type:id", so which array to search is already encoded in the key — no
    need to concatenate all three lists (potentially thousands of items each) on every single tap
