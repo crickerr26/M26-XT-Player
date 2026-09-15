@@ -2012,7 +2012,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.07';
+const APP_VERSION='25.08';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5914,8 +5914,19 @@ async function playItemBasic(x){
 function qualityProfile(){const q=S.quality||'auto';if(q==='720')return'hd720';if(q==='1080'||q==='auto')return'hd1080';return''}
 /* Titles are labelled by the provider — 4K/UHD/2160 in the name is the only hint available BEFORE
    the file is opened. The in-app player also re-checks the real width once it parses the header,
-   so a mislabelled title is still caught. */
-function looks4k(x){try{return /(^|[^a-z0-9])(4k|uhd|2160p?)([^a-z0-9]|$)/i.test(String(nameOf(x)||''))}catch(e){return false}}
+   so a mislabelled title is still caught.
+   v25.08 (owner-supplied live diagnostic: a channel named "CRIC || SKY SPORTS CRIC ⁴ᵏ" never got
+   4K handling at all — its mpegts route burned a guaranteed 7.3s "startup timeout" that native HLS
+   would have led instead): providers routinely stylize "4K"/"HD" with Unicode superscript digits
+   and letters (⁴ᵏ, ᴴᴰ, …) rather than plain ASCII. Those code points only LOOK like "4k" to a
+   human reader — a plain /\b4k\b/i test never matches them. Normalize the common superscript forms
+   to ASCII before testing, so a stylized name is recognised exactly like a plain one. */
+function normalizeStylizedDigits(s){
+  const MAP={'⁰':'0','¹':'1','²':'2','³':'3','⁴':'4','⁵':'5','⁶':'6','⁷':'7','⁸':'8','⁹':'9',
+    'ᵏ':'k','ᴷ':'K','ᴴ':'H','ᴰ':'D','ᵁ':'U','ᴵ':'I','ᴺ':'N'};
+  return String(s||'').replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹ᵏᴷᴴᴰᵁᴵᴺ]/g,c=>MAP[c]||c);
+}
+function looks4k(x){try{return /(^|[^a-z0-9])(4k|uhd|2160p?)([^a-z0-9]|$)/i.test(normalizeStylizedDigits(nameOf(x)))}catch(e){return false}}
 function nativeHls(video){return !!video.canPlayType('application/vnd.apple.mpegurl')||!!video.canPlayType('application/x-mpegURL')}
 /* The in-app Matroska player needs MediaSource — ManagedMediaSource on iOS 17.1+, plain
    MediaSource everywhere else. Older iPhones have neither and keep the transcoder route. */
@@ -5957,7 +5968,7 @@ function plan(x){
   const isAndroid=/android/i.test(ua);
   const isMob=mobile();
   const isMkv=mkvLike(orig);
-  const is4k=/\b(4k|uhd)\b/i.test(nameOf(x));
+  const is4k=/\b(4k|uhd)\b/i.test(normalizeStylizedDigits(nameOf(x)));
   /* v20: dedupe by kind+url (was url only, which silently dropped legitimate fallbacks that
      reuse one URL with a different engine — e.g. native m3u8 vs hls.js m3u8) */
   const add=(kind,label,url,front=false)=>{if(!url||p.some(a=>a.url===url&&a.kind===kind))return;front?p.unshift({kind,label,url}):p.push({kind,label,url})};
