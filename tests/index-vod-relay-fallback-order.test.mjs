@@ -9,10 +9,13 @@ const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
    paid a hop through a separate, sometimes-cold service before the app ever tried the fast path
    that was going to work anyway. That relay exists only to rescue the narrow case where a
    provider's stream node blocks Cloudflare's egress IPs outright (v21.4); native/proxy routes fail
-   FAST (an edge-level refusal) when that's genuinely the problem, so they belong first. This locks
-   the corrected order in so it can't silently regress back to "relay before native/proxy". */
+   FAST (an edge-level refusal) when that's genuinely the problem, so they belong first.
+   v25.04 (same report, continued): HLS/HLS Proxy — a totally different container format that the
+   vast majority of Xtream VOD panels never serve for movies — used to sit BETWEEN MP4 and MP4
+   Proxy, ahead of the same-format fallback far more likely to actually work. Moved behind it.
+   This locks the corrected order in so it can't silently regress. */
 assert.match(
   html,
-  /if\(direct\)add\(direct\.includes\('\.m3u8'\)\?'hls':'native','Direct',W\(direct\)\);\s*\n\s*add\('native','MP4',W\(rawMp4\)\);\s*\n\s*add\('hls','HLS',W\(rawM3u8\)\);\s*\n\s*add\('native','MP4 Proxy',proxyUrl\(rawMp4\)\);\s*\n\s*add\('hls','HLS Proxy',proxyUrl\(rawM3u8\)\);[\s\S]*?addRelay\('Server Relay',direct\|\|rawMp4\);/,
-  'Mobile VOD must try Direct and every plain native/proxy route before paying the third-party Server Relay hop'
+  /if\(direct\)add\(direct\.includes\('\.m3u8'\)\?'hls':'native','Direct',W\(direct\)\);\s*\n\s*add\('native','MP4',W\(rawMp4\)\);\s*\n\s*add\('native','MP4 Proxy',proxyUrl\(rawMp4\)\);[\s\S]*?add\('hls','HLS',W\(rawM3u8\)\);\s*\n\s*add\('hls','HLS Proxy',proxyUrl\(rawM3u8\)\);[\s\S]*?addRelay\('Server Relay',direct\|\|rawMp4\);/,
+  'Mobile VOD must try Direct, MP4 and MP4 Proxy (the same-format fallback) before a different-format HLS guess or the third-party Server Relay hop'
 );

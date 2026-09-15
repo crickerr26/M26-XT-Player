@@ -1765,7 +1765,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       <button class="pillbtn primary hidden" id="subRenewBtn" type="button" style="margin-top:8px;width:100%;justify-content:center">Renew — $2 CAD / month</button>
     </div>
   </div>
-  <div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
+  <div class="nativeActions"><button class="pillbtn primary" id="nativeDoctor">Connection Test</button><button class="pillbtn" id="nativeLastLog">Copy Last Play Timing</button><button class="pillbtn primary" id="nativeDirect">Play Preview</button><button class="pillbtn" id="nativeCopy">Copy Stream Link</button><button class="pillbtn primary" id="nativeTranscode">Play Transcoded</button><button class="pillbtn" id="nativeResetPlayer">Ask player every time</button><button class="pillbtn" id="nativeCancel">Cancel</button></div></div></div>
 <div class="loader" id="loader"><div class="m26load">
   <div class="m26orb">
     <div class="m26ring"></div>
@@ -2008,7 +2008,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.03';
+const APP_VERSION='25.04';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6204,8 +6204,15 @@ function plan(x){
       const W=u=>blocked(u)?proxyUrl(u):u;
       if(direct)add(direct.includes('.m3u8')?'hls':'native','Direct',W(direct));
       add('native','MP4',W(rawMp4));
-      add('hls','HLS',W(rawM3u8));
       add('native','MP4 Proxy',proxyUrl(rawMp4));
+      /* v25.04 (same owner report as v25.03, continued: still 14-16s): HLS/HLS Proxy used to run
+         BETWEEN MP4 and MP4 Proxy — so a declared-mp4 movie tried a totally different container
+         format (which the vast majority of Xtream VOD panels never serve for movies at all, and
+         which then has to fail before the app gets back to the format the panel actually declared)
+         ahead of the one fallback most likely to actually work: the same mp4, same-origin, via
+         /proxy. Kept as a fallback for the panels whose container_extension metadata lies — just
+         no longer ahead of the same-format retry that is the far more likely winner. */
+      add('hls','HLS',W(rawM3u8));
       add('hls','HLS Proxy',proxyUrl(rawM3u8));
       /* the one address on this list that is not a Cloudflare Worker — see addRelay above.
          v25.03 (owner report: movies "taking tooooo long" to start): this used to run 2nd, right
@@ -11080,7 +11087,18 @@ if($('homeRefreshPlaylist'))$('homeRefreshPlaylist').onclick=async()=>{
     btn.disabled=false;btn.textContent=prevText;
   }
 };
-(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if(S.viewingDownloads){showHome();return}backToCategories();};$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
+(function(){const brand=document.querySelector('.top .brand');if(brand){brand.style.cursor='pointer';brand.setAttribute('title','Home');brand.addEventListener('click',()=>showHome())}})();$('menuBtn').onclick=()=>{if(S.viewingDownloads){showHome();return}backToCategories();};$('openStreamBtn').onclick=openNativePlayer;if($('playBtn'))$('playBtn').onclick=togglePlay;if($('backBtn'))$('backBtn').onclick=()=>seekBy(-10);if($('forwardBtn'))$('forwardBtn').onclick=()=>seekBy(10);if($('pipBtn'))$('pipBtn').onclick=pip;if($('nativeBtn'))$('nativeBtn').onclick=openNativePlayer;$('nativeDirect').onclick=e=>{e.preventDefault();if(S.current)playItemBasic(S.current)};if($('nativeDoctor'))$('nativeDoctor').onclick=()=>{streamDoctor()};
+/* v25.04 (owner report: a movie plays but takes 14-16s to start, "I want it ultra fast"): the
+   route walk already records exactly which candidate won and how long every route before it took
+   (S.playWonAt/S.playWonLabel/S.routeLog, see buildDiagnostics()) — but the only place that data
+   was ever surfaced was the loading/failure overlay's "Copy diagnostics" button, which disappears
+   the instant a title starts PLAYING. So the one report that matters most for "it's slow but it
+   does play" had no way to actually be captured — a customer had nothing to send back except "14
+   seconds", nothing about which route it was or whether other routes were tried and failed first.
+   This reuses copyDiagnostics() (zero new logic) from a place that is reachable at any time,
+   including right after a slow-but-successful play, so the next "too slow" report comes with the
+   real breakdown instead of a guess. */
+if($('nativeLastLog'))$('nativeLastLog').onclick=()=>{copyDiagnostics()};if($('loginToolsBtn'))$('loginToolsBtn').onclick=()=>{try{if($('xtreamSheet'))$('xtreamSheet').classList.remove('show')}catch(e){}openNativePlayer();};
 $('nativeClose').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCancel').onclick=()=>$('nativeSheet').classList.remove('show');$('nativeCopy').onclick=()=>{const u=nativeAppUrl(S.current);if(!u)return;navigator.clipboard&&navigator.clipboard.writeText(u);toast('Stream link copied')};$('nativeTranscode').onclick=()=>{const base=transcoderBase();if(!base){toast('Enter transcoder server URL first');return}store.setItem(TRANSCODER_KEY,base);store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());$('nativeSheet').classList.remove('show');if(S.current){const t=typeOf(S.current),profile=t==='live'?'live':(mkvLike(String(S.current.container_extension||'').replace(/^\./,'').toLowerCase())?'fastvod':'vod'),src=transcoderInput(S.current)||nativeAppUrl(S.current);tryPlans([{kind:'hls',label:'Server Transcoded',url:transcodeUrl(src,profile)}],0)}};$('transcoderUrl').onchange=()=>{const base=transcoderBase();if(base){$('transcoderUrl').value=base;store.setItem(TRANSCODER_KEY,base);toast('Transcoder saved');setTStatus('idle','Tap Test to check');testTranscoder();}else{setTStatus('idle','No transcoder URL set')}};if($('qualitySel')){$('qualitySel').value=S.quality||'auto';$('qualitySel').onchange=()=>{S.quality=$('qualitySel').value;try{store.setItem(VQUAL_KEY,S.quality)}catch(e){}toast(S.quality==='original'?'Keeping original quality — 4K may buffer on mobile.':'Quality set — 4K titles will play in '+(S.quality==='720'?'720p':'1080p')+'.')};}if($('mkvEngineLine')){const _mk=()=>{const st=mkvEngineStatus();const el=$('mkvEngineLine');el.textContent=(st==='ready'?'✅ Yez Player ready — MKV plays here in the app':'⚠️ Yez Player '+st);el.style.color=(st==='ready'?'#4fe0a5':'#ffd25a')};_mk();if($('nativeBtn'))$('nativeBtn').addEventListener('click',_mk);if($('openStreamBtn'))$('openStreamBtn').addEventListener('click',_mk);}if($('transcoderTestBtn'))$('transcoderTestBtn').onclick=()=>testTranscoder();
 if($('transcoderAdvBtn'))$('transcoderAdvBtn').onclick=()=>{const b=$('transcoderAdv');if(!b)return;const open=b.classList.toggle('hidden');$('transcoderAdvBtn').textContent=open?'Advanced — run my own transcoder':'Hide advanced';};$('transcoderToken').onchange=()=>{store.setItem(TRANSCODER_TOKEN_KEY,transcoderToken());toast('Transcoder token saved')};$('nativeSheet').onclick=e=>{if(e.target.id==='nativeSheet')$('nativeSheet').classList.remove('show')};/* ── v20.8: "TAP THE VIDEO ONCE TO BEGIN PLAYBACK" NOW BEGINS PLAYBACK. ─────────────────────────
    It did not. The prompt appears when the browser refuses to autoplay, and the only tap handler on
