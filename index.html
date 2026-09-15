@@ -153,8 +153,21 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
   .player{grid-column:2;grid-row:1 / 3;min-height:0;height:100%;border-radius:12px}
   .recBanner{display:none}
   .now{grid-column:1;grid-row:1;padding:0 2px}.now h2{font-size:13px}.now p{font-size:10px}.status{display:none}
-  .grid{grid-column:1;grid-row:2 / 4;grid-template-columns:1fr;gap:6px;padding:0 0 6px 0}
-  .card{min-height:50px}
+  .grid{grid-column:1;grid-row:2 / 4;grid-template-columns:1fr;gap:5px;padding:0 0 6px 0}
+  /* v25.12 (owner report, with a screenshot: the channel rows in this 220px-wide landscape
+     column were still full desktop size — 52px logos, 14px bold titles — so only 2-3 rows fit
+     and it read as unfinished rather than a real compact list view). Shrunk below even the
+     mobile-portrait sizes (@media(max-width:760px) above), since this column is narrower than
+     a phone's full width. */
+  .card{min-height:38px;border-radius:9px;grid-template-columns:28px 1fr auto;gap:6px;padding:4px 6px}
+  .poster{width:28px;height:28px;border-radius:7px;font-size:9px}
+  .chNum{min-width:14px;height:14px;padding:0 3px;font-size:8px;border-radius:4px}
+  .ctitle{font-size:10.5px;line-height:1.15;-webkit-line-clamp:1}
+  .cmeta{font-size:8.5px;margin-top:1px}
+  .rowActions{gap:2px}
+  .qp{height:22px;min-width:24px;padding:0 4px;font-size:8px}
+  .qpico{width:12px;height:12px}
+  .rowActions .star{width:20px;height:20px;font-size:11px}
   .info{display:none}
   .landNowPlaying{grid-column:2;grid-row:3;display:flex}
 }
@@ -2052,7 +2065,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.11';
+const APP_VERSION='25.12';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
