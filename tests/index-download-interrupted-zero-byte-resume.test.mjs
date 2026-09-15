@@ -40,6 +40,12 @@ const context = {
   logoOf: () => '',
   externalStreamUrl: x => x.direct_source,
   streamRelayUrl: () => '',
+  /* v25.09: startDownload() now checks blocked(raw) to decide whether this panel needs
+     Worker-proxying at all before choosing which relay leads (see
+     tests/index-download-relay-priority.test.mjs) — false here matches the test's own https
+     source URL, which never needed proxying in the first place, so this fixture's expectations
+     (Cloudflare's own /proxy, unchanged from before that change) still hold. */
+  blocked: () => false,
   mimeForFile: () => 'video/x-matroska',
   dlGet: async () => null,
   dlPut: async rec => { stored = rec; },

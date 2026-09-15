@@ -2012,7 +2012,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.08';
+const APP_VERSION='25.09';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -8403,12 +8403,30 @@ async function startDownload(x){
      relayFetch — ordinary hosting, an entirely different IP, kept warm in the background by
      keepTranscoderWarm() specifically so it's never a cold start). Only switch to it when
      something is actually connected right now (cleanup()'s own test for "is a stream open") —
-     when nothing is competing for the account's one slot there is no conflict to route around, and
-     Cloudflare's edge is the better-tested, presumably faster path for the common case. */
+     when nothing is competing for the account's one slot there is no conflict to route around.
+     v25.09 update: "Cloudflare's edge is the better-tested, presumably faster path" below was an
+     assumption, not a measurement — v25.06/v25.07 found hard evidence it is backwards for a panel
+     that needs Worker-proxying at all (an http origin on this https app): this app's own Worker
+     answers slower there than the separate relay, sometimes by 5-10x, on this exact account. A
+     download is the SAME kind of connection as a movie start, just far longer-lived, so it is at
+     least as exposed to that — more, since it has minutes instead of seconds to hit a stall. See
+     the new needsWorkerRelay branch just below: the "keep the download and a concurrently playing
+     stream on two different IPs" protection this comment describes is unchanged, only WHICH IP is
+     the default now differs, to lead with the one actually proven reliable on this class of line. */
   const v=$('video');
   const playerFailed=/Stream unavailable|Preview failed/i.test([$('stateTitle')&&$('stateTitle').textContent,$('stateText')&&$('stateText').textContent,$('miniMeta')&&$('miniMeta').textContent].filter(Boolean).join(' '));
   const hasActiveStream=!playerFailed&&!!(S.hls||S.ts||(v&&v.currentSrc&&v.readyState>0));
-  let url=hasActiveStream?(streamRelayUrl(raw,x)||(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw)):(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
+  const cfProxyUrl=(SAME_ORIGIN_PROXY||PROXY)+encodeURIComponent(raw);
+  const relayUrl=()=>streamRelayUrl(raw,x)||cfProxyUrl;
+  /* v25.09 (owner report: a download repeatedly stalling and resuming — "Download interrupted —
+     resuming…" firing every 15-20s, 28%->36%->43% over more than a minute, never finishing): see
+     the long note above. When this panel needs Worker-proxying, the two paths swap priority from
+     the block above — Server Relay leads when nothing else is streaming (the common case for a
+     download, and the path proven reliable here), Cloudflare's own /proxy is used instead only
+     when something else IS actively streaming, to keep the two connections apart exactly as
+     before. An https panel (needsWorkerRelay false) is untouched — it never had this problem. */
+  const needsWorkerRelay=blocked(raw);
+  let url=needsWorkerRelay?(hasActiveStream?cfProxyUrl:relayUrl()):(hasActiveStream?relayUrl():cfProxyUrl);
   if(existing&&existing.partial&&existing.sourceUrl)url=existing.sourceUrl;
   try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});}catch(e){}
   const ctl=new AbortController();
@@ -11474,15 +11492,82 @@ function setSubTrack(i){
   const v=$('video');if(v&&v.textTracks)for(let k=0;k<v.textTracks.length;k++)v.textTracks[k].mode=(k===i?'showing':'disabled');
 }
 function subLabel(){const l=subTracksList();const on=l.find(t=>t.on);return on?on.name:'Off';}
+/* v25.09 (owner request: customize where/how subtitles show — position left/centre/right, font
+   size, font colour, background transparency — built into the Subtitles menu itself). Preset rows,
+   same shape as every other player-menu setting here (Colour Mode, Equalizer): tap to pick, tick
+   marks the current choice, persisted to localStorage exactly like applyColour()/savedColour().
+   Size/colour/background are pure CSS (::cue supports only text-level properties — no browser lets
+   ::cue reposition the cue BOX itself), applied by rewriting one <style> tag's text so a change
+   takes effect on whatever is on screen instantly, without touching the video element. Position
+   has no CSS answer at all — it has to be set on each WebVTT cue's own align/position properties,
+   which is what applySubtitlePositions() does. */
+const SUB_STYLE_KEY='media26-sub-style-v1';
+const SUB_STYLE_DEFAULTS={pos:'center',size:'medium',color:'white',bg:'medium'};
+const SUB_POS_LABELS={left:'Left',center:'Center',right:'Right'};
+const SUB_POS_CUE={left:{align:'start',position:8},center:{align:'center',position:50},right:{align:'end',position:92}};
+const SUB_SIZE_LABELS={small:'Small',medium:'Medium',large:'Large',xlarge:'Extra Large'};
+const SUB_SIZE_PCT={small:80,medium:100,large:130,xlarge:160};
+const SUB_COLOR_LABELS={white:'White',yellow:'Yellow',cyan:'Cyan',green:'Green',red:'Red'};
+const SUB_COLOR_HEX={white:'#ffffff',yellow:'#ffeb3b',cyan:'#22e1ff',green:'#4ade80',red:'#ff5252'};
+const SUB_BG_LABELS={none:'None',low:'Low',medium:'Medium',high:'High',solid:'Solid'};
+const SUB_BG_ALPHA={none:0,low:0.25,medium:0.5,high:0.75,solid:1};
+function savedSubStyle(){try{return Object.assign({},SUB_STYLE_DEFAULTS,JSON.parse(store.getItem(SUB_STYLE_KEY)||'{}'))}catch(e){return Object.assign({},SUB_STYLE_DEFAULTS)}}
+function subPosLabel(){return SUB_POS_LABELS[savedSubStyle().pos]||'Center'}
+function subSizeLabel(){return SUB_SIZE_LABELS[savedSubStyle().size]||'Medium'}
+function subColorLabel(){return SUB_COLOR_LABELS[savedSubStyle().color]||'White'}
+function subBgLabel(){return SUB_BG_LABELS[savedSubStyle().bg]||'Medium'}
+function ensureSubStyleTag(){let el=document.getElementById('subStyleTag');if(!el){el=document.createElement('style');el.id='subStyleTag';document.head.appendChild(el);}return el;}
+function applySubtitleStyle(){
+  const s=savedSubStyle();
+  const pct=SUB_SIZE_PCT[s.size]||100;
+  const color=SUB_COLOR_HEX[s.color]||'#ffffff';
+  const alpha=SUB_BG_ALPHA[s.bg];
+  const bg='rgba(0,0,0,'+(alpha==null?0.5:alpha)+')';
+  try{ensureSubStyleTag().textContent='video::cue{font-size:'+pct+'%;color:'+color+';background-color:'+bg+';}';}catch(e){}
+  applySubtitlePositions();
+}
+/* Re-applied on every cuechange (see wireSubtitleStyleTracking below), so a cue that only just
+   arrived — a live HLS caption, or the next line of a VOD track — gets today's position setting
+   instead of whatever the WebVTT source itself declared. Reading .cues throws on a track whose
+   mode is 'disabled' in some engines, so a track is skipped rather than letting that stop the
+   others (Off is Off; nothing to style there anyway). */
+function applySubtitlePositions(){
+  const v=$('video');if(!v||!v.textTracks)return;
+  const cfg=SUB_POS_CUE[savedSubStyle().pos]||SUB_POS_CUE.center;
+  for(let i=0;i<v.textTracks.length;i++){
+    let cues=null;try{cues=v.textTracks[i].cues}catch(e){cues=null}
+    if(!cues)continue;
+    for(let j=0;j<cues.length;j++){
+      const c=cues[j];
+      try{if('align'in c)c.align=cfg.align;if('position'in c)c.position=cfg.position;}catch(e){}
+    }
+  }
+}
+function setSubStyle(patch){try{store.setItem(SUB_STYLE_KEY,JSON.stringify(Object.assign(savedSubStyle(),patch)))}catch(e){}applySubtitleStyle();}
+/* Wired once per <video> element (guarded by _subStyleWired) rather than per play, since the
+   element itself is never replaced — only its tracks come and go. addtrack covers a track that
+   attaches after this first runs (the normal case: tracks arrive once a stream actually starts). */
+function wireSubtitleStyleTracking(){
+  const v=$('video');if(!v||!v.textTracks||v._subStyleWired)return;
+  v._subStyleWired=true;
+  const wireTrack=tr=>{try{tr.addEventListener('cuechange',applySubtitlePositions)}catch(e){}};
+  for(let i=0;i<v.textTracks.length;i++)wireTrack(v.textTracks[i]);
+  try{v.textTracks.addEventListener('addtrack',e=>{wireTrack(e.track);applySubtitlePositions();})}catch(e){}
+}
 function pmClose(){const m=$('playerMenu');if(m)m.classList.add('hidden');syncQsOverlay();}
 function pmToggle(){const m=$('playerMenu');if(!m)return;if(m.classList.contains('hidden'))pmRoot(),m.classList.remove('hidden'),closeQMenu();else m.classList.add('hidden');syncQsOverlay();}
 /* v24.28: rows render exactly as before — icon/label/val/tick/chev, one .pmRow button each — the
    only change is wrapping them in a .pmTiles strip so CSS can lay them out horizontally instead
    of stacking them. Every category (root list and every drill-down) goes through this same
    function, so none of their own state logic had to change for the new look. */
-function pmRender(rows,title){
+/* v25.09: onBack defaults to pmRoot, exactly as every existing caller already assumed — Subtitle
+   Style is the first panel in this menu nested two levels deep (Subtitles -> Style -> Position/
+   Size/Colour/Background), and without an explicit parent the back arrow from one of those four
+   would jump straight past both Style AND Subtitles to the root menu instead of returning to
+   Style, which is not what a back arrow means anywhere else in this menu. */
+function pmRender(rows,title,onBack){
   const m=$('playerMenu');if(!m)return;m.innerHTML='';
-  if(title){const h=document.createElement('div');h.className='pmHead';h.innerHTML='<button aria-label="Back">‹</button><span>'+title+'</span>';h.querySelector('button').onclick=pmRoot;m.appendChild(h);}
+  if(title){const h=document.createElement('div');h.className='pmHead';h.innerHTML='<button aria-label="Back">‹</button><span>'+title+'</span>';h.querySelector('button').onclick=onBack||pmRoot;m.appendChild(h);}
   const wrap=document.createElement('div');wrap.className='pmTiles';
   rows.forEach(r=>{
     const b=document.createElement('button');b.className='pmRow'+(r.on?' on':'');
@@ -11521,7 +11606,17 @@ function pmAudio(){pmRender(audioTracksList().map(t=>({label:t.name,tick:t.on,on
    to the new choice without a trip back through the root tile row. */
 function pmColour(){const cur=savedColour();pmRender(Object.keys(COLOUR_LABELS).map(k=>({label:COLOUR_LABELS[k],tick:cur===k,on:cur===k,onClick:()=>{applyColour(k);pmColour();}})),'Colour Mode');}
 function pmEqualizer(){const cur=eqLabel();pmRender(Object.keys(EQ_PRESETS).map(k=>({label:EQ_LABELS[k],tick:EQ_LABELS[k]===cur,on:EQ_LABELS[k]===cur,onClick:()=>{setEqGains(EQ_PRESETS[k].slice(),true);pmEqualizer();}})),'Equalizer');}
-function pmSubs(){const rows=[{label:'Off',tick:subLabel()==='Off',on:subLabel()==='Off',onClick:()=>{setSubTrack(-1);pmRoot();}}];subTracksList().forEach(t=>rows.push({label:t.name,tick:t.on,on:t.on,onClick:()=>{setSubTrack(t.i);pmRoot();}}));pmRender(rows,'Subtitles');}
+function pmSubs(){const rows=[{label:'Off',tick:subLabel()==='Off',on:subLabel()==='Off',onClick:()=>{setSubTrack(-1);pmRoot();}}];subTracksList().forEach(t=>rows.push({label:t.name,tick:t.on,on:t.on,onClick:()=>{setSubTrack(t.i);pmRoot();}}));rows.push({label:'Style',chev:true,onClick:pmSubStyle});pmRender(rows,'Subtitles');}
+function pmSubStyle(){pmRender([
+  {label:'Position',val:subPosLabel(),chev:true,onClick:pmSubPosition},
+  {label:'Font Size',val:subSizeLabel(),chev:true,onClick:pmSubSize},
+  {label:'Font Colour',val:subColorLabel(),chev:true,onClick:pmSubColor},
+  {label:'Background',val:subBgLabel(),chev:true,onClick:pmSubBg}
+],'Subtitle Style',pmSubs);}
+function pmSubPosition(){pmRender(Object.keys(SUB_POS_LABELS).map(k=>({label:SUB_POS_LABELS[k],tick:savedSubStyle().pos===k,on:savedSubStyle().pos===k,onClick:()=>{setSubStyle({pos:k});pmSubPosition();}})),'Subtitle Position',pmSubStyle);}
+function pmSubSize(){pmRender(Object.keys(SUB_SIZE_LABELS).map(k=>({label:SUB_SIZE_LABELS[k],tick:savedSubStyle().size===k,on:savedSubStyle().size===k,onClick:()=>{setSubStyle({size:k});pmSubSize();}})),'Font Size',pmSubStyle);}
+function pmSubColor(){pmRender(Object.keys(SUB_COLOR_LABELS).map(k=>({label:SUB_COLOR_LABELS[k],tick:savedSubStyle().color===k,on:savedSubStyle().color===k,onClick:()=>{setSubStyle({color:k});pmSubColor();}})),'Font Colour',pmSubStyle);}
+function pmSubBg(){pmRender(Object.keys(SUB_BG_LABELS).map(k=>({label:SUB_BG_LABELS[k],tick:savedSubStyle().bg===k,on:savedSubStyle().bg===k,onClick:()=>{setSubStyle({bg:k});pmSubBg();}})),'Background',pmSubStyle);}
 if($('settingsBtn'))$('settingsBtn').onclick=e=>{e.stopPropagation();pmToggle();};
 /* v24.28 (found while testing the Quick Settings redesign): tapping ANY row used to close the
    whole menu instantly instead of drilling in. Every row's onClick (pmSpeed/pmColour/etc.) calls
@@ -11544,6 +11639,7 @@ document.addEventListener('click',e=>{
 
 /* apply persisted prefs on load */
 applyColour(savedColour());updateVolPct();
+applySubtitleStyle();wireSubtitleStyleTracking();
 (function(){const g=savedEq();if(isFlat(g)){setEqGains(g,false);}else{const arm=()=>{setEqGains(g,false);document.removeEventListener('pointerdown',arm);};document.addEventListener('pointerdown',arm,{once:true});}})();
 
 /* Seek/progress bar for VOD & Series — hidden for live via updateLiveControls(). Uses
