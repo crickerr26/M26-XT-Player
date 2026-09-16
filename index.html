@@ -922,9 +922,25 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .player.cssFull{position:fixed!important;inset:0;width:100vw;height:100dvh;max-height:none;min-height:0;margin:0;z-index:300;border-radius:0;background:#000}
 .player.cssFull .playerbar{opacity:0;pointer-events:none}
 .player.cssFull.showbar .playerbar{opacity:1;pointer-events:auto}
-.player.cssFull .watermark{opacity:.6!important;display:block!important}
-.player.cssFull.showbar .watermark{opacity:0!important}
+/* v25.19 (owner request: the brand mark should sit over the picture in fullscreen). It stays up
+   even while the control bar is showing here — inline it fades out to keep clear of the bar, but
+   fullscreen is the one place the mark is actually wanted on top of the video. */
+.player.cssFull .watermark,.player.cssFull.showbar .watermark{opacity:.6!important;display:block!important;z-index:2147483647}
 body.cssFullOn{overflow:hidden}
+/* ── v25.19: FILL THE SCREEN ──────────────────────────────────────────────────────────────────
+   Owner report, with a screenshot: "the full screen is not really full screen." Measured off that
+   screenshot: the screen is 2622x1206 (2.17:1) and the player box WAS filling it — the video drew
+   2144x1206, the full height, edge to edge. Two different sets of bars were being read as one bug:
+     - the 240px bars left and right are a 16:9 video on a 2.17:1 phone, which object-fit:contain
+       correctly pillarboxes rather than stretch;
+     - the 154px bars top and bottom are burned INTO the file — a 2.39:1 scope picture letterboxed
+       inside a 16:9 frame, which no CSS can know about or remove by fitting.
+   So this is a zoom mode, not a layout fix. Filling crops the 16:9 frame to the screen, which on
+   that kind of file eats exactly the baked-in bars and leaves a genuinely edge-to-edge picture.
+   It only ever applies in fullscreen — inline, the box is already close to the video's own shape,
+   and cropping there would be loss for nothing. Double-tap the middle of the screen to switch
+   back; nothing is permanently cropped and the choice is remembered. */
+.player.zoomFill video{object-fit:cover}
 @media(max-width:760px){.watermark{left:9px;bottom:112px;width:clamp(38px,9%,66px)}}
 /* --- v18 device-aware external player layer --- */
 .nativePanel{display:block;overflow-y:auto}
@@ -2126,7 +2142,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.18';
+const APP_VERSION='25.19';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -8003,11 +8019,29 @@ function updateMediaSession(x){
    there, just not via the OS player. The in-page fullscreen below is how that case is served. */
 /* v25.18: the in-page fullscreen described by the .player.cssFull CSS above. Kept as its own
    function so the toggle, the button icon and the body scroll-lock can never drift apart. */
+/* v25.19: fill-vs-fit, applied ONLY in fullscreen — see the .player.zoomFill note in the CSS for
+   why the bars the owner saw were two different things and why cropping is the answer to one of
+   them. Defaults to filling, because that is what "make it really fullscreen" asks for; a
+   double-tap in the middle of the picture switches back and the choice is remembered. */
+const ZOOM_KEY='m26-zoom';
+function savedZoom(){try{return store.getItem(ZOOM_KEY)==='fit'?'fit':'fill'}catch(e){return 'fill'}}
+function anyFullscreen(){return cssFullscreenOn()||!!(document.fullscreenElement||document.webkitFullscreenElement)}
+function applyZoom(){
+  const box=$('playerBox');if(!box)return;
+  box.classList.toggle('zoomFill',anyFullscreen()&&savedZoom()==='fill');
+}
+function toggleZoom(){
+  const next=savedZoom()==='fill'?'fit':'fill';
+  try{store.setItem(ZOOM_KEY,next)}catch(e){}
+  applyZoom();
+  toast(next==='fill'?'Zoom: filling the screen':'Zoom: showing the whole picture');
+}
 function setCssFullscreen(on){
   const box=$('playerBox');if(!box)return;
   box.classList.toggle('cssFull',!!on);
   document.body.classList.toggle('cssFullOn',!!on);
   const b=$('fsBtn');if(b)b.innerHTML=on?ICONS.fsExit:ICONS.fsEnter;
+  applyZoom();
   try{showBar()}catch(e){}
 }
 function cssFullscreenOn(){const box=$('playerBox');return !!(box&&box.classList.contains('cssFull'))}
@@ -11667,8 +11701,8 @@ const _resumeAfterFsExit=()=>{
   const v=$('video');
   if(v&&v.paused&&!v.ended&&v.currentTime>0&&Date.now()-_lastManualPauseAt>1200)v.play().catch(()=>{});
 };
-document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
-document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();_resumeAfterFsExit()});
+document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
+document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
 /* v25.11: landscape rail's Home/Downloads/Settings reuse the exact same handlers as the header's
@@ -12111,6 +12145,9 @@ applySubtitleStyle();wireSubtitleStyleTracking();
        every other player does it. The middle third is deliberately NOT a seek zone: that is
        where a tap to show/hide the controls naturally lands, and a stray double-tap there
        jumping the movie would be worse than having no gesture at all.
+     - DOUBLE-TAP the middle third, IN FULLSCREEN ONLY -> fill the screen / show the whole
+       picture (v25.19). Safe where a seek would not have been: it is instant, visible, and undone
+       by repeating the same gesture, so a stray tap costs nothing.
    Gestures that begin on the control bar are ignored so the seek bar and buttons still work. */
 (function(){
   const box=$('playerBox'),v=$('video'),hint=$('gestureHint');
@@ -12120,11 +12157,16 @@ applySubtitleStyle();wireSubtitleStyleTracking();
   const DOUBLE_TAP_MS=320;
   /* Which third of the player the touch started in. Measured against the box's own rect rather
      than the window, so it stays correct in landscape, in fullscreen and in the floating PiP. */
+  /* 'l' and 'r' seek; 'c' (the middle third) toggles fill-vs-fit, and ONLY in fullscreen — see
+     the .player.zoomFill note in the CSS. Giving the middle a job is safe in a way that giving it
+     a seek would not have been: switching zoom is instant, visible and reversible by repeating the
+     same gesture, whereas a stray double-tap that jumped the movie would cost the viewer's place.
+     It also matches where the OS player puts the same gesture, which is what people already try. */
   const zoneOf=x=>{
     const r=box.getBoundingClientRect();
     if(!r.width)return '';
     const p=(x-r.left)/r.width;
-    return p<0.35?'l':p>0.65?'r':'';
+    return p<0.35?'l':p>0.65?'r':'c';
   };
   const showHint=t=>{if(hint){hint.textContent=t;hint.classList.remove('hidden')}};
   const hideHint=()=>{if(hint)hint.classList.add('hidden')};
@@ -12169,19 +12211,29 @@ applySubtitleStyle();wireSubtitleStyleTracking();
     /* v25.16: a clean tap (no drag, no long-press) in the left or right third. The SECOND one
        inside the window seeks; the first is just remembered, so an ordinary single tap still
        falls through to the tap-to-unmute/toggle-controls handler exactly as before. */
-    if(!moved&&isVod()){
+    if(!moved){
       const z=zoneOf(sx),now=Date.now();
-      if(z&&z===lastTapZone&&now-lastTapAt<DOUBLE_TAP_MS){
+      /* Each zone is only armed where its action makes sense: seeking needs something with a
+         timeline, and zoom only means anything once the picture is filling the screen. A zone that
+         is not armed records nothing, so a tap there can never pair with a later one somewhere
+         else and fire an action the viewer did not ask for. */
+      const seekZone=(z==='l'||z==='r')&&isVod();
+      const zoomZone=z==='c'&&anyFullscreen();
+      if((seekZone||zoomZone)&&z===lastTapZone&&now-lastTapAt<DOUBLE_TAP_MS){
         lastTapAt=0;lastTapZone='';
         /* Tell the element's own click handler to sit this one out — it fires AFTER touchend and
-           would otherwise toggle the control bar on top of the seek, on every double-tap. */
+           would otherwise toggle the control bar on top of the action, on every double-tap. */
         S.tapSeekAt=now;
-        seekBy(z==='l'?-10:10);
-        showHint(z==='l'?'⏪  10s':'⏩  10s');
-        setTimeout(hideHint,600);
+        if(zoomZone){toggleZoom();}            /* toggleZoom() reports the new mode itself */
+        else{
+          seekBy(z==='l'?-10:10);
+          showHint(z==='l'?'⏪  10s':'⏩  10s');
+          setTimeout(hideHint,600);
+        }
         return;
       }
-      lastTapAt=now;lastTapZone=z;
+      if(seekZone||zoomZone){lastTapAt=now;lastTapZone=z}
+      else{lastTapAt=0;lastTapZone=''}
     }
     hideHint();  /* a plain tap falls through to the existing tap-to-unmute handler */
   };
