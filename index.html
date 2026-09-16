@@ -2107,7 +2107,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.15';
+const APP_VERSION='25.16';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -7883,17 +7883,55 @@ function updateMediaSession(x){
 })();
 /* v32: automatic PiP — when the user switches tab/app while a stream is playing in the
    built-in player, pop it into a floating Picture-in-Picture window so it never stops.
-   External players (VLC/Exo) have their OWN background/PiP — this only covers the web player. */
+   External players (VLC/Exo) have their OWN background/PiP — this only covers the web player.
+
+   v25.16 (owner request: "when a user plays a video and goes to home screen still the video
+   should play, never should get paused"). Two changes, and one honest limit worth writing down
+   so the next person does not go hunting for a bug that is not in this codebase:
+
+   THE LIMIT. On iOS a web page cannot keep a <video> decoding once the app is backgrounded.
+   Background media is an OS entitlement that native apps get and web pages do not, and no
+   amount of JS changes it. The ONE sanctioned escape is Picture-in-Picture, which is a system
+   window and does keep playing — which is why this handler exists at all. Whether it engages
+   automatically is the customer's own iOS setting (Settings > General > Picture in Picture >
+   "Start PiP Automatically"); the <video> already carries the `autopictureinpicture` attribute
+   that opts us into it. And per the v24.2/v24.4 notes on the mpegts route, WebKit offers no PiP
+   at all for a plain MediaSource — so this can work for a movie playing natively and cannot
+   work for a live channel going through mpegts.js, regardless of what is tried here.
+
+   1. FIRE EARLIER. visibilitychange is the LAST thing to arrive on the way out on iOS, by which
+      point WebKit is already tearing the page down. pagehide/blur land earlier, while the
+      element is still live, which is the difference between the PiP request being honoured and
+      being ignored. All three funnel into one guarded call, so the extra triggers cost nothing
+      when the first one already worked.
+   2. COME BACK PLAYING. When the OS does suspend it anyway, the customer returns to a frozen
+      frame and has to find play again. If it was playing when we left and the customer did not
+      pause it themselves (the same _lastManualPauseAt window _resumeAfterFsExit already uses),
+      it resumes on its own. That is not "never pauses", but it is the part that is actually
+      within a web app's power, and it is what makes the pause invisible in practice. */
 (function(){
   const v=$('video');if(!v)return;
-  document.addEventListener('visibilitychange',()=>{
+  let wasPlaying=false;
+  const leaving=()=>{
     try{
-      if(document.hidden){
-        if(v.paused||v.readyState<2)return;
-        enterNativePip(v,{background:true,silent:true});
-      }
+      if(v.paused||v.ended||v.readyState<2)return;
+      wasPlaying=true;
+      enterNativePip(v,{background:true,silent:true});
     }catch(e){}
-  });
+  };
+  const returning=()=>{
+    try{
+      if(!wasPlaying)return;
+      wasPlaying=false;
+      if(!S.current||!v.paused||v.ended)return;
+      if(Date.now()-_lastManualPauseAt<1200)return;   /* they hit pause on the way out */
+      v.play().catch(()=>{});
+    }catch(e){}
+  };
+  document.addEventListener('visibilitychange',()=>{document.hidden?leaving():returning()});
+  window.addEventListener('pagehide',leaving);
+  window.addEventListener('blur',leaving);
+  window.addEventListener('focus',returning);
 })();
 /* v31: ALWAYS fullscreen the container (which holds the watermark), never the bare
    <video> element — going fullscreen on the video alone hands control to the OS player,
@@ -11455,7 +11493,7 @@ function tapToStart(){
   });
   return true;
 }
-$('video').onclick=()=>{const v=$('video');if(!S.current)return;if(tapToStart())return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};
+$('video').onclick=()=>{const v=$('video');if(!S.current)return;if(tapToStart())return;/* v25.16: the double-tap seek gesture (see the touch-gesture block below) fires on touchend, and this click lands right after it — without this guard every ±10s seek would also toggle the control bar. */if(S.tapSeekAt&&Date.now()-S.tapSeekAt<500)return;/* v79: a tap on the video toggles the controls (Infuse-style) and, as a safety net, turns sound on if it started muted */if(v.muted){v.muted=false;if($('muteBtn'))$('muteBtn').innerHTML=ICONS.unmuted;if(typeof updateVolPct==='function')updateVolPct();}toggleBar();};
 (function(){
   const st=document.querySelector('.player-overlay .state');
   if(!st)return;
@@ -11980,11 +12018,25 @@ applySubtitleStyle();wireSubtitleStyleTracking();
      - press & HOLD  -> 2x fast-forward while held, back to 1x on release (VOD/series only)
      - swipe UP/DOWN -> volume (Android/desktop set the level; iOS blocks web volume, so there
        it snaps between mute and full and shows the indicator — an iOS limitation, not a bug)
+     - DOUBLE-TAP left/right third -> -10s / +10s (v25.16, VOD/series only), the way VLC and
+       every other player does it. The middle third is deliberately NOT a seek zone: that is
+       where a tap to show/hide the controls naturally lands, and a stray double-tap there
+       jumping the movie would be worse than having no gesture at all.
    Gestures that begin on the control bar are ignored so the seek bar and buttons still work. */
 (function(){
   const box=$('playerBox'),v=$('video'),hint=$('gestureHint');
   if(!box||!v)return;
   let sx=0,sy=0,mode='',lp=null,startVol=1,longActive=false,moved=false,active=false;
+  let lastTapAt=0,lastTapZone='';
+  const DOUBLE_TAP_MS=320;
+  /* Which third of the player the touch started in. Measured against the box's own rect rather
+     than the window, so it stays correct in landscape, in fullscreen and in the floating PiP. */
+  const zoneOf=x=>{
+    const r=box.getBoundingClientRect();
+    if(!r.width)return '';
+    const p=(x-r.left)/r.width;
+    return p<0.35?'l':p>0.65?'r':'';
+  };
   const showHint=t=>{if(hint){hint.textContent=t;hint.classList.remove('hidden')}};
   const hideHint=()=>{if(hint)hint.classList.add('hidden')};
   const isVod=()=>S.current&&typeOf(S.current)!=='live';
@@ -12025,6 +12077,23 @@ applySubtitleStyle();wireSubtitleStyleTracking();
     active=false;
     if(longActive){try{v.playbackRate=1}catch(e){}longActive=false;mode='';hideHint();return}
     if(mode==='vol'){mode='';setTimeout(hideHint,500);return}
+    /* v25.16: a clean tap (no drag, no long-press) in the left or right third. The SECOND one
+       inside the window seeks; the first is just remembered, so an ordinary single tap still
+       falls through to the tap-to-unmute/toggle-controls handler exactly as before. */
+    if(!moved&&isVod()){
+      const z=zoneOf(sx),now=Date.now();
+      if(z&&z===lastTapZone&&now-lastTapAt<DOUBLE_TAP_MS){
+        lastTapAt=0;lastTapZone='';
+        /* Tell the element's own click handler to sit this one out — it fires AFTER touchend and
+           would otherwise toggle the control bar on top of the seek, on every double-tap. */
+        S.tapSeekAt=now;
+        seekBy(z==='l'?-10:10);
+        showHint(z==='l'?'⏪  10s':'⏩  10s');
+        setTimeout(hideHint,600);
+        return;
+      }
+      lastTapAt=now;lastTapZone=z;
+    }
     hideHint();  /* a plain tap falls through to the existing tap-to-unmute handler */
   };
   box.addEventListener('touchstart',onStart,{passive:true});

@@ -45,10 +45,28 @@ assert.match(
   'If a browser advertises native PiP but rejects it, the PiP helper should preserve the manual/background fallback path'
 );
 
+/* v25.16 moved the call into a shared leaving() so pagehide and blur can reach it too — they land
+   EARLIER than visibilitychange on iOS, while the element is still live, which is the difference
+   between WebKit honouring the PiP request and ignoring it. The guarantee under test is unchanged:
+   going to the background asks for real OS PiP, never the in-page fake mini-player. */
 assert.match(
   html,
-  /visibilitychange[\s\S]*?if\(document\.hidden\)[\s\S]*?enterNativePip\(v,\{background:true,silent:true\}\)/,
-  'When the app is hidden, background playback should try true OS PiP instead of an in-page fake mini-player'
+  /const leaving=\(\)=>\{[\s\S]*?enterNativePip\(v,\{background:true,silent:true\}\);/,
+  'Backgrounding should try true OS PiP instead of an in-page fake mini-player'
+);
+assert.match(
+  html,
+  /document\.addEventListener\('visibilitychange',\(\)=>\{document\.hidden\?leaving\(\):returning\(\)\}\);\s*\n\s*window\.addEventListener\('pagehide',leaving\);\s*\n\s*window\.addEventListener\('blur',leaving\);/,
+  'visibilitychange, pagehide and blur must all reach the same guarded PiP attempt'
+);
+
+/* When the OS suspends playback anyway (it will, on iOS, whenever PiP does not engage), coming
+   back should not leave the customer staring at a frozen frame. Guarded by the same manual-pause
+   window _resumeAfterFsExit uses, so a deliberate pause on the way out is respected. */
+assert.match(
+  html,
+  /const returning=\(\)=>\{[\s\S]*?if\(Date\.now\(\)-_lastManualPauseAt<1200\)return;[\s\S]*?v\.play\(\)\.catch\(\(\)=>\{\}\);/,
+  'returning to the app should resume playback that the OS suspended, but never one the user paused'
 );
 
 assert.match(
