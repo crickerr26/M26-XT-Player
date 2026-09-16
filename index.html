@@ -906,6 +906,25 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .watermark.on{opacity:.6}
 .player:fullscreen .watermark,.player:-webkit-full-screen .watermark{opacity:.6!important;z-index:2147483647}
 .player:fullscreen .watermark,.player:-webkit-full-screen .watermark{display:block!important}
+/* ── v25.18: IN-PAGE FULLSCREEN, FOR THE DEVICES THAT HAVE NO OTHER KIND ──────────────────────
+   Owner report: "the colour profile and equalizer are not working when the video changed to full
+   screen." They were not broken — they were unreachable. iPhone Safari has no Element
+   .requestFullscreen at all (iPad does; iPhone never got it), so fs() fell back to the video
+   element's own webkitEnterFullscreen, which hands the stream to the OS player. That player is
+   not a DOM node: the colour profile is a CSS filter on the <video> and simply cannot reach it,
+   the Web Audio graph the equalizer and volume boost run through gets bypassed, and — exactly as
+   the v31 note above already warned — every HTML overlay including the watermark disappears too.
+   So on those devices fullscreen is done here instead, by filling the viewport with the player
+   box. Everything stays in the DOM, which means the colour filter, the equalizer, the watermark,
+   the gesture zones and the custom control bar all keep working, at the cost of the OS player's
+   own chrome (AirPlay stays reachable from the cast button, which is where it already lived).
+   Real fullscreen is still preferred wherever the browser actually supports it — see fs(). */
+.player.cssFull{position:fixed!important;inset:0;width:100vw;height:100dvh;max-height:none;min-height:0;margin:0;z-index:300;border-radius:0;background:#000}
+.player.cssFull .playerbar{opacity:0;pointer-events:none}
+.player.cssFull.showbar .playerbar{opacity:1;pointer-events:auto}
+.player.cssFull .watermark{opacity:.6!important;display:block!important}
+.player.cssFull.showbar .watermark{opacity:0!important}
+body.cssFullOn{overflow:hidden}
 @media(max-width:760px){.watermark{left:9px;bottom:112px;width:clamp(38px,9%,66px)}}
 /* --- v18 device-aware external player layer --- */
 .nativePanel{display:block;overflow-y:auto}
@@ -2107,7 +2126,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.17';
+const APP_VERSION='25.18';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6547,7 +6566,7 @@ function manualPauseActive(v){return _manualPauseHeld&&v&&v.paused&&!v.ended}
    down, so nothing is left playing to a window the app no longer has a reference to. Kept even
    though v24.4 reverted the change that made this reachable on iOS live TV specifically — this is
    the correct behavior for every other route PiP does work on. */
-function cleanup(){const v=$('video');clearManualPause();clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;try{toggleInlinePip(false)}catch(e){}if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
+function cleanup(){const v=$('video');/* v25.18: leave the in-page fullscreen whenever playback is torn down. showBar() refuses to draw the control bar once S.current is gone, so a cssFull box left up with no stream would be a black sheet over the whole screen with no X to dismiss it. */try{if(typeof cssFullscreenOn==='function'&&cssFullscreenOn())setCssFullscreen(false)}catch(e){}clearManualPause();clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;try{toggleInlinePip(false)}catch(e){}if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
 /* ── v22.6: NATIVE VLC BRIDGE (only inside the iOS wrapper app). ──────────────────────────────
    When this same web app is loaded inside the Media26 native iOS shell (ios-app/), that shell
    exposes a message handler, window.webkit.messageHandlers.m26vlc. It is ABSENT in every normal
@@ -7933,7 +7952,8 @@ function updateMediaSession(x){
       within a web app's power, and it is what makes the pause invisible in practice. */
 (function(){
   const v=$('video');if(!v)return;
-  let wasPlaying=false;
+  let wasPlaying=false,resumeTimer=null;
+  const stopRetry=()=>{if(resumeTimer){clearInterval(resumeTimer);resumeTimer=null}};
   const leaving=()=>{
     try{
       if(v.paused||v.ended||v.readyState<2)return;
@@ -7941,26 +7961,72 @@ function updateMediaSession(x){
       enterNativePip(v,{background:true,silent:true});
     }catch(e){}
   };
+  /* v25.18: RETRY, don't check once. The v25.16 version read v.paused a single time the instant
+     the app came back and gave up if it was false — but iOS very often has not applied its own
+     pause yet at that moment (the element still reports playing for a beat, then stops), so the
+     one check landed in the gap and the flag was already spent. It now keeps trying for ~2s, and
+     stops the moment it is playing, the user pauses, the title changes, or the app leaves again.
+     The AudioContext is resumed on the way back in too: iOS suspends it with the app, and nothing
+     else did, which is the other half of "the equalizer stopped working" — a suspended graph
+     passes no gains through even though the saved preset still reads as active. */
   const returning=()=>{
     try{
+      eqResume();
       if(!wasPlaying)return;
       wasPlaying=false;
-      if(!S.current||!v.paused||v.ended)return;
-      if(Date.now()-_lastManualPauseAt<1200)return;   /* they hit pause on the way out */
-      v.play().catch(()=>{});
+      if(!S.current)return;
+      let tries=0;
+      stopRetry();
+      resumeTimer=setInterval(()=>{
+        try{
+          tries++;
+          if(tries>8||document.hidden||!S.current||v.ended||!v.paused){stopRetry();return}
+          if(Date.now()-_lastManualPauseAt<1200){stopRetry();return}   /* they hit pause themselves */
+          v.play().catch(()=>{});
+        }catch(e){stopRetry()}
+      },250);
     }catch(e){}
   };
-  document.addEventListener('visibilitychange',()=>{document.hidden?leaving():returning()});
-  window.addEventListener('pagehide',leaving);
+  document.addEventListener('visibilitychange',()=>{document.hidden?(stopRetry(),leaving()):returning()});
+  window.addEventListener('pagehide',()=>{stopRetry();leaving()});
   window.addEventListener('blur',leaving);
   window.addEventListener('focus',returning);
+  /* a graph that was suspended mid-stream has to come back before the next frame of audio */
+  v.addEventListener('playing',()=>{try{eqResume()}catch(e){}});
 })();
 /* v31: ALWAYS fullscreen the container (which holds the watermark), never the bare
    <video> element — going fullscreen on the video alone hands control to the OS player,
-   which strips every HTML overlay including the watermark. webkitEnterFullscreen is used
-   only if the browser has no Element.requestFullscreen at all (old iOS), where HTML
-   overlays are impossible anyway. */
-function fs(){const box=$('playerBox'),v=$('video');const exit=document.fullscreenElement||document.webkitFullscreenElement;if(exit){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}if(iosLike()&&v&&v.webkitEnterFullscreen){try{v.webkitEnterFullscreen();return}catch(e){}}if(box.requestFullscreen)box.requestFullscreen().catch(()=>{try{if(v&&v.webkitEnterFullscreen)v.webkitEnterFullscreen()}catch(e){}});else if(box.webkitRequestFullscreen)box.webkitRequestFullscreen();else if(v.webkitEnterFullscreen)v.webkitEnterFullscreen()}
+   which strips every HTML overlay including the watermark.
+   v25.18: that rule now holds with no exception. It used to end "...except where the browser has
+   no Element.requestFullscreen at all, where HTML overlays are impossible anyway" — which was the
+   loophole the iPhone always fell through, and it was wrong: the overlays are perfectly possible
+   there, just not via the OS player. The in-page fullscreen below is how that case is served. */
+/* v25.18: the in-page fullscreen described by the .player.cssFull CSS above. Kept as its own
+   function so the toggle, the button icon and the body scroll-lock can never drift apart. */
+function setCssFullscreen(on){
+  const box=$('playerBox');if(!box)return;
+  box.classList.toggle('cssFull',!!on);
+  document.body.classList.toggle('cssFullOn',!!on);
+  const b=$('fsBtn');if(b)b.innerHTML=on?ICONS.fsExit:ICONS.fsEnter;
+  try{showBar()}catch(e){}
+}
+function cssFullscreenOn(){const box=$('playerBox');return !!(box&&box.classList.contains('cssFull'))}
+/* v25.18 (owner report: colour profile and equalizer stop working in fullscreen). The old order
+   put the VIDEO ELEMENT'S own webkitEnterFullscreen first on anything iOS-like, which hands the
+   stream to the OS player — where the colour filter, the Web Audio equalizer/boost graph and every
+   HTML overlay are all out of reach (see the .player.cssFull note in the CSS). Now: real element
+   fullscreen where the browser has it (iPad, Android, desktop — the DOM survives there, so nothing
+   breaks), and the in-page fullscreen above where it does not (iPhone). webkitEnterFullscreen is
+   no longer used at all; it is the one mode in which these settings cannot work. */
+function fs(){
+  const box=$('playerBox');
+  const real=document.fullscreenElement||document.webkitFullscreenElement;
+  if(real){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}
+  if(cssFullscreenOn()){setCssFullscreen(false);return}
+  if(box.requestFullscreen){box.requestFullscreen().catch(()=>setCssFullscreen(true));return}
+  if(box.webkitRequestFullscreen){try{box.webkitRequestFullscreen();return}catch(e){}}
+  setCssFullscreen(true);
+}
 /* v78: Download the current Movie/Series file to the device. The file is pulled through the
    same-origin proxy so the browser can save it with a proper name (a cross-origin http link
    from an https page would be blocked/renamed). It lands in the device's Downloads / Files and
@@ -11340,6 +11406,7 @@ if($('catTabs'))$('catTabs').onclick=e=>{const b=e.target.closest('.cp-tab');if(
   let sx=0,sy=0,st=0,tracking=false;
   const busy=()=>{
     if(document.fullscreenElement||document.webkitFullscreenElement)return true;
+    if(cssFullscreenOn())return true;   /* v25.18: in-page fullscreen counts the same as the real thing */
     const ns=$('nativeSheet'),es=$('episodeSheet');
     if(ns&&ns.classList.contains('show'))return true;
     if(es&&es.classList.contains('show'))return true;
@@ -11531,7 +11598,7 @@ $('video').onclick=()=>{const v=$('video');if(!S.current)return;if(tapToStart())
 if($('video'))$('video').addEventListener('volumechange',()=>{if($('muteBtn'))$('muteBtn').innerHTML=$('video').muted?ICONS.muted:ICONS.unmuted;});if($('extVlc'))$('extVlc').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)playItemExternal(x,'vlc',true)};if($('extSave'))$('extSave').onclick=()=>{const x=S.current||(S.extLaunch&&S.extLaunch.x);if(x)startDownload(x)};if($('extBrowser'))$('extBrowser').onclick=()=>{if(S.current)playItemBasic(S.current)};if($('extCopy'))$('extCopy').onclick=()=>{if(!S.current)return;const u=externalStreamUrl(S.current);try{navigator.clipboard.writeText(u);toast('Stream link copied')}catch{toast(u)}};if($('extDiag'))$('extDiag').onclick=()=>copyDiagnostics();if($('fsBtn'))$('fsBtn').onclick=fs;if($('downloadBtn'))$('downloadBtn').onclick=downloadCurrent;
 /* v24.67: MX-Player-style overlay — the new close/playlist/cast/brightness/lock/subtitle
    controls that don't map onto an existing button. */
-if($('closeBtn')){$('closeBtn').innerHTML=ICONS.close;$('closeBtn').onclick=e=>{e.stopPropagation();const fsEl=document.fullscreenElement||document.webkitFullscreenElement;if(fsEl)(document.exitFullscreen||document.webkitExitFullscreen).call(document);};}
+if($('closeBtn')){$('closeBtn').innerHTML=ICONS.close;$('closeBtn').onclick=e=>{e.stopPropagation();const fsEl=document.fullscreenElement||document.webkitFullscreenElement;if(fsEl){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}/* v25.18: the in-page fullscreen has no OS chrome to leave, so this button is the way out of it — without this the player would stay pinned over the whole screen with nothing to dismiss it. */if(cssFullscreenOn())setCssFullscreen(false);};}
 if($('playlistBtn')){$('playlistBtn').innerHTML=ICONS.playlist;$('playlistBtn').onclick=e=>{e.stopPropagation();toast('Playlist view is not available for this stream yet');};}
 if($('castBtn')){$('castBtn').innerHTML=ICONS.cast;$('castBtn').onclick=e=>{e.stopPropagation();castCurrent();};}
 if($('brightIcon'))$('brightIcon').innerHTML=ICONS.sun;

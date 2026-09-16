@@ -56,23 +56,69 @@ assert.match(
 );
 assert.match(
   html,
-  /document\.addEventListener\('visibilitychange',\(\)=>\{document\.hidden\?leaving\(\):returning\(\)\}\);\s*\n\s*window\.addEventListener\('pagehide',leaving\);\s*\n\s*window\.addEventListener\('blur',leaving\);/,
+  /document\.addEventListener\('visibilitychange',\(\)=>\{document\.hidden\?\(stopRetry\(\),leaving\(\)\):returning\(\)\}\);[\s\S]{0,200}?window\.addEventListener\('pagehide',[\s\S]{0,60}?leaving\(\)\}\);\s*\n\s*window\.addEventListener\('blur',leaving\);/,
   'visibilitychange, pagehide and blur must all reach the same guarded PiP attempt'
 );
 
 /* When the OS suspends playback anyway (it will, on iOS, whenever PiP does not engage), coming
-   back should not leave the customer staring at a frozen frame. Guarded by the same manual-pause
-   window _resumeAfterFsExit uses, so a deliberate pause on the way out is respected. */
+   back should not leave the customer staring at a frozen frame.
+
+   v25.18 makes this a RETRY rather than a single check. v25.16 read v.paused once, the instant the
+   app came back, and gave up if it was false — but iOS very often has not applied its own pause yet
+   at that moment, so that one check landed in the gap and the flag was already spent. */
 assert.match(
   html,
-  /const returning=\(\)=>\{[\s\S]*?if\(Date\.now\(\)-_lastManualPauseAt<1200\)return;[\s\S]*?v\.play\(\)\.catch\(\(\)=>\{\}\);/,
-  'returning to the app should resume playback that the OS suspended, but never one the user paused'
+  /resumeTimer=setInterval\(\(\)=>\{[\s\S]*?if\(tries>8\|\|document\.hidden\|\|!S\.current\|\|v\.ended\|\|!v\.paused\)\{stopRetry\(\);return\}/,
+  'the resume must retry for a window and stop as soon as it is playing, hidden again, or the title changed'
+);
+assert.match(
+  html,
+  /if\(Date\.now\(\)-_lastManualPauseAt<1200\)\{stopRetry\(\);return\}/,
+  'a pause the user pressed themselves must never be undone by the auto-resume'
+);
+assert.match(
+  html,
+  /const returning=\(\)=>\{\s*\n\s*try\{\s*\n\s*eqResume\(\);/,
+  'returning must resume the Web Audio graph — iOS suspends it with the app, which silently flattens the equalizer'
 );
 
+/* v25.18 REVERSED this (owner report: "the colour profile and equalizer are not working when the
+   video changed to full screen"). Fullscreen used to hand the stream to the video element's own
+   webkitEnterFullscreen on anything iOS-like — the OS player, which is not a DOM node. The colour
+   profile is a CSS filter on the <video> and cannot reach it, the Web Audio graph the equalizer and
+   volume boost run through is bypassed, and every HTML overlay including the watermark disappears,
+   which the v31 note in fs() had already warned about. Neither setting was broken; fullscreen was
+   putting the video somewhere they could not apply.
+
+   Now: real element fullscreen where the browser has it (iPad, Android, desktop — the DOM survives
+   there), and an in-page fullscreen where it does not (iPhone has no Element.requestFullscreen at
+   all). webkitEnterFullscreen is not used anywhere: it is the one mode in which these cannot work. */
+assert.doesNotMatch(
+  html,
+  /\bv?\.?webkitEnterFullscreen\s*\(/,
+  'the OS video-fullscreen path must stay gone — it is what put the video beyond reach of the colour filter and the equalizer'
+);
 assert.match(
   html,
-  /function fs\(\)[\s\S]*?if\(iosLike\(\)&&v&&v\.webkitEnterFullscreen\)[\s\S]*?v\.webkitEnterFullscreen\(\);return/,
-  'On iPhone/iPad, fullscreen should use the native video fullscreen path before container fullscreen'
+  /function fs\(\)\{[\s\S]*?if\(box\.requestFullscreen\)\{box\.requestFullscreen\(\)\.catch\(\(\)=>setCssFullscreen\(true\)\);return\}[\s\S]*?setCssFullscreen\(true\);/,
+  'fullscreen must prefer real element fullscreen and fall back to the in-page one, never to the OS player'
+);
+assert.match(
+  html,
+  /\.player\.cssFull\{position:fixed!important;inset:0;[^}]*z-index:300/,
+  'the in-page fullscreen must actually fill the viewport'
+);
+/* showBar() refuses to draw the control bar once S.current is gone, so a cssFull box left up with
+   no stream would be a black sheet over the whole screen with no X to dismiss it. */
+assert.match(
+  html,
+  /function cleanup\(\)\{[\s\S]{0,400}?if\(typeof cssFullscreenOn==='function'&&cssFullscreenOn\(\)\)setCssFullscreen\(false\)/,
+  'tearing down playback must leave the in-page fullscreen, or the user is stranded on a black screen'
+);
+assert.match(
+  html,
+  /if\(cssFullscreenOn\(\)\)setCssFullscreen\(false\);\};\}/,
+  'the close button must also be a way out of the in-page fullscreen'
 );
 
 assert.match(
