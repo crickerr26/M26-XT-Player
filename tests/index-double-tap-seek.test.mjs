@@ -13,18 +13,37 @@ const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 const zoneSrc = html.match(/const zoneOf=x=>\{[\s\S]*?\};/);
 assert.ok(zoneSrc, 'the zone helper must exist');
 
+/* Inline, the box is one panel among several, so its own rect is what the zones mean. */
+let fullscreen = false;
 const context = {
-  box: { getBoundingClientRect: () => ({ left: 0, width: 400 }) },
+  box: { getBoundingClientRect: () => ({ left: 120, width: 400 }) },
+  cssFullscreenOn: () => fullscreen,
+  window: { innerWidth: 800 },
 };
 vm.createContext(context);
 vm.runInContext(zoneSrc[0].replace('const zoneOf=', 'globalThis.zoneOf='), context);
 
-assert.equal(context.zoneOf(10), 'l', 'the far left is a rewind zone');
-assert.equal(context.zoneOf(139), 'l', 'just inside the left third is still rewind');
-assert.equal(context.zoneOf(200), 'c', 'the middle third is its own zone');
-assert.equal(context.zoneOf(141), 'c', 'past the left third is the middle');
-assert.equal(context.zoneOf(261), 'r', 'past the right third is forward');
-assert.equal(context.zoneOf(399), 'r', 'the far right is a forward zone');
+assert.equal(context.zoneOf(130), 'l', 'the far left is a rewind zone');
+assert.equal(context.zoneOf(259), 'l', 'just inside the left third is still rewind');
+assert.equal(context.zoneOf(320), 'c', 'the middle third is its own zone');
+assert.equal(context.zoneOf(261), 'c', 'past the left third is the middle');
+assert.equal(context.zoneOf(381), 'r', 'past the right third is forward');
+assert.equal(context.zoneOf(519), 'r', 'the far right is a forward zone');
+assert.equal(context.zoneOf(125), 'l', 'the box offset must be subtracted, not ignored');
+
+/* v25.20: in fullscreen the box IS the screen, so zones are measured against the viewport. That
+   matters most with the quarter-turn applied for a rotation-locked phone: the box's rect is
+   rotated while touches still arrive in viewport coordinates, so reading the rect would put
+   "left" wherever the top of the turned box landed. */
+fullscreen = true;
+assert.equal(context.zoneOf(10), 'l', 'fullscreen zones come from the viewport, not the rotated box rect');
+assert.equal(context.zoneOf(400), 'c', 'the middle of the viewport is the middle zone');
+assert.equal(context.zoneOf(790), 'r', 'the right of the viewport is the forward zone');
+assert.equal(
+  context.zoneOf(130), 'l',
+  'a touch that the box rect would have called the middle is still on the left of the screen'
+);
+fullscreen = false;
 
 /* v25.19 gave the middle third a job — fill-vs-fit — but only in fullscreen, and never a seek.
    Switching zoom is instant, visible and undone by repeating the gesture, so a stray double-tap
@@ -52,10 +71,10 @@ assert.match(
    so cropping there would be loss for nothing. */
 assert.match(
   html,
-  /box\.classList\.toggle\('zoomFill',anyFullscreen\(\)&&savedZoom\(\)==='fill'\);/,
+  /const fill=anyFullscreen\(\)&&savedZoom\(\)==='fill';\s*\n\s*box\.classList\.toggle\('zoomFill',fill\);/,
   'the fill crop must be conditional on being fullscreen'
 );
-assert.match(html, /\.player\.zoomFill video\{object-fit:cover\}/, 'filling is object-fit:cover on the video');
+assert.match(html, /\.player\.zoomFill video\{object-fit:cover;transform:scale\(var\(--zk,1\)\)\}/, 'filling is object-fit:cover plus the measured extra zoom');
 assert.equal(
   /function savedZoom\(\)\{[^}]*==='fit'\?'fit':'fill'/.test(html),
   true,

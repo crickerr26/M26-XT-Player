@@ -940,7 +940,15 @@ body.cssFullOn{overflow:hidden}
    It only ever applies in fullscreen — inline, the box is already close to the video's own shape,
    and cropping there would be loss for nothing. Double-tap the middle of the screen to switch
    back; nothing is permanently cropped and the choice is remembered. */
-.player.zoomFill video{object-fit:cover}
+.player.zoomFill video{object-fit:cover;transform:scale(var(--zk,1))}
+/* ── v25.20: LANDSCAPE FULLSCREEN EVEN WITH ROTATION LOCKED ───────────────────────────────────
+   Owner request. With the phone's rotation lock on, the OS never turns the page, and
+   screen.orientation.lock() is not available to a web page on iOS at all — so the only way to
+   give a landscape picture on a locked portrait phone is to turn the player ourselves. The box is
+   sized to the viewport's OWN dimensions swapped and rotated a quarter turn about its top-left
+   corner, which lands it exactly over the screen. Touch coordinates are unaffected (they stay in
+   viewport space), so the gesture zones still read the way the viewer sees them — see zoneOf. */
+.player.cssFull.rot90{width:100dvh;height:100vw;transform-origin:top left;transform:rotate(90deg) translateY(-100%)}
 @media(max-width:760px){.watermark{left:9px;bottom:112px;width:clamp(38px,9%,66px)}}
 /* --- v18 device-aware external player layer --- */
 .nativePanel{display:block;overflow-y:auto}
@@ -2142,7 +2150,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.19';
+const APP_VERSION='25.20';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6582,7 +6590,7 @@ function manualPauseActive(v){return _manualPauseHeld&&v&&v.paused&&!v.ended}
    down, so nothing is left playing to a window the app no longer has a reference to. Kept even
    though v24.4 reverted the change that made this reachable on iOS live TV specifically — this is
    the correct behavior for every other route PiP does work on. */
-function cleanup(){const v=$('video');/* v25.18: leave the in-page fullscreen whenever playback is torn down. showBar() refuses to draw the control bar once S.current is gone, so a cssFull box left up with no stream would be a black sheet over the whole screen with no X to dismiss it. */try{if(typeof cssFullscreenOn==='function'&&cssFullscreenOn())setCssFullscreen(false)}catch(e){}clearManualPause();clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;try{toggleInlinePip(false)}catch(e){}if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
+function cleanup(){const v=$('video');/* v25.20: the next title bakes its own bars (or none), so the measurement cannot carry over. */try{resetBarScan()}catch(e){}/* v25.18: leave the in-page fullscreen whenever playback is torn down. showBar() refuses to draw the control bar once S.current is gone, so a cssFull box left up with no stream would be a black sheet over the whole screen with no X to dismiss it. */try{if(typeof cssFullscreenOn==='function'&&cssFullscreenOn())setCssFullscreen(false)}catch(e){}clearManualPause();clearTimeout(S.timer);clearTimeout(S.videoCheck);S.seq++;try{toggleInlinePip(false)}catch(e){}if(S.stopExtChain){try{S.stopExtChain()}catch{}S.stopExtChain=null}/* v40: remember WHEN a real stream connection was torn down */if(S.hls||S.ts||(v&&v.currentSrc))S.lastStreamStopAt=Date.now();if(v&&v.__mkvStop){try{v.__mkvStop()}catch{}v.__mkvStop=null}/* v11.1: abort the in-app Matroska fetch too, otherwise switching titles leaves the old file still downloading in the background */if(S.hls){S.hls.destroy();S.hls=null}if(S.ts){try{S.ts.pause();S.ts.unload();S.ts.detachMediaElement();S.ts.destroy()}catch{}S.ts=null}try{if(document.pictureInPictureElement===v)document.exitPictureInPicture().catch(()=>{});}catch(e){}try{if(v.webkitPresentationMode&&v.webkitPresentationMode!=='inline')v.webkitSetPresentationMode('inline');}catch(e){}v.pause();v.removeAttribute('src');v.load();try{if('mediaSession'in navigator){navigator.mediaSession.metadata=null;navigator.mediaSession.playbackState='none';}}catch(e){}}
 /* ── v22.6: NATIVE VLC BRIDGE (only inside the iOS wrapper app). ──────────────────────────────
    When this same web app is loaded inside the Media26 native iOS shell (ios-app/), that shell
    exposes a message handler, window.webkit.messageHandlers.m26vlc. It is ABSENT in every normal
@@ -8026,9 +8034,78 @@ function updateMediaSession(x){
 const ZOOM_KEY='m26-zoom';
 function savedZoom(){try{return store.getItem(ZOOM_KEY)==='fit'?'fit':'fill'}catch(e){return 'fill'}}
 function anyFullscreen(){return cssFullscreenOn()||!!(document.fullscreenElement||document.webkitFullscreenElement)}
+/* ── v25.20: REMOVE THE BARS THE FILE ITSELF CARRIES ──────────────────────────────────────────
+   Owner report, second screenshot: filling the screen still left a band top and bottom. Measured
+   off that screenshot: the picture now reached both side edges, and the remaining band was 51px.
+   That is not the app letterboxing anything — it is the movie. These files are a 2.39:1 picture
+   encoded inside a 16:9 frame with the bars burned in, and object-fit:cover only crops the frame
+   down to the screen's shape; whatever bar is left inside the frame after that stays.
+   Predicting it from the file's own geometry gives 54.7px against the 51px measured, which is what
+   confirmed the model — so the size of the remaining band is knowable, and so is the extra zoom
+   that clears it exactly. Rather than guess a fixed number (every file bakes a different bar, and
+   a true 16:9 title bakes none at all and must not be cropped), a few frames are sampled to find
+   where the real picture starts and ends, and the zoom is computed from that.
+   Deliberately cautious: the LARGEST content region seen across samples wins, so a fade-to-black
+   or a dark scene can only ever under-crop; a frame with almost nothing lit is ignored outright; a
+   result that finds no meaningful bar leaves the zoom at 1; and the whole thing is wrapped so a
+   canvas the browser refuses to read (a cross-origin frame) simply stops trying and falls back to
+   plain cover. Worst case is what v25.19 already did. */
+let _barCanvas=null,_barScan=null;
+function resetBarScan(){
+  _barScan={tries:0,maxF:0};
+  try{const v=$('video');if(v)v.style.setProperty('--zk','1')}catch(e){}
+}
+function scanBars(){
+  const v=$('video');
+  if(!v||!_barScan||_barScan.tries>=6)return;
+  try{
+    if(v.readyState<2||!v.videoWidth||!v.videoHeight)return;
+    _barScan.tries++;
+    const W=16,H=144;
+    const c=_barCanvas||(_barCanvas=document.createElement('canvas'));
+    c.width=W;c.height=H;
+    const ctx=c.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(v,0,0,W,H);
+    const d=ctx.getImageData(0,0,W,H).data;
+    let first=-1,last=-1,lit=0;
+    for(let y=0;y<H;y++){
+      let mx=0;
+      for(let x=0;x<W;x++){const i=(y*W+x)*4;const l=Math.max(d[i],d[i+1],d[i+2]);if(l>mx)mx=l;}
+      if(mx>20){if(first<0)first=y;last=y;lit++;}
+    }
+    if(first<0||lit<H*0.3)return;                 /* too dark a frame to conclude anything from */
+    const f=(last-first+1)/H;
+    if(f<0.5)return;                              /* nothing sane finds this much bar — distrust it */
+    if(f>_barScan.maxF)_barScan.maxF=f;
+    applyZoom();
+  }catch(e){_barScan.tries=99}                    /* a frame this browser will not let us read */
+}
+function barZoomFactor(){
+  const v=$('video');
+  if(!v||!_barScan||!_barScan.maxF||_barScan.maxF>0.985)return 1;
+  const cw=v.clientWidth,ch=v.clientHeight;
+  if(!cw||!ch||!v.videoWidth||!v.videoHeight)return 1;
+  const cover=Math.max(cw/v.videoWidth,ch/v.videoHeight);
+  const contentH=cover*v.videoHeight*_barScan.maxF;
+  if(!contentH)return 1;
+  return Math.max(1,Math.min(1.35,ch/contentH));  /* never shrink, never crop half the picture away */
+}
 function applyZoom(){
+  const box=$('playerBox'),v=$('video');if(!box)return;
+  const fill=anyFullscreen()&&savedZoom()==='fill';
+  box.classList.toggle('zoomFill',fill);
+  try{if(v)v.style.setProperty('--zk',String(fill?barZoomFactor():1))}catch(e){}
+}
+/* v25.20: with the phone's rotation lock on, the OS never turns the page and iOS gives a web page
+   no screen.orientation.lock(), so a locked portrait phone would get a letterbox-thin fullscreen.
+   Turning the box ourselves is the only way — see the .rot90 rule. Only in the in-page fullscreen:
+   where real fullscreen exists the browser handles orientation itself. */
+function updateRotateFullscreen(){
   const box=$('playerBox');if(!box)return;
-  box.classList.toggle('zoomFill',anyFullscreen()&&savedZoom()==='fill');
+  const want=cssFullscreenOn()&&window.innerHeight>window.innerWidth;
+  const had=box.classList.contains('rot90');
+  box.classList.toggle('rot90',want);
+  if(had!==want)applyZoom();   /* the box just changed shape, so the crop maths changed with it */
 }
 function toggleZoom(){
   const next=savedZoom()==='fill'?'fit':'fill';
@@ -8041,7 +8118,9 @@ function setCssFullscreen(on){
   box.classList.toggle('cssFull',!!on);
   document.body.classList.toggle('cssFullOn',!!on);
   const b=$('fsBtn');if(b)b.innerHTML=on?ICONS.fsExit:ICONS.fsEnter;
+  updateRotateFullscreen();   /* sets .rot90 first, so applyZoom measures the box's final shape */
   applyZoom();
+  try{scanBars()}catch(e){}
   try{showBar()}catch(e){}
 }
 function cssFullscreenOn(){const box=$('playerBox');return !!(box&&box.classList.contains('cssFull'))}
@@ -11690,6 +11769,26 @@ $('video').addEventListener('playing',()=>{const pbx=$('playerBox');if(pbx)pbx.c
 /* v85: remember the play position of the current Movie/Series (session-only) so replaying it
    resumes where it left off. Cleared on refresh/force-close (it lives in memory). */
 $('video').addEventListener('timeupdate',()=>{const v=$('video');if(S.current&&typeOf(S.current)!=='live'){const t=v.currentTime||0,d=v.duration||0;if(t>1&&isFinite(t)){if(d&&isFinite(d)&&d-t<RESUME_END_SECONDS){delete S.resume[keyOf(S.current)];delete S.resumeOverride[keyOf(S.current)];}else S.resume[keyOf(S.current)]=t;}}});
+/* v25.20: sample a handful of frames early on to find the bars the FILE carries (see scanBars).
+   Spread over the first seconds rather than taken all at once, because an opening fade or a studio
+   ident is exactly the kind of frame that would read as "all bars" — scanBars keeps the largest
+   picture it sees, so later, brighter frames correct an early cautious reading. It stops on its
+   own after a few tries and costs a 16x144 draw each time. */
+(function(){
+  const v=$('video');if(!v)return;
+  let lastAt=0;
+  v.addEventListener('timeupdate',()=>{
+    if(!_barScan||_barScan.tries>=6)return;
+    const now=Date.now();
+    if(now-lastAt<1200)return;
+    lastAt=now;
+    scanBars();
+  });
+  v.addEventListener('loadeddata',()=>{try{scanBars()}catch(e){}});
+})();
+/* the box only changes shape here, but the crop and the quarter-turn both depend on that shape */
+window.addEventListener('resize',()=>{try{updateRotateFullscreen();applyZoom()}catch(e){}});
+window.addEventListener('orientationchange',()=>{setTimeout(()=>{try{updateRotateFullscreen();applyZoom()}catch(e){}},150)});
 /* v24.30 (owner report: exiting fullscreen pauses the video): neither fs() nor anything else in
    this app calls .pause() on a fullscreen transition — some browsers pause the element on their
    own crossing that boundary (a layout/decoder re-init, not a deliberate stop). If it was playing
@@ -12163,6 +12262,17 @@ applySubtitleStyle();wireSubtitleStyleTracking();
      same gesture, whereas a stray double-tap that jumped the movie would cost the viewer's place.
      It also matches where the OS player puts the same gesture, which is what people already try. */
   const zoneOf=x=>{
+    /* v25.20: in fullscreen the box IS the screen, so measure against the viewport. That is not
+       just a shortcut — with the quarter-turn applied for a rotation-locked phone (see .rot90) the
+       box's own rect is rotated while touches still arrive in viewport coordinates, so reading its
+       rect would put "left" wherever the top of the turned box happens to be. The viewport is what
+       the viewer is actually looking at either way. */
+    if(cssFullscreenOn()){
+      const w=window.innerWidth||0;
+      if(!w)return '';
+      const p=x/w;
+      return p<0.35?'l':p>0.65?'r':'c';
+    }
     const r=box.getBoundingClientRect();
     if(!r.width)return '';
     const p=(x-r.left)/r.width;
