@@ -634,6 +634,19 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 @media(prefers-reduced-motion:reduce){.hc-bar>i{animation-duration:2.6s}}
 .hc-arrow{font-size:24px;font-weight:900;opacity:.85;flex-shrink:0;transition:transform .18s ease}
 @media(hover:hover){.home-card:hover .hc-arrow{transform:translateX(5px)}}
+/* v25.15 (owner request): the three catalogue cards carry a refresh control where the → used to be,
+   so a single category can be re-read without going through the footer's whole-playlist refresh.
+   It reuses .hc-arrow so every existing responsive rule that positions the arrow (including the
+   two-column and compact breakpoints further down) keeps applying unchanged — only the appearance
+   and the slide-on-hover are overridden here. The → stays on the Downloads card, which is a
+   destination rather than a catalogue and has nothing to re-read. */
+.hc-refresh{width:38px;height:38px;border-radius:12px;display:inline-grid;place-items:center;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);opacity:1;cursor:pointer}
+.hc-refresh svg{width:19px;height:19px;display:block}
+.hc-refresh:active{transform:scale(.88)}
+@media(hover:hover){.home-card:hover .hc-refresh{transform:none}.hc-refresh:hover{background:rgba(255,255,255,.26)}}
+.hc-refresh.spinning{pointer-events:none;opacity:.75}
+.hc-refresh.spinning svg{animation:hcSpin .9s linear infinite}
+@keyframes hcSpin{to{transform:rotate(360deg)}}
 .hc-shine{display:none}
 /* v19.49 (owner report): was centered above the heading, inside .home-inner's flow. Pinned to the
    screen's top-left corner instead, mirroring .home-actions' top-right placement on the same
@@ -709,6 +722,8 @@ body.noSeries .stat-series{opacity:.38;filter:grayscale(1)}
   .hc-txt b{font-size:17px}
   .hc-txt small{font-size:11.5px}
   .hc-arrow{font-size:19px}
+  .hc-refresh{width:32px;height:32px;border-radius:10px}
+  .hc-refresh svg{width:16px;height:16px}
   .home-exit{height:38px;padding:0 20px;font-size:13px}
 }
 @media(max-width:380px){
@@ -1501,21 +1516,21 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12.5" rx="2.2"/><path d="M8 21h8M12 18.5V21"/><path d="M9.6 9.4l4.4 2.85-4.4 2.85z" fill="currentColor" stroke="none"/></svg></span>
         <span class="hc-txt"><b>Live TV</b><small><i id="homeLiveCount">—</i> channels</small><em class="hc-state" id="homeLiveState"></em></span>
-        <span class="hc-arrow">→</span>
+        <span class="hc-arrow hc-refresh" data-refresh="live" role="button" tabindex="0" title="Refresh Live TV" aria-label="Refresh Live TV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><polyline points="20.5 3.5 20.5 9 15 9"/></svg></span>
         <span class="hc-bar" id="homeLiveBar"><i></i></span>
       </button>
       <button class="home-card hc-vod" data-go="vod">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M7.5 4.5v15M16.5 4.5v15M3 9.5h4.5M16.5 9.5H21M3 14.5h4.5M16.5 14.5H21"/></svg></span>
         <span class="hc-txt"><b>Movies</b><small><i id="homeVodCount">—</i> movies</small><em class="hc-state" id="homeVodState"></em></span>
-        <span class="hc-arrow">→</span>
+        <span class="hc-arrow hc-refresh" data-refresh="vod" role="button" tabindex="0" title="Refresh Movies" aria-label="Refresh Movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><polyline points="20.5 3.5 20.5 9 15 9"/></svg></span>
         <span class="hc-bar" id="homeVodBar"><i></i></span>
       </button>
       <button class="home-card hc-series" data-go="series">
         <span class="hc-shine"></span>
         <span class="hc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7.5" width="18" height="12" rx="2.2"/><path d="M7 7.5l3-3.2M13 7.5l3.2-3.3"/><path d="M9.8 11l4.2 2.6-4.2 2.6z" fill="currentColor" stroke="none"/></svg></span>
         <span class="hc-txt"><b>Series</b><small><i id="homeSeriesCount">—</i> series</small><em class="hc-state" id="homeSeriesState"></em></span>
-        <span class="hc-arrow">→</span>
+        <span class="hc-arrow hc-refresh" data-refresh="series" role="button" tabindex="0" title="Refresh Series" aria-label="Refresh Series"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 12a8.5 8.5 0 1 1-2.5-6"/><polyline points="20.5 3.5 20.5 9 15 9"/></svg></span>
         <span class="hc-bar" id="homeSeriesBar"><i></i></span>
       </button>
       <button class="home-card hc-downloads" id="homeDownloads" type="button">
@@ -2092,7 +2107,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.14';
+const APP_VERSION='25.15';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3713,7 +3728,23 @@ async function loadType(type){
        rest of the session. A partially-filled tab is exactly the case that needs topping up.
        Everything found is merged (see mergeEntries), so this can only ever ADD titles, and the
        whole thing runs in the background behind the tab's own loading bar. */
-    if(type!=='live'&&(S.user||stalkerMac())){
+    /* v25.15 (owner report, with a screenshot of the home screen on a relaunch: Movies and Series
+       both sitting on "loading…" while Live TV read "✓ load completed"): THIS is what that was.
+       The top-up above re-fetched the full get.php document every time a tab was loaded — so on
+       every single app start, with a complete 64,543-title library already restored from the
+       device cache, both catalogue cards went straight back into a loading state and re-downloaded
+       the whole document to merge in whatever was already there.
+       It still runs, unconditionally, in the two cases it was written for:
+         - the tab is EMPTY (the v13.3 case: a live-only sign-in playlist, where Movies/Series only
+           exist in the fuller document or behind the panel's own endpoints), and
+         - an explicit refresh is in flight (_forceTopUp, set by resyncSource) — the whole point of
+           tapping refresh is to go and ask the provider.
+       Otherwise it waits for the day's midnight sync. A populated tab re-reading the same document
+       on every launch was pure cost: it is a merge, so it could only ever confirm what was already
+       on screen. */
+    const _haveTab=type==='vod'?(S.vod&&S.vod.length):(S.series&&S.series.length);
+    const _topUpDue=!_haveTab||S._forceTopUp||midnightSyncDue();
+    if(type!=='live'&&(S.user||stalkerMac())&&_topUpDue){
       /* v13.9: mark the tab as LOADING while the fallbacks run. Without this the Home card read a
          flat "0 titles" and the category page offered a "Load movies" button the whole time the
          app was already busy fetching them — which is exactly what a working app looks like when
@@ -4249,7 +4280,13 @@ async function parseM3UStream(r,onGrow){
    (see the v22.3 note in fetchPlaylistViaFunction); bumping the name abandons every one of those
    on this release, so no customer is shown a stale short library even once while the fix rolls
    out. A fresh, complete library is written under the new name on the first sign-in. */
-const LIB_DB='m26lib2', LIB_STORE='playlists', LIB_TTL_MS=24*60*60*1000;
+/* v25.15: the on-device library was thrown away after 24 hours, which meant a customer who had not
+   opened the app since yesterday got the full foreground re-download — the "it loads the categories
+   all over again" the owner reported. Freshness is the midnight sync's job now (see autoSyncDue),
+   and that MERGES into this same cache, so the cache does not also need a short fuse to stay
+   current; all the fuse did was throw away a perfectly good instant-open copy. Kept bounded rather
+   than infinite so a line that is abandoned for a week still starts from the provider. */
+const LIB_DB='m26lib2', LIB_STORE='playlists', LIB_TTL_MS=7*24*60*60*1000;
 function _libOpen(){
   return new Promise((res,rej)=>{
     try{
@@ -4308,6 +4345,16 @@ async function loadPlaylistSource(){
     try{
       const hit=await libRead(_lineBase,_lineUser);
       if(hit&&adoptParsed(hit.model,hit.srcUrl||_lineBase)){
+        /* v25.15 (owner report, with a screenshot of the home screen on a relaunch: Movies and
+           Series both sitting on "loading…"): this background re-read used to run on EVERY launch.
+           The library was already on screen from the cache, so the re-read bought nothing the
+           customer could see — it just put two of the three cards back into a loading state, on
+           mobile data, every single time the app was opened. Now it only runs when a refresh is
+           actually due (see midnightSyncDue) — i.e. the last sync predates today's midnight. Any
+           other launch shows exactly what was there last time and asks the provider for nothing.
+           An explicit refresh (the per-card button, or Refresh playlist) is unaffected: both go
+           through resyncSource(), which sets _skipLibCache and never reaches this branch. */
+        if(!midnightSyncDue())return true;
         setTimeout(()=>{
           /* refresh in the background; a failure changes nothing, the cache stays */
           try{
@@ -4320,6 +4367,11 @@ async function loadPlaylistSource(){
               if(res&&res.parsed&&res.parsed.total&&res.parsed.total!==hit.model.total){
                 if(adoptParsed(res.parsed,res.url)){try{renderAll&&renderAll();updateHomeCounts&&updateHomeCounts();}catch(e){}}
               }
+              /* v25.15: stamp the day's sync here too. This path re-reads the provider without ever
+                 going through resyncSource(), so without this the stamp stays at yesterday and the
+                 SAME re-read fires again on the very next launch — which is the behaviour this
+                 release exists to stop. Only on a result: a failed fetch must not claim the day. */
+              if(res&&res.parsed&&res.parsed.total)markSynced();
             }).catch(()=>{});
           }catch(e){}
         },1500);
@@ -4407,6 +4459,11 @@ async function resyncSource(opts){
   const quiet=!!(opts&&opts.quiet);
   if(_resyncing)return false;
   _resyncing=true;
+  /* v25.15: an explicit refresh (or the midnight sync) must still do the full get.php top-up for
+     Movies/Series that loadType() now skips on an ordinary launch — going and asking the provider
+     is the entire point of a refresh. Cleared in the finally, so it can never leak into the next
+     plain tab load. */
+  S._forceTopUp=true;
   try{
     if(S.source==='m3u'){
       if(!S.url)return false;
@@ -4446,7 +4503,15 @@ async function resyncSource(opts){
     await refreshAll();
     markSynced();
     return true;
-  }finally{ _resyncing=false;busy(false);load(false); }
+  }finally{
+    _resyncing=false;busy(false);load(false);
+    /* Hold _forceTopUp open until refreshAll()'s un-awaited Movies/Series loads have actually run
+       their top-up check — clearing it here would win the race against them and silently turn an
+       explicit refresh into the same no-op an ordinary launch now performs. */
+    const _pending=_bgTabLoads;
+    if(_pending&&_pending.then)_pending.then(()=>{S._forceTopUp=false},()=>{S._forceTopUp=false});
+    else S._forceTopUp=false;
+  }
 }
 /* Refresh ONE tab, for the per-tab buttons on Live TV / Movies / Series. A playlist is a single
    document, so refreshing any tab necessarily re-reads all of it — but only the tab asked for is
@@ -4483,14 +4548,24 @@ async function refreshTab(tab){
      timer, and it stands down entirely while something is playing: a multi-megabyte fetch during
      playback competes with the stream, and on a single-connection line it can cost the customer
      the picture they are actually watching. */
-const AUTO_SYNC_MS=24*60*60*1000;         /* once a day */
-const AUTO_SYNC_CHECK_MS=30*60*1000;      /* how often to ask whether a day has passed */
+const AUTO_SYNC_CHECK_MS=30*60*1000;      /* how often to ask whether midnight has passed */
+/* v25.15 (owner request: "automatic refresh of all the playlists should happen every midnight 12").
+   Was a ROLLING 24 hours from the last sync, which drifts: sync at 9pm and the next one is 9pm
+   tomorrow, then 11pm, and it slowly wanders into the middle of the evening — the busiest possible
+   time to spend a multi-megabyte fetch on someone's connection. Anchored to local midnight instead,
+   so it is due once per CALENDAR day: the stamp being older than today's midnight IS the condition.
+   Still persisted, so relaunching the app any number of times in a day never re-triggers it. */
+function lastMidnight(){const d=new Date();d.setHours(0,0,0,0);return d.getTime()}
+/* Due purely on the clock — no sign-in/playback checks, so the launch path (which runs mid-sign-in,
+   before those would pass) can ask the same question autoSyncDue() asks. An empty stamp is NOT due:
+   there is nothing to be stale relative to, and autoSyncDue() starts the clock on its next check. */
+function midnightSyncDue(){const last=lastSyncedAt();return !!last&&last<lastMidnight()}
 function autoSyncDue(){
   if(!S.url||(S.source==='xtream'&&!S.user))return false;
   if($('login')&&!$('login').classList.contains('hidden'))return false;   /* not signed in */
   const last=lastSyncedAt();
   if(!last){markSynced();return false}   /* first run: start the clock, do not sync immediately */
-  return (Date.now()-last)>=AUTO_SYNC_MS;
+  return last<lastMidnight();
 }
 /* v19.63: A PAUSED PLAYER IS STILL THE CUSTOMER'S SCREEN.
    The old test was `!v.paused && !v.ended && v.readyState>2`, so the app considered itself idle
@@ -4523,12 +4598,24 @@ async function maybeAutoSync(){
     toast('Playlist updated with the latest from your provider');
   }catch(e){}
 }
-let _autoSyncTimer=null;
+let _autoSyncTimer=null,_midnightTimer=null;
+/* v25.15: land ON midnight rather than up to half an hour after it. The 30-minute poll below is
+   still what actually catches most cases (a phone asleep at midnight runs nothing at all, and picks
+   it up on the next foreground), but for an app left open across midnight this fires it at the hour
+   the owner asked for. Re-armed after each firing so it keeps working night after night, and the
+   +5s cushion keeps a slightly-early timer from computing "today" as the day that is ending. */
+function scheduleMidnightSync(){
+  if(_midnightTimer)clearTimeout(_midnightTimer);
+  const next=new Date();next.setHours(24,0,0,0);
+  const ms=Math.max(1000,next.getTime()-Date.now()+5000);
+  _midnightTimer=setTimeout(()=>{_midnightTimer=null;maybeAutoSync();scheduleMidnightSync();},ms);
+}
 function startAutoSync(){
   if(_autoSyncTimer)return;
   _autoSyncTimer=setInterval(()=>{maybeAutoSync()},AUTO_SYNC_CHECK_MS);
+  scheduleMidnightSync();
   document.addEventListener('visibilitychange',()=>{
-    if(document.visibilityState==='visible')maybeAutoSync();
+    if(document.visibilityState==='visible'){maybeAutoSync();scheduleMidnightSync();}
   });
   /* One check shortly after sign-in catches a device that has been closed for days without
      making the sign-in itself wait on it. */
@@ -4541,6 +4628,7 @@ function startAutoSync(){
 function sourceLabel(){
   return S.source==='stalker'?'MAG portal':'M3U playlist';
 }
+let _bgTabLoads=null;
 async function refreshAll(){
   S.loadedLive=S.loadedVod=S.loadedSeries=false;
   _xtreamSeriesFallbackTried=false;   /* v24.7: let a manual/session refresh retry it too */
@@ -4555,8 +4643,13 @@ async function refreshAll(){
   /* v19.1.0: a MAG portal rate-limits, and asking it for Movies and Series AT THE SAME TIME is
      what made a refused page — and with it a truncated or entirely empty catalogue — routine.
      There they are loaded one after the other. Every other source still loads both at once. */
-  if(S.source==='stalker'){(async()=>{try{await loadType('vod')}catch(e){}try{await loadType('series')}catch(e){}})();}
-  else Promise.all([loadType('vod'),loadType('series')]).catch(()=>{});
+  /* v25.15: these two are deliberately NOT awaited (see v7.7 above — the app must open on Live TV
+     without waiting for the other two catalogues). They are still handed to _bgTabLoads so a caller
+     that needs to know when they have really finished can wait for them without changing that.
+     resyncSource() is the one that does: it holds S._forceTopUp open until these settle, and they
+     read that flag only after their own awaits, long after resyncSource's finally would have run. */
+  if(S.source==='stalker'){_bgTabLoads=(async()=>{try{await loadType('vod')}catch(e){}try{await loadType('series')}catch(e){}})();}
+  else _bgTabLoads=Promise.all([loadType('vod'),loadType('series')]).catch(()=>{});
 }
 /* v19.1.0: per-tab fetch progress, so the Home cards can show a real bar instead of a spinner.
    `total` is the portal's own total_items where it reports one; 0 means "unknown", which the UI
@@ -11134,7 +11227,23 @@ if($('setStream'))$('setStream').onclick=()=>{$('homeSetSheet').classList.remove
 if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;S.current=null;$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch();paintNowPlayingChip()};
 if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetSheet')$('homeSetSheet').classList.remove('show')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
-if($('home'))$('home').addEventListener('click',e=>{const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)});
+/* v25.15: the refresh control sits INSIDE the card button, so it has to be claimed before the
+   card's own "open this category" branch — and in this same handler rather than a second listener,
+   because both would be bound to #home and stopPropagation() does not stop a sibling listener on
+   the element the event is already at. */
+async function homeCardRefresh(el){
+  const tab=el&&el.dataset&&el.dataset.refresh;
+  if(!tab)return;
+  if(_resyncing){toast('Already refreshing…');return}
+  el.classList.add('spinning');
+  try{ await refreshTab(tab); }
+  finally{ el.classList.remove('spinning'); try{updateHomeCounts&&updateHomeCounts();}catch(e){} }
+}
+if($('home'))$('home').addEventListener('click',e=>{
+  const r=e.target.closest('[data-refresh]');
+  if(r){e.preventDefault();e.stopPropagation();homeCardRefresh(r);return}
+  const c=e.target.closest('[data-go]');if(c)goCategory(c.dataset.go)
+});
 if($('homeDownloads'))$('homeDownloads').onclick=openDownloadsSheet;
 /* v90: categories page interactions */
 if($('catBack'))$('catBack').onclick=()=>showHome();
