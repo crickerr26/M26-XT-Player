@@ -2107,7 +2107,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.16';
+const APP_VERSION='25.17';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3535,10 +3535,32 @@ function backToCategories(){showCategories(S.tab,true);}
    already-loaded live channels are never disturbed. */
 /* Keep the parsed-playlist record in step with whatever a fallback source produced, so the tab
    survives being re-opened (loadType re-seeds every tab from S.m3u on each call). */
+/* v25.16 (owner report: Movies and Live TV kept their contents across a force-close, but Series
+   loaded all over again every time).
+
+   This is where that happened. Every path that enriches a tab after sign-in — the full-catalogue
+   top-up, and the Xtream API Series fallback for panels that expose Series ONLY there and never in
+   the M3U (v24.7) — lands here and updates S.m3u IN MEMORY. The device library cache, though, was
+   written earlier during sign-in, and nothing wrote it again afterwards. So on a line whose Series
+   only exist via the API fallback, every launch restored a model with an EMPTY series list, which
+   made loadType()'s "is this tab empty?" check true, which ran the whole fallback again — for ever.
+   Live and Movies never showed it because both come straight out of the M3U the cache already held.
+
+   Writing the cache here, at the one point every enrichment passes through, keeps the saved copy
+   and the in-memory model the same thing. libWrite is fire-and-forget and already swallows its own
+   failures, so a full disk or a browser with no IndexedDB just means the old behaviour. */
 function adoptIntoPlaylist(type,cats,arr){
   if(S.source!=='m3u'||!S.m3u)return;
   if(type==='vod'){S.m3u.vod=arr;S.m3u.vodCats=cats||[];}
   else if(type==='series'){S.m3u.series=arr;S.m3u.seriesCats=cats||[];}
+  else return;
+  /* Keep `total` honest: libRead/libWrite both refuse a model without one, and the launch-time
+     background refresh compares against it to decide whether to swap what is on screen. Leaving it
+     at the sign-in figure would make a library that just grew look unchanged. */
+  try{
+    S.m3u.total=(S.m3u.live?S.m3u.live.length:0)+(S.m3u.vod?S.m3u.vod.length:0)+(S.m3u.series?S.m3u.series.length:0);
+  }catch(e){}
+  try{libWrite(S.rawUrl||S.url,S.user,S.m3u,S.playlistUrl);}catch(e){}
 }
 /* ── v18.3: UNION, NEVER REPLACE ────────────────────────────────────────────────────────────
    Two documents describe the same account and neither is a strict superset of the other. The
