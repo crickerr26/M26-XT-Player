@@ -2227,7 +2227,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.33';
+const APP_VERSION='25.34';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2766,7 +2766,13 @@ function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('u
    goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
    a worker build frozen at whatever that commit was, until the preview is reaped and it 404s
    forever. A workers.dev transcoder is always meant to be this app's OWN origin, so any other
-   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}/* v25.26 (owner request: "maximum quality, crystal clear") changed this default from 'auto' to
+   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}/* v25.33: an externally-typed transcoder host with a bare /transcoder path is always a mistake —
+   that prefix is stripped by _worker.js's OWN pass-through and only means anything on THIS app's
+   origin; server.js itself (Render, Railway, any box someone points this field at directly) mounts
+   /hls and /proxy at its root. Typing a Railway URL with a /transcoder suffix, copying the shape of
+   this app's own default (own-origin + '/transcoder'), makes every transcoded/relay route 404
+   forever while looking correctly configured (Test transcoder even reports online, since /health
+   has no prefix either). Strip it. */try{const _t2=new URL(saved,location.href);if(_t2.host!==location.host&&/^\/transcoder\/?$/i.test(_t2.pathname))saved=_t2.origin;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}/* v25.26 (owner request: "maximum quality, crystal clear") changed this default from 'auto' to
    'original' (no transcoder-side cap at all).
    v25.28 (owner report: "lots of buffering… make it lightning fast"): reverted. 'original' means
    a 4K source gets handed to the transcoder/player completely uncapped, which is a much heavier
