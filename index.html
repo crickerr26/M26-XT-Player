@@ -132,6 +132,16 @@ body.light .npcClose{background:rgba(20,50,90,.08)}
 .landNPFav{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);flex:none;display:grid;place-items:center}
 .landNPFav.on{color:var(--pink);border-color:rgba(251,113,133,.4)}
 .landNPBtn{height:34px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);color:var(--ink);display:inline-flex;align-items:center;gap:6px;padding:0 12px;font-size:12px;font-weight:800;flex:none}
+/* v25.24: floating bottom dock, mobile-portrait counterpart of .landRail above (same idea, own
+   breakpoint) — see the HTML comment by #bottomDock for why it needed no other spacing changes. */
+.bottomDock{display:none;position:fixed;left:50%;bottom:calc(12px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:95;align-items:center;gap:2px;padding:6px;border-radius:999px;background:rgba(10,18,32,.88);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.14);box-shadow:0 14px 34px rgba(0,0,0,.4)}
+body.light .bottomDock{background:rgba(255,255,255,.92);border-color:rgba(20,50,90,.14)}
+.dockBtn{width:50px;height:50px;border-radius:50%;background:transparent;border:0;color:rgba(255,255,255,.6);display:grid;place-items:center;flex:none}
+.dockBtn svg{width:22px;height:22px}
+.dockBtn.active{background:rgba(255,255,255,.16);color:#fff}
+body.light .dockBtn{color:rgba(20,32,51,.55)}
+body.light .dockBtn.active{background:rgba(20,50,90,.1);color:#142033}
+@media(max-width:760px){#login.hidden ~ .bottomDock{display:flex}}
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
    which never matches in landscape (the width is > 760), so landscape fell back to the cramped
    desktop layout. Key on height instead.
@@ -1787,6 +1797,23 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
      "…" menu already offers. v24.83: no longer its own overlay page — see openDownloadsSheet()
      and the S.viewingDownloads branch in renderGrid(), which render it straight into #app so its
      player is the SAME #video every other section already uses. -->
+<!-- v25.24 (owner-supplied reference screenshot): a floating bottom dock for mobile portrait —
+     the landscape rail (.landRail above) already gives phones-in-landscape this same one-tap
+     Live/Movies/Series/Downloads/Settings access; portrait had nothing equivalent, just the top
+     .tabs pills. Sized and positioned to land in the same reserved strip the mobile nowPlayingChip
+     already sits above (see its `bottom:72px` mobile rule) — nothing else needed retuning.
+     Placed after #login in the DOM on purpose: it must not show over the sign-in screen, and
+     #login.hidden ~ .bottomDock in the CSS (mobile breakpoint) is what gates that — a
+     `:has()`-based rule would do it from wherever, but this app's Safari 13.4+ floor (see
+     CLAUDE.md) doesn't have `:has()`, so the older sibling-combinator trick is what actually
+     works there. -->
+<nav class="bottomDock" id="bottomDock" aria-label="Quick navigation">
+  <button class="dockBtn" data-tab="live" type="button" title="Live TV" aria-label="Live TV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4"/></svg></button>
+  <button class="dockBtn" data-tab="vod" type="button" title="Movies" aria-label="Movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg></button>
+  <button class="dockBtn" data-tab="series" type="button" title="Series" aria-label="Series"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></button>
+  <button class="dockBtn" id="dockDownloads" type="button" title="Downloads" aria-label="Downloads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg></button>
+  <button class="dockBtn" id="dockSettings" type="button" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+</nav>
 <div class="infoSheet" id="infoSheet">
   <div class="infoPanel">
     <button class="infoClose" id="infoClose" aria-label="Close">&times;</button>
@@ -2164,7 +2191,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.23';
+const APP_VERSION='25.24';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -4744,7 +4771,7 @@ function resetProgress(type){if(S.progress&&S.progress[type]){S.progress[type].d
    Movies and Series each signal "still loading" independently — the same cue as the category
    rows. Driven straight off the per-type loading flags, so it appears and clears on its own. */
 function tabIsLoading(t){return t==='live'?S.loadingLive:t==='vod'?S.loadingVod:S.loadingSeries}
-function paintTabLoading(){document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.tab)));document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.cattab)));}
+function paintTabLoading(){document.querySelectorAll('.tab,.landRailBtn[data-tab],.dockBtn[data-tab]').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.tab)));document.querySelectorAll('.cp-tab').forEach(b=>b.classList.toggle('loading',!!tabIsLoading(b.dataset.cattab)));}
 /* v23.0 perf: renderGrid() (called just below) already computes filtered() once and writes the
    correct #sectionSub text itself — including the "N episodes" text for the episode-view case,
    via renderEpisodeGrid(). A second filtered() call here used to re-run the full filter+sort just
@@ -4752,7 +4779,7 @@ function paintTabLoading(){document.querySelectorAll('.tab,.landRailBtn[data-tab
    WRONG text — silently clobbering "N episodes" back to the movie/series count). On a large
    Stalker catalogue sweep renderAll() fires roughly 200 times while Movies loads (see
    growGridInChunks' notes), so this was 200 extra full-array filter+sort passes for nothing. */
-function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.viewingDownloads?'Downloads':S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
+function renderAll(){applyCatalogUi();renderCats();renderGrid();if($('catpage')&&!$('catpage').classList.contains('hidden'))renderCatPage();document.querySelectorAll('.tab,.landRailBtn[data-tab],.dockBtn[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===S.tab));paintTabLoading();const label=S.viewingDownloads?'Downloads':S.tab==='live'?LIVE_LABEL:S.tab==='vod'?VOD_LABEL:'Series';$('sectionTitle').textContent=label;}
 function renderCats(){
   const q=S.q.toLowerCase().trim();
   /* v24.69 (owner request): typing in search now filters the CATEGORY list too — "tamil" surfaces
@@ -11853,12 +11880,19 @@ const _resumeAfterFsExit=()=>{
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
 document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
-document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
+document.querySelectorAll('.tab,.landRailBtn[data-tab],.dockBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
 /* v25.11: landscape rail's Home/Downloads/Settings reuse the exact same handlers as the header's
    equivalents — no separate logic to keep in sync. */
 if($('landHome'))$('landHome').onclick=()=>showHome();
 if($('landDownloads'))$('landDownloads').onclick=openDownloadsSheet;
-if($('landSettings'))$('landSettings').onclick=openNativePlayer;/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
+if($('landSettings'))$('landSettings').onclick=openNativePlayer;
+/* v25.24: the mobile-portrait dock's Downloads/Settings buttons reuse the exact same entry
+   points as everywhere else — openDownloadsSheet directly, and a synthetic click on the header's
+   own Settings gear (#homeSettings) so its full Share/Stream Tools/Log out sheet opens rather
+   than duplicating that handler's logic here. Live/Movies/Series are wired for free — see the
+   .dockBtn[data-tab] addition to the .tab/.landRailBtn selectors above. */
+if($('dockDownloads'))$('dockDownloads').onclick=openDownloadsSheet;
+if($('dockSettings'))$('dockSettings').onclick=()=>{if($('homeSettings'))$('homeSettings').click();};/* v23.0 perf: a keystroke used to trigger the FULL renderAll() (category counts + filter + sort +
    grid rebuild) immediately — on a large Movies catalogue that is real work, and it ran once per
    character, so typing "tamil" fired it 5 times in well under a second, each one blocking the next
    keystroke from registering smoothly. Debounced to fire once 180ms after typing pauses, which is
