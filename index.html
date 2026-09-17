@@ -930,17 +930,28 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 /* v25.26: rotate-to-landscape button. Only ever shown while fullscreen AND still portrait — see
    updateRotateBtn() — so it appears exactly where the owner's screenshot asked for it: on the
    plain, everything-else-hidden centered picture, as the one way back to landscape besides
-   physically turning the phone. */
-.rotateBtn{display:none;position:absolute;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:8;width:46px;height:46px;border-radius:50%;align-items:center;justify-content:center;background:rgba(10,14,22,.62);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.45)}
+   physically turning the phone.
+   v25.28 (owner request: "move the rotate button bit up") — raised off the bottom edge. */
+.rotateBtn{display:none;position:absolute;right:16px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:8;width:46px;height:46px;border-radius:50%;align-items:center;justify-content:center;background:rgba(10,14,22,.62);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.45)}
 .rotateBtn svg{width:23px;height:23px}
 .rotateBtn:active{transform:scale(.92)}
 .player.showRotate .rotateBtn{display:flex}
+/* v25.28 (owner request: an explicit way out of this mode, "hiding all the rest" left no visible
+   close control besides tapping the video to reveal the normal bar first). Same treatment as the
+   rotate button: a small always-on circular button, this time top-left-adjacent to the watermark,
+   calling the exact same fs() every other exit-fullscreen tap already uses. */
+.exitFsBtn{display:none;position:absolute;left:16px;top:calc(16px + env(safe-area-inset-top));z-index:8;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:rgba(10,14,22,.62);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.45)}
+.exitFsBtn svg{width:19px;height:19px}
+.exitFsBtn:active{transform:scale(.92)}
+.player.showRotate .exitFsBtn{display:flex}
 /* v25.27 (owner request, with a marked-up screenshot): in this same portrait-centered-fullscreen
    state, move the brand watermark from its usual bottom-left spot to top-left instead — the
    bottom-left corner sits far below the actual picture here (all letterbox, per the subtitle fix
-   above), which is exactly the "wrong place" the owner circled. Scoped to .showRotate only:
-   everywhere else the watermark stays exactly where v19/v68 put it. */
-.player.showRotate .watermark{top:calc(14px + env(safe-area-inset-top));bottom:auto}
+   above), which is exactly the "wrong place" the owner circled.
+   v25.28 (owner request: "bring the logo down a bit closer to the video") — nudged down from the
+   very top edge, past the new exit button beside it. Scoped to .showRotate only: everywhere else
+   the watermark stays exactly where v19/v68 put it. */
+.player.showRotate .watermark{top:calc(64px + env(safe-area-inset-top));bottom:auto}
 /* v24.67: the MX-style brightness dial now lives on the same left edge the watermark sits on —
    fade the brand mark out whenever the control bar (and dial) is up so they never overlap, same
    as the rest of the chrome already does around .qsOpen. */
@@ -1560,6 +1571,9 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
              screen exactly like the watermark does — .playerbar's own opacity fade for the rest of
              the chrome never touches it. Shown/hidden by updateRotateBtn() (see applyZoom()). -->
         <button class="rotateBtn" id="rotateBtn" type="button" title="Rotate to landscape" aria-label="Rotate to landscape"></button>
+        <!-- v25.28 (owner request): an explicit way out of this same mode — same always-on
+             treatment as #rotateBtn above, shown/hidden by the same .showRotate class. -->
+        <button class="exitFsBtn" id="exitFsBtn" type="button" title="Exit fullscreen" aria-label="Exit fullscreen"></button>
       </section>
       <!-- v25.11: landscape-only "now playing" strip under the player — title, favorite toggle
            and TV Guide, kept in sync from setCurrentItem/renderAll via paintLandNowPlaying(). -->
@@ -2220,7 +2234,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.27';
+const APP_VERSION='25.28';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2762,11 +2776,15 @@ function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('u
    goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
    a worker build frozen at whatever that commit was, until the preview is reaped and it 404s
    forever. A workers.dev transcoder is always meant to be this app's OWN origin, so any other
-   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}/* v25.26 (owner request: "maximum quality, crystal clear"): default changed from 'auto' (which
-   qualityProfile() maps to a capped hd1080 transcoder profile) to 'original' (no cap at all) —
-   still just the STARTING value for a first run; a device that already saved its own choice in
-   Stream Tools keeps it untouched either way. */
-try{const qv=store.getItem(VQUAL_KEY)||'original';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'original'}catch{}try{S.viewModes={live:'list',vod:'list',series:'list'};store.setItem(VIEWMODE_KEY,JSON.stringify(S.viewModes))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
+   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}/* v25.26 (owner request: "maximum quality, crystal clear") changed this default from 'auto' to
+   'original' (no transcoder-side cap at all).
+   v25.28 (owner report: "lots of buffering… make it lightning fast"): reverted. 'original' means
+   a 4K source gets handed to the transcoder/player completely uncapped, which is a much heavier
+   route to start than the capped hd1080 'auto' profile — a real contributor to "too much loading
+   to start playing" alongside the abrEwmaDefaultEstimate revert above. Still just the STARTING
+   value for a first run; a device that already saved its own choice in Stream Tools is untouched
+   either way, so anyone who deliberately picked Original there keeps it. */
+try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes={live:'list',vod:'list',series:'list'};store.setItem(VIEWMODE_KEY,JSON.stringify(S.viewModes))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function saveHiddenCats(){try{store.setItem(HIDCAT,JSON.stringify([...S.hiddenCats]))}catch(e){}}
@@ -7297,14 +7315,26 @@ async function tryPlans(plans,i){
         /* v25.26 (owner request: "maximum quality, crystal clear"): capLevelToPlayerSize was
            capping ABR to whatever resolution the (often small, inline) player element rendered
            at — a deliberate bandwidth saving that directly fights "always give me the best
-           quality," so it's off now; ABR still adapts to real throughput via abrEwmaDefaultEstimate
-           below, it just no longer refuses a level the network could sustain purely because the
-           on-screen box was small. The three estimates are also raised — the old ones (650kbps
-           mobile, 2.8Mbps desktop) were tuned to start conservative and climb slowly; starting
-           higher means less time at a soft opening bitrate before ABR's own measurements take
-           over (it always corrects downward from here just as readily if the real line is slower). */
+           quality," so it stays off; ABR can still reach the top level regardless of how small
+           the on-screen box is, whenever the connection actually supports it.
+           v25.28 (owner report, with a screenshot: "lots of buffering… make it lightning fast" —
+           a direct regression from v25.26's OTHER change here): abrEwmaDefaultEstimate is what
+           forceMobileSmoothLevel() (below, on MANIFEST_PARSED) hands back to hls.js's own
+           auto-level pick as the FIRST guess, before any real fragment has actually measured this
+           connection's throughput — startLevel's own value never survives that reset, so this
+           number is the true first-guess lever, not just a tuning knob. Raising it in v25.26 to
+           "start higher" meant picking a bitrate ABOVE what a real mobile/slow connection could
+           sustain, which is exactly what a stalled first fragment ("Buffering — waiting for more
+           data") looks like — the opposite of "lightning fast." Reverted to the original
+           conservative seed: hls.js's own ABR already climbs to a higher level within a few
+           fragments once it has REAL throughput samples (that's the whole point of it being
+           adaptive), so a cautious first guess costs at most a couple of segments at a lower
+           bitrate, never a stall — while an optimistic one risks a stall on the very first
+           fragment, every single time the guess is wrong. capLevelToPlayerSize:false above is
+           unrelated to this (it only raises the CEILING once ABR is already climbing, never the
+           opening guess) so "maximum quality once buffering is healthy" is unaffected. */
         enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:false,startLevel:-1,
-        abrEwmaDefaultEstimate:isTv?8000000:(mobile()?2500000:4000000),
+        abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
         maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:live?0:30,
         liveSyncDurationCount:4,liveMaxLatencyDurationCount:18,maxLiveSyncPlaybackRate:1.1,
         /* ── v24.43: A LIVE ROUTE MUST NOT SPEND 16 SECONDS FAILING. ─────────────────────────
@@ -11978,6 +12008,7 @@ const _resumeAfterFsExit=()=>{
 document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;if(!document.fullscreenElement)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
 document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');const real=document.fullscreenElement||document.webkitFullscreenElement;if(fsb)fsb.innerHTML=real?ICONS.fsExit:ICONS.fsEnter;if(!real)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
 if($('rotateBtn'))$('rotateBtn').onclick=requestLandscapeRotate;
+if($('exitFsBtn')){$('exitFsBtn').innerHTML=ICONS.close;$('exitFsBtn').onclick=fs;}
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab,.landRailBtn[data-tab],.dockBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
 /* v25.11: landscape rail's Home/Downloads/Settings reuse the exact same handlers as the header's
