@@ -927,29 +927,26 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
    on the preview/idle box, while playing, and in fullscreen. So the base opacity is now
    visible (not 0); it never fully hides while an item is open. */
 .watermark{position:absolute;left:14px;bottom:92px;width:clamp(46px,7%,84px);height:auto;opacity:.5;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.55));transition:opacity .4s ease}
-/* v25.26: rotate-to-landscape button. Only ever shown while fullscreen AND still portrait — see
-   updateRotateBtn() — so it appears exactly where the owner's screenshot asked for it: on the
-   plain, everything-else-hidden centered picture, as the one way back to landscape besides
-   physically turning the phone.
-   v25.28 (owner request: "move the rotate button bit up") — raised off the bottom edge. */
-.rotateBtn{display:none;position:absolute;right:16px;bottom:calc(64px + env(safe-area-inset-bottom));z-index:8;width:46px;height:46px;border-radius:50%;align-items:center;justify-content:center;background:rgba(10,14,22,.62);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.45)}
-.rotateBtn svg{width:23px;height:23px}
-.rotateBtn:active{transform:scale(.92)}
-.player.showRotate .rotateBtn{display:flex}
+/* v25.29 (owner request: "the rotation button no need to appear") — the rotate-to-landscape
+   button from v25.26/v25.28 is removed outright (markup, JS wiring and this rule all gone with
+   it). Physically turning the phone remains the way to landscape in this mode. */
 /* v25.28 (owner request: an explicit way out of this mode, "hiding all the rest" left no visible
-   close control besides tapping the video to reveal the normal bar first). Same treatment as the
-   rotate button: a small always-on circular button, this time top-left-adjacent to the watermark,
-   calling the exact same fs() every other exit-fullscreen tap already uses. */
-.exitFsBtn{display:none;position:absolute;left:16px;top:calc(16px + env(safe-area-inset-top));z-index:8;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:rgba(10,14,22,.62);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.45)}
+   close control besides tapping the video to reveal the normal bar first). Top-left-adjacent to
+   the watermark, calling the exact same fs() every other exit-fullscreen tap already uses.
+   v25.29 (owner request: "the X button should be invisible quickly and reappear when the user
+   clicks the screen anywhere") — no longer always-on: gated on .showbar too, exactly like every
+   other control in this player, so it fades in on a tap and auto-hides with the rest of them
+   (see showBar()'s own 2.8s timer) instead of sitting on screen permanently. */
+.exitFsBtn{display:none;position:absolute;left:16px;top:calc(16px + env(safe-area-inset-top));z-index:8;width:40px;height:40px;border-radius:50%;align-items:center;justify-content:center;background:rgba(10,14,22,.62);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.45);transition:opacity .2s ease}
 .exitFsBtn svg{width:19px;height:19px}
 .exitFsBtn:active{transform:scale(.92)}
-.player.showRotate .exitFsBtn{display:flex}
+.player.showRotate.showbar .exitFsBtn{display:flex}
 /* v25.27 (owner request, with a marked-up screenshot): in this same portrait-centered-fullscreen
    state, move the brand watermark from its usual bottom-left spot to top-left instead — the
    bottom-left corner sits far below the actual picture here (all letterbox, per the subtitle fix
    above), which is exactly the "wrong place" the owner circled.
    v25.28 (owner request: "bring the logo down a bit closer to the video") — nudged down from the
-   very top edge, past the new exit button beside it. Scoped to .showRotate only: everywhere else
+   very top edge, past the exit button beside it. Scoped to .showRotate only: everywhere else
    the watermark stays exactly where v19/v68 put it. */
 .player.showRotate .watermark{top:calc(64px + env(safe-area-inset-top));bottom:auto}
 /* v24.67: the MX-style brightness dial now lives on the same left edge the watermark sits on —
@@ -1566,13 +1563,9 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           <div class="playerMenu hidden" id="playerMenu" role="menu" aria-label="Player settings"></div>
         </div>
         <!-- v25.26 (owner request, with a screenshot: fullscreen on a rotation-locked phone should
-             show ONLY the centered picture, everything else hidden, with a rotate button to ask for
-             landscape on purpose). Sits as a sibling of .playerbar (not inside it) so it stays on
-             screen exactly like the watermark does — .playerbar's own opacity fade for the rest of
-             the chrome never touches it. Shown/hidden by updateRotateBtn() (see applyZoom()). -->
-        <button class="rotateBtn" id="rotateBtn" type="button" title="Rotate to landscape" aria-label="Rotate to landscape"></button>
-        <!-- v25.28 (owner request): an explicit way out of this same mode — same always-on
-             treatment as #rotateBtn above, shown/hidden by the same .showRotate class. -->
+             show ONLY the centered picture, everything else hidden). Sits as a sibling of
+             .playerbar (not inside it) so it can appear/fade independently — see the .exitFsBtn
+             CSS note for why it's gated on .showbar too, same as the rest of the chrome. -->
         <button class="exitFsBtn" id="exitFsBtn" type="button" title="Exit fullscreen" aria-label="Exit fullscreen"></button>
       </section>
       <!-- v25.11: landscape-only "now playing" strip under the player — title, favorite toggle
@@ -2234,7 +2227,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.28';
+const APP_VERSION='25.29';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2322,9 +2315,6 @@ const ICONS={
   quality:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
   /* v25.25: "Screen Fit" menu row (Fit/Fill/Stretch) — a rectangle with corner resize arrows. */
   aspect:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 15H6v-3"/><path d="M15 9h3v3"/></svg>',
-  /* v25.27 (owner request: "professional icon as you see on YouTube") — the standard Material
-     Design "screen rotation" glyph, the same family of icon YouTube's own rotate prompt uses. */
-  rotate:'<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M15.55 5.55 11 1v3.07C7.06 4.56 4 7.92 4 12c0 4.08 3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45ZM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02ZM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03Zm3.89-2.42 1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48Z"/></svg>',
   /* v24.28: Colour Mode and Equalizer tiles in the new Quick Settings bar */
   palette:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.75 1.6-1.68 0-.44-.17-.84-.44-1.13-.28-.29-.44-.66-.44-1.12a1.64 1.64 0 0 1 1.65-1.67h2c3 0 5.55-2.5 5.55-5.55C21.9 6 17.4 2 12 2z"/><circle cx="7" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="9.5" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="7" r="1.1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11" r="1.1" fill="currentColor" stroke="none"/></svg>',
   equalizer:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2.1" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="2.1" fill="currentColor" stroke="none"/></svg>',
@@ -8257,36 +8247,24 @@ function applyZoom(){
      applySubtitlePositions() for the actual compensation; it just needs re-running here since
      this is the one place --zk actually changes. */
   try{applySubtitlePositions()}catch(e){}
-  try{updateRotateBtn()}catch(e){}
+  try{updatePortraitFsUi()}catch(e){}
 }
 /* v25.26 (owner request, with a screenshot): fullscreen on a rotation-locked phone should show
-   ONLY the centered picture — everything else hidden — with an explicit button to ask the OS for
-   landscape on purpose. Unlike v25.21's reverted attempt, this lock only ever runs from a direct
-   tap on that button, never automatically just because fullscreen was entered — the owner was
-   clear that auto-forcing it fought the phone's own rotation lock (see the fs() note above); a
-   button the user chooses to press is a different thing entirely and orientation.lock() is
-   spec'd to work exactly for that inside an active fullscreen element. */
-function requestLandscapeRotate(){
-  try{
-    const so=screen.orientation;
-    if(so&&so.lock){so.lock('landscape').catch(()=>toast('Rotate your device to watch in landscape'));return;}
-  }catch(e){}
-  toast('Rotate your device to watch in landscape');
-}
-function unlockFsOrientation(){
-  try{const so=screen.orientation;if(so&&so.unlock)so.unlock();}catch(e){}
-}
-function updateRotateBtn(){
+   ONLY the centered picture — everything else hidden.
+   v25.29 (owner request: "the rotation button no need to appear") — the explicit rotate-to-
+   landscape button and its screen.orientation.lock() call (both added in v25.26) are removed;
+   this just tracks the "fullscreen + still portrait" state now, for the watermark reposition and
+   the exit button's own visibility (see their CSS). Physically turning the phone remains the way
+   to landscape here — real Fullscreen already reflows for that on its own, no JS needed. */
+function updatePortraitFsUi(){
   const box=$('playerBox');if(!box)return;
   box.classList.toggle('showRotate',anyFullscreen()&&window.innerWidth<=window.innerHeight);
 }
 /* v25.20: with the phone's rotation lock on, the OS never turns the page and iOS gives a web page
    no screen.orientation.lock(), so a locked portrait phone got a letterbox-thin fullscreen —
    turning the box itself, via .rot90, was the fix at the time.
-   v25.26 (owner request, with a screenshot): superseded. The owner now wants the OPPOSITE default
-   — a rotation-locked phone should show the plain, centered, still-PORTRAIT picture with
-   everything else hidden, and only actually go landscape from an explicit tap on the new rotate
-   button (requestLandscapeRotate()) or a real physical turn — never a CSS trick pretending to be
+   v25.26 (owner request, with a screenshot): superseded. The owner wants the plain, centered,
+   still-PORTRAIT picture with everything else hidden instead — never a CSS trick pretending to be
    landscape while the phone is still physically portrait. .rot90 is kept (still used if a future
    need for it comes back) but never turned on automatically any more; this function is now a
    no-op that always clears it. */
@@ -8307,7 +8285,6 @@ function setCssFullscreen(on){
   box.classList.toggle('cssFull',!!on);
   document.body.classList.toggle('cssFullOn',!!on);
   const b=$('fsBtn');if(b)b.innerHTML=on?ICONS.fsExit:ICONS.fsEnter;
-  if(!on)unlockFsOrientation();
   updateRotateFullscreen();   /* sets .rot90 first, so applyZoom measures the box's final shape */
   applyZoom();
   try{scanBars()}catch(e){}
@@ -12005,9 +11982,8 @@ const _resumeAfterFsExit=()=>{
   const v=$('video');
   if(v&&v.paused&&!v.ended&&v.currentTime>0&&Date.now()-_lastManualPauseAt>1200)v.play().catch(()=>{});
 };
-document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;if(!document.fullscreenElement)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
-document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');const real=document.fullscreenElement||document.webkitFullscreenElement;if(fsb)fsb.innerHTML=real?ICONS.fsExit:ICONS.fsEnter;if(!real)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
-if($('rotateBtn'))$('rotateBtn').onclick=requestLandscapeRotate;
+document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
+document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
 if($('exitFsBtn')){$('exitFsBtn').innerHTML=ICONS.close;$('exitFsBtn').onclick=fs;}
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab,.landRailBtn[data-tab],.dockBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
@@ -12067,7 +12043,6 @@ if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').cla
   if($('downloadBtn'))$('downloadBtn').innerHTML=ICONS.download;
   if(typeof updateDownloadsBadge==='function')updateDownloadsBadge();
   $('fsBtn').innerHTML=ICONS.fsEnter;
-  if($('rotateBtn'))$('rotateBtn').innerHTML=ICONS.rotate;
   $('menuBtn').innerHTML=ICONS.back;
   if($('pwToggle'))$('pwToggle').innerHTML=ICONS.eye;
   document.querySelectorAll('.versionBadge').forEach(e=>e.textContent='v'+APP_VERSION);
