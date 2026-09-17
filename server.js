@@ -10,7 +10,7 @@ const { handlePlaylist } = require('./worker-compat.js');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.7';
+const SERVER_BUILD = '14.8';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -985,7 +985,17 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'OPTIONS') return send(res, 204, '');
     if (!['GET', 'HEAD', 'POST'].includes(req.method)) return send(res, 405, 'Method not allowed');
     const u = new URL(req.url, `http://${req.headers.host}`);
- 
+    /* v25.35: this box can now be reached two ways — through _worker.js's /transcoder
+       pass-through (which already strips that prefix before forwarding), or directly, as
+       its own origin, when the app is deployed straight onto this Railway/Render service
+       with no Cloudflare Worker in front. Either way the APP always builds its default
+       transcoder URL as own-origin + '/transcoder' (see index.html DEFAULT_TRANSCODER) — a
+       prefix that only ever meant anything on the Worker side. Strip it here too, so a
+       request built for the Worker case still resolves when it lands here unprefixed,
+       instead of falling through to the static-file branch and 404ing on every /hls,
+       /proxy and /health call. */
+    if (/^\/transcoder(\/|$)/.test(u.pathname)) u.pathname = u.pathname.replace(/^\/transcoder/, '') || '/';
+
     if (u.pathname === '/api/playlist') {
       const chunks = [];
       for await (const c of req) chunks.push(c);
