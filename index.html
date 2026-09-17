@@ -935,6 +935,12 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
 .rotateBtn svg{width:23px;height:23px}
 .rotateBtn:active{transform:scale(.92)}
 .player.showRotate .rotateBtn{display:flex}
+/* v25.27 (owner request, with a marked-up screenshot): in this same portrait-centered-fullscreen
+   state, move the brand watermark from its usual bottom-left spot to top-left instead — the
+   bottom-left corner sits far below the actual picture here (all letterbox, per the subtitle fix
+   above), which is exactly the "wrong place" the owner circled. Scoped to .showRotate only:
+   everywhere else the watermark stays exactly where v19/v68 put it. */
+.player.showRotate .watermark{top:calc(14px + env(safe-area-inset-top));bottom:auto}
 /* v24.67: the MX-style brightness dial now lives on the same left edge the watermark sits on —
    fade the brand mark out whenever the control bar (and dial) is up so they never overlap, same
    as the rest of the chrome already does around .qsOpen. */
@@ -2214,7 +2220,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.26';
+const APP_VERSION='25.27';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2302,8 +2308,9 @@ const ICONS={
   quality:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
   /* v25.25: "Screen Fit" menu row (Fit/Fill/Stretch) — a rectangle with corner resize arrows. */
   aspect:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 15H6v-3"/><path d="M15 9h3v3"/></svg>',
-  /* v25.26: rotate-to-landscape button — a phone outline with a curved arrow around it. */
-  rotate:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="16" rx="2"/><path d="M19 9a7 7 0 0 1-11.3 5.5"/><polyline points="5 12 5.5 15 8.5 14.2"/></svg>',
+  /* v25.27 (owner request: "professional icon as you see on YouTube") — the standard Material
+     Design "screen rotation" glyph, the same family of icon YouTube's own rotate prompt uses. */
+  rotate:'<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M15.55 5.55 11 1v3.07C7.06 4.56 4 7.92 4 12c0 4.08 3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45ZM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02ZM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03Zm3.89-2.42 1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48Z"/></svg>',
   /* v24.28: Colour Mode and Equalizer tiles in the new Quick Settings bar */
   palette:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.75 1.6-1.68 0-.44-.17-.84-.44-1.13-.28-.29-.44-.66-.44-1.12a1.64 1.64 0 0 1 1.65-1.67h2c3 0 5.55-2.5 5.55-5.55C21.9 6 17.4 2 12 2z"/><circle cx="7" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="9.5" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="7" r="1.1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11" r="1.1" fill="currentColor" stroke="none"/></svg>',
   equalizer:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2.1" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="2.1" fill="currentColor" stroke="none"/></svg>',
@@ -8195,14 +8202,19 @@ function barZoomFactor(){
   if(!contentH)return 1;
   return Math.max(1,Math.min(1.35,ch/contentH));  /* never shrink, never crop half the picture away */
 }
+/* v25.22: 'fill'/'stretch' only make sense once the screen itself is actually landscape — see
+   the fs() note above. Cropping or distorting a 16:9 picture to a still-portrait box
+   (rotation-locked phone) just eats or warps most of the frame; centered/contain is correct
+   there regardless of which mode is saved. Shared by applyZoom() and the subtitle geometry fix
+   below, which both need to know whether the picture is letterboxed (fit) or fills the box
+   (fill/stretch) right now. */
+function currentZoomMode(){
+  const landscapeViewport=window.innerWidth>window.innerHeight;
+  return anyFullscreen()&&landscapeViewport?savedZoom():'fit';
+}
 function applyZoom(){
   const box=$('playerBox'),v=$('video');if(!box)return;
-  /* v25.22: 'fill'/'stretch' only make sense once the screen itself is actually landscape — see
-     the fs() note above. Cropping or distorting a 16:9 picture to a still-portrait box
-     (rotation-locked phone) just eats or warps most of the frame; centered/contain is correct
-     there regardless of which mode is saved. */
-  const landscapeViewport=window.innerWidth>window.innerHeight;
-  const mode=anyFullscreen()&&landscapeViewport?savedZoom():'fit';
+  const mode=currentZoomMode();
   const fill=mode==='fill';
   box.classList.toggle('zoomFill',fill);
   box.classList.toggle('zoomStretch',mode==='stretch');
@@ -8215,7 +8227,7 @@ function applyZoom(){
      applySubtitlePositions() for the actual compensation; it just needs re-running here since
      this is the one place --zk actually changes. */
   try{applySubtitlePositions()}catch(e){}
-  try{updateRotateBtn(landscapeViewport)}catch(e){}
+  try{updateRotateBtn()}catch(e){}
 }
 /* v25.26 (owner request, with a screenshot): fullscreen on a rotation-locked phone should show
    ONLY the centered picture — everything else hidden — with an explicit button to ask the OS for
@@ -8234,9 +8246,9 @@ function requestLandscapeRotate(){
 function unlockFsOrientation(){
   try{const so=screen.orientation;if(so&&so.unlock)so.unlock();}catch(e){}
 }
-function updateRotateBtn(landscapeViewport){
+function updateRotateBtn(){
   const box=$('playerBox');if(!box)return;
-  box.classList.toggle('showRotate',anyFullscreen()&&!landscapeViewport);
+  box.classList.toggle('showRotate',anyFullscreen()&&window.innerWidth<=window.innerHeight);
 }
 /* v25.20: with the phone's rotation lock on, the OS never turns the page and iOS gives a web page
    no screen.orientation.lock(), so a locked portrait phone got a letterbox-thin fullscreen —
@@ -12217,16 +12229,41 @@ function applySubtitleStyle(){
 function subtitleZoomFactor(){
   try{const v=$('video');const k=v&&parseFloat(v.style.getPropertyValue('--zk'));return (k&&isFinite(k)&&k>0)?k:1;}catch(e){return 1}
 }
+/* v25.27 (owner report, with a marked-up screenshot: "the subtitle should go up right below the
+   video — now it's way too low"). A fixed line=88 (the old constant here) is 88% of the VIDEO
+   ELEMENT'S own box — fine when the picture fills that box, wrong whenever it doesn't. The
+   portrait-centered fullscreen this app now has (v25.26) is exactly that case: a 16:9 picture
+   inside a much taller element, object-fit:contain letterboxing it top and bottom — so 88% of the
+   ELEMENT lands deep in the bottom black bar, nowhere near the actual picture, which is what the
+   screenshot showed. The fix has to know where the picture itself actually ends: given the
+   video's intrinsic aspect ratio and the element's own rendered box, contain-fit math gives the
+   picture's real bottom edge as a fraction of that box, and the cue goes just under it — a small
+   fixed gap, not a fixed fraction of the (possibly much taller) box. 'fill'/'stretch' modes have
+   no letterbox by definition (the picture already reaches every edge), so they keep the old
+   near-bottom constant. Recomputed fresh on every call rather than cached per-cue, since it has
+   to track the actual layout (resize, fullscreen toggle, screen-fit mode) — see applyZoom(),
+   which already calls this on exactly those changes. */
+function subtitleBaseLineFraction(){
+  const v=$('video');
+  if(!v||!v.videoWidth||!v.videoHeight||!v.clientWidth||!v.clientHeight)return 92;
+  if(currentZoomMode()!=='fit')return 92;                /* fill/stretch: picture fills the box */
+  const videoAspect=v.videoWidth/v.videoHeight,boxAspect=v.clientWidth/v.clientHeight;
+  if(videoAspect<=boxAspect)return 92;                    /* fits by height: no vertical letterbox */
+  const renderedH=v.clientWidth/videoAspect;
+  const pictureBottomFrac=(v.clientHeight-renderedH)/2/v.clientHeight+renderedH/v.clientHeight;
+  return Math.min(97,pictureBottomFrac*100+2.5);          /* just under the picture, small gap */
+}
 /* Re-applied on every cuechange (see wireSubtitleStyleTracking below) and every applyZoom(), so a
    cue that only just arrived — a live HLS caption, the next line of a VOD track, or the existing
-   cue after the zoom level changed — gets today's position setting instead of whatever the WebVTT
-   source itself declared. Reading .cues throws on a track whose mode is 'disabled' in some
+   cue after the zoom level or layout changed — gets today's position instead of whatever the
+   WebVTT source itself declared. Reading .cues throws on a track whose mode is 'disabled' in some
    engines, so a track is skipped rather than letting that stop the others (Off is Off; nothing to
    style there anyway). */
 function applySubtitlePositions(){
   const v=$('video');if(!v||!v.textTracks)return;
   const cfg=SUB_POS_CUE[savedSubStyle().pos]||SUB_POS_CUE.center;
   const k=subtitleZoomFactor();
+  const base=subtitleBaseLineFraction();
   for(let i=0;i<v.textTracks.length;i++){
     let cues=null;try{cues=v.textTracks[i].cues}catch(e){cues=null}
     if(!cues)continue;
@@ -12234,11 +12271,8 @@ function applySubtitlePositions(){
       const c=cues[j];
       try{if('align'in c)c.align=cfg.align;if('position'in c)c.position=cfg.position;}catch(e){}
       try{
-        if(c.line==='auto'){c.snapToLines=false;c._m26BaseLine=88;}
-        if(c._m26BaseLine!=null){
-          const wanted=c._m26BaseLine;
-          c.line=Math.max(0,Math.min(100,50+(wanted-50)/k));
-        }
+        if(c.line==='auto'){c.snapToLines=false;c._m26Managed=true;}
+        if(c._m26Managed)c.line=Math.max(0,Math.min(100,50+(base-50)/k));
       }catch(e){}
     }
   }
@@ -12253,6 +12287,10 @@ function wireSubtitleStyleTracking(){
   const wireTrack=tr=>{try{tr.addEventListener('cuechange',applySubtitlePositions)}catch(e){}};
   for(let i=0;i<v.textTracks.length;i++)wireTrack(v.textTracks[i]);
   try{v.textTracks.addEventListener('addtrack',e=>{wireTrack(e.track);applySubtitlePositions();})}catch(e){}
+  /* v25.27: subtitleBaseLineFraction() needs videoWidth/videoHeight, which aren't known until
+     this fires — without it, a subtitle that starts before that point stays on the 92% fallback
+     until the next unrelated re-render happens to call applySubtitlePositions() again. */
+  try{v.addEventListener('loadedmetadata',()=>{try{applySubtitlePositions()}catch(e){}})}catch(e){}
 }
 function pmClose(){const m=$('playerMenu');if(m)m.classList.add('hidden');syncQsOverlay();}
 function pmToggle(){const m=$('playerMenu');if(!m)return;if(m.classList.contains('hidden'))pmRoot(),m.classList.remove('hidden'),closeQMenu();else m.classList.add('hidden');syncQsOverlay();}
