@@ -535,46 +535,101 @@
     try { if (Engines[ctx.engine]) Engines[ctx.engine].stop(ctx); } catch (e) {}
   };
 
+  /* How many VOD candidates to probe at once (see advanceVodBatch below). Live TV never batches —
+     a provider's single-connection limit is least forgiving of an extra socket there, so it keeps
+     the original one-at-a-time probe. */
+  var VOD_PROBE_BATCH = 3;
+
   /* Take the next catalog entry, establish what it really is, and attach the right decoder.
      This is the heart of the player: evidence in, decoder out. */
   Machine.prototype.advance = function () {
     var self = this;
     if (!this.alive()) return;
 
-    var cand = this.candidates.shift();
-    if (!cand) return this.giveUp(this.reason);
+    var head = this.candidates[0];
+    if (!head) return this.giveUp(this.reason);
 
     /* The transcoder is not probed: it has to be woken and polled first. */
-    if (cand.transcode) return this.attach(cand, 'hlsjs', HLS);
+    if (head.transcode) { this.candidates.shift(); return this.attach(head, 'hlsjs', HLS); }
 
     /* Live with a working transport-stream decoder keeps the direct path. The format is not in
        doubt, it is the most latency-sensitive content there is, and it is where a provider's
        single-connection limit is least forgiving of an extra socket. */
-    var claimEngines = enginesFor(cand.claim, this.caps);
-    if (this.live && cand.claim === TS && this.caps.mpegts) return this.attach(cand, 'mpegts', TS);
+    if (this.live && head.claim === TS && this.caps.mpegts) { this.candidates.shift(); return this.attach(head, 'mpegts', TS); }
 
-    this.to('probing', cand.label);
-    probe(cand.url).then(function (r) {
-      if (!self.alive()) return;
+    /* v25.32 (mobile playback taking too long to start, owner report): on a slow or lossy mobile
+       connection, a dead candidate does not fail fast — it eats most of PROBE_BUDGET_MS (2.5s)
+       before advance() tries the next one, and a movie's catalog can easily hold half a dozen
+       addresses before the first one that actually answers. That tax used to be paid serially,
+       once per candidate, so three dead addresses in a row cost 7-plus seconds before anything
+       could start. VOD is not latency-sensitive about which SOCKET plays it the way live is (no
+       provider single-connection limit to respect — a movie is one viewer, one file), so its
+       leading candidates are probed CONCURRENTLY instead: whichever answers first with real
+       evidence is the one that plays, and the losers are put back at the front of the queue,
+       untouched, as the fallback order if the winner's decoder then refuses to start. Live TV is
+       completely unchanged — this block only runs for movies/series. */
+    if (!this.live && this.candidates.length > 1) return this.advanceVodBatch();
 
-      if (!r.ok) {
-        /* Hard evidence that this address is not usable: a 401/403/404, or a read this browser is
-           not permitted to make. Drop it now instead of spending a start budget on it. */
-        self.note(cand.label + ': ' + (r.error || 'unreachable'));
-        return self.advance();
-      }
-      var format = r.format !== UNKNOWN ? r.format : cand.claim;
-      var engines = enginesFor(format, self.caps);
-      if (!engines.length) {
-        self.note(cand.label + ': this device cannot decode ' + describe(format));
-        return self.advance();
-      }
-      /* Queue the remaining decoders for this same address as in-place alternatives, so a decoder
-         that refuses the stream does not cost us the address itself. */
-      for (var i = engines.length - 1; i >= 1; i--) self.candidates.unshift({ url: cand.url, claim: format, label: cand.label, forceEngine: engines[i], noProbe: true });
-      /* Give a single-connection panel a moment to release the probe's slot before the real read. */
-      setTimeout(function () { if (self.alive()) self.attach(cand, engines[0], format); }, SETTLE_MS);
+    this.candidates.shift();
+    this.to('probing', head.label);
+    probe(head.url).then(function (r) { self.settleProbe(head, r); });
+  };
+
+  /* Probe up to VOD_PROBE_BATCH leading candidates in parallel; attach on the first that answers
+     with usable evidence. Candidates that lose the race (or never finish before the winner does)
+     go back to the front of the queue in their original order — nothing is discarded, so a losing
+     candidate is still tried again, on its own, if the winner's decoder fails to start. */
+  Machine.prototype.advanceVodBatch = function () {
+    var self = this;
+    var batch = this.candidates.splice(0, Math.min(VOD_PROBE_BATCH, this.candidates.length));
+    this.to('probing', batch[0] && batch[0].label);
+    var settled = false;
+    var remaining = batch.length;
+    batch.forEach(function (cand) {
+      probe(cand.url).then(function (r) {
+        remaining--;
+        if (!self.alive()) return;
+        if (settled) return; /* a faster candidate in this same batch already won */
+        if (r.ok) {
+          settled = true;
+          /* Put back whichever of this batch have not answered yet (or answered but lost the
+             race) — same relative order, still first in line if this attempt does not pan out. */
+          var leftovers = batch.filter(function (c) { return c !== cand; });
+          self.candidates = leftovers.concat(self.candidates);
+          return self.settleProbe(cand, r, true);
+        }
+        if (remaining === 0) {
+          /* Every candidate in this batch failed — none of them are coming back, so just move on
+             to whatever is next in the queue (which advance() will batch again if there's more). */
+          self.note(cand.label + ': ' + (r.error || 'unreachable'));
+          self.advance();
+        }
+      });
     });
+  };
+
+  /* Shared tail of both the single-candidate and the batched VOD path: evidence in, decoder out. */
+  Machine.prototype.settleProbe = function (cand, r, fromBatch) {
+    var self = this;
+    if (!this.alive()) return;
+
+    if (!r.ok) {
+      /* Hard evidence that this address is not usable: a 401/403/404, or a read this browser is
+         not permitted to make. Drop it now instead of spending a start budget on it. */
+      this.note(cand.label + ': ' + (r.error || 'unreachable'));
+      return this.advance();
+    }
+    var format = r.format !== UNKNOWN ? r.format : cand.claim;
+    var engines = enginesFor(format, this.caps);
+    if (!engines.length) {
+      this.note(cand.label + ': this device cannot decode ' + describe(format));
+      return this.advance();
+    }
+    /* Queue the remaining decoders for this same address as in-place alternatives, so a decoder
+       that refuses the stream does not cost us the address itself. */
+    for (var i = engines.length - 1; i >= 1; i--) this.candidates.unshift({ url: cand.url, claim: format, label: cand.label, forceEngine: engines[i], noProbe: true });
+    /* Give a single-connection panel a moment to release the probe's slot before the real read. */
+    setTimeout(function () { if (self.alive()) self.attach(cand, engines[0], format); }, SETTLE_MS);
   };
 
   /* v25.29: see the note in recover() — restores sound the viewer already had on, once the next
