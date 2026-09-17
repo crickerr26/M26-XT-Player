@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
+const { handlePlaylist } = require('./worker-compat.js');
 
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
@@ -357,7 +358,7 @@ const staticMime = {
   '.webp': 'image/webp',
   '.ico': 'image/x-icon'
 };
-const STATIC_ALLOW = new Set(['index.html', 'admin.html', 'hls.min.js', 'mpegts.min.js', 'mkv.js', 'portal.js', 'Logo.png', 'favicon.ico', 'manifest.json', 'image_482ee8.png', 'sw.js']);
+const STATIC_ALLOW = new Set(['index.html', 'admin.html', 'hls.min.js', 'mpegts.min.js', 'mkv.js', 'portal.js', 'm26player2.js', 'yezplayer.js', 'main.js', 'logo.png', 'Logo.png', 'favicon.ico', 'manifest.json', 'image_482ee8.png', 'sw.js', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'apple-touch-icon.png']);
  
 function send(res, status, body, headers = {}) {
   res.writeHead(status, {
@@ -975,7 +976,7 @@ function relayFetch(target, req, res, hops) {
     if (!res.headersSent) return json(res, 502, { error: 'Upstream fetch failed: ' + err.message });
     res.destroy();
   });
-  if (req && typeof req.on === 'function') req.on('close', () => upstream.destroy());
+  req.on('close', () => upstream.destroy());
   upstream.end();
 }
 
@@ -985,6 +986,23 @@ const server = http.createServer(async (req, res) => {
     if (!['GET', 'HEAD', 'POST'].includes(req.method)) return send(res, 405, 'Method not allowed');
     const u = new URL(req.url, `http://${req.headers.host}`);
  
+    if (u.pathname === '/api/playlist') {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const bodyStr = Buffer.concat(chunks).toString('utf8');
+      const wreq = new Request(requestBaseUrl(req) + req.url, {
+        method: req.method,
+        headers: req.headers,
+        body: req.method === 'POST' ? bodyStr : undefined
+      });
+      const wres = await handlePlaylist(wreq, { TRANSCODER_ORIGIN: 'http://127.0.0.1:' + PORT });
+      const buf = Buffer.from(await wres.arrayBuffer());
+      const outHeaders = {};
+      wres.headers.forEach((v, k) => { outHeaders[k] = v; });
+      res.writeHead(wres.status, outHeaders);
+      return res.end(buf);
+    }
+
     // --- LICENSING & ADMIN API ROUTES (Upstash-backed activation codes) ---
     if (u.pathname.startsWith('/api/')) {
       if (req.method !== 'POST' && req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
