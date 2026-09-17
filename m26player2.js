@@ -577,6 +577,15 @@
     });
   };
 
+  /* v25.29: see the note in recover() — restores sound the viewer already had on, once the next
+     attach actually reaches 'playing', instead of leaving it wherever run()'s autoplay-muted
+     fallback happened to land it. One-shot and self-removing; harmless if 'playing' never comes
+     (the attempt failed for some other reason and recover()/advance() will run again anyway). */
+  function restoreSoundOnceMore(v) {
+    var un = function () { v.muted = false; v.removeEventListener('playing', un); };
+    v.addEventListener('playing', un);
+  }
+
   function describe(f) {
     return f === HLS ? 'this HLS stream' : f === TS ? 'a raw transport stream'
          : f === MKV ? 'Matroska video' : f === MP4 ? 'this MP4' : f === 'hard' ? 'this container' : 'this stream';
@@ -672,9 +681,24 @@
     if (now - this.lastRecovery < 3000) return;
     this.drops = this.drops.filter(function (t) { return now - t < 60000; });
     this.drops.push(now);
+    /* v25.29 (owner report: "sound goes back to muted on its own, until I manually unmute again").
+       Every recovery below re-attaches the SAME video element and calls v.play() fresh — exactly
+       the code path in run() that falls back to v.muted=true whenever the browser refuses this
+       particular play() call for lacking a user gesture, which a background reconnect never has.
+       That fallback is correct for the FIRST attempt (nothing has played yet, muted-then-armUnmute
+       is how this app gets ANY autoplay to start at all) — but a recovery is not a first attempt:
+       the viewer may already have had sound on for the last twenty minutes when one micro-drop
+       silently threw it away and left them to notice and re-fix it, repeatedly, on a route that
+       drops often. Muting an already-unmuted video requires no gesture in the other direction
+       either: unlike calling play() unmuted, setting .muted back to false on an element already
+       flowing audio is not something autoplay policy gates, so once the new attempt reaches
+       'playing' this just restores exactly the state the viewer had a moment ago — a no-op if the
+       browser happens to keep it unmuted on its own, never a fight with a real policy block. */
+    var wantSound = !v.muted;
     if (this.drops.length >= (this.live ? 2 : 3) && this.candidates.length) {
       this.drops = []; this.recoveries = 0; this.lastRecovery = now; this.lastProgress = now;
       this.to('switching');
+      if (wantSound) restoreSoundOnceMore(v);
       return this.advance();
     }
     if (this.recoveries >= 40) return this.giveUp('the stream kept dropping');
@@ -682,6 +706,7 @@
     this.to('recovering');
     var keep = (!this.live && v.currentTime > 0) ? v.currentTime : 0;
     var cur = this.current;
+    if (wantSound) restoreSoundOnceMore(v);
     this.attach(cur.cand, cur.engine, cur.format);
     if (keep > 0) {
       var restore = function () { try { v.currentTime = keep; } catch (e) {} v.removeEventListener('loadedmetadata', restore); };
