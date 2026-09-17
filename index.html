@@ -252,22 +252,37 @@ body.light{--shadow:0 20px 48px rgba(27,39,62,.14)}
 @media(min-width:620px){.infoSheet{align-items:center}.infoPanel{border-radius:22px;max-height:86vh}}
 .resumePanel{max-width:520px}.resumeBody{display:grid;gap:10px;padding:12px}.resumeTitle{font-size:14px;color:var(--muted);line-height:1.35;overflow-wrap:anywhere}.resumeActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.resumeActions .pillbtn{height:46px}.resumeActions .primary{font-weight:900}@media(max-width:520px){.resumeActions{grid-template-columns:1fr}.resumeActions .pillbtn{height:48px}}
 .infoClose{position:absolute;top:12px;right:12px;z-index:4;width:38px;height:38px;border-radius:50%;background:rgba(0,0,0,.5);color:#fff;font-size:22px;line-height:1;display:grid;place-items:center;-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
-.infoHero{position:relative;padding:20px 18px;display:flex;gap:16px;align-items:flex-end;min-height:186px;overflow:hidden;border-radius:22px 22px 0 0}
-.infoHeroBg{position:absolute;inset:0;background-size:cover;background-position:center 20%;filter:blur(3px) brightness(.5);transform:scale(1.1)}
-.infoHero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,17,31,.15),rgba(9,17,31,.55) 55%,var(--panel))}
-.infoPoster{position:relative;z-index:2;width:98px;height:147px;object-fit:cover;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.55);background:var(--panel2);flex-shrink:0}
-.infoHeroText{position:relative;z-index:2;min-width:0;flex:1;padding-bottom:2px}
-.infoHeroText h3{font-size:20px;font-weight:900;line-height:1.16;color:#fff;text-shadow:0 2px 10px rgba(0,0,0,.55);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.infoChips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
-.infoChip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.18);color:#fff;font-size:11.5px;font-weight:800;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
-.infoChip.rating{background:rgba(251,191,36,.26);color:#fde68a}
+/* v25.23 (owner-supplied reference screenshot, cinejoy.pk): redesigned to a full-width backdrop
+   hero with the title/genre overlaid at its bottom, a prominent Play pill plus the row's existing
+   external-player/save-offline icon buttons right below it, then a plain metadata chip row
+   (year/duration/quality/rating) — matching the reference's layout using only data this app
+   actually has (no fabricated certification or up/down-vote counts: there is no such field in an
+   M3U/Stalker entry, and rowPlayerButtons()/paintInfoFav() below are the SAME functions and state
+   every other row already uses, not new one-off logic). */
+.infoHero{position:relative;height:46vw;min-height:280px;max-height:380px;overflow:hidden;border-radius:22px 22px 0 0}
+.infoHeroBg{position:absolute;inset:0;background-size:cover;background-position:center 18%}
+.infoHero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(9,17,31,0) 36%,rgba(9,17,31,.62) 74%,var(--panel) 100%)}
+.infoHeroText{position:absolute;left:18px;right:18px;bottom:16px;z-index:2}
+.infoHeroText h3{margin:0;font-size:23px;font-weight:900;line-height:1.18;color:#fff;text-shadow:0 2px 12px rgba(0,0,0,.6);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.infoGenreLine{margin-top:6px;font-size:12.5px;font-weight:800;letter-spacing:.2px;color:rgba(255,255,255,.88);text-shadow:0 1px 6px rgba(0,0,0,.55)}
+.infoChips{display:flex;flex-wrap:wrap;gap:6px;padding:14px 18px 0}
+.infoChip{display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 10px;border-radius:999px;background:var(--panel2);border:1px solid var(--line);color:var(--soft);font-size:11.5px;font-weight:800}
+.infoChip.rating{background:rgba(251,191,36,.16);border-color:rgba(251,191,36,.4);color:#f5b301}
+body.light .infoChip.rating{color:#92400e}
+.infoChip.quality{background:rgba(56,189,248,.14);border-color:rgba(56,189,248,.4);color:#0aa5e6}
+.infoActionRow{display:flex;align-items:center;gap:10px;padding:14px 18px 4px}
+.infoPlayBtn{flex:1;height:46px;border-radius:999px;background:linear-gradient(135deg,var(--blue),var(--green));color:#04111e;font-weight:900;font-size:14.5px;display:flex;align-items:center;justify-content:center;gap:8px;border:0}
+.infoPlayBtn svg{width:16px;height:16px;flex:none}
+.infoPlayBtn:active{transform:scale(.97)}
+.infoQpRow{display:flex;align-items:center;gap:8px;flex:none}
+.infoQpRow .qp{width:44px;height:44px;min-width:44px;border-radius:50%;padding:0}
+.qp-fav{background:linear-gradient(135deg,#64748b,#475569)}
+.qp-fav.on{background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#3f2d00}
 .infoBody{padding:14px 18px 4px}
 .infoRow{display:flex;gap:12px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
 .infoLabel{flex-shrink:0;width:66px;color:var(--muted);font-weight:800}
 .infoVal{flex:1;min-width:0;color:var(--soft);font-weight:600}
-.infoPlot{margin-top:12px;font-size:13.5px;line-height:1.55;color:var(--soft)}
-.infoActions{position:sticky;bottom:0;display:grid;grid-template-columns:1fr auto;gap:8px;padding:14px 18px calc(16px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,var(--panel) 34%)}
-.infoActions .pillbtn{height:46px;justify-content:center}
+.infoPlot{margin-top:12px;font-size:13.5px;line-height:1.55;color:var(--soft);padding-bottom:calc(16px + env(safe-area-inset-bottom))}
 .nowRight{display:flex;align-items:center;gap:10px}
 .sortToggle{width:40px;height:36px;border-radius:11px;background:var(--panel2);border:1px solid var(--line);color:var(--soft);display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
 .sortToggle svg{width:19px;height:19px}
@@ -1777,21 +1792,20 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <button class="infoClose" id="infoClose" aria-label="Close">&times;</button>
     <div class="infoHero">
       <div class="infoHeroBg" id="infoHeroBg"></div>
-      <img class="infoPoster" id="infoPoster" alt="" onerror="this.style.visibility='hidden'">
       <div class="infoHeroText">
         <h3 id="infoTitleTxt">Title</h3>
-        <div class="infoChips" id="infoChips"></div>
+        <div class="infoGenreLine" id="infoGenreLine"></div>
       </div>
+    </div>
+    <div class="infoChips" id="infoChips"></div>
+    <div class="infoActionRow">
+      <button class="infoPlayBtn" id="infoPlay" type="button"></button>
+      <div class="infoQpRow" id="infoQpRow"></div>
     </div>
     <div class="infoBody">
       <div class="infoRow" id="infoDirectorRow"><span class="infoLabel">Director</span><span class="infoVal" id="infoDirector">—</span></div>
       <div class="infoRow" id="infoCastRow"><span class="infoLabel">Cast</span><span class="infoVal" id="infoCast">—</span></div>
-      <div class="infoRow" id="infoGenreRow"><span class="infoLabel">Genre</span><span class="infoVal" id="infoGenre">—</span></div>
       <p class="infoPlot" id="infoPlot"></p>
-    </div>
-    <div class="infoActions">
-      <button class="pillbtn primary" id="infoPlay">Play</button>
-      <button class="pillbtn" id="infoCancel">Close</button>
     </div>
   </div>
 </div>
@@ -2150,7 +2164,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.22';
+const APP_VERSION='25.23';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -5002,36 +5016,53 @@ function _pick(o,keys){for(const k of keys){const v=o&&o[k];if(v!=null&&String(v
 function _infoYear(o){const d=_pick(o,['releasedate','releaseDate','release_date','year','added']);const m=String(d).match(/\d{4}/);return m?m[0]:''}
 function _infoRating(o){const r=_pick(o,['rating']);const r5=_pick(o,['rating_5based']);let v=r?parseFloat(r):(r5?parseFloat(r5)*2:0);if(!v||isNaN(v)||v<=0)return '';return (Math.round(v*10)/10).toFixed(1)}
 function _infoDuration(o){const d=_pick(o,['duration','episode_run_time','runtime']);if(!d)return '';if(/^\d+$/.test(d)){const n=Number(d);return n>0?(n>=60?Math.floor(n/60)+'h '+(n%60)+'m':n+' min'):''}const m=String(d).match(/\d{1,2}:\d{2}:\d{2}/);return m?m[0]:d}
+/* v25.23: favorite star inside the info sheet, kept in sync with the SAME S.favs set every card's
+   star already uses — it just also has to repaint itself, since renderAll() (what every other
+   [data-fav] tap triggers) only re-renders the grid/category list, not this sheet. */
+function paintInfoFav(key){
+  const b=$('infoFavBtn');if(!b)return;
+  const on=!!key&&S.favs.has(key);
+  b.classList.toggle('on',on);
+  b.textContent=on?'★':'☆';
+  b.title=on?'Remove from My List':'Add to My List';
+  b.setAttribute('aria-label',b.title);
+  b.onclick=()=>{if(!key)return;S.favs.has(key)?S.favs.delete(key):S.favs.add(key);saveFavs();paintInfoFav(key);renderAll();};
+}
 async function openInfo(x){
   const type=typeOf(x);
   if(type==='live'){playItem(x);return;}
   _infoItem=x;
-  const poster=logoOf(x);
-  const setBg=u=>{$('infoHeroBg').style.backgroundImage=u?`url("${String(u).replace(/["\\]/g,'')}")`:'none'};
-  $('infoPoster').style.visibility=poster?'':'hidden';$('infoPoster').src=poster||'';setBg(poster);
-  $('infoTitleTxt').textContent=nameOf(x);
-  $('infoChips').innerHTML='<span class="infoChip">'+(type==='series'?'Series':'Movie')+'</span>';
-  ['infoDirectorRow','infoCastRow','infoGenreRow'].forEach(id=>{if($(id))$(id).style.display='none'});
-  $('infoPlay').textContent=type==='series'?'View Episodes':'Play';
   $('infoSheet').classList.add('show');
   /* No separate metadata endpoint to call (that was Xtream's get_vod_info/get_series_info) — the
      item itself is the only source, so render straight from it with no network round trip. */
   renderInfo(x,x,type);
 }
 function renderInfo(x,info,type){
+  const key=keyOf(x);
   const poster=_pick(info,['movie_image','cover_big','cover','backdrop_path'])||logoOf(x);
-  if(poster){$('infoPoster').style.visibility='';$('infoPoster').src=poster;$('infoHeroBg').style.backgroundImage=`url("${String(poster).replace(/["\\]/g,'')}")`;}
-  const chips=['<span class="infoChip">'+(type==='series'?'Series':'Movie')+'</span>'];
+  $('infoHeroBg').style.backgroundImage=poster?`url("${String(poster).replace(/["\\]/g,'')}")`:'none';
+  $('infoTitleTxt').textContent=nameOf(x);
+  const genre=_pick(info,['genre']);
+  const genreLine=$('infoGenreLine');
+  genreLine.textContent=genre.replace(/\s*[,/|]\s*/g,' • ');
+  genreLine.style.display=genre?'':'none';
+  const chips=[];
   const yr=_infoYear(info);if(yr)chips.push('<span class="infoChip">'+esc(yr)+'</span>');
-  const rt=_infoRating(info);if(rt)chips.push('<span class="infoChip rating">★ '+esc(rt)+'</span>');
   const du=_infoDuration(info);if(du)chips.push('<span class="infoChip">'+esc(du)+'</span>');
+  if(looks4k(x))chips.push('<span class="infoChip quality">4K</span>');
+  const rt=_infoRating(info);if(rt)chips.push('<span class="infoChip rating">★ '+esc(rt)+'</span>');
   $('infoChips').innerHTML=chips.join('');
   const setRow=(rowId,valId,val)=>{const v=String(val||'').trim();if($(valId))$(valId).textContent=v;if($(rowId))$(rowId).style.display=v?'':'none';};
   setRow('infoDirectorRow','infoDirector',_pick(info,['director']));
   setRow('infoCastRow','infoCast',_pick(info,['cast','actors']));
-  setRow('infoGenreRow','infoGenre',_pick(info,['genre']));
   const plot=_pick(info,['plot','description','overview','storyline']);
   $('infoPlot').textContent=plot||'No description available for this title.';
+  $('infoPlay').innerHTML=ICONS.play+'<span>'+(type==='series'?'View Episodes':'Play')+'</span>';
+  /* v25.23: the SAME rowPlayerButtons() every Movies row already builds its VLC/save-offline
+     buttons from — series gets none here for the same reason a series ROW gets none: the per-
+     stream buttons belong on the episode, not the show (see rowPlayerButtons' own note). */
+  $('infoQpRow').innerHTML='<button class="qp qp-fav" id="infoFavBtn" type="button"></button>'+rowPlayerButtons(key,type==='series'?'series':'vod');
+  paintInfoFav(key);
 }
 /* v15.6: an Xtream stream URL can only be built when the session actually HAS an Xtream username
    and password. A MAG/Stalker session (adoptStalkerSession) and a playlist session
@@ -11854,7 +11885,6 @@ $('search').oninput=e=>{const v=e.target.value;clearTimeout(_searchDebounce);_se
   const pl=e.target.closest('[data-play]');if(pl){e.stopPropagation();const x=findByKey(pl.dataset.key);if(x){if(pl.dataset.play==='basic'&&S.dlKeys&&S.dlKeys.has(pl.dataset.key)){playDownloadedByKey(pl.dataset.key);return}routePlayback(x,pl.dataset.play,false);}return}const fav=e.target.closest('[data-fav]');if(fav){e.stopPropagation();const k=fav.dataset.fav;S.favs.has(k)?S.favs.delete(k):S.favs.add(k);saveFavs();renderAll();return}const c=e.target.closest('.card');if(c){const x=findByKey(c.dataset.key);if(!x)return;/* v3.5: tapping the POSTER opens the details popup (movies/series); the name still plays */if(e.target.closest('.poster')&&typeOf(x)!=='live'){openInfo(x);return}const now=Date.now(),dbl=lastCardTap.key===c.dataset.key&&now-lastCardTap.time<520;lastCardTap={key:c.dataset.key,time:now};if(dbl){fs();return}/* v24.76 (owner report: tapping a downloaded title still tried the network and the customer saw it as "getting logged out" instead of playing): a title already saved offline plays straight from that local copy — no connection, no panel, nothing that can fail that way. */if(S.dlKeys&&S.dlKeys.has(c.dataset.key)){playDownloadedByKey(c.dataset.key);return}playItem(x)}};
 if($('sortToggle'))$('sortToggle').onclick=()=>toggleSortMode();
 if($('infoClose'))$('infoClose').onclick=()=>$('infoSheet').classList.remove('show');
-if($('infoCancel'))$('infoCancel').onclick=()=>$('infoSheet').classList.remove('show');
 if($('infoSheet'))$('infoSheet').onclick=e=>{if(e.target.id==='infoSheet')$('infoSheet').classList.remove('show')};
 if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').classList.remove('show');if(x)playItem(x)};
 /* FIX: anti-loop guard v3 — handles ONLY genuine timeline resets (backward snap >3s).
