@@ -2227,7 +2227,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.30';
+const APP_VERSION='25.31';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -9540,7 +9540,7 @@ if($('loginPairBtn'))$('loginPairBtn').onclick=()=>openPairSheet('');
    The customer gets an 8-digit code, sends it to the admin on WhatsApp, and the admin binds the
    real IPTV login to that code on the server. The app then polls and logs in silently — the
    customer never sees the username/password. Same code works on up to the server's device limit. */
-function licenseBase(){try{if(/^https?:$/.test(location.protocol))return DEFAULT_LICENSE_HOME+'/transcoder';const b=(typeof transcoderBase==='function'&&transcoderBase())||DEFAULT_TRANSCODER;return String(b||'').replace(/\/+$/,'');}catch(e){return DEFAULT_LICENSE_HOME+'/transcoder';}}
+function licenseBase(){try{if(/^https?:$/.test(location.protocol))return location.origin;const b=(typeof transcoderBase==='function'&&transcoderBase())||DEFAULT_TRANSCODER;return String(b||'').replace(/\/+$/,'');}catch(e){return DEFAULT_LICENSE_HOME+'/transcoder';}}
 function deviceUid(){
   let id;try{id=localStorage.getItem('m26_did');}catch(e){}
   if(!id){
