@@ -141,7 +141,9 @@ body.light .bottomDock{background:rgba(255,255,255,.92);border-color:rgba(20,50,
 .dockBtn.active{background:rgba(255,255,255,.16);color:#fff}
 body.light .dockBtn{color:rgba(20,32,51,.55)}
 body.light .dockBtn.active{background:rgba(20,50,90,.1);color:#142033}
-@media(max-width:760px){#login.hidden ~ .bottomDock{display:flex}}
+/* v25.36 (owner request): the floating quick-nav pill over the list is gone — .bottomDock
+   stays display:none (its default above) on every width now. The element and its JS handlers
+   are untouched in case it's wanted back; this is the one line that ever turned it on. */
 /* v60: proper landscape layout for phones/short screens. The old rule keyed on max-width:760px,
    which never matches in landscape (the width is > 760), so landscape fell back to the cramped
    desktop layout. Key on height instead.
@@ -2227,7 +2229,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.34';
+const APP_VERSION='25.35';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
