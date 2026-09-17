@@ -463,12 +463,15 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .mxSideSlider.mxVolume{right:14px}
 /* v24.92 (owner request: these two dials floating over the picture "disturbed the visual"): the
    brightness dial has no other control anywhere in the app, so it's hidden outright. The volume
-   dial's drag slider is hidden too, but its icon (#muteBtn) stays — that's the ONLY mute/unmute
-   control in the whole app (see its click handlers elsewhere), so removing it along with the
-   slider would have silently taken away the ability to mute, which wasn't asked for. */
-.mxSideSlider.mxBrightness{display:none}
-.mxSideSlider.mxVolume{height:auto;gap:0}
-.mxSideSlider.mxVolume .mxVSlider{display:none}
+   dial's drag slider was hidden too, but its icon (#muteBtn) stayed, since it was the only
+   mute/unmute control in the app.
+   v25.26 (owner request: "remove the sound icon" — see the screenshot, floating mid-picture with
+   no slider under it, same visual complaint v24.92 already made about the OTHER dial): now hidden
+   outright too, for the same reason. This time the mute control doesn't just disappear — it moves
+   into the "…" player menu (see the 'Sound' row pmRoot() adds), the same relocation this app
+   already used for Download in v24.67 when something needed off the video surface but the
+   capability itself still needed to exist somewhere. */
+.mxSideSlider.mxBrightness,.mxSideSlider.mxVolume{display:none}
 .mxSliderIcon{background:none;color:#fff;width:22px;height:22px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
 .mxSliderIcon svg{width:20px;height:20px;display:block}
 .mxVSlider{-webkit-appearance:none;appearance:none;width:130px;height:4px;border-radius:4px;background:rgba(255,255,255,.32);outline:none;cursor:pointer;transform:rotate(-90deg)}
@@ -924,6 +927,14 @@ body.light .cp-count{color:#22539c;background:rgba(20,50,90,.07);border-color:rg
    on the preview/idle box, while playing, and in fullscreen. So the base opacity is now
    visible (not 0); it never fully hides while an item is open. */
 .watermark{position:absolute;left:14px;bottom:92px;width:clamp(46px,7%,84px);height:auto;opacity:.5;pointer-events:none;user-select:none;z-index:4;filter:drop-shadow(0 2px 8px rgba(0,0,0,.55));transition:opacity .4s ease}
+/* v25.26: rotate-to-landscape button. Only ever shown while fullscreen AND still portrait — see
+   updateRotateBtn() — so it appears exactly where the owner's screenshot asked for it: on the
+   plain, everything-else-hidden centered picture, as the one way back to landscape besides
+   physically turning the phone. */
+.rotateBtn{display:none;position:absolute;right:16px;bottom:calc(16px + env(safe-area-inset-bottom));z-index:8;width:46px;height:46px;border-radius:50%;align-items:center;justify-content:center;background:rgba(10,14,22,.62);color:#fff;border:1px solid rgba(255,255,255,.22);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-shadow:0 8px 22px rgba(0,0,0,.45)}
+.rotateBtn svg{width:23px;height:23px}
+.rotateBtn:active{transform:scale(.92)}
+.player.showRotate .rotateBtn{display:flex}
 /* v24.67: the MX-style brightness dial now lives on the same left edge the watermark sits on —
    fade the brand mark out whenever the control bar (and dial) is up so they never overlap, same
    as the rest of the chrome already does around .qsOpen. */
@@ -1537,6 +1548,12 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           <div class="qMenu hidden" id="qMenu" role="menu" aria-label="Quality"></div>
           <div class="playerMenu hidden" id="playerMenu" role="menu" aria-label="Player settings"></div>
         </div>
+        <!-- v25.26 (owner request, with a screenshot: fullscreen on a rotation-locked phone should
+             show ONLY the centered picture, everything else hidden, with a rotate button to ask for
+             landscape on purpose). Sits as a sibling of .playerbar (not inside it) so it stays on
+             screen exactly like the watermark does — .playerbar's own opacity fade for the rest of
+             the chrome never touches it. Shown/hidden by updateRotateBtn() (see applyZoom()). -->
+        <button class="rotateBtn" id="rotateBtn" type="button" title="Rotate to landscape" aria-label="Rotate to landscape"></button>
       </section>
       <!-- v25.11: landscape-only "now playing" strip under the player — title, favorite toggle
            and TV Guide, kept in sync from setCurrentItem/renderAll via paintLandNowPlaying(). -->
@@ -2197,7 +2214,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.25';
+const APP_VERSION='25.26';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2285,6 +2302,8 @@ const ICONS={
   quality:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
   /* v25.25: "Screen Fit" menu row (Fit/Fill/Stretch) — a rectangle with corner resize arrows. */
   aspect:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 15H6v-3"/><path d="M15 9h3v3"/></svg>',
+  /* v25.26: rotate-to-landscape button — a phone outline with a curved arrow around it. */
+  rotate:'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="16" rx="2"/><path d="M19 9a7 7 0 0 1-11.3 5.5"/><polyline points="5 12 5.5 15 8.5 14.2"/></svg>',
   /* v24.28: Colour Mode and Equalizer tiles in the new Quick Settings bar */
   palette:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.75 1.6-1.68 0-.44-.17-.84-.44-1.13-.28-.29-.44-.66-.44-1.12a1.64 1.64 0 0 1 1.65-1.67h2c3 0 5.55-2.5 5.55-5.55C21.9 6 17.4 2 12 2z"/><circle cx="7" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="9.5" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="7" r="1.1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11" r="1.1" fill="currentColor" stroke="none"/></svg>',
   equalizer:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2.1" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="2.1" fill="currentColor" stroke="none"/></svg>',
@@ -2736,7 +2755,11 @@ function restore(){try{const c=JSON.parse(store.getItem(KEY)||'null');if(c){$('u
    goes unnoticed — and it pins every /transcoder request, and the MAG handshake's relay routes, to
    a worker build frozen at whatever that commit was, until the preview is reaped and it 404s
    forever. A workers.dev transcoder is always meant to be this app's OWN origin, so any other
-   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}try{const qv=store.getItem(VQUAL_KEY)||'auto';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'auto'}catch{}try{S.viewModes={live:'list',vod:'list',series:'list'};store.setItem(VIEWMODE_KEY,JSON.stringify(S.viewModes))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
+   workers.dev host is stale by definition: drop it and take the current one. */try{const _t=new URL(saved,location.href);if(/\.workers\.dev$/i.test(_t.hostname)&&_t.host!==location.host)saved=DEFAULT_TRANSCODER;}catch(e){}saved=normalizeTranscoder(saved)||DEFAULT_TRANSCODER;if(saved){$('transcoderUrl').value=saved;store.setItem(TRANSCODER_KEY,saved)}const tok=qt||store.getItem(TRANSCODER_TOKEN_KEY)||'';if(tok){$('transcoderToken').value=tok;store.setItem(TRANSCODER_TOKEN_KEY,tok)}}catch{}try{S.playerModes=Object.assign({live:'auto',vod:'auto',series:'auto'},JSON.parse(store.getItem(PLAYER_MODE_KEY)||'{}'))}catch{}/* v25.26 (owner request: "maximum quality, crystal clear"): default changed from 'auto' (which
+   qualityProfile() maps to a capped hd1080 transcoder profile) to 'original' (no cap at all) —
+   still just the STARTING value for a first run; a device that already saved its own choice in
+   Stream Tools keeps it untouched either way. */
+try{const qv=store.getItem(VQUAL_KEY)||'original';S.quality=/^(auto|1080|720|original)$/.test(qv)?qv:'original'}catch{}try{S.viewModes={live:'list',vod:'list',series:'list'};store.setItem(VIEWMODE_KEY,JSON.stringify(S.viewModes))}catch{}try{S.sortModes=Object.assign({vod:'default',series:'default'},JSON.parse(store.getItem(SORTMODE_KEY)||'{}'))}catch{}}
 function saveFavs(){store.setItem(FAV,JSON.stringify([...S.favs]))}
 function saveFavCats(){store.setItem(FAVCAT,JSON.stringify([...S.favCats]))}
 function saveHiddenCats(){try{store.setItem(HIDCAT,JSON.stringify([...S.hiddenCats]))}catch(e){}}
@@ -6262,10 +6285,14 @@ function mkvEngineStatus(){
 function global_mkvReady(){try{return !!(window.Media26Mkv&&window.Media26Mkv.supported())}catch(e){return false}}
 function forceMobileSmoothLevel(hls){
   /* v3: FULL ABR on every device — no more 720p pin blocking 4K on mobile.
-     capLevelToPlayerSize (set in config) already prevents wasting bandwidth on
-     resolutions the screen can't show; in fullscreen the cap lifts automatically
-     and ABR climbs to the top level (including 4K) if bandwidth allows.
-     Start one level below the current estimate for instant startup, then let ABR climb. */
+     v25.26 (owner request: "maximum quality, crystal clear"): capLevelToPlayerSize is now off
+     (see the Hls(...) config below) rather than relied on here — it used to cap the selectable
+     level to the PLAYER ELEMENT's own rendered pixel size, which is a bandwidth-saving trade-off
+     ("why decode 4K into a 300px-tall preview box") the owner has now explicitly asked to give
+     up in favour of always chasing the best quality the connection can sustain, inline or not.
+     ABR still adapts to real throughput — this never forces a level the network can't hold, it
+     just stops refusing to try, ahead of "in fullscreen the cap lifts automatically" now applying
+     everywhere all the time. */
   if(!hls||!Array.isArray(hls.levels)||!hls.levels.length)return;
   hls.currentLevel=-1;
   hls.loadLevel=-1;
@@ -7260,8 +7287,17 @@ async function tryPlans(plans,i){
       try{v.disableRemotePlayback=false;v.removeAttribute('disableremoteplayback')}catch(e){}
       const isTv=/\b(SMART[-_]?TV|Tizen|WebOS|NETCAST|Cobalt|SilkBrowser|AFT|HbbTV|PhilipsTV|VIDAA)\b/i.test(navigator.userAgent||'');
       S.hls=new Hls({
-        enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:true,startLevel:-1,
-        abrEwmaDefaultEstimate:isTv?5000000:(mobile()?650000:2800000),
+        /* v25.26 (owner request: "maximum quality, crystal clear"): capLevelToPlayerSize was
+           capping ABR to whatever resolution the (often small, inline) player element rendered
+           at — a deliberate bandwidth saving that directly fights "always give me the best
+           quality," so it's off now; ABR still adapts to real throughput via abrEwmaDefaultEstimate
+           below, it just no longer refuses a level the network could sustain purely because the
+           on-screen box was small. The three estimates are also raised — the old ones (650kbps
+           mobile, 2.8Mbps desktop) were tuned to start conservative and climb slowly; starting
+           higher means less time at a soft opening bitrate before ABR's own measurements take
+           over (it always corrects downward from here just as readily if the real line is slower). */
+        enableWorker:true,lowLatencyMode:false,capLevelToPlayerSize:false,startLevel:-1,
+        abrEwmaDefaultEstimate:isTv?8000000:(mobile()?2500000:4000000),
         maxBufferLength:60,maxMaxBufferLength:120,backBufferLength:live?0:30,
         liveSyncDurationCount:4,liveMaxLatencyDurationCount:18,maxLiveSyncPlaybackRate:1.1,
         /* ── v24.43: A LIVE ROUTE MUST NOT SPEND 16 SECONDS FAILING. ─────────────────────────
@@ -8179,17 +8215,44 @@ function applyZoom(){
      applySubtitlePositions() for the actual compensation; it just needs re-running here since
      this is the one place --zk actually changes. */
   try{applySubtitlePositions()}catch(e){}
+  try{updateRotateBtn(landscapeViewport)}catch(e){}
+}
+/* v25.26 (owner request, with a screenshot): fullscreen on a rotation-locked phone should show
+   ONLY the centered picture — everything else hidden — with an explicit button to ask the OS for
+   landscape on purpose. Unlike v25.21's reverted attempt, this lock only ever runs from a direct
+   tap on that button, never automatically just because fullscreen was entered — the owner was
+   clear that auto-forcing it fought the phone's own rotation lock (see the fs() note above); a
+   button the user chooses to press is a different thing entirely and orientation.lock() is
+   spec'd to work exactly for that inside an active fullscreen element. */
+function requestLandscapeRotate(){
+  try{
+    const so=screen.orientation;
+    if(so&&so.lock){so.lock('landscape').catch(()=>toast('Rotate your device to watch in landscape'));return;}
+  }catch(e){}
+  toast('Rotate your device to watch in landscape');
+}
+function unlockFsOrientation(){
+  try{const so=screen.orientation;if(so&&so.unlock)so.unlock();}catch(e){}
+}
+function updateRotateBtn(landscapeViewport){
+  const box=$('playerBox');if(!box)return;
+  box.classList.toggle('showRotate',anyFullscreen()&&!landscapeViewport);
 }
 /* v25.20: with the phone's rotation lock on, the OS never turns the page and iOS gives a web page
-   no screen.orientation.lock(), so a locked portrait phone would get a letterbox-thin fullscreen.
-   Turning the box ourselves is the only way — see the .rot90 rule. Only in the in-page fullscreen:
-   where real fullscreen exists the browser handles orientation itself. */
+   no screen.orientation.lock(), so a locked portrait phone got a letterbox-thin fullscreen —
+   turning the box itself, via .rot90, was the fix at the time.
+   v25.26 (owner request, with a screenshot): superseded. The owner now wants the OPPOSITE default
+   — a rotation-locked phone should show the plain, centered, still-PORTRAIT picture with
+   everything else hidden, and only actually go landscape from an explicit tap on the new rotate
+   button (requestLandscapeRotate()) or a real physical turn — never a CSS trick pretending to be
+   landscape while the phone is still physically portrait. .rot90 is kept (still used if a future
+   need for it comes back) but never turned on automatically any more; this function is now a
+   no-op that always clears it. */
 function updateRotateFullscreen(){
   const box=$('playerBox');if(!box)return;
-  const want=cssFullscreenOn()&&window.innerHeight>window.innerWidth;
   const had=box.classList.contains('rot90');
-  box.classList.toggle('rot90',want);
-  if(had!==want)applyZoom();   /* the box just changed shape, so the crop maths changed with it */
+  box.classList.remove('rot90');
+  if(had)applyZoom();   /* the box just changed shape, so the crop maths changed with it */
 }
 function toggleZoom(){
   const next=ZOOM_ORDER[(ZOOM_ORDER.indexOf(savedZoom())+1)%ZOOM_ORDER.length];
@@ -8202,6 +8265,7 @@ function setCssFullscreen(on){
   box.classList.toggle('cssFull',!!on);
   document.body.classList.toggle('cssFullOn',!!on);
   const b=$('fsBtn');if(b)b.innerHTML=on?ICONS.fsExit:ICONS.fsEnter;
+  if(!on)unlockFsOrientation();
   updateRotateFullscreen();   /* sets .rot90 first, so applyZoom measures the box's final shape */
   applyZoom();
   try{scanBars()}catch(e){}
@@ -11899,8 +11963,9 @@ const _resumeAfterFsExit=()=>{
   const v=$('video');
   if(v&&v.paused&&!v.ended&&v.currentTime>0&&Date.now()-_lastManualPauseAt>1200)v.play().catch(()=>{});
 };
-document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
-document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
+document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;if(!document.fullscreenElement)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
+document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');const real=document.fullscreenElement||document.webkitFullscreenElement;if(fsb)fsb.innerHTML=real?ICONS.fsExit:ICONS.fsEnter;if(!real)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
+if($('rotateBtn'))$('rotateBtn').onclick=requestLandscapeRotate;
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab,.landRailBtn[data-tab],.dockBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
 /* v25.11: landscape rail's Home/Downloads/Settings reuse the exact same handlers as the header's
@@ -11959,6 +12024,7 @@ if($('infoPlay'))$('infoPlay').onclick=()=>{const x=_infoItem;$('infoSheet').cla
   if($('downloadBtn'))$('downloadBtn').innerHTML=ICONS.download;
   if(typeof updateDownloadsBadge==='function')updateDownloadsBadge();
   $('fsBtn').innerHTML=ICONS.fsEnter;
+  if($('rotateBtn'))$('rotateBtn').innerHTML=ICONS.rotate;
   $('menuBtn').innerHTML=ICONS.back;
   if($('pwToggle'))$('pwToggle').innerHTML=ICONS.eye;
   document.querySelectorAll('.versionBadge').forEach(e=>e.textContent='v'+APP_VERSION);
@@ -12215,7 +12281,12 @@ function pmRender(rows,title,onBack){
   m.appendChild(wrap);
 }
 function pmRoot(){
+  /* v25.26: the on-video mute icon (#muteBtn) is gone from the picture (see the .mxSideSlider.
+     mxVolume CSS note) — this row is where that control lives now, same shape as every other row
+     here. Reuses the exact same v.muted flag every existing mute path already reads/writes. */
+  const _v=$('video');
   const rows=[
+    {icon:(_v&&_v.muted)?ICONS.muted:ICONS.unmuted,label:'Sound',val:(_v&&_v.muted)?'Muted':'On',onClick:()=>{if(_v){_v.muted=!_v.muted;}pmRoot();}},
     {icon:ICONS.volboost,label:'Volume Boost',val:boostLabel(),chev:true,onClick:pmBoost},
     {icon:ICONS.speed,label:'Playback Speed',val:(curSpeed()===1?'Normal':curSpeed()+'×'),chev:true,onClick:pmSpeed}
   ];
