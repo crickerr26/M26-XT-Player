@@ -966,6 +966,12 @@ body.cssFullOn{overflow:hidden}
    and cropping there would be loss for nothing. Double-tap the middle of the screen to switch
    back; nothing is permanently cropped and the choice is remembered. */
 .player.zoomFill video{object-fit:cover;transform:scale(var(--zk,1))}
+/* v25.25 (owner request: "video sizes like how it's on media players such as fill, stretch and
+   more"): Stretch fills the box exactly by distorting the aspect ratio — a deliberate, well-known
+   media-player mode (VLC/MX Player both offer it), unlike Fill/cover which preserves aspect and
+   crops instead. No --zk bar-crop scale here: object-fit:fill already reaches every edge on its
+   own by distorting, so there is no leftover baked-in bar for barZoomFactor() to remove. */
+.player.zoomStretch video{object-fit:fill}
 /* ── v25.20: LANDSCAPE FULLSCREEN EVEN WITH ROTATION LOCKED ───────────────────────────────────
    Owner request. With the phone's rotation lock on, the OS never turns the page, and
    screen.orientation.lock() is not available to a web page on iOS at all — so the only way to
@@ -2191,7 +2197,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.24';
+const APP_VERSION='25.25';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2277,6 +2283,8 @@ const ICONS={
   settings:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
   airplay:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><polygon points="12 15 17 21 7 21 12 15" fill="currentColor" stroke="none"/></svg>',
   quality:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>',
+  /* v25.25: "Screen Fit" menu row (Fit/Fill/Stretch) — a rectangle with corner resize arrows. */
+  aspect:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 15H6v-3"/><path d="M15 9h3v3"/></svg>',
   /* v24.28: Colour Mode and Equalizer tiles in the new Quick Settings bar */
   palette:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.6-.75 1.6-1.68 0-.44-.17-.84-.44-1.13-.28-.29-.44-.66-.44-1.12a1.64 1.64 0 0 1 1.65-1.67h2c3 0 5.55-2.5 5.55-5.55C21.9 6 17.4 2 12 2z"/><circle cx="7" cy="12.5" r="1.1" fill="currentColor" stroke="none"/><circle cx="9.5" cy="8" r="1.1" fill="currentColor" stroke="none"/><circle cx="14.5" cy="7" r="1.1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="11" r="1.1" fill="currentColor" stroke="none"/></svg>',
   equalizer:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="2.1" fill="currentColor" stroke="none"/><circle cx="11" cy="18" r="2.1" fill="currentColor" stroke="none"/></svg>',
@@ -8090,7 +8098,10 @@ function updateMediaSession(x){
    them. Defaults to filling, because that is what "make it really fullscreen" asks for; a
    double-tap in the middle of the picture switches back and the choice is remembered. */
 const ZOOM_KEY='m26-zoom';
-function savedZoom(){try{return store.getItem(ZOOM_KEY)==='fit'?'fit':'fill'}catch(e){return 'fill'}}
+const ZOOM_ORDER=['fill','stretch','fit'];
+const ZOOM_LABELS={fill:'Fill (crop to edges)',stretch:'Stretch (fill exactly)',fit:'Fit (show whole picture)'};
+function savedZoom(){try{const v=store.getItem(ZOOM_KEY);return ZOOM_ORDER.includes(v)?v:'fill'}catch(e){return 'fill'}}
+function zoomLabel(){return ZOOM_LABELS[savedZoom()]||ZOOM_LABELS.fill}
 function anyFullscreen(){return cssFullscreenOn()||!!(document.fullscreenElement||document.webkitFullscreenElement)}
 /* ── v25.20: REMOVE THE BARS THE FILE ITSELF CARRIES ──────────────────────────────────────────
    Owner report, second screenshot: filling the screen still left a band top and bottom. Measured
@@ -8150,13 +8161,24 @@ function barZoomFactor(){
 }
 function applyZoom(){
   const box=$('playerBox'),v=$('video');if(!box)return;
-  /* v25.22: 'fill' (cover+crop) only makes sense once the screen itself is actually landscape —
-     see the fs()/lockLandscapeFs note above. Cropping a 16:9 picture to cover a still-portrait
-     box (rotation-locked phone) just eats most of the frame; centered/contain is correct there. */
+  /* v25.22: 'fill'/'stretch' only make sense once the screen itself is actually landscape — see
+     the fs() note above. Cropping or distorting a 16:9 picture to a still-portrait box
+     (rotation-locked phone) just eats or warps most of the frame; centered/contain is correct
+     there regardless of which mode is saved. */
   const landscapeViewport=window.innerWidth>window.innerHeight;
-  const fill=anyFullscreen()&&savedZoom()==='fill'&&landscapeViewport;
+  const mode=anyFullscreen()&&landscapeViewport?savedZoom():'fit';
+  const fill=mode==='fill';
   box.classList.toggle('zoomFill',fill);
+  box.classList.toggle('zoomStretch',mode==='stretch');
   try{if(v)v.style.setProperty('--zk',String(fill?barZoomFactor():1))}catch(e){}
+  /* v25.25 (owner report, with a screenshot: subtitles get cropped off when the picture is
+     zoomed): the bar-crop scale above is a CSS transform on the <video> element itself, and a
+     browser's native WebVTT cue box is painted as part of that same element — so scaling the
+     picture to remove baked-in bars scales the subtitle overlay right along with it, pushing a
+     near-bottom cue further past the visible edge the more it zooms in. See
+     applySubtitlePositions() for the actual compensation; it just needs re-running here since
+     this is the one place --zk actually changes. */
+  try{applySubtitlePositions()}catch(e){}
 }
 /* v25.20: with the phone's rotation lock on, the OS never turns the page and iOS gives a web page
    no screen.orientation.lock(), so a locked portrait phone would get a letterbox-thin fullscreen.
@@ -8170,10 +8192,10 @@ function updateRotateFullscreen(){
   if(had!==want)applyZoom();   /* the box just changed shape, so the crop maths changed with it */
 }
 function toggleZoom(){
-  const next=savedZoom()==='fill'?'fit':'fill';
+  const next=ZOOM_ORDER[(ZOOM_ORDER.indexOf(savedZoom())+1)%ZOOM_ORDER.length];
   try{store.setItem(ZOOM_KEY,next)}catch(e){}
   applyZoom();
-  toast(next==='fill'?'Zoom: filling the screen':'Zoom: showing the whole picture');
+  toast('Zoom: '+ZOOM_LABELS[next]);
 }
 function setCssFullscreen(on){
   const box=$('playerBox');if(!box)return;
@@ -12110,20 +12132,48 @@ function applySubtitleStyle(){
   try{ensureSubStyleTag().textContent='video::cue{font-size:'+pct+'%;color:'+color+';background-color:'+bg+';}';}catch(e){}
   applySubtitlePositions();
 }
-/* Re-applied on every cuechange (see wireSubtitleStyleTracking below), so a cue that only just
-   arrived — a live HLS caption, or the next line of a VOD track — gets today's position setting
-   instead of whatever the WebVTT source itself declared. Reading .cues throws on a track whose
-   mode is 'disabled' in some engines, so a track is skipped rather than letting that stop the
-   others (Off is Off; nothing to style there anyway). */
+/* v25.25 (owner report, with a screenshot: subtitles get cropped off when the picture is zoomed).
+   The bar-crop zoom (barZoomFactor(), applied as --zk) is a CSS transform:scale on the <video>
+   element itself. A browser paints its native WebVTT cue box as part of that same element's
+   render, anchored by percentage within the element's OWN box — so the transform scales the
+   subtitle overlay right along with the picture, growing it away from the transform's center
+   (50%,50%) exactly like the picture grows. A cue sitting below center (as virtually all of them
+   do — subtitles live near the bottom) moves proportionally FARTHER below center as the zoom
+   factor rises, and once that pushes it past the box's own edge, .player's overflow:hidden clips
+   it clean off — precisely what the screenshot showed.
+   There is no CSS fix (transform-origin can't un-scale one child of the thing being transformed),
+   so the compensation happens on the cue's own `line`, which is set BEFORE the transform is
+   painted: solving 0.5+k*(setLine-0.5) = wantedLine for setLine gives the position that, once the
+   browser's own scale runs on top, LANDS the cue back where it would have shown at k=1. Only
+   'auto'-line cues are touched (the overwhelmingly common case for SRT-derived VTT) — a track that
+   already sets an explicit numeric line was authored on purpose (e.g. a top-positioned caption
+   avoiding on-screen text) and is left alone rather than risk moving it somewhere wrong. */
+function subtitleZoomFactor(){
+  try{const v=$('video');const k=v&&parseFloat(v.style.getPropertyValue('--zk'));return (k&&isFinite(k)&&k>0)?k:1;}catch(e){return 1}
+}
+/* Re-applied on every cuechange (see wireSubtitleStyleTracking below) and every applyZoom(), so a
+   cue that only just arrived — a live HLS caption, the next line of a VOD track, or the existing
+   cue after the zoom level changed — gets today's position setting instead of whatever the WebVTT
+   source itself declared. Reading .cues throws on a track whose mode is 'disabled' in some
+   engines, so a track is skipped rather than letting that stop the others (Off is Off; nothing to
+   style there anyway). */
 function applySubtitlePositions(){
   const v=$('video');if(!v||!v.textTracks)return;
   const cfg=SUB_POS_CUE[savedSubStyle().pos]||SUB_POS_CUE.center;
+  const k=subtitleZoomFactor();
   for(let i=0;i<v.textTracks.length;i++){
     let cues=null;try{cues=v.textTracks[i].cues}catch(e){cues=null}
     if(!cues)continue;
     for(let j=0;j<cues.length;j++){
       const c=cues[j];
       try{if('align'in c)c.align=cfg.align;if('position'in c)c.position=cfg.position;}catch(e){}
+      try{
+        if(c.line==='auto'){c.snapToLines=false;c._m26BaseLine=88;}
+        if(c._m26BaseLine!=null){
+          const wanted=c._m26BaseLine;
+          c.line=Math.max(0,Math.min(100,50+(wanted-50)/k));
+        }
+      }catch(e){}
     }
   }
 }
@@ -12172,6 +12222,10 @@ function pmRoot(){
   const al=audioTracksList();rows.push({icon:ICONS.audio,label:'Audio',val:audioLabel(),chev:true,onClick:al.length>1?pmAudio:()=>toast('Only one audio track')});
   const sl=subTracksList();rows.push({icon:ICONS.sub,label:'Subtitles',val:subLabel(),chev:true,onClick:sl.length?pmSubs:()=>toast('No subtitles in this stream')});
   rows.push({icon:ICONS.quality,label:'Quality',val:$('qualityBtn')?$('qualityBtn').textContent:'Auto',chev:true,onClick:()=>{pmClose();toggleQMenu();}});
+  /* v25.25 (owner request: "video sizes like how it's on media players such as fill, stretch and
+     more") — same Fit/Fill/Stretch modes toggleZoom() already cycles on a fullscreen double-tap,
+     now reachable as an explicit picker too, same shape as every other row here. */
+  rows.push({icon:ICONS.aspect,label:'Screen Fit',val:zoomLabel(),chev:true,onClick:pmZoom});
   rows.push({icon:ICONS.palette,label:'Colour',val:colourLabel(),chev:true,onClick:pmColour});
   rows.push({icon:ICONS.equalizer,label:'Equalizer',val:eqLabel(),chev:true,onClick:pmEqualizer});
   /* v24.67: the MX skin has no standalone download pill (the reference has no equivalent icon
@@ -12189,6 +12243,7 @@ function pmAudio(){pmRender(audioTracksList().map(t=>({label:t.name,tick:t.on,on
    presentation is new. Re-renders itself (not pmRoot()) after each tap so the tick jumps straight
    to the new choice without a trip back through the root tile row. */
 function pmColour(){const cur=savedColour();pmRender(Object.keys(COLOUR_LABELS).map(k=>({label:COLOUR_LABELS[k],tick:cur===k,on:cur===k,onClick:()=>{applyColour(k);pmColour();}})),'Colour Mode');}
+function pmZoom(){const cur=savedZoom();pmRender(ZOOM_ORDER.map(k=>({label:ZOOM_LABELS[k],tick:cur===k,on:cur===k,onClick:()=>{try{store.setItem(ZOOM_KEY,k)}catch(e){}applyZoom();pmZoom();}})),'Screen Fit');}
 function pmEqualizer(){const cur=eqLabel();pmRender(Object.keys(EQ_PRESETS).map(k=>({label:EQ_LABELS[k],tick:EQ_LABELS[k]===cur,on:EQ_LABELS[k]===cur,onClick:()=>{setEqGains(EQ_PRESETS[k].slice(),true);pmEqualizer();}})),'Equalizer');}
 function pmSubs(){const rows=[{label:'Off',tick:subLabel()==='Off',on:subLabel()==='Off',onClick:()=>{setSubTrack(-1);pmRoot();}}];subTracksList().forEach(t=>rows.push({label:t.name,tick:t.on,on:t.on,onClick:()=>{setSubTrack(t.i);pmRoot();}}));rows.push({label:'Style',chev:true,onClick:pmSubStyle});pmRender(rows,'Subtitles');}
 function pmSubStyle(){pmRender([
