@@ -25,7 +25,7 @@
     { "tag": "v1", "new_sqlite_classes": ["LicenseStore"] }
   ],
   "vars": {
-    "TRANSCODER_ORIGIN": "https://media26-transcoder-production-f0b9.up.railway.app"
+    "TRANSCODER_ORIGIN": "https://media26-xt-player.up.railway.app"
   },
   "assets": {
     "directory": ".",

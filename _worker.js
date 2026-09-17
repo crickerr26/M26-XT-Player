@@ -24,6 +24,7 @@ export { LicenseStore };
    one would hand customers codes the live server has never heard of. Nothing is cached unless it
    actually answered, so a service still cold-starting is retried rather than written off. */
 const TRANSCODER_CANDIDATES = [
+  'https://media26-xt-player.up.railway.app',
   'https://media26-transcoder-production-f0b9.up.railway.app',
   'https://media26-transcoder.onrender.com',        /* the name render.yaml declares */
   'https://media26-transcoder-xutt.onrender.com',
