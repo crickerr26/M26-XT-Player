@@ -975,7 +975,7 @@ function relayFetch(target, req, res, hops) {
     if (!res.headersSent) return json(res, 502, { error: 'Upstream fetch failed: ' + err.message });
     res.destroy();
   });
-  req.on('close', () => upstream.destroy());
+  if (req && typeof req.on === 'function') req.on('close', () => upstream.destroy());
   upstream.end();
 }
 
