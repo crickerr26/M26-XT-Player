@@ -2150,7 +2150,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.20';
+const APP_VERSION='25.21';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -8131,13 +8131,42 @@ function cssFullscreenOn(){const box=$('playerBox');return !!(box&&box.classList
    fullscreen where the browser has it (iPad, Android, desktop — the DOM survives there, so nothing
    breaks), and the in-page fullscreen above where it does not (iPhone). webkitEnterFullscreen is
    no longer used at all; it is the one mode in which these settings cannot work. */
+/* v25.21 (owner report, with a screenshot: fullscreen stayed a small portrait box and "even the
+   phone rotation is locked"). requestFullscreen() was already succeeding on Android — the real
+   Fullscreen API doesn't need OS auto-rotate to work. But it also does nothing BY ITSELF to turn
+   the picture landscape: with the phone's own rotation lock on, the page fullscreens in place, at
+   whatever orientation the screen already is. The v25.20 rot90 rewrite only covers the OTHER path
+   (in-page cssFull, for iPhone) — real fullscreen was left assuming "the browser handles
+   orientation itself", which is only true when the OS is free to rotate.
+   screen.orientation.lock('landscape') is exactly the API for this: it forces the orientation
+   while the element is fullscreen WITHOUT needing the device's own rotation lock touched, and it
+   is only available (per spec, and per the existing iOS note above) inside an active fullscreen
+   element — so it belongs right after requestFullscreen resolves, not before. It quietly does
+   nothing on browsers that lack it (iOS Safari) or refuse it (desktop Chrome, no orientation to
+   lock) — both fall through to whatever the browser already did, unchanged.
+   This also fixes the "quality drops when filling the screen" report even though nothing here
+   touches ABR: hls.js's capLevelToPlayerSize caps quality to the VIDEO ELEMENT'S OWN rendered
+   size (see forceMobileSmoothLevel above). A fullscreen box stuck portrait-sized never grows past
+   a phone-width frame, so the cap never lifts and ABR never climbs past a low level — it looked
+   like fullscreen was throttling quality, but it was really just never becoming full-SCREEN. Once
+   the box actually fills a landscape screen, the existing cap-lift/ABR-climb logic already does
+   the rest; nothing else needed to change. */
+function lockLandscapeFs(){
+  try{
+    const so=screen.orientation;
+    if(so&&so.lock)so.lock('landscape').catch(()=>{});
+  }catch(e){}
+}
+function unlockFsOrientation(){
+  try{const so=screen.orientation;if(so&&so.unlock)so.unlock();}catch(e){}
+}
 function fs(){
   const box=$('playerBox');
   const real=document.fullscreenElement||document.webkitFullscreenElement;
   if(real){(document.exitFullscreen||document.webkitExitFullscreen).call(document);return}
   if(cssFullscreenOn()){setCssFullscreen(false);return}
-  if(box.requestFullscreen){box.requestFullscreen().catch(()=>setCssFullscreen(true));return}
-  if(box.webkitRequestFullscreen){try{box.webkitRequestFullscreen();return}catch(e){}}
+  if(box.requestFullscreen){box.requestFullscreen().then(lockLandscapeFs).catch(()=>setCssFullscreen(true));return}
+  if(box.webkitRequestFullscreen){try{box.webkitRequestFullscreen();lockLandscapeFs();return}catch(e){}}
   setCssFullscreen(true);
 }
 /* v78: Download the current Movie/Series file to the device. The file is pulled through the
@@ -11800,8 +11829,8 @@ const _resumeAfterFsExit=()=>{
   const v=$('video');
   if(v&&v.paused&&!v.ended&&v.currentTime>0&&Date.now()-_lastManualPauseAt>1200)v.play().catch(()=>{});
 };
-document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
-document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=(document.fullscreenElement||document.webkitFullscreenElement)?ICONS.fsExit:ICONS.fsEnter;showBar();applyZoom();_resumeAfterFsExit()});
+document.addEventListener('fullscreenchange',()=>{const fsb=$('fsBtn');if(fsb)fsb.innerHTML=document.fullscreenElement?ICONS.fsExit:ICONS.fsEnter;if(!document.fullscreenElement)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
+document.addEventListener('webkitfullscreenchange',()=>{const fsb=$('fsBtn');const real=document.fullscreenElement||document.webkitFullscreenElement;if(fsb)fsb.innerHTML=real?ICONS.fsExit:ICONS.fsEnter;if(!real)unlockFsOrientation();showBar();applyZoom();_resumeAfterFsExit()});
 /* v27: switching Live/Movies/Series keeps the menu OPEN (so every category is visible to pick from) and resets to All — the grid behind it already lists the full catalog of that type. Only picking a category closes the sheet. */
 document.querySelectorAll('.tab,.landRailBtn[data-tab]').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;S.cat='';S.episodeView=null;renderAll();ensureTypeLoaded(S.tab);if(S.tab==='vod'||S.tab==='series')warmTranscoder();if(S.tab==='live')ensureEpg().then(()=>{if(S.tab==='live')renderGrid(true)});});
 /* v25.11: landscape rail's Home/Downloads/Settings reuse the exact same handlers as the header's
