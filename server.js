@@ -10,7 +10,7 @@ const { handlePlaylist } = require('./worker-compat.js');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.9';
+const SERVER_BUILD = '14.10';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -707,9 +707,19 @@ async function buildSession(id, url, profile) {
 async function waitForPlaylist(session, ms = 30000) {
   const file = session.playlist;
   const startAt = Date.now();
-  /* fastvod: return as soon as the FIRST segment exists — native HLS starts on one segment while
-     the rest are still being written, shaving a couple seconds off the perceived load time. */
-  const need = session.profile === 'fastvod' ? 1 : 2;
+  /* v25.38 (owner report: "buffering" every few seconds on the in-app player): fastvod copies the
+     source at whatever rate this box can actually pull it from the panel's origin, not instantly —
+     redirecting the client after just ONE 2s segment gave native HLS no cushion at all against that
+     rate varying even slightly. The moment ffmpeg's write head fell a beat behind the playhead
+     (any brief dip in origin throughput), the player hit "no data" and showed Buffering — visible
+     on almost every title on a merely-average line, not just a slow one. Waiting for a handful of
+     segments before handing over the manifest costs a few extra seconds at the very start but gives
+     the copy a real head start, so normal short-lived origin jitter drains that cushion instead of
+     starving playback outright. It cannot fix a source whose sustained throughput is genuinely
+     BELOW the video's bitrate — nothing server-side can outrun that — but it removes the far more
+     common case where the source is fast enough on average and the old paper-thin 2s margin was
+     the only reason playback ever caught up to it. */
+  const need = session.profile === 'fastvod' ? 5 : 2;
   while (Date.now() - startAt < ms) {
     if (session.exited && !fs.existsSync(file)) return false;
     if (fs.existsSync(file)) {
