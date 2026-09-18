@@ -759,7 +759,12 @@
     if (this.recoveries >= 40) return this.giveUp('the stream kept dropping');
     this.lastRecovery = now; this.recoveries++; this.lastProgress = now; this.lastT = v.currentTime || 0;
     this.to('recovering');
-    var keep = (!this.live && v.currentTime > 0) ? v.currentTime : 0;
+    /* v25.36: prefer the corrected position over raw v.currentTime — a still-growing transcoded
+       manifest can have already been silently re-synced forward by iOS's native HLS player before
+       this ever runs (see correctedSeekPosition in index.html), and trusting the raw value here
+       just reinforces that wrong jump instead of restoring where the viewer actually seeked to. */
+    var vt = D.getRecoveryPosition ? D.getRecoveryPosition(v) : v.currentTime;
+    var keep = (!this.live && vt > 0) ? vt : 0;
     var cur = this.current;
     if (wantSound) restoreSoundOnceMore(v);
     this.attach(cur.cand, cur.engine, cur.format);

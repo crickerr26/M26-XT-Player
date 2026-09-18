@@ -2229,7 +2229,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.35';
+const APP_VERSION='25.36';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -6108,6 +6108,17 @@ function configureInbuiltPlayer(){
     streamRelayUrl:streamRelayUrl,
     getResume:x=>(S.resumeOverride&&Object.prototype.hasOwnProperty.call(S.resumeOverride,keyOf(x)))?S.resumeOverride[keyOf(x)]:((S.resume&&S.resume[keyOf(x)])||0),
     getLastSeekAt:()=>S.lastSeekAt||0,
+    /* v25.36 (owner report: seeking BACK into a still-transcoding movie snaps forward again to
+       where playback was before the seek): a growing fastvod manifest has no #EXT-X-ENDLIST yet,
+       and iOS's native HLS player treats that "Event" playlist like a live stream for follow
+       purposes — after a backward seek stalls briefly waiting on already-generated segments, it
+       can silently re-sync currentTime back toward the live edge on its own, BEFORE this app's own
+       stall-recovery (Machine.recover in m26player2.js) even runs. That recovery used to trust
+       v.currentTime at the moment it fired, which by then already reflects iOS's wrong position —
+       so recovering just reinforced the snap-back instead of fixing it. Recording the exact time
+       the USER actually committed a seek to lets recover() restore that intended target instead. */
+    getLastSeekTarget:()=>(typeof S.lastSeekTarget==='number')?S.lastSeekTarget:null,
+    getRecoveryPosition:v=>correctedSeekPosition(v),
     /* the quality menu, the seek bar and cleanup() all read S.hls/S.ts and S.timer, so the engine
        keeps them in step rather than owning a second copy of that state */
     onEngine:(kind,inst)=>{if(kind==='hls')S.hls=inst;else if(kind==='ts')S.ts=inst;},
@@ -7686,7 +7697,7 @@ async function tryPlans(plans,i){
         if(!live){
           if(E.reconnects<2){
             E.reconnects++;E.frozenAt=0;E.lastBuf=0;E.lastProgress=now;
-            const pos=v.currentTime||0;
+            const pos=correctedSeekPosition(v);
             overlay('reconnect','Reconnecting','Reloading the video at your place...',true);
             try{
               if(S.hls){S.hls.stopLoad();S.hls.startLoad(pos>0?pos:-1)}
@@ -7932,6 +7943,22 @@ function fail(msg){
     }
   }catch(e){}
 }
+/* v25.36: what the playhead SHOULD be at, correcting for iOS's native-HLS quirk on a still-
+   growing (no #EXT-X-ENDLIST yet) transcoded manifest — after a backward seek stalls briefly on
+   already-generated segments, AVPlayer can silently re-sync currentTime toward the live edge on
+   its own, before any watchdog here even runs. A genuine jump from normal playback can only ever
+   be as large as the wall-clock time that has actually passed; anything bigger than that (plus
+   slack for buffering) since the last deliberate seek is that phantom jump, not real progress —
+   so clamp back to roughly where organic playback would be instead of trusting the raw value. */
+function correctedSeekPosition(v){
+  try{
+    const t=S.lastSeekTarget,at=S.lastSeekAt,cur=(v&&v.currentTime)||0;
+    if(typeof t!=='number'||!at)return cur;
+    const elapsed=(Date.now()-at)/1000;
+    if(elapsed>0&&cur-t>elapsed+5)return Math.min(t+elapsed,cur);
+    return cur;
+  }catch(e){return (v&&v.currentTime)||0}
+}
 function seekBy(sec){
   const v=$('video');
   if(!S.current||typeOf(S.current)==='live'){toast('Seek is available for Movies and Series, not live channels');return}
@@ -7941,7 +7968,8 @@ function seekBy(sec){
   const dur=effectiveVideoDuration(v,S.current);
   if(!dur){toast('This source does not allow seeking');return}
   S.lastSeekAt=Date.now();
-  v.currentTime=Math.max(0,Math.min(dur-0.5,(v.currentTime||0)+sec));
+  S.lastSeekTarget=Math.max(0,Math.min(dur-0.5,(v.currentTime||0)+sec));
+  v.currentTime=S.lastSeekTarget;
   $('playerBox').classList.add('showbar');
 }
 /* v24.30: the timestamp of the last DELIBERATE pause (this button), so the exit-fullscreen resume
@@ -12491,7 +12519,8 @@ applySubtitleStyle();wireSubtitleStyleTracking();
   const commitSeek=pct=>{
     const D=effDur();if(!D)return;
     S.lastSeekAt=Date.now();lastSeekCommitAt=Date.now();
-    v.currentTime=Math.min(D-0.5,pct*D);sync();
+    S.lastSeekTarget=Math.min(D-0.5,pct*D);
+    v.currentTime=S.lastSeekTarget;sync();
   };
   const seekTo=clientX=>{
     if(isLiveNow())return;                     /* live is not seekable — keep it live */
