@@ -449,7 +449,14 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 /* container never eats taps meant for the video; only its controls are interactive */
 .player.vodMode .playerbar.infuse,.player.liveMode .playerbar.infuse,.player.showbar .playerbar.infuse{pointer-events:none!important}
 .playerbar.infuse .ovTop,.playerbar.infuse .ovBottom{position:absolute;left:0;right:0;pointer-events:none}
-.ovTop{top:0;display:flex;align-items:center;gap:10px;padding:12px 12px;background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);transition:opacity .15s ease}
+/* v25.38 (owner report: close/cast/fullscreen row overlapped by the system status bar/notch in
+   fullscreen video): every other full-bleed overlay in this app (login, home, catpage,
+   exitFsBtn) already insets itself with env(safe-area-inset-*) — this one didn't, and a fixed
+   12px top padding sits right under the clock/pill/battery on a fullscreen <video> where iOS
+   draws its status bar over the content instead of pushing it down. max() keeps the original
+   12px on any device/orientation that reports a zero inset (older iOS, desktop, landscape with
+   no notch on that edge) so nothing shifts there. */
+.ovTop{top:0;display:flex;align-items:center;gap:10px;padding:max(12px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 12px max(12px,env(safe-area-inset-left));background:linear-gradient(180deg,rgba(0,0,0,.55),transparent);transition:opacity .15s ease}
 .ovBottom{bottom:0;padding:0 12px 10px;background:linear-gradient(0deg,rgba(0,0,0,.65),transparent 92%);transition:opacity .15s ease}
 .player.qsOpen .ovTop,.player.qsOpen .ovBottom{opacity:0;pointer-events:none}
 .mxIconBtn{pointer-events:auto;background:none;color:#fff;width:34px;height:34px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;filter:drop-shadow(0 1px 4px rgba(0,0,0,.6))}
@@ -2229,7 +2236,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.37';
+const APP_VERSION='25.38';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
