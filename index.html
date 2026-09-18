@@ -2229,7 +2229,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.36';
+const APP_VERSION='25.37';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -2691,6 +2691,7 @@ function parseDurationSeconds(value,unit){
 }
 function durationSecondsOf(x){
   if(!x)return 0;
+  try{const probed=S.probedDuration&&S.probedDuration[keyOf(x)];if(probed>0)return probed}catch(e){}
   const info=x.info||{};
   const secondFields=[x.duration_secs,x.duration_seconds,x.durationSec,info.duration_secs,info.duration_seconds,info.durationSec];
   for(const v of secondFields){const n=parseDurationSeconds(v,'seconds');if(n)return n}
@@ -6119,6 +6120,10 @@ function configureInbuiltPlayer(){
        the USER actually committed a seek to lets recover() restore that intended target instead. */
     getLastSeekTarget:()=>(typeof S.lastSeekTarget==='number')?S.lastSeekTarget:null,
     getRecoveryPosition:v=>correctedSeekPosition(v),
+    /* v25.37: the transcoder's own ffprobe of the source file — see probeSource() in server.js and
+       the matching read in m26player2.js awaitTranscode(). Stored per-title so durationSecondsOf()
+       can show the real runtime immediately instead of "how much has fastvod copied so far". */
+    onSourceDuration:(item,sec)=>{try{if(item&&sec>0){S.probedDuration=S.probedDuration||{};S.probedDuration[keyOf(item)]=sec;}}catch(e){}},
     /* the quality menu, the seek bar and cleanup() all read S.hls/S.ts and S.timer, so the engine
        keeps them in step rather than owning a second copy of that state */
     onEngine:(kind,inst)=>{if(kind==='hls')S.hls=inst;else if(kind==='ts')S.ts=inst;},

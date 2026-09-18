@@ -10,7 +10,7 @@ const { handlePlaylist } = require('./worker-compat.js');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.8';
+const SERVER_BUILD = '14.9';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -555,11 +555,18 @@ function hlsArgs(profile, dir, playlist, segType) {
   ];
 }
 
-/* Ask ffprobe what the source's video codec is, so copy-mode can pick a container the target
-   device will actually decode. Strictly best-effort and time-boxed: any failure resolves to ''
-   and the caller keeps the previous MPEG-TS behaviour, so a probe problem can never block
-   playback that used to work. */
-function probeVideoCodec(url) {
+/* Ask ffprobe what the source's video codec is (so copy-mode can pick a container the target
+   device will actually decode) AND its real total duration in the same pass. Strictly
+   best-effort and time-boxed: any failure resolves to '' / 0 and the caller keeps the previous
+   behaviour, so a probe problem can never block playback that used to work.
+   The duration half exists because the in-app player's own displayed length used to come from
+   how much of a fastvod (progressive, no #EXT-X-ENDLIST yet) manifest ffmpeg had generated so
+   far, not the movie's real length — VLC, which reads the source container directly, showed the
+   correct 2+ hour runtime while the built-in player showed a duration that only grew as the copy
+   caught up. Reading the real duration straight from the source once, up front, and handing it to
+   the client (see the x-source-duration response header below) fixes the display without waiting
+   for the whole file to be copied. */
+function probeSource(url) {
   return new Promise(resolve => {
     let settled = false;
     const finish = v => { if (!settled) { settled = true; resolve(v); } };
@@ -572,16 +579,21 @@ function probeVideoCodec(url) {
         '-analyzeduration', '2000000',
         '-probesize', '2000000',
         '-select_streams', 'v:0',
-        '-show_entries', 'stream=codec_name',
-        '-of', 'default=nw=1:nk=1',
+        '-show_entries', 'stream=codec_name:format=duration',
+        '-of', 'default=noprint_wrappers=1',
         url
       ], { stdio: ['ignore', 'pipe', 'ignore'] });
-    } catch (e) { return finish(''); }
+    } catch (e) { return finish({ codec: '', durationSec: 0 }); }
     let out = '';
     child.stdout.on('data', c => { out += c.toString(); });
-    child.on('error', () => finish(''));
-    child.on('exit', () => finish(String(out || '').trim().split(/\r?\n/)[0].trim().toLowerCase()));
-    const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} finish(''); }, PROBE_TIMEOUT_MS);
+    child.on('error', () => finish({ codec: '', durationSec: 0 }));
+    child.on('exit', () => {
+      const codecM = /codec_name=(\S+)/.exec(out);
+      const durM = /duration=([\d.]+)/.exec(out);
+      const durationSec = durM ? Number(durM[1]) : 0;
+      finish({ codec: codecM ? codecM[1].trim().toLowerCase() : '', durationSec: isFinite(durationSec) ? durationSec : 0 });
+    });
+    const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} finish({ codec: '', durationSec: 0 }); }, PROBE_TIMEOUT_MS);
     if (killer.unref) killer.unref();
   });
 }
@@ -657,11 +669,14 @@ async function buildSession(id, url, profile) {
   /* Copy-mode can only produce a playable stream if the container we wrap into suits the codec.
      Probe once, up front: HEVC must go into fMP4 (and be tagged hvc1) or Apple devices refuse it;
      H.264 keeps the proven MPEG-TS path. An unknown/failed probe also keeps the old path. */
-  let segType = '', vtag = '';
-  if (profile === 'fastvod') {
-    const vcodec = await probeVideoCodec(url);
-    if (vcodec === 'hevc' || vcodec === 'h265') { segType = 'fmp4'; vtag = 'hvc1'; }
-    console.log(`[probe] id=${id} video=${vcodec || 'unknown'} -> ${segType === 'fmp4' ? 'fMP4/hvc1 (iOS-safe)' : 'mpegts'}`);
+  let segType = '', vtag = '', sourceDurationSec = 0;
+  if (!isLiveProfile(profile)) {
+    const probe = await probeSource(url);
+    sourceDurationSec = probe.durationSec || 0;
+    if (profile === 'fastvod') {
+      if (probe.codec === 'hevc' || probe.codec === 'h265') { segType = 'fmp4'; vtag = 'hvc1'; }
+      console.log(`[probe] id=${id} video=${probe.codec || 'unknown'} duration=${sourceDurationSec || 'unknown'} -> ${segType === 'fmp4' ? 'fMP4/hvc1 (iOS-safe)' : 'mpegts'}`);
+    }
   }
 
   const { dir } = safePath(id);
@@ -683,7 +698,7 @@ async function buildSession(id, url, profile) {
     ...hlsArgs(profile, dir, playlist, segType)
   ];
 
-  const session = { id, url, profile, child: null, playlist, dir, created: Date.now(), lastAccess: Date.now(), exited: false, log: '', spawnArgs: args };
+  const session = { id, url, profile, child: null, playlist, dir, created: Date.now(), lastAccess: Date.now(), exited: false, log: '', spawnArgs: args, sourceDurationSec };
   spawnFfmpeg(session, args);
   sessions.set(id, session);
   return session;
@@ -1527,13 +1542,18 @@ const server = http.createServer(async (req, res) => {
         'access-control-allow-origin': CORS_ORIGIN,
         'access-control-allow-methods': 'GET,HEAD,POST,OPTIONS',
         'access-control-allow-headers': 'accept,content-type,range,authorization,x-admin-key',
-        'access-control-expose-headers': 'content-length,content-range,accept-ranges,content-type,retry-after',
+        'access-control-expose-headers': 'content-length,content-range,accept-ranges,content-type,retry-after,x-source-duration',
         'cross-origin-resource-policy': 'cross-origin',
         'timing-allow-origin': '*',
         'vary': 'Origin, Access-Control-Request-Headers',
         'cache-control': ext === '.m3u8' ? 'no-store' : 'public, max-age=120',
         'content-type': mime[ext] || 'application/octet-stream',
-        'accept-ranges': 'bytes'
+        'accept-ranges': 'bytes',
+        /* The real fix for "in-app player shows a few minutes, VLC shows the full runtime" — see
+           probeSource()'s comment. Only meaningful on the manifest itself; segment requests don't
+           need it, and 0 (probe failed or still pending) is simply omitted so the client falls back
+           to its own growing-duration behaviour exactly as before. */
+        ...(ext === '.m3u8' && session.sourceDurationSec > 0 ? { 'x-source-duration': String(session.sourceDurationSec) } : {})
       };
       if (req.method === 'HEAD') {
         res.writeHead(200, { ...baseHeaders, 'content-length': stat.size });

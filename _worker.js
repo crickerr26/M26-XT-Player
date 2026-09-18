@@ -128,7 +128,7 @@ function withCors(headers) {
      and 3510s if you knock again during it. The client could not see that header (a cross-origin
      response only exposes what is named here), so it fell back to a hard-coded 45-second cooldown
      and re-armed the ban roughly 27 times before it would have expired on its own. */
-  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location,retry-after,x-transcoder-origin');
+  out.set('access-control-expose-headers', 'content-length,content-range,accept-ranges,content-type,location,retry-after,x-transcoder-origin,x-source-duration');
   out.set('cross-origin-resource-policy', 'cross-origin');
   out.set('timing-allow-origin', '*');
   return out;

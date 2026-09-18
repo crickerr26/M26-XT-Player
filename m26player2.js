@@ -458,11 +458,19 @@
       var again = function () { setTimeout(function () { poll(manifest); }, 2000); };
       fetch(manifest, { cache: 'no-store' }).then(function (m) {
         if (!ctx.alive()) return;
-        if (m.ok) return m.text().then(function (t) {
-          if (!ctx.alive()) return;
-          if (/#EXTINF/.test(t)) return ready(manifest);
-          again();
-        });
+        if (m.ok) {
+          /* v25.37: the server's own ffprobe of the SOURCE file, not how much of it has copied so
+             far — see server.js probeSource(). Report it once as soon as it's known so the player
+             shows the real runtime immediately instead of a duration that only grows as fastvod's
+             progressive (no #EXT-X-ENDLIST yet) manifest catches up. */
+          var srcDur = Number(m.headers.get('x-source-duration') || 0);
+          if (srcDur > 0 && D.onSourceDuration) D.onSourceDuration(ctx.item, srcDur);
+          return m.text().then(function (t) {
+            if (!ctx.alive()) return;
+            if (/#EXTINF/.test(t)) return ready(manifest);
+            again();
+          });
+        }
         /* 404 stays in the keep-polling set for its own reason: ffmpeg has been started but has
            not written the playlist file yet, so the address is briefly genuinely absent. */
         if (!stillWaking(m.status) && m.status !== 404) return why(m).then(function (w) { ctx.fail('transcoder: ' + w); });
@@ -663,7 +671,7 @@
     v.onwaiting = v.onstalled = v.onsuspend = v.ontimeupdate = null;   /* no handler outlives its attempt */
 
     var ctx = this.ctx = {
-      engine: engine, url: cand.url, video: v, live: this.live, hls: null, ts: null,
+      engine: engine, url: cand.url, video: v, live: this.live, hls: null, ts: null, item: this.item,
       alive:    function () { return self.alive() && self.ctx === ctx; },
       played:   function () { return self.everPlayed; },
       levels:   function () { self.hooks.onLevels && self.hooks.onLevels(); },
