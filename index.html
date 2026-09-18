@@ -1108,16 +1108,16 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
 @media(max-width:760px){
   .top{flex-wrap:nowrap;gap:6px}
   .brand{gap:6px;flex-shrink:1;min-width:0}
-  .brand h1{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .brand p.byline{display:block;font-size:8px;letter-spacing:.4px;margin-top:1px}
-  .logo{width:28px;height:28px;border-radius:8px;font-size:11px;box-shadow:none}
+  .brand h1{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand p.byline{display:block;font-size:6.5px;letter-spacing:.3px;margin-top:1px}
+  .logo{width:20px;height:20px;border-radius:6px;font-size:9px;box-shadow:none}
   .versionBadge{display:none}
   .top-actions{flex-wrap:nowrap;gap:4px;flex-shrink:0}
   .top-actions .iconbtn{width:32px;height:32px;border-radius:9px;padding:0}
   .top-actions .pillbtn{height:32px;border-radius:9px;padding:0 8px;font-size:11px}
 }
 @media(max-width:380px){
-  .brand h1{font-size:12px}
+  .brand h1{font-size:9.5px}
   .top-actions .pillbtn{padding:0 6px;font-size:10px}
   .top-actions .iconbtn{width:30px}
 }
@@ -1481,15 +1481,22 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
            bar; see the removed themeBtn wiring below (this app never persisted a light preference,
            so there is nothing to migrate away from on an existing install). -->
 
-      <!-- v16.3: connection & transcoder settings is an icon beside Refresh now, not a labelled
-           pill. On a phone the header ran out of room and "Stream Tools" was the widest thing in
-           it, so the title had nowhere to go. -->
-      <button class="pillbtn" id="refreshBtn">↻ <span class="pilltxt">Refresh</span></button><button class="iconbtn" id="openStreamBtn" title="Connection &amp; transcoder settings" aria-label="Connection and transcoder settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg></button>
+      <!-- v27 (owner request): the header's per-tab Refresh pill is gone — its job now lives inside
+           the settings gear's Stream Tools sheet (see #settingsRefreshBtn there) — and the header
+           instead carries direct Live TV/Movies/Series shortcuts, same data-go navigation the home
+           cards already use (goCategory), so a tap here jumps straight to that tab's categories. -->
+      <button class="iconbtn" id="navLiveBtn" data-go="live" title="Live TV" aria-label="Live TV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M8 3l4 4 4-4"/></svg></button>
+      <button class="iconbtn" id="navVodBtn" data-go="vod" title="Movies" aria-label="Movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4"/></svg></button>
+      <button class="iconbtn" id="navSeriesBtn" data-go="series" title="Series" aria-label="Series"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></button>
+      <button class="iconbtn" id="downloadsBtn" title="Downloads (offline)" aria-label="Downloads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg><span class="dlBadge hidden" id="dlBadge">0</span></button>
+      <!-- v16.3: connection & transcoder settings is an icon, not a labelled pill. On a phone the
+           header ran out of room and "Stream Tools" was the widest thing in it, so the title had
+           nowhere to go. -->
+      <button class="iconbtn" id="openStreamBtn" title="Connection &amp; transcoder settings" aria-label="Connection and transcoder settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.9 19.3a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.53 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.65 8.9a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.53a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.1 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.47 9c.24.6.81 1 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1z"/></svg></button>
       <!-- v22.0 (owner request): loading a playlist NEVER takes the screen away again. This spins
            quietly beside the settings gear while a library is arriving or refreshing, the
            categories stay where they are, and there is no wording to read. -->
       <span class="topSpin hidden" id="topSpin" title="Updating your library" aria-label="Updating your library" role="status"></span>
-      <button class="iconbtn" id="downloadsBtn" title="Downloads (offline)" aria-label="Downloads"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 21h14"/></svg><span class="dlBadge hidden" id="dlBadge">0</span></button>
       <button class="pillbtn" id="logoutBtn">Exit</button>
     </div>
   </header>
@@ -1920,7 +1927,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     </div>
   </div>
 </div>
-<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Player per category</label><!-- v19.64 (owner request: "all the videos should play on the inbuilt and external players
+<div class="episodeSheet" id="nativeSheet"><div class="episodePanel nativePanel"><div class="episodeHead"><h3>Stream tools</h3><button class="iconbtn" id="nativeClose">×</button></div><p class="nativeText" id="nativeText">Preview playback uses browser-compatible streams. Use transcoding when the codec is not browser-compatible.</p><div class="field nativeField"><label>Playlist</label><button class="pillbtn" id="settingsRefreshBtn" type="button" style="width:100%">↻ Refresh playlist</button><p class="nativeText" style="margin-top:6px">Goes back to your provider for Live TV, Movies and Series — the header's own Refresh button moved in here.</p></div><div class="field nativeField"><label>Player per category</label><!-- v19.64 (owner request: "all the videos should play on the inbuilt and external players
      according to the user preference"): ALL THREE categories choose, and the choices are built
      from the PLAYERS registry at runtime rather than hard-coded here. Two bugs died with the old
      markup: the options were written by hand and still said "KMPlayer" for the value 'vlc' after
@@ -2236,7 +2243,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.38';
+const APP_VERSION='25.39';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -9572,7 +9579,7 @@ async function playDownloadedBlob(rec){
   }
   if(typeof showBar==='function')showBar();
 }
-$('loginBtn').onclick=login;/* v18.3: the toolbar Refresh goes back to the provider now (resyncSource), not just re-slice the copy already in memory — see the note there for why that was not a refresh at all on a playlist line. */$('refreshBtn').onclick=()=>refreshTab(S.tab||'live');
+$('loginBtn').onclick=login;/* v18.3: Refresh goes back to the provider now (resyncSource), not just re-slice the copy already in memory — see the note there for why that was not a refresh at all on a playlist line. v27: moved off the header into the settings sheet (see #settingsRefreshBtn). */if($('settingsRefreshBtn'))$('settingsRefreshBtn').onclick=()=>refreshTab(S.tab||'live');if($('navLiveBtn'))$('navLiveBtn').onclick=()=>goCategory('live');if($('navVodBtn'))$('navVodBtn').onclick=()=>goCategory('vod');if($('navSeriesBtn'))$('navSeriesBtn').onclick=()=>goCategory('series');
 /* v17.0: signing out ends the SESSION and keeps the identity, so the Login button has something to
    resume — that is the whole point of the button. The saved credentials are no longer wiped here;
    the signed-out flag is what stops every automatic path instead. (The activation code was never
