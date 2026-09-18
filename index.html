@@ -1803,7 +1803,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
       </button>
       <button class="loginAction" id="importM3uBtn" type="button">
         <span class="la-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 11l4 4 4-4"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg></span>
-        <span class="la-tx"><b>Open or paste an M3U playlist</b><small>Use a full playlist link or paste playlist text</small></span>
+        <span class="la-tx"><b>Open or paste an M3U playlist</b><small>Fetch a playlist link, pick a file, or paste playlist text</small></span>
         <span class="la-ch">›</span>
       </button>
     </div>
@@ -2145,6 +2145,11 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
     <p class="macHint" id="importOpenHint" style="margin-top:7px">Built from the portal, login and password you already entered, and fetched on this device's own connection. Your browser will save it to Files / Downloads — that is what you want. If it opens as text instead, use the share button and choose “Save to Files”.</p>
   </div>
   <div class="field nativeField" style="margin-top:10px"><label>Step 2 — pick the file you just saved</label><input id="importFile" type="file" accept=".m3u,.m3u8,.txt,text/plain,audio/x-mpegurl,application/x-mpegurl"></div>
+  <div class="field nativeField" style="margin-top:10px"><label>…or fetch a playlist link (M3U URL)</label>
+    <input id="importUrl" placeholder="https://example.com/playlist.m3u" autocomplete="url" inputmode="url" autocapitalize="none" spellcheck="false">
+    <p class="macHint" style="margin-top:7px">A direct .m3u/.m3u8 link — no username or password needed. The app fetches it straight from this device.</p>
+    <div class="nativeActions" style="grid-template-columns:1fr;margin-top:7px"><button class="pillbtn primary" id="importUrlGo" type="button" style="width:100%">Fetch playlist</button></div>
+  </div>
   <div class="field nativeField" style="margin-top:10px"><label>…or paste the playlist text instead</label>
     <div class="nativeActions" style="grid-template-columns:1fr;margin-bottom:7px"><button class="pillbtn" id="importPaste" type="button" style="width:100%">Paste from clipboard</button></div>
     <textarea id="importText" rows="4" placeholder="#EXTM3U&#10;#EXTINF:-1 group-title=&quot;…&quot;,Channel name&#10;http://…" style="width:100%;background:#0c1220;border:1px solid #263751;color:#e9eef7;border-radius:11px;padding:11px;font-size:14px;font-family:ui-monospace,Menlo,monospace"></textarea></div>
@@ -2243,7 +2248,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.39';
+const APP_VERSION='25.40';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -3050,7 +3055,7 @@ async function login(opts){
      from an earlier attempt would be thrown as the answer to a later one that never reached the
      handshake at all. */
   S.stalkerLastErr=null;S.stalkerLastError='';
-  load(true,'Connecting...');S.source='xtream';S.m3u=null;resetFullCatalog();
+  load(true,'Connecting...');S.source='xtream';S.m3u=null;S._m3uDirectUrl=null;resetFullCatalog();
   /* v19.6: THE PLAYLIST IS THE ONLY ROUTE. Sign-in fetches get.php (server-side, via
      /api/playlist) — the M3U endpoint the app now exclusively supports. When a MAC is held and
      the playlist fails, the MAG/Stalker handshake gets one try; there is no Xtream player_api.php
@@ -4650,7 +4655,17 @@ async function resyncSource(opts){
       /* v21.6: an explicit Refresh means "go and ask the provider" — never hand back the copy on
          this device, which is the very thing the customer is trying to get past. */
       S._skipLibCache=true;
-      try{ got=await loadPlaylistSource(); }catch(e){ got=false; }
+      try{
+        if(S._m3uDirectUrl){
+          const text=await fetchTextChain(S._m3uDirectUrl,25000);
+          if(text&&Media26Portal.looksLikeM3U(text)){
+            const parsed=Media26Portal.parseM3U(text);
+            if(parsed&&parsed.total){S.m3u=parsed;got=true;}
+          }
+        }else{
+          got=await loadPlaylistSource();
+        }
+      }catch(e){ got=false; }
       S._skipLibCache=false;
       /* A refresh that could not reach the provider must not empty the app. Keep what we had. */
       if(!got&&before)S.m3u=before;
@@ -9584,7 +9599,7 @@ $('loginBtn').onclick=login;/* v18.3: Refresh goes back to the provider now (res
    resume — that is the whole point of the button. The saved credentials are no longer wiped here;
    the signed-out flag is what stops every automatic path instead. (The activation code was never
    cleared by logout anyway, so a device that could be signed back in by a tap already could.) */
-$('logoutBtn').onclick=()=>{cleanup();setSignedOut(true);try{localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;S.current=null;$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch();paintNowPlayingChip()};
+$('logoutBtn').onclick=()=>{cleanup();setSignedOut(true);try{localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S._m3uDirectUrl=null;S.stalker=null;S.current=null;$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch();paintNowPlayingChip()};
 if($('resumeLoginBtn'))$('resumeLoginBtn').onclick=resumeLogin;
 /* v4.1: share-profile wiring */
 if($('shareClose'))$('shareClose').onclick=()=>$('shareSheet').classList.remove('show');
@@ -9860,7 +9875,8 @@ const PROFILES_KEY='m26-users-v1';
 const PROFILE_KINDS={
   xtream:{label:'Server Login',cls:''},
   mac:{label:'M3U Playlist',cls:'k-mac'},
-  m3ufile:{label:'M3U Playlist',cls:'k-m3u'}
+  m3ufile:{label:'M3U Playlist',cls:'k-m3u'},
+  m3uurl:{label:'M3U Playlist',cls:'k-m3u'}
 };
 /* The migration below has to have run before anything READS the list, and the first read can come
    from several places depending on how the app was opened (boot, an explicit sign-out, the
@@ -9951,7 +9967,7 @@ function profileSub(p){
    one consistent, professional default rather than a coin-flip between a letter and an outline. */
 function profileAvatar(p){
   if(p.kind==='mac')return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="12" rx="2"/><path d="M7 21h10M12 17v4"/><path d="M6 9h4M6 12h7"/></svg>';
-  if(p.kind==='m3ufile')return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 11h11M4 16h7"/><path d="M17.5 12.5v6.2"/><circle cx="15.6" cy="18.7" r="1.9"/></svg>';
+  if(p.kind==='m3ufile'||p.kind==='m3uurl')return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h11M4 11h11M4 16h7"/><path d="M17.5 12.5v6.2"/><circle cx="15.6" cy="18.7" r="1.9"/></svg>';
   return '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12.5c2.55 0 4.6-2.06 4.6-4.6C16.6 5.34 14.55 3.3 12 3.3S7.4 5.34 7.4 7.9c0 2.54 2.05 4.6 4.6 4.6Zm0 2.3c-3.62 0-9.2 1.83-9.2 5.44V22h18.4v-1.76c0-3.61-5.58-5.44-9.2-5.44Z"/></svg>';
 }
 function paintProfiles(){
@@ -9986,6 +10002,11 @@ async function signInWithProfile(id){
   if(p.kind==='m3ufile'){
     if(typeof openImportSheet==='function')openImportSheet();
     if($('importErr'))$('importErr').textContent='“'+p.name+'” came from a file on this device, so it has to be opened again — pick it below.';
+    return;
+  }
+  /* A URL-sourced playlist DOES have an address to reconnect to — just go fetch it again. */
+  if(p.kind==='m3uurl'){
+    await fetchPlaylistFromUrl(p.url,p.name);
     return;
   }
   /* A MAC line is bound to ONE MAC on the seller's panel, and a device can hold rows for more than
@@ -11222,7 +11243,7 @@ function adoptStalkerSession(res){
      re-authenticate (do_auth) on the next launch. A MAC-only line simply has none, and storing
      empty strings is harmless. */
   const _u=S.user||'',_p=S.pass||'';
-  S.source='stalker';S.m3u=null;S.url=res.base;S.rawUrl=res.base;S.user=_u;S.pass=_p;
+  S.source='stalker';S.m3u=null;S._m3uDirectUrl=null;S.url=res.base;S.rawUrl=res.base;S.user=_u;S.pass=_p;
   S.live=res.live;S.liveCats=res.liveCats;S.loadedLive=true;S.loadingLive=false;
   /* Movies and series are NOT marked loaded here — they live behind a different, paged endpoint
      and are fetched below. Claiming they were already loaded is what left both tabs reading
@@ -11604,7 +11625,7 @@ async function adoptPlaylistText(text,label){
   if(!parsed||!parsed.total)throw Error('That playlist parsed to zero channels — it may be truncated or an error page saved as a file.');
   /* v17.0: importing a playlist is an explicit sign-in too, and it never goes through login(). */
   setSignedOut(false);
-  S.source='m3u';S.m3u=parsed;S.playlistUrl=label||'imported';
+  S.source='m3u';S.m3u=parsed;S.playlistUrl=label||'imported';S._m3uDirectUrl=null;
   S.user='';S.pass='';resetFullCatalog();
   /* v17.6: remembered as a user under the playlist's own name — there is no username on this
      route, so the file IS the identity. It cannot be replayed on its own (the text came off this
@@ -11613,6 +11634,30 @@ async function adoptPlaylistText(text,label){
   rememberProfile({kind:'m3ufile',name:label||'Imported playlist',url:'',user:'',pass:'',mac:'',label:label||'imported',source:'on this device'});
   await loadType('live');await loadType('vod');await loadType('series');
   $('login').classList.add('hidden');showHome();keepTranscoderWarm();updateHomeCounts();
+  toast('Playlist loaded — '+parsed.total.toLocaleString()+' items');
+}
+/* v25.39 (owner request): "enter an M3U URL and pull the playlist" — a plain public/direct .m3u
+   link (no username, no password, e.g. iptv-org's index.m3u), fetched straight from this device.
+   Tries the direct connection first, then the app's own CORS relay (proxyUrl/fetchTextChain) for a
+   host that refuses cross-origin reads. Unlike a picked file or pasted text, the URL itself is an
+   address that CAN be reconnected to — so it is remembered as its own profile kind ('m3uurl') and
+   S._m3uDirectUrl is set so resyncSource() knows to refetch this exact link on Refresh, instead of
+   routing through the Xtream-panel get.php walk that loadPlaylistSource() otherwise does. */
+async function fetchPlaylistFromUrl(url,label){
+  url=String(url||'').trim();
+  if(!/^https?:\/\//i.test(url))throw Error('Enter a full playlist link, starting with http:// or https://');
+  const text=await fetchTextChain(url,25000);
+  if(!text)throw Error('Could not reach that link. Check the URL, or your connection, and try again.');
+  if(!Media26Portal.looksLikeM3U(text))throw Error('That link did not return an M3U playlist — it should start with #EXTM3U.');
+  const parsed=Media26Portal.parseM3U(text);
+  if(!parsed||!parsed.total)throw Error('That playlist parsed to zero channels — it may be empty or an error page.');
+  setSignedOut(false);
+  S.source='m3u';S.m3u=parsed;S.rawUrl=url;S.url=url;S.playlistUrl=url;S._m3uDirectUrl=url;
+  S.user='';S.pass='';resetFullCatalog();
+  const name=label||hostOf(url)||'Playlist link';
+  rememberProfile({kind:'m3uurl',name,url,raw:url,user:'',pass:'',mac:'',source:hostOf(url)});
+  await loadType('live');await loadType('vod');await loadType('series');
+  $('login').classList.add('hidden');showHome();keepTranscoderWarm();updateHomeCounts();markSynced();
   toast('Playlist loaded — '+parsed.total.toLocaleString()+' items');
 }
 /* v15.4: the device-side route is the only one a provider's firewall cannot touch — their edge
@@ -11660,6 +11705,20 @@ async function submitImport(){
   }catch(e){ err((e&&e.message)||'Could not read that playlist.'); }
   finally{ if(btn)btn.disabled=false; }
 }
+if($('importUrlGo'))$('importUrlGo').onclick=async()=>{
+  const err=m=>{if($('importErr'))$('importErr').textContent=m;};
+  const url=(($('importUrl')&&$('importUrl').value)||'').trim();
+  const btn=$('importUrlGo');
+  err('');
+  if(!url){err('Paste a playlist link first.');return;}
+  btn.disabled=true;err('Fetching…');
+  try{
+    await fetchPlaylistFromUrl(url);
+    err('');
+    $('importSheet').classList.remove('show');
+  }catch(e){ err((e&&e.message)||'Could not fetch that playlist.'); }
+  finally{ btn.disabled=false; }
+};
 if($('importM3uBtn'))$('importM3uBtn').onclick=()=>openImportSheet();
 if($('importClose'))$('importClose').onclick=()=>$('importSheet').classList.remove('show');
 if($('importGo'))$('importGo').onclick=submitImport;
@@ -11716,7 +11775,7 @@ if($('setStream'))$('setStream').onclick=()=>{$('homeSetSheet').classList.remove
    is how you get back in, and to any of the other lines on this device. It has to be repainted
    here, because this is a path back to the sign-in screen that did not go through
    paintResumeLogin() and so left the list showing whatever was on it before. */
-if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S.stalker=null;S.current=null;$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch();paintNowPlayingChip()};
+if($('setLogout'))$('setLogout').onclick=()=>{$('homeSetSheet').classList.remove('show');if($('home'))$('home').classList.add('hidden');cleanup();try{store.removeItem(KEY);localStorage.removeItem('m26_stk');}catch(e){}S.source='xtream';S._m3uDirectUrl=null;S.stalker=null;S.current=null;$('login').classList.remove('hidden');paintResumeLogin();maybeStartActivationWatch();paintNowPlayingChip()};
 if($('homeSetSheet'))$('homeSetSheet').onclick=e=>{if(e.target.id==='homeSetSheet')$('homeSetSheet').classList.remove('show')};
 /* v89: Home hub wiring — card taps navigate to that category; brand logo returns Home. */
 /* v25.15: the refresh control sits INSIDE the card button, so it has to be claimed before the
