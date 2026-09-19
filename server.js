@@ -10,7 +10,7 @@ const { handlePlaylist } = require('./worker-compat.js');
 /* Reported by /health and shown in the admin dashboard, so it is possible to tell at a glance
    whether Render is actually running the current build or still serving an older deploy. Bump
    this alongside APP_VERSION in index.html. */
-const SERVER_BUILD = '14.10';
+const SERVER_BUILD = '14.11';
 const PORT = Number(process.env.PORT || 8080);
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || '').replace(/\/+$/, '');
 const MEDIA_ROOT = process.env.MEDIA_ROOT || path.join('/tmp', 'smarter-iptv-hls');
@@ -566,7 +566,17 @@ function hlsArgs(profile, dir, playlist, segType) {
    caught up. Reading the real duration straight from the source once, up front, and handing it to
    the client (see the x-source-duration response header below) fixes the display without waiting
    for the whole file to be copied. */
-function probeSource(url) {
+/* v25.45 (owner report: movies taking ~20s to start): `fast` shrinks the analysis window (256KB /
+   0.5s instead of 2MB / 2s) and the timeout (3s instead of PROBE_TIMEOUT_MS) for callers that only
+   need the CODEC NAME — which lives in the stream's first few packets — and not an accurate
+   duration, which is what the original, larger window was actually sized for. See buildSession's
+   own note for why splitting these two apart removes a full blocking network round-trip from the
+   critical path before playback can start. */
+function probeSource(url, opts) {
+  const fast = !!(opts && opts.fast);
+  const probesize = fast ? 262144 : 2000000;
+  const analyzeduration = fast ? 500000 : 2000000;
+  const timeoutMs = fast ? 3000 : PROBE_TIMEOUT_MS;
   return new Promise(resolve => {
     let settled = false;
     const finish = v => { if (!settled) { settled = true; resolve(v); } };
@@ -576,8 +586,8 @@ function probeSource(url) {
         '-v', 'error',
         '-user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         '-rw_timeout', '8000000',
-        '-analyzeduration', '2000000',
-        '-probesize', '2000000',
+        '-analyzeduration', String(analyzeduration),
+        '-probesize', String(probesize),
         '-select_streams', 'v:0',
         '-show_entries', 'stream=codec_name:format=duration',
         '-of', 'default=noprint_wrappers=1',
@@ -593,7 +603,7 @@ function probeSource(url) {
       const durationSec = durM ? Number(durM[1]) : 0;
       finish({ codec: codecM ? codecM[1].trim().toLowerCase() : '', durationSec: isFinite(durationSec) ? durationSec : 0 });
     });
-    const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} finish({ codec: '', durationSec: 0 }); }, PROBE_TIMEOUT_MS);
+    const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch (e) {} finish({ codec: '', durationSec: 0 }); }, timeoutMs);
     if (killer.unref) killer.unref();
   });
 }
@@ -666,17 +676,34 @@ function start(url, profile = 'mobile') {
 }
 
 async function buildSession(id, url, profile) {
-  /* Copy-mode can only produce a playable stream if the container we wrap into suits the codec.
-     Probe once, up front: HEVC must go into fMP4 (and be tagged hvc1) or Apple devices refuse it;
-     H.264 keeps the proven MPEG-TS path. An unknown/failed probe also keeps the old path. */
-  let segType = '', vtag = '', sourceDurationSec = 0;
+  /* v25.45 (owner report: movies taking ~20s to start): the OLD code blocked ffmpeg's own start —
+     and therefore the very first byte of playable video — behind one full ffprobe round trip sized
+     for an ACCURATE DURATION (2MB / 2s of analysis) on EVERY non-live title, fastvod included. On a
+     slow panel that round trip alone (its own connection setup, then waiting for enough bytes) can
+     eat several real seconds before the copy that actually produces something playable has even
+     started, and it was entirely sequential: probe fully finishes, THEN ffmpeg spawns.
+     Codec is the only thing that must be known before ffmpeg spawns — it decides the container
+     (HEVC must go into fMP4/hvc1 or Apple devices refuse it; H.264 keeps the proven MPEG-TS path) —
+     and codec lives in the stream's first few packets, not 2 seconds of it. Duration is a display
+     nicety (see probeSource's own note on why it exists) that the client can live without for the
+     first few manifest requests. So: only fastvod (the only profile that branches its container on
+     codec) pays a SMALL, fast, bounded probe (256KB/0.5s analysis, 3s timeout) before ffmpeg starts;
+     every profile's accurate-duration probe now runs in the BACKGROUND after ffmpeg has already
+     been told to start copying, landing in session.sourceDurationSec whenever it resolves — the
+     x-source-duration response header (below) already reads that field live on every request, so
+     this costs nothing but the header being briefly absent on the very first manifest fetch instead
+     of blocking playback start on it. */
+  let segType = '', vtag = '';
   if (!isLiveProfile(profile)) {
-    const probe = await probeSource(url);
-    sourceDurationSec = probe.durationSec || 0;
     if (profile === 'fastvod') {
-      if (probe.codec === 'hevc' || probe.codec === 'h265') { segType = 'fmp4'; vtag = 'hvc1'; }
-      console.log(`[probe] id=${id} video=${probe.codec || 'unknown'} duration=${sourceDurationSec || 'unknown'} -> ${segType === 'fmp4' ? 'fMP4/hvc1 (iOS-safe)' : 'mpegts'}`);
+      const fastProbe = await probeSource(url, { fast: true });
+      if (fastProbe.codec === 'hevc' || fastProbe.codec === 'h265') { segType = 'fmp4'; vtag = 'hvc1'; }
+      console.log(`[probe] id=${id} video=${fastProbe.codec || 'unknown'} -> ${segType === 'fmp4' ? 'fMP4/hvc1 (iOS-safe)' : 'mpegts'}`);
     }
+    probeSource(url).then(full => {
+      const s = sessions.get(id);
+      if (s) s.sourceDurationSec = full.durationSec || 0;
+    }).catch(() => {});
   }
 
   const { dir } = safePath(id);
@@ -698,7 +725,7 @@ async function buildSession(id, url, profile) {
     ...hlsArgs(profile, dir, playlist, segType)
   ];
 
-  const session = { id, url, profile, child: null, playlist, dir, created: Date.now(), lastAccess: Date.now(), exited: false, log: '', spawnArgs: args, sourceDurationSec };
+  const session = { id, url, profile, child: null, playlist, dir, created: Date.now(), lastAccess: Date.now(), exited: false, log: '', spawnArgs: args, sourceDurationSec: 0 };
   spawnFfmpeg(session, args);
   sessions.set(id, session);
   return session;
@@ -718,8 +745,21 @@ async function waitForPlaylist(session, ms = 30000) {
      starving playback outright. It cannot fix a source whose sustained throughput is genuinely
      BELOW the video's bitrate — nothing server-side can outrun that — but it removes the far more
      common case where the source is fast enough on average and the old paper-thin 2s margin was
-     the only reason playback ever caught up to it. */
+     the only reason playback ever caught up to it.
+     v25.45 (owner report: movies taking ~20s to start): the full 5-segment (10s) cushion was
+     UNCONDITIONAL — on a source slow enough that even 2 segments (4s) takes a while to copy, the
+     player waited the full 10 real seconds anyway, on top of connect/probe time, for a cushion
+     that a slow source was going to eat through in seconds regardless (v25.38's own comment above:
+     server-side buffering "cannot fix a source whose sustained throughput is genuinely below the
+     video's bitrate"). SOFT_DEADLINE_MS caps how long fastvod will hold out for the FULL cushion:
+     once that much wall-clock time has passed, it settles for whatever is ready as long as it is at
+     least MIN_SEGMENTS (2 segments / 4s — the same floor every other profile already starts at, so
+     this can never do WORSE than the pre-v25.38 baseline). A fast-enough source still gets the full
+     10s head start well inside the soft deadline, unaffected; only a source too slow to earn that
+     head start promptly anyway stops waiting for something more real seconds wouldn't have fixed. */
   const need = session.profile === 'fastvod' ? 5 : 2;
+  const MIN_SEGMENTS = 2;
+  const SOFT_DEADLINE_MS = session.profile === 'fastvod' ? 5000 : 0;
   while (Date.now() - startAt < ms) {
     if (session.exited && !fs.existsSync(file)) return false;
     if (fs.existsSync(file)) {
@@ -727,6 +767,7 @@ async function waitForPlaylist(session, ms = 30000) {
         const content = fs.readFileSync(file, 'utf8');
         const segments = (content.match(/#EXTINF:/g) || []).length;
         if (segments >= need || content.includes('#EXT-X-ENDLIST')) return true;
+        if (SOFT_DEADLINE_MS && segments >= MIN_SEGMENTS && Date.now() - startAt >= SOFT_DEADLINE_MS) return true;
       } catch (e) {}
     }
     await new Promise(resolve => setTimeout(resolve, 150));
