@@ -2258,7 +2258,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.43';
+const APP_VERSION='25.44';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -12711,60 +12711,60 @@ applySubtitleStyle();wireSubtitleStyleTracking();
   };
   track.addEventListener('pointerup',stopDrag);track.addEventListener('pointercancel',stopDrag);
 
-  /* ── v25.41: hover/drag thumbnail preview ─────────────────────────────────────────────────
-     Two things happen on every move: the timestamp pill updates instantly (cheap, always
-     correct), and — only when the current source is a plain http(s) URL, never a blob: one —
-     a throttled offscreen <video> grabs the real frame at that timestamp onto a <canvas>.
-     A blob: src means hls.js/mpegts.js/mkv.js own an in-page MediaSource that a second video
-     element cannot attach to (one MediaSource, one consumer), so a second decode of THAT same
-     buffered data is not cheap — it is not available at all. Rather than fake a mismatched
-     frame, the thumbnail box hides itself and only the timestamp pill shows: an honest partial
-     feature beats a wrong one. Native playback (Safari HLS, direct MP4/TS) keeps a real
-     resolved URL in v.currentSrc even after mpegts/hls take a different route elsewhere, so it
-     gets the real thumbnail. */
+  /* ── v25.44 (owner report: scrubbing hangs the player; the preview thumbnail is black) ──────
+     v25.41's hover preview opened a SECOND hidden <video> and re-seeked it against the live
+     network URL on every hover tick. For a server-relayed or transcoded route that is a second
+     concurrent connection fighting the real player for the same panel session/transcoder slot —
+     exactly the "one connection per account" trap CLAUDE.md's MAG history warns about — which is
+     what was actually hanging playback while scrubbing, not the seek bar itself. The second
+     connection also rarely got real data in time before being torn down and re-pointed at the
+     next hover position, which is why the grab came back black far more often than not.
+     Fixed by never opening a second connection at all: this now passively samples a frame off
+     the SAME <video> element already on screen, throttled to once per ~4s of actual playback
+     progress, and caches it by timestamp bucket. Hovering a spot the video has already played
+     through shows that cached frame (a real decoded frame, guaranteed non-black); hovering
+     anywhere else shows the timestamp pill alone rather than fake or stale imagery — the same
+     "honest partial feature" choice as before, just drawn from data that already exists for
+     free instead of paying for a fetch that can hurt playback. */
   const previewBox=$('seekPreview'),previewCanvas=$('seekPreviewCanvas'),previewTime=$('seekPreviewTime');
-  let previewVideo=null,previewCtx=null,previewSrc='',previewCache=new Map();
-  const GRAB_DEBOUNCE_MS=150,GRAB_BUCKET_SEC=4,CACHE_MAX=80;
-  let grabTimer=null,grabSeq=0;
-  const canGrabThumb=()=>/^https?:\/\//i.test(v.currentSrc||'');
-  const ensurePreviewVideo=()=>{
-    if(previewVideo)return previewVideo;
-    previewVideo=document.createElement('video');
-    previewVideo.muted=true;previewVideo.preload='auto';previewVideo.playsInline=true;
-    previewVideo.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px';
-    document.body.appendChild(previewVideo);
-    previewCtx=previewCanvas.getContext('2d');
-    return previewVideo;
+  const previewCtx=previewCanvas.getContext('2d');
+  const GRAB_BUCKET_SEC=4,CACHE_MAX=150,MATCH_TOLERANCE_BUCKETS=3;
+  let previewSrc='',previewCache=new Map(),lastSampledBucket=-1;
+  const resetPreviewCacheIfNewSrc=()=>{
+    if(previewSrc!==v.currentSrc){previewSrc=v.currentSrc;previewCache.clear();lastSampledBucket=-1;}
   };
-  const hideSeekPreview=()=>{previewBox.classList.remove('show');clearTimeout(grabTimer);};
-  const drawFrame=()=>{
+  const sampleCurrentFrame=()=>{
+    resetPreviewCacheIfNewSrc();
+    if(isLiveNow()||v.readyState<2)return;    /* HAVE_CURRENT_DATA — a real frame is actually on screen */
+    const bucket=Math.round(v.currentTime/GRAB_BUCKET_SEC);
+    if(bucket===lastSampledBucket)return;
+    lastSampledBucket=bucket;
     try{
-      previewCtx.drawImage(previewVideo,0,0,previewCanvas.width,previewCanvas.height);
-      previewCanvas.classList.remove('noThumb');
-    }catch(e){previewCanvas.classList.add('noThumb');}
-  };
-  const requestGrab=(t,bucketKey)=>{
-    const seq=++grabSeq;
-    const pv=ensurePreviewVideo();
-    if(previewSrc!==v.currentSrc){previewSrc=v.currentSrc;previewCache.clear();pv.src=previewSrc;}
-    const onSeeked=()=>{
-      pv.removeEventListener('seeked',onSeeked);
-      if(seq!==grabSeq)return;               /* a newer hover already moved on */
-      drawFrame();
+      previewCtx.drawImage(v,0,0,previewCanvas.width,previewCanvas.height);
       if(previewCache.size>=CACHE_MAX){const k=previewCache.keys().next().value;previewCache.delete(k);}
-      try{previewCache.set(bucketKey,previewCanvas.toDataURL('image/jpeg',0.6));}catch(e){}
-    };
-    pv.addEventListener('seeked',onSeeked);
-    try{pv.currentTime=t;}catch(e){}
+      previewCache.set(bucket,previewCanvas.toDataURL('image/jpeg',0.55));
+    }catch(e){/* a cross-origin frame with no CORS headers taints the canvas — drop caching for this title, timestamp-only stays available */}
   };
+  v.addEventListener('timeupdate',sampleCurrentFrame);
+  v.addEventListener('seeked',sampleCurrentFrame);
+  const hideSeekPreview=()=>{previewBox.classList.remove('show');};
   const paintCachedThumb=dataUrl=>{
     const img=new Image();
     img.onload=()=>{try{previewCtx.drawImage(img,0,0,previewCanvas.width,previewCanvas.height);previewCanvas.classList.remove('noThumb');}catch(e){}};
     img.src=dataUrl;
   };
+  const nearestCachedBucket=bucket=>{
+    if(previewCache.has(bucket))return bucket;
+    for(let d=1;d<=MATCH_TOLERANCE_BUCKETS;d++){
+      if(previewCache.has(bucket-d))return bucket-d;
+      if(previewCache.has(bucket+d))return bucket+d;
+    }
+    return null;
+  };
   function updateSeekPreview(clientX){
     if(isLiveNow())return;
     const D=effDur();if(!D)return;
+    resetPreviewCacheIfNewSrc();
     const pct=pctFromClientX(clientX);
     const t=pct*D;
     const r=track.getBoundingClientRect();
@@ -12772,12 +12772,10 @@ applySubtitleStyle();wireSubtitleStyleTracking();
     previewBox.style.left=px+'px';
     previewTime.textContent=formatMediaTime(t);
     previewBox.classList.add('show');
-    clearTimeout(grabTimer);
-    if(!canGrabThumb()){previewCanvas.classList.add('noThumb');return}
-    const bucketKey=Math.round(t/GRAB_BUCKET_SEC);
-    const cached=previewCache.get(bucketKey);
-    if(cached){paintCachedThumb(cached);return}
-    grabTimer=setTimeout(()=>requestGrab(t,bucketKey),GRAB_DEBOUNCE_MS);
+    const bucket=Math.round(t/GRAB_BUCKET_SEC);
+    const hit=nearestCachedBucket(bucket);
+    if(hit==null){previewCanvas.classList.add('noThumb');return}
+    paintCachedThumb(previewCache.get(hit));
   }
 })();
 /* v51: touch gestures on the video area (never touches the playback engine):
