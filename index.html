@@ -410,6 +410,16 @@ body.light .card:hover{box-shadow:0 12px 28px rgba(27,39,62,.16)}
 .seekTrack::before{content:"";position:absolute;top:50%;left:0;right:0;height:4px;transform:translateY(-50%);background:rgba(255,255,255,.22);border-radius:4px}
 .seekFill{position:absolute;height:4px;left:0;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:4px;pointer-events:none}
 .seekHandle{position:absolute;width:13px;height:13px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.4);transform:translate(-50%,0);pointer-events:none}
+/* v25.41: seek bar hover/drag preview — thumbnail (when the current source allows an offscreen
+   grab) plus a timestamp pill, positioned above the cursor/thumb. Left offset is set in JS as a
+   px value (not a %) so it can be clamped to the player's edges without the box running off
+   either side. Movies/Series only — live has no scrubber to hover at all. */
+.seekPreview{position:absolute;bottom:24px;left:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:5px;opacity:0;pointer-events:none;transition:opacity .12s ease;z-index:6}
+.seekPreview.show{opacity:1}
+.seekPreviewCanvas{width:160px;height:90px;border-radius:9px;background:#000;border:1px solid rgba(255,255,255,.2);box-shadow:0 12px 28px rgba(0,0,0,.5);display:block}
+.seekPreviewCanvas.noThumb{display:none}
+.seekPreviewTime{background:rgba(5,10,20,.92);border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:3px 9px;font-size:11.5px;font-weight:800;color:#eef6ff;white-space:nowrap}
+@media(max-width:760px){.seekPreviewCanvas{width:120px;height:68px}.seekPreviewCanvas.noThumb{display:none}}
 .seekRow{position:relative}
 .seekRow .seekTrack{position:relative}
 .seekRow .seekFill,.seekRow .seekHandle{top:50%;transform:translate(0,-50%)}
@@ -1554,7 +1564,7 @@ body.noSeries .playerModes{grid-template-columns:repeat(2,1fr)}
           <div class="ovBottom">
             <div class="seekRow hidden" id="seekRow">
               <span class="timeLabel mxCur" id="curTime">0:00</span>
-              <div class="seekTrack" id="seekTrack"><div class="seekFill" id="seekFill"></div><div class="seekHandle" id="seekHandle"></div></div>
+              <div class="seekTrack" id="seekTrack"><div class="seekFill" id="seekFill"></div><div class="seekHandle" id="seekHandle"></div><div class="seekPreview" id="seekPreview"><canvas class="seekPreviewCanvas" id="seekPreviewCanvas" width="160" height="90"></canvas><span class="seekPreviewTime" id="seekPreviewTime"></span></div></div>
               <span class="timeLabel" id="durTime">0:00</span>
             </div>
             <div class="mxControlRow">
@@ -2248,7 +2258,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.40';
+const APP_VERSION='25.41';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -12607,18 +12617,90 @@ applySubtitleStyle();wireSubtitleStyleTracking();
   };
   track.addEventListener('pointerdown',e=>{if(isLiveNow()||!effDur())return;dragging=true;pendingSeekPct=null;try{track.setPointerCapture(e.pointerId)}catch{}seekTo(e.clientX)});
   track.addEventListener('pointermove',e=>{
+    updateSeekPreview(e.clientX);
     if(!dragging||isLiveNow()||!effDur())return;
     const pct=pctFromClientX(e.clientX);
     paintAt(pct);
     if(Date.now()-lastSeekCommitAt>=SEEK_COMMIT_MS){pendingSeekPct=null;commitSeek(pct);}
     else pendingSeekPct=pct;
   });
+  track.addEventListener('pointerleave',()=>{if(!dragging)hideSeekPreview();});
   const stopDrag=e=>{
     dragging=false;
     try{track.releasePointerCapture(e.pointerId)}catch{}
     if(pendingSeekPct!=null){commitSeek(pendingSeekPct);pendingSeekPct=null;}
+    hideSeekPreview();
   };
   track.addEventListener('pointerup',stopDrag);track.addEventListener('pointercancel',stopDrag);
+
+  /* ── v25.41: hover/drag thumbnail preview ─────────────────────────────────────────────────
+     Two things happen on every move: the timestamp pill updates instantly (cheap, always
+     correct), and — only when the current source is a plain http(s) URL, never a blob: one —
+     a throttled offscreen <video> grabs the real frame at that timestamp onto a <canvas>.
+     A blob: src means hls.js/mpegts.js/mkv.js own an in-page MediaSource that a second video
+     element cannot attach to (one MediaSource, one consumer), so a second decode of THAT same
+     buffered data is not cheap — it is not available at all. Rather than fake a mismatched
+     frame, the thumbnail box hides itself and only the timestamp pill shows: an honest partial
+     feature beats a wrong one. Native playback (Safari HLS, direct MP4/TS) keeps a real
+     resolved URL in v.currentSrc even after mpegts/hls take a different route elsewhere, so it
+     gets the real thumbnail. */
+  const previewBox=$('seekPreview'),previewCanvas=$('seekPreviewCanvas'),previewTime=$('seekPreviewTime');
+  let previewVideo=null,previewCtx=null,previewSrc='',previewCache=new Map();
+  const GRAB_DEBOUNCE_MS=150,GRAB_BUCKET_SEC=4,CACHE_MAX=80;
+  let grabTimer=null,grabSeq=0;
+  const canGrabThumb=()=>/^https?:\/\//i.test(v.currentSrc||'');
+  const ensurePreviewVideo=()=>{
+    if(previewVideo)return previewVideo;
+    previewVideo=document.createElement('video');
+    previewVideo.muted=true;previewVideo.preload='auto';previewVideo.playsInline=true;
+    previewVideo.style.cssText='position:fixed;left:-9999px;top:-9999px;width:1px;height:1px';
+    document.body.appendChild(previewVideo);
+    previewCtx=previewCanvas.getContext('2d');
+    return previewVideo;
+  };
+  const hideSeekPreview=()=>{previewBox.classList.remove('show');clearTimeout(grabTimer);};
+  const drawFrame=()=>{
+    try{
+      previewCtx.drawImage(previewVideo,0,0,previewCanvas.width,previewCanvas.height);
+      previewCanvas.classList.remove('noThumb');
+    }catch(e){previewCanvas.classList.add('noThumb');}
+  };
+  const requestGrab=(t,bucketKey)=>{
+    const seq=++grabSeq;
+    const pv=ensurePreviewVideo();
+    if(previewSrc!==v.currentSrc){previewSrc=v.currentSrc;previewCache.clear();pv.src=previewSrc;}
+    const onSeeked=()=>{
+      pv.removeEventListener('seeked',onSeeked);
+      if(seq!==grabSeq)return;               /* a newer hover already moved on */
+      drawFrame();
+      if(previewCache.size>=CACHE_MAX){const k=previewCache.keys().next().value;previewCache.delete(k);}
+      try{previewCache.set(bucketKey,previewCanvas.toDataURL('image/jpeg',0.6));}catch(e){}
+    };
+    pv.addEventListener('seeked',onSeeked);
+    try{pv.currentTime=t;}catch(e){}
+  };
+  const paintCachedThumb=dataUrl=>{
+    const img=new Image();
+    img.onload=()=>{try{previewCtx.drawImage(img,0,0,previewCanvas.width,previewCanvas.height);previewCanvas.classList.remove('noThumb');}catch(e){}};
+    img.src=dataUrl;
+  };
+  function updateSeekPreview(clientX){
+    if(isLiveNow())return;
+    const D=effDur();if(!D)return;
+    const pct=pctFromClientX(clientX);
+    const t=pct*D;
+    const r=track.getBoundingClientRect();
+    const px=Math.max(0,Math.min(r.width,clientX-r.left));
+    previewBox.style.left=px+'px';
+    previewTime.textContent=formatMediaTime(t);
+    previewBox.classList.add('show');
+    clearTimeout(grabTimer);
+    if(!canGrabThumb()){previewCanvas.classList.add('noThumb');return}
+    const bucketKey=Math.round(t/GRAB_BUCKET_SEC);
+    const cached=previewCache.get(bucketKey);
+    if(cached){paintCachedThumb(cached);return}
+    grabTimer=setTimeout(()=>requestGrab(t,bucketKey),GRAB_DEBOUNCE_MS);
+  }
 })();
 /* v51: touch gestures on the video area (never touches the playback engine):
      - press & HOLD  -> 2x fast-forward while held, back to 1x on release (VOD/series only)
