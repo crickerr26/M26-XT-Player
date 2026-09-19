@@ -2258,7 +2258,7 @@ const VIEWMODE_KEY='media26-view-modes-v1';
 const SORTMODE_KEY='media26-sort-modes-v1';
 /* v73: version scheme (owner request) — starts at 1.0 and bumps +0.1 on every push/deployment.
    Shown as "v"+APP_VERSION, i.e. v1.0, v1.1, v1.2 ... on the login page and version badges. */
-const APP_VERSION='25.42';
+const APP_VERSION='25.43';
 /* v53: register the auto-update service worker (network-first app shell). This is what makes
    an already-installed home-screen app pick up every new deployment on its next launch. It
    never caches or touches stream/proxy requests, so playback is unaffected. Safe no-op on
@@ -9157,6 +9157,84 @@ async function startDownload(x){
     await dlPut({key,name:nameOf(x),ext,mime,size:prog.received,numSegments:segIndex,poster:logoOf(x)||'',type:typeOf(x),addedAt:(existing&&existing.addedAt)||Date.now(),watched:false,partial:true,received:prog.received,sourceUrl:url});
   };
   try{
+    /* v25.43 (owner report: downloads capped around 670 KB/s on a fast connection): once a
+       connection is open, this app's own reading loop was never the bottleneck — a single HTTP
+       connection to an origin/relay that itself throttles PER CONNECTION (common on these panels)
+       cannot go any faster no matter how the bytes are read. The only real lever for that is more
+       connections, so a genuinely FRESH download (never a resume — resuming a partial file stays
+       on the hardened sequential/Range-resume path below, completely untouched) first probes with
+       a single 1-byte Range request; if the origin answers 206 with a real Content-Length, the file
+       is split into the exact same DL_SEG_BYTES segments the sequential path below writes one at a
+       time, and a small pool fetches them concurrently — each segment written via the same
+       dlPutSegment(key, index, blob) the sequential path uses, so playback/assembly code needs no
+       changes at all: it just reads segments 0..N by index either way.
+       Concurrency is capped at 2, and skipped outright while something is already playing
+       (hasActiveStream, above) — CLAUDE.md's hard-won lesson from real accounts is that many of
+       these panels allow exactly ONE connection per account, and the MAG rate-limit ban in that
+       history came from a BURST of requests, not a slow one; 2 is enough to beat a per-connection
+       throttle while staying far under anything that has ever caused a real account problem, and
+       never on top of a connection already in use for playback.
+       ANY failure at all — a non-206 response, the origin ignoring Range, a dropped connection,
+       anything — deletes whatever segments this attempt wrote and falls straight through to the
+       sequential path below exactly as if parallel had never been tried, so a panel that cannot
+       support this loses nothing but the few hundred milliseconds the probe cost. */
+    const DL_PARALLEL_CONCURRENCY=2;
+    if(!existing&&!hasActiveStream){
+      try{
+        const probe=await fetchDlWithTimeout(url,{signal:ctl.signal,headers:{Range:'bytes=0-0'}},20000);
+        const pcr=String(probe.headers.get('content-range')||'');
+        const pTotal=Number((pcr.match(/\/(\d+)\s*$/)||[])[1]||0);
+        try{await probe.body.cancel();}catch(e){}
+        if(probe.status===206&&pTotal>DL_SEG_BYTES){
+          const numSegs=Math.ceil(pTotal/DL_SEG_BYTES);
+          const segLen=new Array(numSegs).fill(0);
+          const segsDone=new Set();
+          let cursor=0,parallelFailed=null,lastUiAt2=0;
+          const contiguousBytes=()=>{let i=0,b=0;while(segsDone.has(i)){b+=segLen[i];i++;}return b;};
+          const tick=()=>{
+            const now=Date.now();if(now-lastUiAt2<250)return;
+            const rec=contiguousBytes();
+            prog.received=rec;prog.total=pTotal;prog.pct=Math.min(99,Math.round(rec/pTotal*100));
+            const dt=(now-(lastUiAt2||now-250))/1000,dBytes=rec-(prog.lastUiBytes||0);
+            const instBps=dt>0?dBytes/dt:0;
+            prog.bps=prog.bps?Math.round(prog.bps*0.7+instBps*0.3):Math.round(instBps);
+            prog.lastUiBytes=rec;updateDlRowProgress(key,prog);lastUiAt2=now;
+          };
+          const worker=async()=>{
+            for(;;){
+              const idx=cursor++;
+              if(idx>=numSegs||parallelFailed)return;
+              const start=idx*DL_SEG_BYTES,end=Math.min(pTotal,start+DL_SEG_BYTES)-1;
+              try{
+                const r=await fetchDlWithTimeout(url,{signal:ctl.signal,headers:{Range:'bytes='+start+'-'+end}},20000);
+                if(r.status!==206)throw new Error('origin ignored Range on a parallel segment');
+                const buf=await r.arrayBuffer();
+                await dlPutSegment(key,idx,new Blob([buf]));
+                segLen[idx]=buf.byteLength;segsDone.add(idx);
+                tick();
+              }catch(werr){parallelFailed=werr;return;}
+            }
+          };
+          await Promise.all(Array.from({length:DL_PARALLEL_CONCURRENCY},worker));
+          if(ctl.signal.aborted)throw new Error('aborted');
+          if(parallelFailed)throw parallelFailed;
+          if(segsDone.size!==numSegs)throw new Error('parallel download incomplete');
+          prog.received=pTotal;prog.total=pTotal;prog.pct=99;updateDlRowProgress(key,prog);
+          await dlPut({key,name:nameOf(x),ext,mime,size:pTotal,numSegments:numSegs,poster:logoOf(x)||'',type:typeOf(x),addedAt:Date.now(),watched:false,partial:false});
+          toast(nameOf(x)+' saved for offline');
+          if(mkvLike(ext)){
+            S.dlSeekAttempting.add(key);
+            tryMakeSeekable(key,{announce:true}).finally(()=>S.dlSeekAttempting.delete(key));
+          }
+          return; /* success — the sequential path below never runs */
+        }
+      }catch(e){
+        if(ctl.signal.aborted)throw e; /* a real cancel — let the outer catch below handle it */
+        await dlDeleteSegments(key).catch(()=>{});
+        prog.received=0;prog.pct=0;prog.bps=0;prog.lastUiBytes=0;segIndex=0;
+        updateDlRowProgress(key,prog);
+      }
+    }
     /* v24.85 (owner report: "Offline save failed — Load failed" while a movie was also open in the
        player): "Load failed" is Safari/WebKit's own generic message for a connection that broke at
        the network level, before any HTTP response even came back — it carries no status code or
